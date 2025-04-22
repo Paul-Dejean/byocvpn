@@ -1,1 +1,35 @@
+use base64::{Engine, engine::general_purpose};
+use rand::rngs::OsRng;
+use x25519_dalek::{PublicKey, StaticSecret};
+
 pub mod cloud_provider;
+
+pub fn generate_keypair() -> (String, String) {
+    let private_key = StaticSecret::random_from_rng(OsRng);
+    let public_key = PublicKey::from(&private_key);
+
+    let private_b64 = general_purpose::STANDARD.encode(private_key.to_bytes());
+    let public_b64 = general_purpose::STANDARD.encode(public_key.as_bytes());
+
+    (private_b64, public_b64)
+}
+
+pub fn generate_client_config(
+    client_private: &str,
+    server_public: &str,
+    server_ip: &str,
+) -> String {
+    format!(
+        r#"[Interface]
+PrivateKey = {client_private}
+Address = 10.66.66.2/24
+DNS = 1.1.1.1
+
+[Peer]
+PublicKey = {server_public}
+Endpoint = {server_ip}:51820
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25
+"#
+    )
+}
