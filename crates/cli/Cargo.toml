@@ -1,0 +1,9 @@
+[package]
+name = "byocvpn_cli"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+byocvpn_core = { path = "../core" }
+byocvpn_aws = { path = "../infra/aws" }
+tokio = { version = "1.44.2", features = ["full"] }
