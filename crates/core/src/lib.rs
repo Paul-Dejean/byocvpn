@@ -15,18 +15,18 @@ pub fn generate_keypair() -> (String, String) {
 }
 
 pub fn generate_client_config(
-    client_private: &str,
-    server_public: &str,
+    client_private_key: &str,
+    server_public_key: &str,
     server_ip: &str,
 ) -> String {
     format!(
         r#"[Interface]
-PrivateKey = {client_private}
+PrivateKey = {client_private_key}
 Address = 10.66.66.2/24
 DNS = 1.1.1.1
 
 [Peer]
-PublicKey = {server_public}
+PublicKey = {server_public_key}
 Endpoint = {server_ip}:51820
 AllowedIPs = 0.0.0.0/0
 PersistentKeepalive = 25
