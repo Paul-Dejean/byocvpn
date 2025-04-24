@@ -1,9 +1,12 @@
+use std::time::Duration;
+
 use async_trait::async_trait;
 use aws_sdk_ec2::Client;
 use aws_sdk_ec2::types::{ResourceType, Tag, TagSpecification};
 use base64::{Engine, engine::general_purpose};
 use byocvpn_core::cloud_provider::CloudProvider;
 use byocvpn_core::cloud_provider::InstanceInfo;
+use tokio::time::sleep;
 
 pub struct AwsProvider {
     pub client: Client,
@@ -28,7 +31,7 @@ impl AwsProvider {
             .await?;
 
         if let Some(encoded_output) = output.output() {
-            let decoded = base64::decode(encoded_output)?;
+            let decoded = general_purpose::STANDARD.decode(encoded_output)?;
             let text = String::from_utf8_lossy(&decoded);
             println!("🧾 Console Output:\n{}", text);
         } else {
@@ -106,10 +109,43 @@ impl CloudProvider for AwsProvider {
             .await?;
         let instance = resp.instances().first().ok_or("No instance found")?;
         let instance_id = instance.instance_id().ok_or("No instance ID")?.to_string();
-        let public_ip = instance
-            .public_ip_address()
-            .ok_or("No public IP address")
-            .unwrap_or("no_ip")
+
+        for _ in 0..150 {
+            let desc = self
+                .client
+                .describe_instances()
+                .instance_ids(&instance_id)
+                .send()
+                .await?;
+
+            if let Some(state) = desc
+                .reservations()
+                .iter()
+                .flat_map(|r| r.instances())
+                .flat_map(|i| i.state().and_then(|s| s.name().to_owned()))
+                .next()
+            {
+                if state.as_str() == "running" {
+                    break;
+                }
+            }
+            sleep(Duration::from_secs(2)).await;
+        }
+
+        let desc = self
+            .client
+            .describe_instances()
+            .instance_ids(&instance_id)
+            .send()
+            .await?;
+
+        let public_ip = desc
+            .reservations()
+            .iter()
+            .flat_map(|r| r.instances())
+            .filter_map(|i| i.public_ip_address())
+            .next()
+            .ok_or("No public IP address yet")?
             .to_string();
 
         Ok((instance_id, public_ip))
@@ -136,11 +172,16 @@ impl CloudProvider for AwsProvider {
             .flat_map(|r| r.instances())
             .filter_map(|i| {
                 let id = i.instance_id()?.to_string();
+
                 let state = i
                     .state()
                     .and_then(|s| s.name().map(|s| s.as_str()))
                     .unwrap_or("unknown")
                     .to_string();
+
+                if state != "running" {
+                    return None;
+                }
                 let name = i
                     .tags()
                     .iter()

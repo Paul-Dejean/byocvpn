@@ -8,3 +8,4 @@ byocvpn_core = { path = "../core" }
 byocvpn_aws = { path = "../infra/aws" }
 tokio = { version = "1.44.2", features = ["full"] }
 clap = { version = "4.5.37", features = ["derive"] }
+rust-ini = "0.21.1"
