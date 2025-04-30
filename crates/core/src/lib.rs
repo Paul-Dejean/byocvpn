@@ -1,8 +1,12 @@
 use base64::{Engine, engine::general_purpose};
+use boringtun::x25519::{PublicKey, StaticSecret};
 use rand::rngs::OsRng;
-use x25519_dalek::{PublicKey, StaticSecret};
 
 pub mod cloud_provider;
+pub mod daemon;
+pub mod ipc;
+mod tunnel;
+mod types;
 
 pub fn generate_keypair() -> (String, String) {
     let private_key = StaticSecret::random_from_rng(OsRng);
