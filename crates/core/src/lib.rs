@@ -6,7 +6,7 @@ pub mod cloud_provider;
 pub mod daemon;
 pub mod ipc;
 mod tunnel;
-mod types;
+pub mod types;
 
 pub fn generate_keypair() -> (String, String) {
     let private_key = StaticSecret::random_from_rng(OsRng);

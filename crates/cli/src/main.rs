@@ -12,6 +12,9 @@ mod commands {
 #[command(name = "byocvpn")]
 #[command(about = "BYOC VPN CLI", long_about = None)]
 struct Cli {
+    #[arg(long, global = true)]
+    region: Option<String>,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -31,7 +34,7 @@ enum Commands {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
-    let aws = AwsProvider::new()
+    let aws = AwsProvider::new(&cli.region)
         .await
         .expect("Failed to initialize AWS provider");
 

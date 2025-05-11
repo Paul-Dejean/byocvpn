@@ -4,15 +4,16 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-async-trait = "0.1.88"
+
 rand = "0.8"
-base64 = "0.22.1"
-anyhow = "1.0.98"
-tokio = { version = "1.44.2", features = ["full"] }
+base64 = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 rust-ini = "0.21.1"
 net-route = "0.4.6"
-tun = { version = "0.7.18", features = ["async"] }
+tun = { version = "0.7.19", features = ["async"] }
 ipnet = "2.11.0"
 boringtun = "0.6.0"
+anyhow = "1.0.0"

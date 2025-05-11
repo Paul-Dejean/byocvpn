@@ -132,15 +132,15 @@ async fn connect_vpn(config_path: &str) -> anyhow::Result<()> {
     });
 
     // Step 4: route internet traffic
-    for net in allowed_ips {
-        if net == "0.0.0.0/0".parse::<IpNet>().unwrap() {
-            // split default route for compatibility
-            add_route("0.0.0.0/1", "10.0.0.1", &iface_name);
-            add_route("128.0.0.0/1", "10.0.0.1", &iface_name);
-        } else {
-            add_route(&net.to_string(), "10.0.0.1", &iface_name);
-        }
-    }
+    // for net in allowed_ips {
+    //     if net == "0.0.0.0/0".parse::<IpNet>().unwrap() {
+    //         // split default route for compatibility
+    //         add_route("0.0.0.0/1", "10.0.0.1", &iface_name);
+    //         add_route("128.0.0.0/1", "10.0.0.1", &iface_name);
+    //     } else {
+    //         add_route(&net.to_string(), "10.0.0.1", &iface_name);
+    //     }
+    // }
 
     println!("VPN setup complete.");
     Ok(())

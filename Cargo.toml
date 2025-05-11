@@ -1,2 +1,8 @@
 [workspace]
+resolver = "3"
 members = ["crates/core", "crates/cli", "crates/infra/aws"]
+
+[workspace.dependencies]
+tokio = { version = "1.45.0", features = ["full"] }
+async-trait = "0.1.88"
+base64 = "0.22.0"
