@@ -1,9 +1,13 @@
-use std::process::Command;
+use byocvpn_core::{
+    ipc::{is_daemon_running, send_command},
+    types::DaemonCommand,
+};
 
 pub async fn disconnect() -> Result<(), Box<dyn std::error::Error>> {
-    Command::new("wg-quick")
-        .args(["down", "./wg0.conf"])
-        .status()
-        .expect("Failed to bring up WireGuard interface");
+    println!("is daemon running: {}", is_daemon_running().await);
+    if !is_daemon_running().await {
+        println!("Starting embedded daemon...");
+    }
+    send_command(DaemonCommand::Disconnect).await?;
     Ok(())
 }

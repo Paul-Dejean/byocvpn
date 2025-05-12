@@ -6,6 +6,7 @@ mod commands {
     pub mod disconnect;
     pub mod list;
     pub mod spawn;
+    pub mod spawn_daemon;
     pub mod terminate;
 }
 #[derive(Parser)]
@@ -29,6 +30,7 @@ enum Commands {
     List,
     Connect,
     Disconnect,
+    SpawnDaemon,
 }
 
 #[tokio::main]
@@ -46,6 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             commands::terminate::terminate_instance(&aws, &instance_id).await?
         }
         Commands::List => commands::list::list_instances(&aws).await?,
+        Commands::SpawnDaemon => commands::spawn_daemon::spawn_daemon().await?,
     }
     Ok(())
 }

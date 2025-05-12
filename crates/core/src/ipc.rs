@@ -1,6 +1,6 @@
 use crate::types::DaemonCommand;
-use std::path::Path;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{Error, ErrorKind};
 use tokio::net::UnixStream;
 use tokio::time::Duration;
 use tokio::time::sleep;
@@ -21,17 +21,26 @@ pub async fn send_command(cmd: DaemonCommand) -> anyhow::Result<String> {
 
 async fn wait_for_socket(path: &str, max_retries: u32) -> std::io::Result<()> {
     for _ in 0..max_retries {
-        if Path::new(path).exists() {
-            return Ok(());
+        match UnixStream::connect(path).await {
+            Ok(_) => return Ok(()), // Daemon is up and accepting
+            Err(e)
+                if e.kind() == ErrorKind::ConnectionRefused || e.kind() == ErrorKind::NotFound =>
+            {
+                sleep(Duration::from_millis(100)).await;
+            }
+            Err(e) => return Err(e), // Any other error (e.g., permission denied)
         }
-        sleep(Duration::from_millis(100)).await;
     }
-    Err(std::io::Error::new(
-        std::io::ErrorKind::NotFound,
-        "Socket not found",
+
+    Err(Error::new(
+        ErrorKind::TimedOut,
+        "Timed out waiting for daemon socket",
     ))
 }
 
-pub fn is_daemon_running() -> bool {
-    Path::new(SOCKET_PATH).exists()
+pub async fn is_daemon_running() -> bool {
+    match UnixStream::connect(SOCKET_PATH).await {
+        Ok(_) => true,   // Connection succeeded — daemon is alive
+        Err(_) => false, // Connection failed — probably not running
+    }
 }

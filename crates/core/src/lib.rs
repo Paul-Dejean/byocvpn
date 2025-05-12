@@ -6,6 +6,7 @@ pub mod cloud_provider;
 pub mod daemon;
 pub mod ipc;
 mod tunnel;
+mod tunnel_manager;
 pub mod types;
 
 pub fn generate_keypair() -> (String, String) {

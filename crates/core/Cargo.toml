@@ -17,3 +17,4 @@ tun = { version = "0.7.19", features = ["async"] }
 ipnet = "2.11.0"
 boringtun = "0.6.0"
 anyhow = "1.0.0"
+once_cell = "1.21.3"
