@@ -23,7 +23,7 @@ use tokio::net::UdpSocket;
 use tokio::sync::watch;
 use tun::{AbstractDevice, Configuration};
 
-pub async fn run_daemon() -> anyhow::Result<()> {
+pub async fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
     if std::path::Path::new(SOCKET_PATH).exists() {
         fs::remove_file(SOCKET_PATH)?;
     }
@@ -142,7 +142,7 @@ async fn destroy_daemon() {
     std::process::exit(0);
 }
 
-async fn connect_vpn(config_path: &str) -> anyhow::Result<()> {
+async fn connect_vpn(config_path: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("Daemon received connect: {}", config_path);
 
     let config = Ini::load_from_file("wg0.conf").expect("Failed to read wg0.conf");
@@ -257,7 +257,7 @@ async fn remove_vpn_routes(iface_name: &str, server_ip: &str) {
     delete_route("128.0.0.0/1", iface_name).await.unwrap();
 }
 
-async fn add_route(destination: &str, interface: &str) -> anyhow::Result<()> {
+async fn add_route(destination: &str, interface: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("destination: {}", destination);
     let subnet: IpNet = destination.parse().unwrap();
 
@@ -281,7 +281,10 @@ async fn add_route(destination: &str, interface: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn delete_route(destination: &str, interface: &str) -> anyhow::Result<()> {
+async fn delete_route(
+    destination: &str,
+    interface: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let subnet: IpNet = destination.parse().unwrap();
     // Get the interface index
     let ifindex = get_ifindex(interface).await;

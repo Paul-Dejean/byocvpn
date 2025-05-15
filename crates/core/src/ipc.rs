@@ -7,7 +7,7 @@ use tokio::time::sleep;
 
 pub const SOCKET_PATH: &str = "/tmp/myvpn.sock";
 
-pub async fn send_command(cmd: DaemonCommand) -> anyhow::Result<String> {
+pub async fn send_command(cmd: DaemonCommand) -> Result<String, Box<dyn std::error::Error>> {
     wait_for_socket(SOCKET_PATH, 50).await?;
     let mut stream = UnixStream::connect(SOCKET_PATH).await?;
     println!("Connected to daemon at {}", SOCKET_PATH);

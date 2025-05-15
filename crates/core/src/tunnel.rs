@@ -28,7 +28,7 @@ impl Tunnel {
         }
     }
 
-    pub async fn run(&mut self) -> anyhow::Result<()> {
+    pub async fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let mut tun_buf = [0u8; 1500];
         let mut udp_buf = [0u8; 1500];
         let mut out_buf = [0u8; 1500];
