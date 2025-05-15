@@ -1,6 +1,5 @@
 use boringtun::noise::{Tunn, TunnResult};
 
-use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UdpSocket;
