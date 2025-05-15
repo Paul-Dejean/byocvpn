@@ -1,4 +1,5 @@
 use boringtun::noise::{Tunn, TunnResult};
+
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -11,7 +12,6 @@ pub struct Tunnel {
     udp: UdpSocket,
     wg: Tunn,
     shutdown_rx: watch::Receiver<()>,
-    peer_addr: SocketAddr,
 }
 
 impl Tunnel {
@@ -19,7 +19,6 @@ impl Tunnel {
         tun: AsyncDevice,
         udp: UdpSocket,
         wg: Tunn,
-        peer_addr: SocketAddr,
         shutdown_rx: watch::Receiver<()>,
     ) -> Self {
         Tunnel {
@@ -27,7 +26,6 @@ impl Tunnel {
             udp,
             wg,
             shutdown_rx,
-            peer_addr,
         }
     }
 
@@ -47,7 +45,7 @@ impl Tunnel {
                 Ok(n) = self.tun.read(&mut tun_buf) => {
                     match self.wg.encapsulate(&tun_buf[..n], &mut out_buf) {
                         TunnResult::WriteToNetwork(packet) => {
-                            self.udp.send_to(packet, self.peer_addr).await?;
+                            self.udp.send(packet).await?;
                         },
                         TunnResult::Done => {},
                         TunnResult::Err(e) => {
@@ -57,13 +55,13 @@ impl Tunnel {
                     }
                 }
 
-                Ok((n, _)) = self.udp.recv_from(&mut udp_buf) => {
+                Ok(n) = self.udp.recv(&mut udp_buf) => {
                     match self.wg.decapsulate(None, &udp_buf[..n], &mut out_buf) {
                         TunnResult::WriteToTunnelV4(packet, _src_ip) => {
                             self.tun.write_all(packet).await?;
                         },
                         TunnResult::WriteToNetwork(reply) => {
-                            self.udp.send_to(reply, self.peer_addr).await?;
+                            self.udp.send(reply).await?;
                         },
                         TunnResult::Done => {},
                         TunnResult::Err(e) => {
@@ -78,7 +76,7 @@ impl Tunnel {
                         // Use empty packet to trigger a keepalive, if needed
                         match self.wg.encapsulate(&[], &mut out_buf) {
                             TunnResult::WriteToNetwork(packet) => {
-                                self.udp.send_to(packet, self.peer_addr).await?;
+                                self.udp.send(packet).await?;
                                 last_keepalive = Instant::now();
                             },
                             _ => {}

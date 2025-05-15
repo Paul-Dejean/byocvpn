@@ -6,7 +6,7 @@ use ini::Ini;
 use base64::{Engine, engine::general_purpose};
 
 use ipnet::IpNet;
-use serde::de;
+
 use std::fs;
 use std::net::SocketAddr;
 
@@ -19,7 +19,6 @@ use crate::tunnel_manager::TunnelHandle;
 use boringtun::x25519::PublicKey;
 use boringtun::x25519::StaticSecret;
 use net_route::{Handle, Route};
-use std::net::IpAddr;
 use tokio::net::UdpSocket;
 use tokio::sync::watch;
 use tun::{AbstractDevice, Configuration};
@@ -73,7 +72,10 @@ pub async fn run_daemon() -> anyhow::Result<()> {
 
 async fn destroy_daemon() {
     println!("[Shutdown] Initiating graceful shutdown sequence...");
-    remove_vpn_routes("utun4").await;
+    let config = Ini::load_from_file("wg0.conf").expect("Failed to read wg0.conf");
+    let peer = config.section(Some("Peer")).expect("[Peer] missing");
+    let endpoint: SocketAddr = peer.get("Endpoint").unwrap().parse().unwrap();
+    remove_vpn_routes("utun4", &endpoint.ip().to_string()).await;
     println!("[Shutdown] Removed VPN routes.");
 
     // 1. & 2. Shut down and await the tunnel task
@@ -159,12 +161,6 @@ async fn connect_vpn(config_path: &str) -> anyhow::Result<()> {
         .decode(peer.get("PublicKey").unwrap())
         .unwrap();
     let endpoint: SocketAddr = peer.get("Endpoint").unwrap().parse().unwrap();
-    let allowed_ips: Vec<IpNet> = peer
-        .get("AllowedIPs")
-        .unwrap()
-        .split(',')
-        .map(|ip| ip.trim().parse().unwrap())
-        .collect();
 
     // Step 1: TUN
     let mut config = Configuration::default();
@@ -185,7 +181,7 @@ async fn connect_vpn(config_path: &str) -> anyhow::Result<()> {
         .unwrap()
         .as_ref()
         .map_or(false, |handle| !handle.task.is_finished());
-    println!("Tunnel running: {}", is_tunnel_running);
+    println!("Previous Tunnel running: {}", is_tunnel_running);
     if is_tunnel_running {
         return Ok(());
     }
@@ -210,60 +206,77 @@ async fn connect_vpn(config_path: &str) -> anyhow::Result<()> {
 
     let (shutdown_tx, shutdown_rx) = watch::channel(());
 
-    let mut tunnel = Tunnel::new(tun, udp, tunn, endpoint, shutdown_rx);
+    let mut tunnel = Tunnel::new(tun, udp, tunn, shutdown_rx);
     let task = tokio::spawn(async move {
         if let Err(e) = tunnel.run().await {
             eprintln!("Tunnel exited: {e}");
         }
     });
 
+    println!("Tunnel task spawned: {:?}", task.is_finished());
+
     println!("{:?} Tunnel task spawned", task.id());
+    // Step 2: boringtun
+
+    println!("Before Manager Tunnel running: {}", is_tunnel_running);
+
+    let mut manager = TUNNEL_MANAGER.lock().unwrap();
+    println!("{:?} Manager Tunnel running", manager.is_some());
+    *manager = Some(TunnelHandle {
+        shutdown: shutdown_tx,
+        task: task,
+    });
+
+    println!("{:?} Manager Tunnel running", manager.is_some());
+
+    let is_tunnel_running = !manager.as_ref().unwrap().task.is_finished();
 
     println!("Tunnel running: {}", is_tunnel_running);
 
-    let mut manager = TUNNEL_MANAGER.lock().unwrap();
-    *manager = Some(TunnelHandle {
-        shutdown: shutdown_tx,
-        task,
-    });
-
     // //Step 4: route internet traffic
-    add_vpn_routes(&iface_name).await;
+    println!("Adding VPN routes...");
+    add_vpn_routes(&iface_name, &endpoint.ip().to_string()).await;
 
     println!("VPN setup complete.");
     Ok(())
 }
 
-async fn add_vpn_routes(iface_name: &str) {
-    // split default route for compatibility
-    add_route("0.0.0.0/1", "10.0.0.1", iface_name).await;
-    add_route("128.0.0.0/1", "10.0.0.1", iface_name).await;
+async fn add_vpn_routes(iface_name: &str, server_ip: &str) {
+    add_route(&format!("{server_ip}/32"), "default")
+        .await
+        .unwrap();
+    add_route("0.0.0.0/1", iface_name).await.unwrap();
+    add_route("128.0.0.0/1", iface_name).await.unwrap();
 }
 
-async fn remove_vpn_routes(iface_name: &str) {
-    delete_route("0.0.0.0/1", iface_name).await;
-    delete_route("128.0.0.0/1", iface_name).await;
+async fn remove_vpn_routes(iface_name: &str, server_ip: &str) {
+    delete_route(&format!("{server_ip}/32"), "default")
+        .await
+        .unwrap();
+    delete_route("0.0.0.0/1", iface_name).await.unwrap();
+    delete_route("128.0.0.0/1", iface_name).await.unwrap();
 }
 
-async fn add_route(destination: &str, gateway: &str, interface: &str) -> anyhow::Result<()> {
+async fn add_route(destination: &str, interface: &str) -> anyhow::Result<()> {
+    println!("destination: {}", destination);
     let subnet: IpNet = destination.parse().unwrap();
-    let gateway_ip: IpAddr = gateway.parse().unwrap();
-    // Get the interface index
-    let ifindex = net_route::ifname_to_index(interface).expect("Failed to get interface index");
 
     let handle = Handle::new()?;
+    let ifindex = get_ifindex(interface).await;
+
+    // Get the interface index
+    println!("ifindex: {}", ifindex);
 
     // Build the route
-    let route = Route::new(subnet.addr(), subnet.prefix_len())
-        .with_ifindex(ifindex)
-        .with_gateway(gateway_ip);
+    let route = Route::new(subnet.addr(), subnet.prefix_len()).with_ifindex(ifindex);
 
-    // Add the route
-    handle.add(&route).await?;
-    println!(
-        "Added route: {} via {} dev {}",
-        destination, gateway, interface
-    );
+    println!("new route {:?}", route);
+
+    handle.add(&route).await.expect("error adding route");
+
+    println!("Added route: {} via {} ", destination, interface);
+
+    println!("routes {:?}", handle.list().await);
 
     Ok(())
 }
@@ -271,7 +284,7 @@ async fn add_route(destination: &str, gateway: &str, interface: &str) -> anyhow:
 async fn delete_route(destination: &str, interface: &str) -> anyhow::Result<()> {
     let subnet: IpNet = destination.parse().unwrap();
     // Get the interface index
-    let ifindex = net_route::ifname_to_index(interface).expect("Failed to get interface index");
+    let ifindex = get_ifindex(interface).await;
 
     let handle = Handle::new()?;
 
@@ -283,4 +296,15 @@ async fn delete_route(destination: &str, interface: &str) -> anyhow::Result<()> 
     println!("Deleted route: {} dev {}", destination, interface);
 
     Ok(())
+}
+
+async fn get_ifindex(interface: &str) -> u32 {
+    let handle = Handle::new().unwrap();
+    if interface == "default" {
+        // Get the default route
+        let default_route = handle.default_route().await.unwrap().unwrap();
+        return default_route.ifindex.unwrap();
+    } else {
+        return net_route::ifname_to_index(interface).expect("Failed to get interface index");
+    }
 }
