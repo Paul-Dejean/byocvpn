@@ -1,8 +1,10 @@
+use aws_sdk_ec2::error::ProvideErrorMetadata;
 use aws_sdk_ec2::types::AttributeBooleanValue;
 use aws_sdk_ec2::{
     Client as Ec2Client,
     types::{Filter, IpPermission, IpRange, Ipv6Range, ResourceType, Tag, TagSpecification},
 };
+use aws_sdk_ssm::error::SdkError;
 use std::net::Ipv6Addr;
 use std::str::FromStr;
 
@@ -11,9 +13,6 @@ pub(super) async fn create_security_group(
     group_name: &str,
     description: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    // Set region provider
-
-    // 1. Create security group
     let create_resp = ec2_client
         .create_security_group()
         .group_name(group_name)
@@ -49,7 +48,7 @@ pub(super) async fn create_security_group(
     Ok(group_id)
 }
 
-pub async fn get_byocvpn_sg_id(
+pub(super) async fn get_byocvpn_sg_id(
     ec2_client: &Ec2Client,
     group_name: &str,
 ) -> Result<Option<String>, Box<dyn std::error::Error>> {
@@ -73,7 +72,7 @@ pub async fn get_byocvpn_sg_id(
     Ok(group_id)
 }
 
-pub async fn create_vpc(
+pub(super) async fn create_vpc(
     ec2_client: &Ec2Client,
     cidr_block: &str,
     name: &str,
@@ -97,7 +96,7 @@ pub async fn create_vpc(
     Ok(vpc_id.to_string())
 }
 
-pub async fn get_vpc_by_name(
+pub(super) async fn get_vpc_by_name(
     ec2_client: &Ec2Client,
     name: &str,
 ) -> Result<Option<String>, Box<dyn std::error::Error>> {
@@ -117,7 +116,7 @@ pub async fn get_vpc_by_name(
     Ok(vpc_id)
 }
 
-pub async fn create_subnet(
+pub(super) async fn create_subnet(
     ec2_client: &Ec2Client,
     vpc_id: &str,
     cidr_block: &str,
@@ -146,7 +145,7 @@ pub async fn create_subnet(
     Ok(subnet_id.to_string())
 }
 
-pub async fn list_availability_zones(
+pub(super) async fn list_availability_zones(
     ec2_client: &Ec2Client,
 ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
     let resp = ec2_client.describe_availability_zones().send().await?;
@@ -161,7 +160,7 @@ pub async fn list_availability_zones(
     Ok(azs)
 }
 
-pub async fn get_vpc_ipv6_block(
+pub(super) async fn get_vpc_ipv6_block(
     ec2_client: &Ec2Client,
     vpc_id: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
@@ -178,7 +177,10 @@ pub async fn get_vpc_ipv6_block(
     Ok(cidr.to_string())
 }
 
-pub fn carve_ipv6_subnet(base_cidr: &str, index: u8) -> Result<String, Box<dyn std::error::Error>> {
+pub(super) fn carve_ipv6_subnet(
+    base_cidr: &str,
+    index: u8,
+) -> Result<String, Box<dyn std::error::Error>> {
     let (base_ip, _prefix) = base_cidr.split_once('/').ok_or("Invalid IPv6 CIDR")?;
     let mut bytes = Ipv6Addr::from_str(base_ip)?.octets();
 
@@ -189,7 +191,7 @@ pub fn carve_ipv6_subnet(base_cidr: &str, index: u8) -> Result<String, Box<dyn s
     Ok(format!("{}/64", subnet))
 }
 
-pub async fn create_and_attach_igw(
+pub(super) async fn create_and_attach_igw(
     ec2: &Ec2Client,
     vpc_id: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
@@ -210,7 +212,7 @@ pub async fn create_and_attach_igw(
     Ok(igw_id.to_string())
 }
 
-pub async fn add_igw_routes_to_table(
+pub(super) async fn add_igw_routes_to_table(
     ec2: &Ec2Client,
     route_table_id: &str,
     igw_id: &str,
@@ -237,7 +239,7 @@ pub async fn add_igw_routes_to_table(
     Ok(())
 }
 
-pub async fn enable_auto_ip_assign(
+pub(super) async fn enable_auto_ip_assign(
     ec2: &Ec2Client,
     subnet_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -256,7 +258,7 @@ pub async fn enable_auto_ip_assign(
     Ok(())
 }
 
-pub async fn find_main_route_table(
+pub(super) async fn find_main_route_table(
     ec2: &Ec2Client,
     vpc_id: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
@@ -278,19 +280,19 @@ pub async fn find_main_route_table(
     Ok(rt_id.to_string())
 }
 
-pub async fn get_route_table_by_name(
+pub async fn subnet_exists(
     ec2: &Ec2Client,
-    name: &str,
-) -> Result<Option<String>, Box<dyn std::error::Error>> {
-    let filter = Filter::builder().name("tag:Name").values(name).build();
-
-    let resp = ec2.describe_route_tables().filters(filter).send().await?;
-
-    let rt_id = resp
-        .route_tables()
-        .first()
-        .and_then(|rt| rt.route_table_id())
-        .map(|id| id.to_string());
-
-    Ok(rt_id)
+    subnet_id: &str,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    match ec2.describe_subnets().subnet_ids(subnet_id).send().await {
+        Ok(resp) => Ok(!resp.subnets().is_empty()),
+        Err(SdkError::ServiceError(err)) => {
+            if err.err().code() == Some("InvalidSubnetID.NotFound") {
+                Ok(false)
+            } else {
+                Err(Box::new(SdkError::ServiceError(err)))
+            }
+        }
+        Err(e) => Err(Box::new(e)),
+    }
 }

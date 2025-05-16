@@ -48,6 +48,16 @@ impl CloudProvider for AwsProvider {
         let azs = network::list_availability_zones(&self.ec2_client).await?;
 
         for (i, az) in azs.iter().enumerate() {
+            let existing_subnet_id = config::get_subnet_id(&self.ssm_client, az).await?;
+            if existing_subnet_id.is_some() {
+                let existing_subnet_id = existing_subnet_id.unwrap();
+                let existing_subnet =
+                    network::subnet_exists(&self.ec2_client, &existing_subnet_id).await?;
+                if existing_subnet {
+                    println!("Subnet {} already exists: {}", az, existing_subnet_id);
+                    continue;
+                }
+            }
             let cidr = format!("10.0.{}.0/24", i); // safely spaced /20s
             let ipv6_cidr = network::carve_ipv6_subnet(&vpc_ipv6_cidr, i as u8).unwrap();
             let subnet_name = format!("byocvpn-subnet-{az}");
@@ -62,6 +72,7 @@ impl CloudProvider for AwsProvider {
             .await?;
 
             network::enable_auto_ip_assign(&self.ec2_client, &subnet_id).await?;
+            config::save_subnet_to_ssm(&self.ssm_client, az, &subnet_id).await?;
         }
 
         Ok(())
