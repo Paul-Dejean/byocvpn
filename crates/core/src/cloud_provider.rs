@@ -2,6 +2,8 @@ use async_trait::async_trait;
 
 #[async_trait]
 pub trait CloudProvider {
+    async fn setup(&self) -> Result<(), Box<dyn std::error::Error>>;
+    async fn enable_region(&self, region: &str) -> Result<(), Box<dyn std::error::Error>>;
     async fn spawn_instance(
         &self,
         server_private_key: &str,
