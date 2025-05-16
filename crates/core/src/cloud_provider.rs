@@ -17,5 +17,6 @@ pub struct InstanceInfo {
     pub id: String,
     pub name: Option<String>,
     pub state: String,
-    pub public_ip: String,
+    pub public_ip_v4: String,
+    pub public_ip_v6: String,
 }

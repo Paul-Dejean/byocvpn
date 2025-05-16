@@ -313,8 +313,13 @@ impl CloudProvider for AwsProvider {
                     .iter()
                     .find(|t| t.key().unwrap_or_default() == "Name")
                     .and_then(|t| t.value().map(|v| v.to_string()));
-                let public_ip = i
+                let public_ip_v4 = i
                     .public_ip_address()
+                    .map(|ip| ip.to_string())
+                    .unwrap_or_default();
+
+                let public_ip_v6 = i
+                    .ipv6_address()
                     .map(|ip| ip.to_string())
                     .unwrap_or_default();
 
@@ -322,7 +327,8 @@ impl CloudProvider for AwsProvider {
                     id,
                     name,
                     state,
-                    public_ip,
+                    public_ip_v4,
+                    public_ip_v6,
                 })
             })
             .collect();
