@@ -7,8 +7,8 @@ use base64::{Engine, engine::general_purpose};
 
 use ipnet::IpNet;
 
-use std::fs;
 use std::net::SocketAddr;
+use std::{fs, net::IpAddr};
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixListener;
@@ -20,8 +20,9 @@ use boringtun::x25519::PublicKey;
 use boringtun::x25519::StaticSecret;
 use net_route::{Handle, Route};
 use tokio::net::UdpSocket;
+use tokio::process::Command;
 use tokio::sync::watch;
-use tun::{AbstractDevice, Configuration};
+use tun_rs::DeviceBuilder;
 
 pub async fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
     if std::path::Path::new(SOCKET_PATH).exists() {
@@ -142,6 +143,29 @@ async fn destroy_daemon() {
     std::process::exit(0);
 }
 
+pub async fn get_default_gateway() -> Option<IpAddr> {
+    let output = Command::new("route")
+        .args(["-n", "get", "default"])
+        .output()
+        .await
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    for line in stdout.lines() {
+        if line.trim_start().starts_with("gateway:") {
+            let parts: Vec<&str> = line.trim().split_whitespace().collect();
+            if parts.len() >= 2 {
+                if let Ok(gw) = parts[1].parse::<IpAddr>() {
+                    return Some(gw);
+                }
+            }
+        }
+    }
+
+    None
+}
+
 async fn connect_vpn(config_path: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("Daemon received connect: {}", config_path);
 
@@ -155,24 +179,40 @@ async fn connect_vpn(config_path: &str) -> Result<(), Box<dyn std::error::Error>
     let private_key = general_purpose::STANDARD
         .decode(interface.get("PrivateKey").unwrap())
         .unwrap();
-    let address: IpNet = interface.get("Address").unwrap().parse().unwrap();
+    let addresses: Vec<IpNet> = interface
+        .get("Address")
+        .unwrap()
+        .split(',')
+        .map(|s| s.trim().parse::<IpNet>().unwrap())
+        .collect();
 
     let public_key = general_purpose::STANDARD
         .decode(peer.get("PublicKey").unwrap())
         .unwrap();
     let endpoint: SocketAddr = peer.get("Endpoint").unwrap().parse().unwrap();
 
-    // Step 1: TUN
-    let mut config = Configuration::default();
-    config
-        .tun_name("utun4")
-        .address(address.addr())
-        .netmask(address.netmask())
-        .mtu(1420)
-        .up();
+    let ipv4 = addresses.iter().find(|ip| ip.addr().is_ipv4()).unwrap();
+    let ipv6 = addresses.iter().find(|ip| ip.addr().is_ipv6()).unwrap();
 
-    let tun = tun::create_as_async(&config).expect("Failed to create TUN device");
-    let iface_name = tun.tun_name().expect("Failed to get TUN name");
+    // Step 1: TUN
+    // let mut config = Configuration::default();
+    // config
+    //     .tun_name("utun4")
+    //     .address(address.addr())
+    //     .netmask(address.netmask())
+    //     .mtu(1420)
+    //     .up();
+
+    // let tun = tun::create_as_async(&config).expect("Failed to create TUN device");
+    // tun.
+    let tun = DeviceBuilder::new()
+        .name("utun4")
+        .ipv4(ipv4.addr(), ipv4.prefix_len(), None)
+        .ipv6(ipv6.addr(), ipv6.prefix_len())
+        .mtu(1400)
+        .build_async()
+        .unwrap();
+    let iface_name = tun.name().expect("Failed to get TUN name");
     println!("Created TUN device: {}", iface_name);
 
     // Step 2: boringtun
@@ -201,6 +241,7 @@ async fn connect_vpn(config_path: &str) -> Result<(), Box<dyn std::error::Error>
     // Step 3: UDP socket + Tunnel loop
     let local = "0.0.0.0:0".parse::<SocketAddr>()?;
     let udp = UdpSocket::bind(local).await?;
+    println!("{endpoint:?} UDP socket bound to {}", udp.local_addr()?);
     udp.connect(endpoint).await?;
     println!("UDP socket bound to {}", udp.local_addr()?);
 
@@ -247,6 +288,8 @@ async fn add_vpn_routes(iface_name: &str, server_ip: &str) {
         .unwrap();
     add_route("0.0.0.0/1", iface_name).await.unwrap();
     add_route("128.0.0.0/1", iface_name).await.unwrap();
+    add_route("::/1", iface_name).await.unwrap();
+    add_route("8000::/1", iface_name).await.unwrap();
 }
 
 async fn remove_vpn_routes(iface_name: &str, server_ip: &str) {
@@ -255,6 +298,8 @@ async fn remove_vpn_routes(iface_name: &str, server_ip: &str) {
         .unwrap();
     delete_route("0.0.0.0/1", iface_name).await.unwrap();
     delete_route("128.0.0.0/1", iface_name).await.unwrap();
+    delete_route("::/1", iface_name).await.unwrap();
+    delete_route("8000::/1", iface_name).await.unwrap();
 }
 
 async fn add_route(destination: &str, interface: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -268,7 +313,14 @@ async fn add_route(destination: &str, interface: &str) -> Result<(), Box<dyn std
     println!("ifindex: {}", ifindex);
 
     // Build the route
-    let route = Route::new(subnet.addr(), subnet.prefix_len()).with_ifindex(ifindex);
+    let route;
+    if interface == "default" {
+        // Set the default route
+        let gateway = get_default_gateway().await.unwrap();
+        route = Route::new(subnet.addr(), subnet.prefix_len()).with_gateway(gateway);
+    } else {
+        route = Route::new(subnet.addr(), subnet.prefix_len()).with_ifindex(ifindex);
+    }
 
     println!("new route {:?}", route);
 
@@ -276,7 +328,7 @@ async fn add_route(destination: &str, interface: &str) -> Result<(), Box<dyn std
 
     println!("Added route: {} via {} ", destination, interface);
 
-    println!("routes {:?}", handle.list().await);
+    // println!("routes {:?}", handle.list().await);
 
     Ok(())
 }

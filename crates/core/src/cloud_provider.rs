@@ -6,7 +6,7 @@ pub trait CloudProvider {
         &self,
         server_private_key: &str,
         client_public_key: &str,
-    ) -> Result<(String, String), Box<dyn std::error::Error>>;
+    ) -> Result<(String, String, String), Box<dyn std::error::Error>>;
     async fn terminate_instance(&self, instance_id: &str)
     -> Result<(), Box<dyn std::error::Error>>;
     async fn list_instances(&self) -> Result<Vec<InstanceInfo>, Box<dyn std::error::Error>>;

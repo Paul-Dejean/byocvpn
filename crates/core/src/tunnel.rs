@@ -1,10 +1,9 @@
 use boringtun::noise::{Tunn, TunnResult};
 
 use std::time::{Duration, Instant};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UdpSocket;
 use tokio::sync::watch;
-use tun::AsyncDevice;
+use tun_rs::AsyncDevice;
 
 pub struct Tunnel {
     tun: AsyncDevice,
@@ -33,6 +32,7 @@ impl Tunnel {
         let mut udp_buf = [0u8; 1500];
         let mut out_buf = [0u8; 1500];
         let mut last_keepalive = Instant::now();
+        println!("[Tunnel] Starting tunnel...");
 
         loop {
             tokio::select! {
@@ -41,7 +41,8 @@ impl Tunnel {
                     break;
                 }
 
-                Ok(n) = self.tun.read(&mut tun_buf) => {
+                Ok(n) = self.tun.recv(&mut tun_buf) => {
+                    // println!("[TUN] Read {} bytes", n);
                     match self.wg.encapsulate(&tun_buf[..n], &mut out_buf) {
                         TunnResult::WriteToNetwork(packet) => {
                             self.udp.send(packet).await?;
@@ -54,19 +55,24 @@ impl Tunnel {
                     }
                 }
 
-                Ok(n) = self.udp.recv(&mut udp_buf) => {
-                    match self.wg.decapsulate(None, &udp_buf[..n], &mut out_buf) {
+                Ok((n, src)) = self.udp.recv_from(&mut udp_buf) => {
+                    match self.wg.decapsulate(Some(src.ip()), &udp_buf[..n], &mut out_buf) {
                         TunnResult::WriteToTunnelV4(packet, _src_ip) => {
-                            self.tun.write_all(packet).await?;
+
+                            self.tun.send(packet).await?;
                         },
-                        TunnResult::WriteToNetwork(reply) => {
-                            self.udp.send(reply).await?;
+                        TunnResult::WriteToTunnelV6(packet, _src_ip) => {
+
+                            self.tun.send(packet).await?;
+                        },
+                        TunnResult::WriteToNetwork(packet) => {
+
+                            self.udp.send(packet).await?;
                         },
                         TunnResult::Done => {},
                         TunnResult::Err(e) => {
                             eprintln!("decapsulate error: {:?}", e);
                         },
-                        _ => {}
                     }
                 }
 

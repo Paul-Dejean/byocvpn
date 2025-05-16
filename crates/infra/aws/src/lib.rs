@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use aws_config::{SdkConfig, meta::region::RegionProviderChain};
+use aws_sdk_ec2::types::Ipv6Range;
 use aws_sdk_ec2::types::{ResourceType, Tag, TagSpecification};
 use aws_sdk_ec2::{
     Client as Ec2Client,
@@ -92,6 +93,7 @@ impl AwsProvider {
                     .from_port(51820)
                     .to_port(51820)
                     .ip_ranges(IpRange::builder().cidr_ip("0.0.0.0/0").build())
+                    .ipv6_ranges(Ipv6Range::builder().cidr_ipv6("::/0").build())
                     .build(),
             )
             .send()
@@ -153,16 +155,20 @@ impl AwsProvider {
         let wg_config = format!(
             r#"[Interface]
 PrivateKey={server_private_key}
-Address=10.66.66.1/24
+Address=10.66.66.1/24,fd86:ea04:1111::1/64
 ListenPort=51820
-PostUp=iptables -A FORWARD -i enX0 -j ACCEPT
-PostUp=iptables -t nat -A POSTROUTING -o enX0 -j MASQUERADE
-PostDown=iptables -D FORWARD -i enX0 -j ACCEPT
-PostDown=iptables -t nat -D POSTROUTING -o enX0 -j MASQUERADE
+PostUp = iptables -A FORWARD -i enX0 -j ACCEPT
+PostUp = iptables -t nat -A POSTROUTING -o enX0 -j MASQUERADE
+PostUp = ip6tables -A FORWARD -i enX0 -j ACCEPT
+PostUp = ip6tables -t nat -A POSTROUTING -o enX0 -j MASQUERADE
+PostDown = iptables -D FORWARD -i enX0 -j ACCEPT
+PostDown = iptables -t nat -D POSTROUTING -o enX0 -j MASQUERADE
+PostDown = ip6tables -D FORWARD -i enX0 -j ACCEPT
+PostDown = ip6tables -t nat -D POSTROUTING -o enX0 -j MASQUERADE
 
 [Peer]
 PublicKey={client_public_key}
-AllowedIPs=10.66.66.2/32
+AllowedIPs=10.66.66.2/32,fd86:ea04:1111::2/128
 "#
         );
 
@@ -192,7 +198,7 @@ impl CloudProvider for AwsProvider {
         &self,
         server_private_key: &str,
         client_public_key: &str,
-    ) -> Result<(String, String), Box<dyn std::error::Error>> {
+    ) -> Result<(String, String, String), Box<dyn std::error::Error>> {
         let user_data = self.wireguard_cloud_init(server_private_key, client_public_key);
 
         println!("{:?}", user_data);
@@ -265,7 +271,7 @@ impl CloudProvider for AwsProvider {
             .send()
             .await?;
 
-        let public_ip = desc
+        let public_ip_v4 = desc
             .reservations()
             .iter()
             .flat_map(|r| r.instances())
@@ -274,7 +280,19 @@ impl CloudProvider for AwsProvider {
             .ok_or("No public IP address yet")?
             .to_string();
 
-        Ok((instance_id, public_ip))
+        let public_ip_v6 = desc
+            .reservations()
+            .iter()
+            .flat_map(|r| r.instances())
+            .filter_map(|i| i.ipv6_address())
+            .next()
+            .ok_or("No public IPv6 address yet")?
+            .to_string();
+        println!("Instance ID: {}", instance_id);
+        println!("Public IPv4: {}", public_ip_v4);
+        println!("Public IPv6: {}", public_ip_v6);
+
+        Ok((instance_id, public_ip_v4, public_ip_v6))
     }
 
     async fn terminate_instance(
@@ -292,6 +310,7 @@ impl CloudProvider for AwsProvider {
 
     async fn list_instances(&self) -> Result<Vec<InstanceInfo>, Box<dyn std::error::Error>> {
         let resp = self.ec2_client.describe_instances().send().await?;
+
         let instances = resp
             .reservations()
             .iter()
