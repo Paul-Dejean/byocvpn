@@ -1,7 +1,10 @@
+use aws_sdk_ec2::types::AttributeBooleanValue;
 use aws_sdk_ec2::{
     Client as Ec2Client,
     types::{Filter, IpPermission, IpRange, Ipv6Range, ResourceType, Tag, TagSpecification},
 };
+use std::net::Ipv6Addr;
+use std::str::FromStr;
 
 pub(super) async fn create_security_group(
     ec2_client: &Ec2Client,
@@ -94,10 +97,31 @@ pub async fn create_vpc(
     Ok(vpc_id.to_string())
 }
 
+pub async fn get_vpc_by_name(
+    ec2_client: &Ec2Client,
+    name: &str,
+) -> Result<Option<String>, Box<dyn std::error::Error>> {
+    let filter = Filter::builder()
+        .name("tag:Name") // Tag-based filter
+        .values(name)
+        .build();
+
+    let resp = ec2_client.describe_vpcs().filters(filter).send().await?;
+
+    let vpc_id = resp
+        .vpcs()
+        .first()
+        .and_then(|vpc| vpc.vpc_id())
+        .map(|id| id.to_string());
+
+    Ok(vpc_id)
+}
+
 pub async fn create_subnet(
     ec2_client: &Ec2Client,
     vpc_id: &str,
     cidr_block: &str,
+    ipv6_cidr_block: &str,
     az: &str,
     name: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
@@ -110,6 +134,7 @@ pub async fn create_subnet(
         .create_subnet()
         .vpc_id(vpc_id)
         .cidr_block(cidr_block)
+        .ipv6_cidr_block(ipv6_cidr_block)
         .availability_zone(az)
         .tag_specifications(tag_spec)
         .send()
@@ -119,4 +144,153 @@ pub async fn create_subnet(
 
     println!("Created Subnet: {}", subnet_id);
     Ok(subnet_id.to_string())
+}
+
+pub async fn list_availability_zones(
+    ec2_client: &Ec2Client,
+) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let resp = ec2_client.describe_availability_zones().send().await?;
+
+    let azs = resp
+        .availability_zones()
+        .iter()
+        .filter_map(|az| az.zone_name())
+        .map(|az| az.to_string())
+        .collect();
+
+    Ok(azs)
+}
+
+pub async fn get_vpc_ipv6_block(
+    ec2_client: &Ec2Client,
+    vpc_id: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let resp = ec2_client.describe_vpcs().vpc_ids(vpc_id).send().await?;
+
+    let cidr = resp
+        .vpcs()
+        .iter()
+        .flat_map(|vpc| vpc.ipv6_cidr_block_association_set())
+        .filter_map(|assoc| assoc.ipv6_cidr_block())
+        .next()
+        .ok_or("No IPv6 CIDR block associated with VPC")?;
+
+    Ok(cidr.to_string())
+}
+
+pub fn carve_ipv6_subnet(base_cidr: &str, index: u8) -> Result<String, Box<dyn std::error::Error>> {
+    let (base_ip, _prefix) = base_cidr.split_once('/').ok_or("Invalid IPv6 CIDR")?;
+    let mut bytes = Ipv6Addr::from_str(base_ip)?.octets();
+
+    // Increment the 8 bits after the /56 (byte 7)
+    bytes[7] = index;
+
+    let subnet = Ipv6Addr::from(bytes);
+    Ok(format!("{}/64", subnet))
+}
+
+pub async fn create_and_attach_igw(
+    ec2: &Ec2Client,
+    vpc_id: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let igw = ec2.create_internet_gateway().send().await?;
+    let igw_id = igw
+        .internet_gateway()
+        .unwrap()
+        .internet_gateway_id()
+        .unwrap();
+
+    ec2.attach_internet_gateway()
+        .internet_gateway_id(igw_id)
+        .vpc_id(vpc_id)
+        .send()
+        .await?;
+
+    println!("🌐 Internet Gateway {igw_id} attached to VPC {vpc_id}");
+    Ok(igw_id.to_string())
+}
+
+pub async fn add_igw_routes_to_table(
+    ec2: &Ec2Client,
+    route_table_id: &str,
+    igw_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // IPv4 default route
+    let _ = ec2
+        .create_route()
+        .route_table_id(route_table_id)
+        .destination_cidr_block("0.0.0.0/0")
+        .gateway_id(igw_id)
+        .send()
+        .await;
+
+    // IPv6 default route
+    let _ = ec2
+        .create_route()
+        .route_table_id(route_table_id)
+        .destination_ipv6_cidr_block("::/0")
+        .gateway_id(igw_id)
+        .send()
+        .await;
+
+    println!("✅ Added default routes to route table: {}", route_table_id);
+    Ok(())
+}
+
+pub async fn enable_auto_ip_assign(
+    ec2: &Ec2Client,
+    subnet_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    ec2.modify_subnet_attribute()
+        .subnet_id(subnet_id)
+        .map_public_ip_on_launch(AttributeBooleanValue::builder().value(true).build())
+        .send()
+        .await?;
+
+    ec2.modify_subnet_attribute()
+        .subnet_id(subnet_id)
+        .assign_ipv6_address_on_creation(AttributeBooleanValue::builder().value(true).build())
+        .send()
+        .await?;
+
+    Ok(())
+}
+
+pub async fn find_main_route_table(
+    ec2: &Ec2Client,
+    vpc_id: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let filters = Filter::builder().name("vpc-id").values(vpc_id).build();
+
+    let resp = ec2.describe_route_tables().filters(filters).send().await?;
+
+    let rt_id = resp
+        .route_tables()
+        .iter()
+        .find(|rt| {
+            rt.associations()
+                .iter()
+                .any(|assoc| assoc.main().unwrap_or(false))
+        })
+        .and_then(|rt| rt.route_table_id())
+        .ok_or("No main route table found")?;
+
+    Ok(rt_id.to_string())
+}
+
+pub async fn get_route_table_by_name(
+    ec2: &Ec2Client,
+    name: &str,
+) -> Result<Option<String>, Box<dyn std::error::Error>> {
+    let filter = Filter::builder().name("tag:Name").values(name).build();
+
+    let resp = ec2.describe_route_tables().filters(filter).send().await?;
+
+    let rt_id = resp
+        .route_tables()
+        .first()
+        .and_then(|rt| rt.route_table_id())
+        .map(|id| id.to_string());
+
+    Ok(rt_id)
 }

@@ -5,8 +5,8 @@ use byocvpn_core::cloud_provider::CloudProvider;
 use byocvpn_core::cloud_provider::InstanceInfo;
 
 use crate::config;
-
 use crate::instance;
+use crate::network;
 
 pub struct AwsProvider {
     pub ec2_client: Ec2Client,
@@ -28,12 +28,41 @@ impl AwsProvider {
 #[async_trait]
 impl CloudProvider for AwsProvider {
     async fn setup(&self) -> Result<(), Box<dyn std::error::Error>> {
-        // self.create_vpc("10.0.0.0/16", "byocvpn-vpc").await?;
+        let vpc_id = network::create_vpc(&self.ec2_client, "10.0.0.0/16", "byocvpn-vpc").await?;
+        let igw_id = network::create_and_attach_igw(&self.ec2_client, &vpc_id).await?;
+        let main_route_table_id = network::find_main_route_table(&self.ec2_client, &vpc_id).await?;
+        network::add_igw_routes_to_table(&self.ec2_client, &main_route_table_id, &igw_id).await?;
         Ok(())
     }
 
     async fn enable_region(&self, _region: &str) -> Result<(), Box<dyn std::error::Error>> {
-        // self.create_subnet(vpc_id, cidr_block, az, name);
+        let vpc_id = network::get_vpc_by_name(&self.ec2_client, "byocvpn-vpc")
+            .await
+            .unwrap()
+            .unwrap();
+
+        let vpc_ipv6_cidr = network::get_vpc_ipv6_block(&self.ec2_client, &vpc_id)
+            .await
+            .unwrap();
+
+        let azs = network::list_availability_zones(&self.ec2_client).await?;
+
+        for (i, az) in azs.iter().enumerate() {
+            let cidr = format!("10.0.{}.0/24", i); // safely spaced /20s
+            let ipv6_cidr = network::carve_ipv6_subnet(&vpc_ipv6_cidr, i as u8).unwrap();
+            let subnet_name = format!("byocvpn-subnet-{az}");
+            let subnet_id = network::create_subnet(
+                &self.ec2_client,
+                &vpc_id,
+                &cidr,
+                &ipv6_cidr,
+                az,
+                &subnet_name,
+            )
+            .await?;
+
+            network::enable_auto_ip_assign(&self.ec2_client, &subnet_id).await?;
+        }
 
         Ok(())
     }
