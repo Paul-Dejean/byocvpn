@@ -38,7 +38,15 @@ impl CloudProvider for AwsProvider {
         let vpc_id = network::create_vpc(&self.ec2_client, "10.0.0.0/16", "byocvpn-vpc").await?;
         let igw_id = network::create_and_attach_igw(&self.ec2_client, &vpc_id).await?;
         let main_route_table_id = network::find_main_route_table(&self.ec2_client, &vpc_id).await?;
+        network::tag_resource_with_name(
+            &self.ec2_client,
+            &main_route_table_id,
+            "byocvpn-main-route-table",
+        )
+        .await?;
+        network::tag_resource_with_name(&self.ec2_client, &igw_id, "byocvpn-igw").await?;
         network::add_igw_routes_to_table(&self.ec2_client, &main_route_table_id, &igw_id).await?;
+
         Ok(())
     }
 
@@ -86,6 +94,15 @@ impl CloudProvider for AwsProvider {
 
             network::enable_auto_ip_assign(&self.ec2_client, &subnet_id).await?;
         }
+
+        let new_group_id = network::create_security_group(
+            &self.ec2_client,
+            &vpc_id,
+            "byocvpn-security-group",
+            "BYOC VPN server",
+        )
+        .await?;
+        println!("Created new security group: {}", new_group_id);
 
         Ok(())
     }

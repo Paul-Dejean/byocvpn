@@ -28,21 +28,12 @@ pub(super) async fn spawn_instance(
     let ami_id = config::get_al2023_ami(&provider.ssm_client).await?;
     println!("AMI ID: {}", ami_id);
 
-    let group_name = "byocvpn-server";
-    let security_group_id =
-        network::get_security_group_by_name(&provider.ec2_client, group_name).await?;
-    let group_id = match security_group_id {
-        Some(id) => id,
-        None => {
-            let new_group_id =
-                network::create_security_group(&provider.ec2_client, group_name, "BYOC VPN server")
-                    .await?;
-            println!("Created new security group: {}", new_group_id);
-            new_group_id
-        }
-    };
+    let group_name = "byocvpn-security-group";
+    let security_group_id = network::get_security_group_by_name(&provider.ec2_client, group_name)
+        .await?
+        .unwrap();
 
-    println!("Security group ID: {}", group_id);
+    println!("Security group ID: {}", security_group_id);
 
     let tags = TagSpecification::builder()
         .resource_type(ResourceType::Instance)
@@ -53,7 +44,7 @@ pub(super) async fn spawn_instance(
         .run_instances()
         .subnet_id(subnet_id)
         .image_id(ami_id)
-        .security_group_ids(group_id)
+        .security_group_ids(security_group_id)
         .instance_type(aws_sdk_ec2::types::InstanceType::T2Micro)
         .user_data(encoded_user_data)
         // .key_name("vpn")

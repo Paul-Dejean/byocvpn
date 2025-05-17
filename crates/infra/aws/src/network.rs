@@ -11,11 +11,13 @@ use std::str::FromStr;
 
 pub(super) async fn create_security_group(
     ec2_client: &Ec2Client,
+    vpc_id: &str,
     group_name: &str,
     description: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let create_resp = ec2_client
         .create_security_group()
+        .vpc_id(vpc_id) // Replace with your VPC ID
         .group_name(group_name)
         .description(description)
         .send()
@@ -314,4 +316,21 @@ pub async fn get_subnets_in_vpc(
         .await?;
 
     Ok(resp.subnets().to_vec())
+}
+
+pub async fn tag_resource_with_name(
+    ec2_client: &Ec2Client,
+    resource_id: &str,
+    name: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let tag = Tag::builder().key("Name").value(name).build();
+
+    ec2_client
+        .create_tags()
+        .resources(resource_id)
+        .tags(tag)
+        .send()
+        .await?;
+
+    Ok(())
 }
