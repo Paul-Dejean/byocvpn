@@ -1,5 +1,6 @@
 use aws_sdk_ec2::error::ProvideErrorMetadata;
 use aws_sdk_ec2::types::AttributeBooleanValue;
+use aws_sdk_ec2::types::Subnet;
 use aws_sdk_ec2::{
     Client as Ec2Client,
     types::{Filter, IpPermission, IpRange, Ipv6Range, ResourceType, Tag, TagSpecification},
@@ -48,7 +49,7 @@ pub(super) async fn create_security_group(
     Ok(group_id)
 }
 
-pub(super) async fn get_byocvpn_sg_id(
+pub(super) async fn get_security_group_by_name(
     ec2_client: &Ec2Client,
     group_name: &str,
 ) -> Result<Option<String>, Box<dyn std::error::Error>> {
@@ -295,4 +296,22 @@ pub async fn subnet_exists(
         }
         Err(e) => Err(Box::new(e)),
     }
+}
+
+pub async fn get_subnets_in_vpc(
+    ec2_client: &Ec2Client,
+    vpc_id: &str,
+) -> Result<Vec<Subnet>, Box<dyn std::error::Error>> {
+    let resp = ec2_client
+        .describe_subnets()
+        .filters(
+            aws_sdk_ec2::types::Filter::builder()
+                .name("vpc-id")
+                .values(vpc_id)
+                .build(),
+        )
+        .send()
+        .await?;
+
+    Ok(resp.subnets().to_vec())
 }

@@ -3,12 +3,11 @@ use std::time::Duration;
 use crate::AwsProvider;
 
 use aws_sdk_ec2::Client as Ec2Client;
+use aws_sdk_ec2::client::Waiters;
 use aws_sdk_ec2::types::{ResourceType, Tag, TagSpecification};
-
 use base64::{Engine, engine::general_purpose};
 
 use byocvpn_core::cloud_provider::InstanceInfo;
-use tokio::time::sleep;
 
 use crate::cloud_init;
 use crate::config;
@@ -16,6 +15,7 @@ use crate::network;
 
 pub(super) async fn spawn_instance(
     provider: &AwsProvider,
+    subnet_id: &str,
     server_private_key: &str,
     client_public_key: &str,
 ) -> Result<(String, String, String), Box<dyn std::error::Error>> {
@@ -29,7 +29,8 @@ pub(super) async fn spawn_instance(
     println!("AMI ID: {}", ami_id);
 
     let group_name = "byocvpn-server";
-    let security_group_id = network::get_byocvpn_sg_id(&provider.ec2_client, group_name).await?;
+    let security_group_id =
+        network::get_security_group_by_name(&provider.ec2_client, group_name).await?;
     let group_id = match security_group_id {
         Some(id) => id,
         None => {
@@ -50,6 +51,7 @@ pub(super) async fn spawn_instance(
     let resp = provider
         .ec2_client
         .run_instances()
+        .subnet_id(subnet_id)
         .image_id(ami_id)
         .security_group_ids(group_id)
         .instance_type(aws_sdk_ec2::types::InstanceType::T2Micro)
@@ -63,27 +65,12 @@ pub(super) async fn spawn_instance(
     let instance = resp.instances().first().ok_or("No instance found")?;
     let instance_id = instance.instance_id().ok_or("No instance ID")?.to_string();
 
-    for _ in 0..150 {
-        let desc = provider
-            .ec2_client
-            .describe_instances()
-            .instance_ids(&instance_id)
-            .send()
-            .await?;
-
-        if let Some(state) = desc
-            .reservations()
-            .iter()
-            .flat_map(|r| r.instances())
-            .flat_map(|i| i.state().and_then(|s| s.name().to_owned()))
-            .next()
-        {
-            if state.as_str() == "running" {
-                break;
-            }
-        }
-        sleep(Duration::from_secs(2)).await;
-    }
+    provider
+        .ec2_client
+        .wait_until_instance_running()
+        .instance_ids(&instance_id)
+        .wait(Duration::from_secs(60))
+        .await?;
 
     let desc = provider
         .ec2_client

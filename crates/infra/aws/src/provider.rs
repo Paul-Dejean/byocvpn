@@ -28,6 +28,13 @@ impl AwsProvider {
 #[async_trait]
 impl CloudProvider for AwsProvider {
     async fn setup(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let existing_vpc_id = network::get_vpc_by_name(&self.ec2_client, "byocvpn-vpc")
+            .await
+            .unwrap();
+        if existing_vpc_id.is_some() {
+            println!("Existing VPC found, skipping creation.");
+            return Ok(());
+        }
         let vpc_id = network::create_vpc(&self.ec2_client, "10.0.0.0/16", "byocvpn-vpc").await?;
         let igw_id = network::create_and_attach_igw(&self.ec2_client, &vpc_id).await?;
         let main_route_table_id = network::find_main_route_table(&self.ec2_client, &vpc_id).await?;
@@ -47,20 +54,26 @@ impl CloudProvider for AwsProvider {
 
         let azs = network::list_availability_zones(&self.ec2_client).await?;
 
+        let subnets = network::get_subnets_in_vpc(&self.ec2_client, &vpc_id).await?;
+
         for (i, az) in azs.iter().enumerate() {
-            let existing_subnet_id = config::get_subnet_id(&self.ssm_client, az).await?;
-            if existing_subnet_id.is_some() {
-                let existing_subnet_id = existing_subnet_id.unwrap();
-                let existing_subnet =
-                    network::subnet_exists(&self.ec2_client, &existing_subnet_id).await?;
-                if existing_subnet {
-                    println!("Subnet {} already exists: {}", az, existing_subnet_id);
-                    continue;
-                }
+            let subnet_name = format!("byocvpn-subnet-{az}");
+
+            // Check if this subnet already exists
+            let already_exists = subnets.iter().any(|subnet| {
+                subnet
+                    .tags()
+                    .iter()
+                    .any(|tag| tag.key() == Some("Name") && tag.value() == Some(&subnet_name))
+            });
+
+            if already_exists {
+                println!("Subnet {subnet_name} already exists, skipping.");
+                continue;
             }
             let cidr = format!("10.0.{}.0/24", i); // safely spaced /20s
             let ipv6_cidr = network::carve_ipv6_subnet(&vpc_ipv6_cidr, i as u8).unwrap();
-            let subnet_name = format!("byocvpn-subnet-{az}");
+
             let subnet_id = network::create_subnet(
                 &self.ec2_client,
                 &vpc_id,
@@ -72,7 +85,6 @@ impl CloudProvider for AwsProvider {
             .await?;
 
             network::enable_auto_ip_assign(&self.ec2_client, &subnet_id).await?;
-            config::save_subnet_to_ssm(&self.ssm_client, az, &subnet_id).await?;
         }
 
         Ok(())
@@ -83,7 +95,15 @@ impl CloudProvider for AwsProvider {
         server_private_key: &str,
         client_public_key: &str,
     ) -> Result<(String, String, String), Box<dyn std::error::Error>> {
-        instance::spawn_instance(self, server_private_key, client_public_key).await
+        let vpc_id = network::get_vpc_by_name(&self.ec2_client, "byocvpn-vpc")
+            .await
+            .unwrap()
+            .unwrap();
+
+        let subnets = network::get_subnets_in_vpc(&self.ec2_client, &vpc_id).await?;
+
+        let subnet_id = subnets[0].subnet_id.clone().unwrap();
+        instance::spawn_instance(self, &subnet_id, server_private_key, client_public_key).await
     }
 
     async fn terminate_instance(
