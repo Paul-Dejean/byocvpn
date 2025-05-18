@@ -7,8 +7,8 @@ use base64::{Engine, engine::general_purpose};
 
 use ipnet::IpNet;
 
+use std::fs;
 use std::net::SocketAddr;
-use std::{fs, net::IpAddr};
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixListener;
@@ -20,7 +20,6 @@ use boringtun::x25519::PublicKey;
 use boringtun::x25519::StaticSecret;
 use net_route::{Handle, Route};
 use tokio::net::UdpSocket;
-use tokio::process::Command;
 use tokio::sync::watch;
 use tun_rs::DeviceBuilder;
 
@@ -141,29 +140,6 @@ async fn destroy_daemon() {
     println!("[Shutdown] Graceful shutdown sequence finished.");
 
     std::process::exit(0);
-}
-
-pub async fn get_default_gateway() -> Option<IpAddr> {
-    let output = Command::new("route")
-        .args(["-n", "get", "default"])
-        .output()
-        .await
-        .unwrap();
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    for line in stdout.lines() {
-        if line.trim_start().starts_with("gateway:") {
-            let parts: Vec<&str> = line.trim().split_whitespace().collect();
-            if parts.len() >= 2 {
-                if let Ok(gw) = parts[1].parse::<IpAddr>() {
-                    return Some(gw);
-                }
-            }
-        }
-    }
-
-    None
 }
 
 async fn connect_vpn(config_path: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -316,8 +292,9 @@ async fn add_route(destination: &str, interface: &str) -> Result<(), Box<dyn std
     let route;
     if interface == "default" {
         // Set the default route
-        let gateway = get_default_gateway().await.unwrap();
-        route = Route::new(subnet.addr(), subnet.prefix_len()).with_gateway(gateway);
+        let default_route = handle.default_route().await.unwrap().unwrap();
+        route = Route::new(subnet.addr(), subnet.prefix_len())
+            .with_gateway(default_route.gateway.unwrap());
     } else {
         route = Route::new(subnet.addr(), subnet.prefix_len()).with_ifindex(ifindex);
     }
