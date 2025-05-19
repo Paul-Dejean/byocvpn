@@ -1,5 +1,6 @@
-use once_cell::sync::Lazy;
 use std::sync::Mutex;
+
+use once_cell::sync::Lazy;
 use tokio::{sync::watch, task::JoinHandle};
 
 pub struct TunnelHandle {

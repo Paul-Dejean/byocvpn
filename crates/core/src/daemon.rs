@@ -1,27 +1,26 @@
-use crate::ipc::SOCKET_PATH;
-use crate::types::DaemonCommand;
-use boringtun::noise::Tunn;
-use ini::Ini;
+use std::{fs, net::SocketAddr};
 
 use base64::{Engine, engine::general_purpose};
-
+use boringtun::{
+    noise::Tunn,
+    x25519::{PublicKey, StaticSecret},
+};
+use ini::Ini;
 use ipnet::IpNet;
-
-use std::fs;
-use std::net::SocketAddr;
-
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::UnixListener;
-
-use crate::tunnel::Tunnel;
-use crate::tunnel_manager::TUNNEL_MANAGER;
-use crate::tunnel_manager::TunnelHandle;
-use boringtun::x25519::PublicKey;
-use boringtun::x25519::StaticSecret;
 use net_route::{Handle, Route};
-use tokio::net::UdpSocket;
-use tokio::sync::watch;
+use tokio::{
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    net::{UdpSocket, UnixListener},
+    sync::watch,
+};
 use tun_rs::DeviceBuilder;
+
+use crate::{
+    ipc::SOCKET_PATH,
+    tunnel::Tunnel,
+    tunnel_manager::{TUNNEL_MANAGER, TunnelHandle},
+    types::DaemonCommand,
+};
 
 pub async fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
     if std::path::Path::new(SOCKET_PATH).exists() {

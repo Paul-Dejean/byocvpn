@@ -1,9 +1,10 @@
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt, Error, ErrorKind},
+    net::UnixStream,
+    time::{Duration, sleep},
+};
+
 use crate::types::DaemonCommand;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::io::{Error, ErrorKind};
-use tokio::net::UnixStream;
-use tokio::time::Duration;
-use tokio::time::sleep;
 
 pub const SOCKET_PATH: &str = "/tmp/myvpn.sock";
 

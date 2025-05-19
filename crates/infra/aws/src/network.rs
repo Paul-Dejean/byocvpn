@@ -1,12 +1,12 @@
-use aws_sdk_ec2::types::AttributeBooleanValue;
-use aws_sdk_ec2::types::Subnet;
+use std::{net::Ipv6Addr, str::FromStr};
+
 use aws_sdk_ec2::{
     Client as Ec2Client,
-    types::{Filter, IpPermission, IpRange, Ipv6Range, ResourceType, Tag, TagSpecification},
+    types::{
+        AttributeBooleanValue, Filter, IpPermission, IpRange, Ipv6Range, ResourceType, Subnet, Tag,
+        TagSpecification,
+    },
 };
-
-use std::net::Ipv6Addr;
-use std::str::FromStr;
 
 pub(super) async fn create_security_group(
     ec2_client: &Ec2Client,

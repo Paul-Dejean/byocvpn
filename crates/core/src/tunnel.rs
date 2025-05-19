@@ -1,8 +1,7 @@
-use boringtun::noise::{Tunn, TunnResult};
-
 use std::time::{Duration, Instant};
-use tokio::net::UdpSocket;
-use tokio::sync::watch;
+
+use boringtun::noise::{Tunn, TunnResult};
+use tokio::{net::UdpSocket, sync::watch};
 use tun_rs::AsyncDevice;
 
 pub struct Tunnel {

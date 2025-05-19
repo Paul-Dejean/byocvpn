@@ -1,5 +1,4 @@
 use aws_config::{SdkConfig, meta::region::RegionProviderChain};
-
 use aws_sdk_ec2::config::Region;
 use aws_sdk_ssm::Client as SsmClient;
 

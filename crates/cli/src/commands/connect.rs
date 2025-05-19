@@ -1,5 +1,7 @@
-use byocvpn_core::ipc::{is_daemon_running, send_command};
-use byocvpn_core::types::DaemonCommand;
+use byocvpn_core::{
+    ipc::{is_daemon_running, send_command},
+    types::DaemonCommand,
+};
 use tokio::process::Command;
 
 pub async fn connect() -> Result<(), Box<dyn std::error::Error>> {

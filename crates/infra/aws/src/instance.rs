@@ -1,17 +1,14 @@
 use std::time::Duration;
 
-use crate::AwsProvider;
-
-use aws_sdk_ec2::Client as Ec2Client;
-use aws_sdk_ec2::client::Waiters;
-use aws_sdk_ec2::types::{ResourceType, Tag, TagSpecification};
+use aws_sdk_ec2::{
+    Client as Ec2Client,
+    client::Waiters,
+    types::{ResourceType, Tag, TagSpecification},
+};
 use base64::{Engine, engine::general_purpose};
-
 use byocvpn_core::cloud_provider::InstanceInfo;
 
-use crate::cloud_init;
-use crate::config;
-use crate::network;
+use crate::{AwsProvider, cloud_init, config, network};
 
 pub(super) async fn spawn_instance(
     provider: &AwsProvider,

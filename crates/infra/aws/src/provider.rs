@@ -1,12 +1,9 @@
 use async_trait::async_trait;
 use aws_sdk_ec2::Client as Ec2Client;
 use aws_sdk_ssm::Client as SsmClient;
-use byocvpn_core::cloud_provider::CloudProvider;
-use byocvpn_core::cloud_provider::InstanceInfo;
+use byocvpn_core::cloud_provider::{CloudProvider, InstanceInfo};
 
-use crate::config;
-use crate::instance;
-use crate::network;
+use crate::{config, instance, network};
 
 pub struct AwsProvider {
     pub ec2_client: Ec2Client,
