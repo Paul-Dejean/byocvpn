@@ -6,3 +6,4 @@ members = ["crates/core", "crates/cli", "crates/infra/aws"]
 tokio = { version = "1.45.0", features = ["full"] }
 async-trait = "0.1.88"
 base64 = "0.22.0"
+thiserror = "2.0.12"

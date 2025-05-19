@@ -1,11 +1,10 @@
-use aws_sdk_ec2::error::ProvideErrorMetadata;
 use aws_sdk_ec2::types::AttributeBooleanValue;
 use aws_sdk_ec2::types::Subnet;
 use aws_sdk_ec2::{
     Client as Ec2Client,
     types::{Filter, IpPermission, IpRange, Ipv6Range, ResourceType, Tag, TagSpecification},
 };
-use aws_sdk_ssm::error::SdkError;
+
 use std::net::Ipv6Addr;
 use std::str::FromStr;
 
@@ -281,23 +280,6 @@ pub(super) async fn find_main_route_table(
         .ok_or("No main route table found")?;
 
     Ok(rt_id.to_string())
-}
-
-pub async fn subnet_exists(
-    ec2: &Ec2Client,
-    subnet_id: &str,
-) -> Result<bool, Box<dyn std::error::Error>> {
-    match ec2.describe_subnets().subnet_ids(subnet_id).send().await {
-        Ok(resp) => Ok(!resp.subnets().is_empty()),
-        Err(SdkError::ServiceError(err)) => {
-            if err.err().code() == Some("InvalidSubnetID.NotFound") {
-                Ok(false)
-            } else {
-                Err(Box::new(SdkError::ServiceError(err)))
-            }
-        }
-        Err(e) => Err(Box::new(e)),
-    }
 }
 
 pub async fn get_subnets_in_vpc(
