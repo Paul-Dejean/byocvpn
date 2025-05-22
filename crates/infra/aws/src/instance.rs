@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use aws_sdk_ec2::{
     Client as Ec2Client,
     client::Waiters,
@@ -7,6 +5,7 @@ use aws_sdk_ec2::{
 };
 use base64::{Engine, engine::general_purpose};
 use byocvpn_core::cloud_provider::InstanceInfo;
+use tokio::time::Duration;
 
 use crate::{AwsProvider, cloud_init, config, network};
 

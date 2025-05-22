@@ -1,11 +1,9 @@
-use std::{
-    net::{SocketAddr, TcpStream},
-    time::Duration,
-};
+use std::net::{SocketAddr, TcpStream};
 
 use base64::{Engine, engine::general_purpose};
 use boringtun::x25519::{PublicKey, StaticSecret};
 use rand::rngs::OsRng;
+use tokio::time::Duration;
 
 pub mod cloud_provider;
 pub mod daemon;

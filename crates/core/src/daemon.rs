@@ -1,4 +1,4 @@
-use std::{fs, net::SocketAddr};
+use std::{net::SocketAddr, path::Path};
 
 use base64::{Engine, engine::general_purpose};
 use boringtun::{
@@ -9,6 +9,7 @@ use ini::Ini;
 use ipnet::IpNet;
 use net_route::{Handle, Route};
 use tokio::{
+    fs,
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{UdpSocket, UnixListener},
     sync::watch,
@@ -23,8 +24,8 @@ use crate::{
 };
 
 pub async fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
-    if std::path::Path::new(SOCKET_PATH).exists() {
-        fs::remove_file(SOCKET_PATH)?;
+    if Path::new(SOCKET_PATH).exists() {
+        fs::remove_file(SOCKET_PATH).await?;
     }
 
     let listener = UnixListener::bind(SOCKET_PATH)?;
@@ -169,22 +170,11 @@ async fn connect_vpn(config_path: &str) -> Result<(), Box<dyn std::error::Error>
     let ipv4 = addresses.iter().find(|ip| ip.addr().is_ipv4()).unwrap();
     let ipv6 = addresses.iter().find(|ip| ip.addr().is_ipv6()).unwrap();
 
-    // Step 1: TUN
-    // let mut config = Configuration::default();
-    // config
-    //     .tun_name("utun4")
-    //     .address(address.addr())
-    //     .netmask(address.netmask())
-    //     .mtu(1420)
-    //     .up();
-
-    // let tun = tun::create_as_async(&config).expect("Failed to create TUN device");
-    // tun.
     let tun = DeviceBuilder::new()
         .name("utun4")
         .ipv4(ipv4.addr(), ipv4.prefix_len(), None)
         .ipv6(ipv6.addr(), ipv6.prefix_len())
-        .mtu(1400)
+        .mtu(1280)
         .build_async()
         .unwrap();
     let iface_name = tun.name().expect("Failed to get TUN name");
