@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, path::Path};
+use std::net::SocketAddr;
 
 use base64::{Engine, engine::general_purpose};
 use boringtun::{
@@ -24,7 +24,7 @@ use crate::{
 };
 
 pub async fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
-    if Path::new(SOCKET_PATH).exists() {
+    if fs::try_exists(SOCKET_PATH).await? {
         fs::remove_file(SOCKET_PATH).await?;
     }
 
