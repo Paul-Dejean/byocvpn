@@ -7,7 +7,11 @@ import { SettingsButton } from "../components/settings/SettingsButton";
 import { InstanceList } from "../components/instances/InstanceList";
 import { RegionList } from "../components/regions/RegionList";
 
-export function VpnPage() {
+interface VpnPageProps {
+  onNavigateToSettings?: () => void;
+}
+
+export function VpnPage({ onNavigateToSettings }: VpnPageProps) {
   // Hooks for state management
   const {
     regions,
@@ -39,12 +43,6 @@ export function VpnPage() {
   // Local state for server operations
   const [isSpawning, setIsSpawning] = useState(false);
   const [isTerminating, setIsTerminating] = useState(false);
-
-  // Settings modal state
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [newAccessKey, setNewAccessKey] = useState("");
-  const [newSecretKey, setNewSecretKey] = useState("");
-  const [isSavingCredentials, setIsSavingCredentials] = useState(false);
 
   const handleRegionSelectWrapper = (region: AwsRegion) => {
     handleRegionSelect(region);
@@ -121,37 +119,6 @@ export function VpnPage() {
     }
   };
 
-  const handleUpdateCredentials = async () => {
-    if (!newAccessKey.trim() || !newSecretKey.trim()) {
-      alert("Please fill in both access key and secret key");
-      return;
-    }
-
-    setIsSavingCredentials(true);
-
-    try {
-      await invoke("save_credentials", {
-        cloudProviderName: "aws",
-        accessKeyId: newAccessKey.trim(),
-        secretAccessKey: newSecretKey.trim(),
-      });
-
-      // Clear form and close modal
-      setNewAccessKey("");
-      setNewSecretKey("");
-      setShowSettingsModal(false);
-
-      alert("Credentials updated successfully!");
-    } catch (error) {
-      console.error("Failed to update credentials:", error);
-      alert(
-        "Failed to update credentials. Please check your keys and try again."
-      );
-    } finally {
-      setIsSavingCredentials(false);
-    }
-  };
-
   const isLoading = regionsLoading || instancesLoading;
 
   return (
@@ -167,7 +134,7 @@ export function VpnPage() {
               Select an AWS region to deploy your VPN server
             </p>
           </div>
-          <SettingsButton onClick={() => setShowSettingsModal(true)} />
+          <SettingsButton onClick={() => onNavigateToSettings?.()} />
         </div>
       </div>
 
@@ -380,99 +347,6 @@ export function VpnPage() {
           </div>
         </div>
       </div>
-
-      {/* Settings Modal */}
-      {showSettingsModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-blue-400">
-                Update AWS Credentials
-              </h2>
-              <button
-                onClick={() => setShowSettingsModal(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-6 w-6"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Access Key ID
-                </label>
-                <input
-                  type="text"
-                  value={newAccessKey}
-                  onChange={(e) => setNewAccessKey(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none"
-                  placeholder="AKIA..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Secret Access Key
-                </label>
-                <input
-                  type="password"
-                  value={newSecretKey}
-                  onChange={(e) => setNewSecretKey(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none"
-                  placeholder="Enter your secret key..."
-                />
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={() => setShowSettingsModal(false)}
-                  className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleUpdateCredentials}
-                  disabled={
-                    isSavingCredentials ||
-                    !newAccessKey.trim() ||
-                    !newSecretKey.trim()
-                  }
-                  className={`flex-1 px-4 py-2 rounded-lg transition ${
-                    isSavingCredentials ||
-                    !newAccessKey.trim() ||
-                    !newSecretKey.trim()
-                      ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                      : "bg-blue-600 hover:bg-blue-700 text-white"
-                  }`}
-                >
-                  {isSavingCredentials ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Saving...
-                    </div>
-                  ) : (
-                    "Update Credentials"
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
