@@ -7,6 +7,7 @@ use base64::{Engine, engine::general_purpose};
 use boringtun::x25519::{PublicKey, StaticSecret};
 use ini::Ini;
 use rand::rngs::OsRng;
+use serde::Serialize;
 use tokio::time::Duration;
 
 use crate::cloud_provider::{CloudProvider, CloudProviderName};
@@ -14,9 +15,11 @@ use crate::cloud_provider::{CloudProvider, CloudProviderName};
 pub mod cloud_provider;
 pub mod commands;
 pub mod daemon_client;
+pub mod error;
 pub mod tunnel;
 use std::path::PathBuf;
 
+use handlebars::Handlebars;
 use tokio::fs;
 
 pub fn generate_keypair() -> (String, String) {
@@ -37,40 +40,35 @@ pub fn can_connect_ipv6() -> bool {
     TcpStream::connect_timeout(&addr, Duration::from_secs(2)).is_ok()
 }
 
+#[derive(Serialize)]
+struct ClientConfigContext {
+    client_private_key: String,
+    server_public_key: String,
+    server_ip_v4: String,
+}
+
 pub fn generate_client_config(
     client_private_key: &str,
     server_public_key: &str,
     server_ip_v4: &str,
 ) -> String {
-    return format!(
-        r#"[Interface]
-PrivateKey = {client_private_key}
-Address = 10.66.66.2/24, fd86:ea04:1111::2/128
-DNS = 1.1.1.1, 1.0.0.1, 2606:4700:4700::1111, 2606:4700:4700::1001
+    let template_text: &str = include_str!("templates/client_config.hbs");
 
+    // 2. Build the context (the data injected into the template)
+    let context = ClientConfigContext {
+        client_private_key: client_private_key.to_string(),
+        server_public_key: server_public_key.to_string(),
+        server_ip_v4: server_ip_v4.to_string(),
+    };
 
+    // 3. Render the template
+    let handlebars_registry = Handlebars::new();
 
-[Peer]
-PublicKey = {server_public_key}
-Endpoint = {server_ip_v4}:51820
-AllowedIPs = 0.0.0.0/0, ::/0
-PersistentKeepalive = 25
-"#
-    );
-}
-
-pub async fn get_configs_path() -> Result<PathBuf, String> {
-    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
-    let byocvpn_dir = home_dir.join(".byocvpn").join("configs");
-
-    // Create the directory if it doesn't exist
-    if !byocvpn_dir.exists() {
-        fs::create_dir_all(&byocvpn_dir)
-            .await
-            .map_err(|e| format!("Failed to create configs directory: {}", e))?;
-    }
-
-    Ok(byocvpn_dir)
+    let config = handlebars_registry
+        .render_template(template_text, &context)
+        .expect("Failed to render client configuration template");
+    println!("{}", &config);
+    config
 }
 
 async fn get_credentials_path() -> Result<PathBuf, String> {
@@ -85,6 +83,19 @@ async fn get_credentials_path() -> Result<PathBuf, String> {
     }
 
     Ok(byocvpn_dir.join("credentials"))
+}
+
+pub async fn get_configs_path() -> Result<PathBuf, String> {
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let byocvpn_dir = home_dir.join(".byocvpn").join("configs");
+    // Create the directory if it doesn't exist
+    if !byocvpn_dir.exists() {
+        fs::create_dir_all(&byocvpn_dir)
+            .await
+            .map_err(|e| format!("Failed to create configs directory: {}", e))?;
+    }
+
+    Ok(byocvpn_dir)
 }
 
 pub async fn save_credentials(
