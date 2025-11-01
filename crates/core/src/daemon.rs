@@ -42,7 +42,7 @@ pub async fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
             match serde_json::from_str::<DaemonCommand>(&line) {
                 Ok(DaemonCommand::Connect { config_path }) => {
                     println!("Daemon received connect: {config_path}");
-                    match connect_vpn(&config_path).await {
+                    match connect_vpn(config_path).await {
                         Ok(_) => {
                             writer.write_all(b"Connected!\n").await?;
                         }
@@ -142,10 +142,10 @@ async fn destroy_daemon() {
     std::process::exit(0);
 }
 
-async fn connect_vpn(config_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+async fn connect_vpn(config_path: String) -> Result<(), Box<dyn std::error::Error>> {
     println!("Daemon received connect: {}", config_path);
 
-    let config = Ini::load_from_file("wg0.conf").expect("Failed to read wg0.conf");
+    let config = Ini::load_from_file(config_path).expect("Failed to read wg0.conf");
 
     let interface = config
         .section(Some("Interface"))
@@ -293,8 +293,6 @@ async fn add_route(destination: &str, interface: &str) -> Result<(), Box<dyn std
     handle.add(&route).await.expect("error adding route");
 
     println!("Added route: {} via {} ", destination, interface);
-
-    // println!("routes {:?}", handle.list().await);
 
     Ok(())
 }

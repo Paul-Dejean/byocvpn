@@ -1,4 +1,4 @@
-use byocvpn_core::{
+use crate::{
     ipc::{is_daemon_running, send_command},
     types::DaemonCommand,
 };

@@ -1,15 +1,29 @@
 use aws_config::{SdkConfig, meta::region::RegionProviderChain};
-use aws_sdk_ec2::config::Region;
+use aws_credential_types::Credentials;
+use aws_sdk_ec2::config::{Region, SharedCredentialsProvider};
 use aws_sdk_ssm::Client as SsmClient;
 
+use crate::provider::AwsProviderConfig;
+
 pub(super) async fn get_config(
-    region: &Option<String>,
+    config: &AwsProviderConfig,
 ) -> Result<SdkConfig, Box<dyn std::error::Error>> {
-    let region_provider = match region {
+    let region_provider = match &config.region {
         Some(r) => RegionProviderChain::first_try(Region::new(r.clone())).or_default_provider(),
         None => RegionProviderChain::default_provider(),
     };
-    let config = aws_config::from_env().region(region_provider).load().await;
+
+    // Begin building config
+    let mut config_loader = aws_config::from_env().region(region_provider);
+
+    // Optionally override credentials
+    if let (Some(id), Some(secret)) = (&config.access_key_id, &config.secret_access_key) {
+        let credentials = Credentials::new(id.clone(), secret.clone(), None, None, "manual");
+        let provider = SharedCredentialsProvider::new(credentials);
+        config_loader = config_loader.credentials_provider(provider);
+    }
+
+    let config = config_loader.load().await;
     Ok(config)
 }
 
