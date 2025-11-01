@@ -6,6 +6,11 @@ interface AwsRegion {
   country: string;
 }
 
+interface RegionGroup {
+  continent: string;
+  regions: AwsRegion[];
+}
+
 interface ExistingInstance {
   id: string;
   name?: string;
@@ -26,6 +31,7 @@ interface ServerDetails {
 
 export function VpnPage() {
   const [regions, setRegions] = useState<AwsRegion[]>([]);
+  const [groupedRegions, setGroupedRegions] = useState<RegionGroup[]>([]);
   const [selectedRegion, setSelectedRegion] = useState<AwsRegion | null>(null);
   const [isSpawning, setIsSpawning] = useState(false);
   const [isTerminating, setIsTerminating] = useState(false);
@@ -55,12 +61,63 @@ export function VpnPage() {
     loadRegions();
   }, []);
 
+  // Group regions by continent when regions change
+  useEffect(() => {
+    if (regions.length > 0) {
+      const grouped = groupRegionsByContinent(regions);
+      setGroupedRegions(grouped);
+    }
+  }, [regions]);
+
   // Load instances when regions are available
   useEffect(() => {
     if (regions.length > 0) {
       loadExistingInstances();
     }
   }, [regions]);
+
+  const groupRegionsByContinent = (regions: AwsRegion[]): RegionGroup[] => {
+    const continentMap: Record<string, string> = {
+      // North America
+      us: "North America",
+      ca: "North America",
+
+      // Europe
+      eu: "Europe",
+
+      // Asia Pacific
+      ap: "Asia Pacific",
+
+      // South America
+      sa: "South America",
+
+      // Middle East
+      me: "Middle East",
+
+      // Africa
+      af: "Africa",
+    };
+
+    const groups: Record<string, AwsRegion[]> = {};
+
+    regions.forEach((region) => {
+      const prefix = region.name.split("-")[0];
+      const continent = continentMap[prefix] || "Other";
+
+      if (!groups[continent]) {
+        groups[continent] = [];
+      }
+      groups[continent].push(region);
+    });
+
+    // Convert to array and sort
+    return Object.entries(groups)
+      .map(([continent, regions]) => ({
+        continent,
+        regions: regions.sort((a, b) => a.name.localeCompare(b.name)),
+      }))
+      .sort((a, b) => a.continent.localeCompare(b.continent));
+  };
 
   const loadRegions = async () => {
     try {
@@ -411,34 +468,43 @@ export function VpnPage() {
                     : "Available AWS Regions"}
                 </h2>
                 <div className="flex-1 overflow-y-auto min-h-0">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-2">
-                    {regions.map((region) => (
-                      <div
-                        key={region.name}
-                        onClick={() => handleRegionSelect(region)}
-                        className={`p-4 rounded-lg cursor-pointer transition-all border ${
-                          selectedRegion?.name === region.name
-                            ? "bg-blue-600 border-blue-500 text-white transform scale-102 shadow-lg"
-                            : "bg-gray-800 border-gray-700 hover:bg-gray-700 hover:border-gray-600 text-gray-300"
-                        }`}
-                        style={{
-                          transformOrigin: "center",
-                        }}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="font-semibold text-lg">
-                            {region.name}
-                          </h3>
-                          {selectedRegion?.name === region.name && (
-                            <div className="w-3 h-3 bg-white rounded-full"></div>
-                          )}
+                  <div className="space-y-8 p-2">
+                    {groupedRegions.map((group) => (
+                      <div key={group.continent} className="space-y-4">
+                        <h3 className="text-lg font-semibold text-blue-300 border-b border-gray-700 pb-2">
+                          {group.continent}
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {group.regions.map((region) => (
+                            <div
+                              key={region.name}
+                              onClick={() => handleRegionSelect(region)}
+                              className={`p-4 rounded-lg cursor-pointer transition-all border ${
+                                selectedRegion?.name === region.name
+                                  ? "bg-blue-600 border-blue-500 text-white transform scale-102 shadow-lg"
+                                  : "bg-gray-800 border-gray-700 hover:bg-gray-700 hover:border-gray-600 text-gray-300"
+                              }`}
+                              style={{
+                                transformOrigin: "center",
+                              }}
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <h4 className="font-semibold text-base">
+                                  {region.name}
+                                </h4>
+                                {selectedRegion?.name === region.name && (
+                                  <div className="w-3 h-3 bg-white rounded-full"></div>
+                                )}
+                              </div>
+                              <p className="text-sm opacity-75 mb-1">
+                                {region.country}
+                              </p>
+                              <p className="text-xs opacity-60 font-mono">
+                                {region.name}
+                              </p>
+                            </div>
+                          ))}
                         </div>
-                        <p className="text-sm opacity-75 mb-1">
-                          {region.country}
-                        </p>
-                        <p className="text-xs opacity-60 font-mono">
-                          {region.name}
-                        </p>
                       </div>
                     ))}
                   </div>
