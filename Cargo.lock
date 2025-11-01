@@ -953,6 +953,7 @@ version = "0.1.0"
 dependencies = [
  "byocvpn_aws",
  "byocvpn_core",
+ "byocvpn_daemon",
  "clap",
  "tokio",
 ]
@@ -973,6 +974,25 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.17",
+ "tokio",
+ "tun-rs",
+]
+
+[[package]]
+name = "byocvpn_daemon"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "boringtun",
+ "byocvpn_core",
+ "dirs",
+ "ipnet",
+ "net-route",
+ "once_cell",
+ "rust-ini",
+ "serde",
+ "serde_json",
  "tokio",
  "tun-rs",
 ]
@@ -6391,6 +6411,7 @@ version = "0.1.0"
 dependencies = [
  "byocvpn_aws",
  "byocvpn_core",
+ "byocvpn_daemon",
  "serde",
  "serde_json",
  "tauri",

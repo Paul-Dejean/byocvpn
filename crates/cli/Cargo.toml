@@ -6,5 +6,6 @@ edition = "2024"
 [dependencies]
 byocvpn_core = { path = "../core" }
 byocvpn_aws = { path = "../infra/aws" }
+byocvpn_daemon = { path = "../daemon" }
 tokio = { workspace = true }
 clap = { version = "4.5.49", features = ["derive"] }

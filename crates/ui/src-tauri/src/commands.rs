@@ -6,6 +6,7 @@ use byocvpn_core::{
     cloud_provider::{CloudProvider, CloudProviderName},
     commands,
 };
+use byocvpn_daemon::daemon_client::UnixDaemonClient;
 use serde_json::{Value, json};
 
 async fn create_cloud_provider(
@@ -175,8 +176,9 @@ pub async fn connect(instance_id: String, region: String) -> Result<String, Stri
     let cloud_provider = create_cloud_provider("aws", Some(region))
         .await
         .map_err(|e| e.to_string())?;
-
-    commands::connect::connect(&*cloud_provider, instance_id.clone())
+    let daemon_client = UnixDaemonClient;
+    println!("Connecting to instance {}", instance_id.clone());
+    commands::connect::connect(&*cloud_provider, &daemon_client, instance_id.clone())
         .await
         .map_err(|e| e.to_string())?;
 
@@ -184,4 +186,13 @@ pub async fn connect(instance_id: String, region: String) -> Result<String, Stri
         "Connected to instance {} successfully.",
         instance_id.clone()
     ))
+}
+
+#[tauri::command]
+pub async fn disconnect() -> Result<String, String> {
+    let daemon_client = UnixDaemonClient;
+    commands::disconnect::disconnect(&daemon_client)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok("Disconnected successfully.".to_string())
 }

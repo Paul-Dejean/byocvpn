@@ -13,11 +13,8 @@ use crate::cloud_provider::{CloudProvider, CloudProviderName};
 
 pub mod cloud_provider;
 pub mod commands;
-pub mod daemon;
-pub mod ipc;
-mod tunnel;
-mod tunnel_manager;
-pub mod types;
+pub mod daemon_client;
+pub mod tunnel;
 use std::path::PathBuf;
 
 use tokio::fs;
@@ -49,7 +46,9 @@ pub fn generate_client_config(
         r#"[Interface]
 PrivateKey = {client_private_key}
 Address = 10.66.66.2/24, fd86:ea04:1111::2/128
-DNS = 2606:4700:4700::1112, 2606:4700:4700::1002, 1.1.1.2, 1.0.0.2
+DNS = 1.1.1.1, 1.0.0.1, 2606:4700:4700::1111, 2606:4700:4700::1001
+
+
 
 [Peer]
 PublicKey = {server_public_key}

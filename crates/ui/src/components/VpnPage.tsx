@@ -29,13 +29,20 @@ export function VpnPage() {
   const [selectedRegion, setSelectedRegion] = useState<AwsRegion | null>(null);
   const [isSpawning, setIsSpawning] = useState(false);
   const [isTerminating, setIsTerminating] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [newAccessKey, setNewAccessKey] = useState("");
   const [newSecretKey, setNewSecretKey] = useState("");
   const [isSavingCredentials, setIsSavingCredentials] = useState(false);
   const [serverStatus, setServerStatus] = useState<
-    "idle" | "spawning" | "running" | "error" | "terminating"
+    | "idle"
+    | "spawning"
+    | "running"
+    | "error"
+    | "terminating"
+    | "connecting"
+    | "connected"
   >("idle");
   const [selectedInstance, setSelectedInstance] =
     useState<ServerDetails | null>(null);
@@ -211,6 +218,41 @@ export function VpnPage() {
       setServerStatus("error");
     } finally {
       setIsTerminating(false);
+    }
+  };
+
+  const handleConnectToVpn = async () => {
+    if (!selectedInstance) return;
+
+    setIsConnecting(true);
+    setServerStatus("connecting");
+
+    try {
+      const response = await invoke("connect", {
+        instanceId: selectedInstance.instance_id,
+        region: selectedInstance.region,
+      });
+
+      console.log("VPN connected:", response);
+      setServerStatus("connected");
+    } catch (error) {
+      console.error("Failed to connect to VPN:", error);
+      setServerStatus("error");
+      alert(`Failed to connect to VPN: ${error}`);
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const handleDisconnectFromVpn = async () => {
+    setServerStatus("idle");
+
+    try {
+      const response = await invoke("disconnect");
+      console.log("VPN disconnected:", response);
+    } catch (error) {
+      console.error("Failed to disconnect from VPN:", error);
+      alert(`Failed to disconnect from VPN: ${error}`);
     }
   };
 
@@ -444,30 +486,57 @@ export function VpnPage() {
                 {/* Instance Actions */}
                 <div className="space-y-3">
                   <button
-                    className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-medium shadow-lg hover:shadow-xl"
-                    onClick={() => console.log("Connect to VPN")}
-                  >
-                    Connect to VPN
-                  </button>
-
-                  <button
-                    onClick={handleTerminateServer}
-                    disabled={isTerminating}
+                    onClick={handleConnectToVpn}
+                    disabled={isConnecting || serverStatus === "connected"}
                     className={`w-full px-4 py-3 rounded-lg transition font-medium shadow-lg hover:shadow-xl ${
-                      isTerminating
+                      isConnecting
                         ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                        : "bg-red-600 hover:bg-red-700 text-white"
+                        : serverStatus === "connected"
+                          ? "bg-green-800 text-green-200 cursor-not-allowed"
+                          : "bg-green-600 hover:bg-green-700 text-white"
                     }`}
                   >
-                    {isTerminating ? (
+                    {isConnecting ? (
                       <div className="flex items-center justify-center gap-2">
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Terminating...
+                        Connecting...
                       </div>
+                    ) : serverStatus === "connected" ? (
+                      "Connected to VPN"
                     ) : (
-                      "Terminate Server"
+                      "Connect to VPN"
                     )}
                   </button>
+
+                  {serverStatus === "connected" && (
+                    <button
+                      onClick={handleDisconnectFromVpn}
+                      className="w-full px-4 py-3 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition font-medium shadow-lg hover:shadow-xl"
+                    >
+                      Disconnect from VPN
+                    </button>
+                  )}
+
+                  {serverStatus !== "connected" && (
+                    <button
+                      onClick={handleTerminateServer}
+                      disabled={isTerminating}
+                      className={`w-full px-4 py-3 rounded-lg transition font-medium shadow-lg hover:shadow-xl ${
+                        isTerminating
+                          ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                          : "bg-red-600 hover:bg-red-700 text-white"
+                      }`}
+                    >
+                      {isTerminating ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Terminating...
+                        </div>
+                      ) : (
+                        "Terminate Server"
+                      )}
+                    </button>
+                  )}
                 </div>
               </>
             ) : (

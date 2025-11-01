@@ -12,7 +12,8 @@ pub fn run() {
             commands::list_instances,
             commands::has_profile,
             commands::get_regions,
-            commands::connect
+            commands::connect,
+            commands::disconnect,
         ]);
 
     #[cfg(debug_assertions)]

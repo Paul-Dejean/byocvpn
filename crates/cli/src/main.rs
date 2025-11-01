@@ -1,5 +1,6 @@
 use byocvpn_aws::{AwsProvider, provider::AwsProviderConfig};
 use byocvpn_core::{cloud_provider::CloudProvider, commands};
+use byocvpn_daemon::daemon_client::UnixDaemonClient;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -35,7 +36,6 @@ enum Commands {
         region: String,
     },
     Disconnect,
-    SpawnDaemon,
     Setup,
     EnableRegion {
         #[arg(short, long, help = "AWS region")]
@@ -86,12 +86,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         } => {
             println!("Connecting to VPN...");
             let provider = create_cloud_provider("aws", Some(region)).await?;
-            commands::connect::connect(&*provider, instance_id).await?;
+            let daemon_client = UnixDaemonClient;
+
+            commands::connect::connect(&*provider, &daemon_client, instance_id).await?;
             println!("Connected to VPN");
         }
         Commands::Disconnect => {
             println!("Disconnecting from VPN...");
-            commands::disconnect::disconnect().await?;
+            let daemon_client = UnixDaemonClient;
+            commands::disconnect::disconnect(&daemon_client).await?;
             println!("Disconnected from VPN");
         }
         Commands::Terminate {
@@ -117,11 +120,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             for instance in active_instances {
                 println!("{:?}", instance);
             }
-        }
-        Commands::SpawnDaemon => {
-            println!("Spawning daemon...");
-            commands::spawn_daemon::spawn_daemon().await?;
-            println!("Daemon spawned.");
         }
         Commands::Setup => {
             println!("Setting up cloud provider...");
