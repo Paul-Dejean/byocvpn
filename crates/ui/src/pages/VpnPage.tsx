@@ -1,216 +1,61 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-
-interface AwsRegion {
-  name: string;
-  country: string;
-}
-
-interface RegionGroup {
-  continent: string;
-  regions: AwsRegion[];
-}
-
-interface ExistingInstance {
-  id: string;
-  name?: string;
-  state: string;
-  public_ip_v4: string;
-  public_ip_v6: string;
-  region?: string;
-}
-
-interface ServerDetails {
-  instance_id: string;
-  public_ip_v4: string;
-  public_ip_v6?: string;
-  region: string;
-  client_private_key: string;
-  server_public_key: string;
-}
+import { useRegions, useInstances, useVpnConnection } from "../hooks";
+import { AwsRegion, ExistingInstance, ServerDetails } from "../types";
+import { LoadingSpinner } from "../components/common/LoadingSpinner";
+import { SettingsButton } from "../components/settings/SettingsButton";
+import { InstanceList } from "../components/instances/InstanceList";
+import { RegionList } from "../components/regions/RegionList";
 
 export function VpnPage() {
-  const [regions, setRegions] = useState<AwsRegion[]>([]);
-  const [groupedRegions, setGroupedRegions] = useState<RegionGroup[]>([]);
-  const [selectedRegion, setSelectedRegion] = useState<AwsRegion | null>(null);
+  // Hooks for state management
+  const {
+    regions,
+    groupedRegions,
+    selectedRegion,
+    isLoading: regionsLoading,
+    handleRegionSelect,
+  } = useRegions();
+
+  const {
+    existingInstances,
+    selectedInstance,
+    isLoading: instancesLoading,
+    handleInstanceSelect,
+    addInstance,
+    removeInstance,
+    clearSelectedInstance,
+    setSelectedInstance,
+  } = useInstances(regions);
+
+  const {
+    serverStatus,
+    isConnecting,
+    setServerStatus,
+    handleConnectToVpn,
+    handleDisconnectFromVpn,
+  } = useVpnConnection();
+
+  // Local state for server operations
   const [isSpawning, setIsSpawning] = useState(false);
   const [isTerminating, setIsTerminating] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+
+  // Settings modal state
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [newAccessKey, setNewAccessKey] = useState("");
   const [newSecretKey, setNewSecretKey] = useState("");
   const [isSavingCredentials, setIsSavingCredentials] = useState(false);
-  const [serverStatus, setServerStatus] = useState<
-    | "idle"
-    | "spawning"
-    | "running"
-    | "error"
-    | "terminating"
-    | "connecting"
-    | "connected"
-  >("idle");
-  const [selectedInstance, setSelectedInstance] =
-    useState<ServerDetails | null>(null);
-  const [existingInstances, setExistingInstances] = useState<
-    ExistingInstance[]
-  >([]);
 
-  // Load regions and existing instances on component mount
-  useEffect(() => {
-    loadRegions();
-  }, []);
-
-  // Group regions by continent when regions change
-  useEffect(() => {
-    if (regions.length > 0) {
-      const grouped = groupRegionsByContinent(regions);
-      setGroupedRegions(grouped);
-    }
-  }, [regions]);
-
-  // Load instances when regions are available
-  useEffect(() => {
-    if (regions.length > 0) {
-      loadExistingInstances();
-    }
-  }, [regions]);
-
-  const groupRegionsByContinent = (regions: AwsRegion[]): RegionGroup[] => {
-    const continentMap: Record<string, string> = {
-      // North America
-      us: "North America",
-      ca: "North America",
-
-      // Europe
-      eu: "Europe",
-
-      // Asia Pacific
-      ap: "Asia Pacific",
-
-      // South America
-      sa: "South America",
-
-      // Middle East
-      me: "Middle East",
-
-      // Africa
-      af: "Africa",
-    };
-
-    const groups: Record<string, AwsRegion[]> = {};
-
-    regions.forEach((region) => {
-      const prefix = region.name.split("-")[0];
-      const continent = continentMap[prefix] || "Other";
-
-      if (!groups[continent]) {
-        groups[continent] = [];
-      }
-      groups[continent].push(region);
-    });
-
-    // Convert to array and sort
-    return Object.entries(groups)
-      .map(([continent, regions]) => ({
-        continent,
-        regions: regions.sort((a, b) => a.name.localeCompare(b.name)),
-      }))
-      .sort((a, b) => a.continent.localeCompare(b.continent));
-  };
-
-  const loadRegions = async () => {
-    try {
-      console.log("Loading regions...");
-      const fetchedRegions = (await invoke("get_regions")) as AwsRegion[];
-      console.log({ fetchedRegions });
-      setRegions(fetchedRegions);
-    } catch (error) {
-      console.error("Failed to load regions:", error);
-    }
-  };
-
-  const loadExistingInstances = async () => {
-    setIsLoading(true);
-
-    // Wait for regions to be loaded if they're not already
-    if (regions.length === 0) {
-      return;
-    }
-
-    // Check all regions in parallel for existing instances
-    const regionPromises = regions.map(async (region) => {
-      try {
-        const instances = (await invoke("list_instances", {
-          region: region.name,
-        })) as ExistingInstance[];
-
-        // Add region info to each instance
-        return instances.map((instance) => ({
-          ...instance,
-          region: region.name,
-        }));
-      } catch (error) {
-        console.warn(`Failed to load instances from ${region.name}:`, error);
-        return []; // Return empty array on error
-      }
-    });
-
-    // Wait for all regions to be checked
-    const allRegionResults = await Promise.all(regionPromises);
-
-    // Flatten the results into a single array
-    const allInstances = allRegionResults.flat();
-
-    setExistingInstances(allInstances);
-
-    // If we have a running instance, set it as the current server
-    const runningInstance = allInstances.find(
-      (instance) => instance.state === "running"
-    );
-    if (runningInstance) {
-      setSelectedInstance({
-        instance_id: runningInstance.id,
-        public_ip_v4: runningInstance.public_ip_v4,
-        public_ip_v6: runningInstance.public_ip_v6,
-        region: runningInstance.region || "",
-        client_private_key: "", // We don't have this from the API
-        server_public_key: "", // We don't have this from the API
-      });
-      setServerStatus("running");
-
-      // Set the selected region to match the running instance
-      const regionInfo = regions.find((r) => r.name === runningInstance.region);
-      if (regionInfo) {
-        setSelectedRegion(regionInfo);
-      }
-    }
-
-    setIsLoading(false);
-  };
-
-  const handleRegionSelect = (region: AwsRegion) => {
-    setSelectedRegion(region);
+  const handleRegionSelectWrapper = (region: AwsRegion) => {
+    handleRegionSelect(region);
     // Clear selected instance when selecting a region (to show spawn controls)
-    setSelectedInstance(null);
+    clearSelectedInstance();
     setServerStatus("idle");
   };
 
-  const handleInstanceSelect = (instance: ExistingInstance) => {
-    // Convert ExistingInstance to ServerDetails format
-    const instanceDetails: ServerDetails = {
-      instance_id: instance.id,
-      public_ip_v4: instance.public_ip_v4,
-      public_ip_v6: instance.public_ip_v6,
-      region: instance.region || "",
-      client_private_key: "", // We don't have this from the API
-      server_public_key: "", // We don't have this from the API
-    };
-
-    setSelectedInstance(instanceDetails);
+  const handleInstanceSelectWrapper = (instance: ExistingInstance) => {
+    handleInstanceSelect(instance);
     setServerStatus("running");
-
-    // Set the selected region to match the instance
   };
 
   const handleSpawnServer = async () => {
@@ -240,7 +85,7 @@ export function VpnPage() {
         region: selectedRegion.name,
       };
 
-      setExistingInstances((prev) => [...prev, newInstance]);
+      addInstance(newInstance);
     } catch (error) {
       console.error("Failed to spawn server:", error);
       setServerStatus("error");
@@ -263,53 +108,16 @@ export function VpnPage() {
       });
 
       console.log("Server terminated:", result);
-      setSelectedInstance(null);
+      clearSelectedInstance();
       setServerStatus("idle");
 
       // Remove the terminated instance from local state instead of refetching
-      setExistingInstances((prev) =>
-        prev.filter((instance) => instance.id !== selectedInstance.instance_id)
-      );
+      removeInstance(selectedInstance.instance_id);
     } catch (error) {
       console.error("Failed to terminate server:", error);
       setServerStatus("error");
     } finally {
       setIsTerminating(false);
-    }
-  };
-
-  const handleConnectToVpn = async () => {
-    if (!selectedInstance) return;
-
-    setIsConnecting(true);
-    setServerStatus("connecting");
-
-    try {
-      const response = await invoke("connect", {
-        instanceId: selectedInstance.instance_id,
-        region: selectedInstance.region,
-      });
-
-      console.log("VPN connected:", response);
-      setServerStatus("connected");
-    } catch (error) {
-      console.error("Failed to connect to VPN:", error);
-      setServerStatus("error");
-      alert(`Failed to connect to VPN: ${error}`);
-    } finally {
-      setIsConnecting(false);
-    }
-  };
-
-  const handleDisconnectFromVpn = async () => {
-    setServerStatus("idle");
-
-    try {
-      const response = await invoke("disconnect");
-      console.log("VPN disconnected:", response);
-    } catch (error) {
-      console.error("Failed to disconnect from VPN:", error);
-      alert(`Failed to disconnect from VPN: ${error}`);
     }
   };
 
@@ -333,9 +141,6 @@ export function VpnPage() {
       setNewSecretKey("");
       setShowSettingsModal(false);
 
-      // Reload instances with new credentials
-      await loadExistingInstances();
-
       alert("Credentials updated successfully!");
     } catch (error) {
       console.error("Failed to update credentials:", error);
@@ -346,6 +151,8 @@ export function VpnPage() {
       setIsSavingCredentials(false);
     }
   };
+
+  const isLoading = regionsLoading || instancesLoading;
 
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white overflow-hidden">
@@ -360,157 +167,30 @@ export function VpnPage() {
               Select an AWS region to deploy your VPN server
             </p>
           </div>
-
-          {/* Settings Button */}
-          <button
-            onClick={() => setShowSettingsModal(true)}
-            className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors"
-            title="Update AWS Credentials"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-6 w-6 text-gray-300"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-            </svg>
-          </button>
+          <SettingsButton onClick={() => setShowSettingsModal(true)} />
         </div>
       </div>
 
       <div className="flex-1 flex min-h-0">
         {/* Show loading state */}
         {isLoading ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-gray-300">Loading existing instances...</p>
-            </div>
-          </div>
+          <LoadingSpinner message="Loading existing instances..." />
         ) : (
           <>
             {/* Existing Instances Section */}
-            {existingInstances.length > 0 && (
-              <div className="flex-1 p-6 flex flex-col min-h-0">
-                <div className="flex-1 flex flex-col min-h-0">
-                  <h2 className="text-xl font-semibold mb-4 text-blue-400">
-                    Existing VPN Servers
-                  </h2>
-                  <div className="flex-1 overflow-y-auto min-h-0">
-                    <div className="grid grid-cols-1 gap-6 p-2">
-                      {existingInstances.map((instance) => (
-                        <div
-                          key={instance.id}
-                          onClick={() => handleInstanceSelect(instance)}
-                          className={`p-4 rounded-lg cursor-pointer transition-all border ${
-                            selectedInstance?.instance_id === instance.id
-                              ? "bg-blue-600 border-blue-500 text-white transform scale-102 shadow-lg"
-                              : "bg-gray-800 border-gray-700 hover:bg-gray-700 hover:border-gray-600"
-                          }`}
-                          style={{
-                            transformOrigin: "center",
-                          }}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <h3 className="font-semibold text-lg">
-                              {instance.name || "VPN Server"}
-                            </h3>
-                            <div className="flex items-center gap-2">
-                              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                              <span className="text-sm text-green-400">
-                                Running
-                              </span>
-                              {selectedInstance?.instance_id ===
-                                instance.id && (
-                                <div className="w-3 h-3 bg-white rounded-full ml-2"></div>
-                              )}
-                            </div>
-                          </div>
-                          <p className="text-sm text-gray-400 mb-1">
-                            <span className="font-medium">Instance ID:</span>{" "}
-                            {instance.id}
-                          </p>
-                          <p className="text-sm text-gray-400 mb-1">
-                            <span className="font-medium">Public IP:</span>{" "}
-                            {instance.public_ip_v4}
-                          </p>
-                          <p className="text-sm text-gray-400">
-                            <span className="font-medium">Region:</span>{" "}
-                            {instance.region}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+            <InstanceList
+              instances={existingInstances}
+              selectedInstance={selectedInstance}
+              onInstanceSelect={handleInstanceSelectWrapper}
+            />
 
             {/* Region List */}
-            <div className="flex-1 p-6 flex flex-col min-h-0">
-              <div className="flex-1 flex flex-col min-h-0">
-                <h2 className="text-xl font-semibold mb-4 text-blue-400">
-                  {existingInstances.length > 0
-                    ? "Deploy in New Region"
-                    : "Available AWS Regions"}
-                </h2>
-                <div className="flex-1 overflow-y-auto min-h-0">
-                  <div className="space-y-8 p-2">
-                    {groupedRegions.map((group) => (
-                      <div key={group.continent} className="space-y-4">
-                        <h3 className="text-lg font-semibold text-blue-300 border-b border-gray-700 pb-2">
-                          {group.continent}
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          {group.regions.map((region) => (
-                            <div
-                              key={region.name}
-                              onClick={() => handleRegionSelect(region)}
-                              className={`p-4 rounded-lg cursor-pointer transition-all border ${
-                                selectedRegion?.name === region.name
-                                  ? "bg-blue-600 border-blue-500 text-white transform scale-102 shadow-lg"
-                                  : "bg-gray-800 border-gray-700 hover:bg-gray-700 hover:border-gray-600 text-gray-300"
-                              }`}
-                              style={{
-                                transformOrigin: "center",
-                              }}
-                            >
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="font-semibold text-base">
-                                  {region.name}
-                                </h4>
-                                {selectedRegion?.name === region.name && (
-                                  <div className="w-3 h-3 bg-white rounded-full"></div>
-                                )}
-                              </div>
-                              <p className="text-sm opacity-75 mb-1">
-                                {region.country}
-                              </p>
-                              <p className="text-xs opacity-60 font-mono">
-                                {region.name}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <RegionList
+              groupedRegions={groupedRegions}
+              selectedRegion={selectedRegion}
+              onRegionSelect={handleRegionSelectWrapper}
+              existingInstancesCount={existingInstances.length}
+            />
           </>
         )}
 
@@ -552,7 +232,7 @@ export function VpnPage() {
                 {/* Instance Actions */}
                 <div className="space-y-3">
                   <button
-                    onClick={handleConnectToVpn}
+                    onClick={() => handleConnectToVpn(selectedInstance)}
                     disabled={isConnecting || serverStatus === "connected"}
                     className={`w-full px-4 py-3 rounded-lg transition font-medium shadow-lg hover:shadow-xl ${
                       isConnecting
