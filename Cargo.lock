@@ -945,6 +945,7 @@ dependencies = [
  "handlebars",
  "serde",
  "serde_json",
+ "thiserror 2.0.17",
  "tokio",
 ]
 
@@ -995,6 +996,7 @@ dependencies = [
  "rust-ini",
  "serde",
  "serde_json",
+ "thiserror 2.0.17",
  "tokio",
  "tun-rs",
 ]

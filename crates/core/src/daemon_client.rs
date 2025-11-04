@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
+use crate::error::Result;
+
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "cmd")]
 pub enum DaemonCommand {
@@ -10,7 +12,7 @@ pub enum DaemonCommand {
 }
 #[async_trait]
 pub trait DaemonClient: Send + Sync {
-    async fn send_command(&self, cmd: DaemonCommand) -> Result<String, Box<dyn std::error::Error>>;
+    async fn send_command(&self, cmd: DaemonCommand) -> Result<String>;
     async fn is_daemon_running(&self) -> bool;
 }
 

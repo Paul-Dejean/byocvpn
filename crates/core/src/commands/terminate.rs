@@ -1,11 +1,8 @@
 use tokio::fs;
 
-use crate::{cloud_provider::CloudProvider, get_configs_path};
+use crate::{cloud_provider::CloudProvider, credentials::get_configs_path, error::Result};
 
-pub async fn terminate_instance(
-    provider: &dyn CloudProvider,
-    instance_id: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn terminate_instance(provider: &dyn CloudProvider, instance_id: &str) -> Result<()> {
     provider
         .terminate_instance(&instance_id)
         .await

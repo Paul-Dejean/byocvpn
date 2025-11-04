@@ -3,7 +3,7 @@ use byocvpn_core::daemon_client::{DaemonClient, DaemonCommand};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt, Error, ErrorKind},
     net::UnixStream,
-    time::{sleep, Duration},
+    time::{Duration, sleep},
 };
 
 use crate::constants;
@@ -11,7 +11,7 @@ pub struct UnixDaemonClient;
 
 #[async_trait]
 impl DaemonClient for UnixDaemonClient {
-    async fn send_command(&self, cmd: DaemonCommand) -> Result<String, Box<dyn std::error::Error>> {
+    async fn send_command(&self, cmd: DaemonCommand) -> Result<String> {
         let socket_path = constants::socket_path().to_string_lossy().to_string();
         wait_for_socket(&socket_path, 50).await?;
         let mut stream = UnixStream::connect(&socket_path).await?;

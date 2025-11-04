@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-use base64::{engine::general_purpose, Engine};
+use base64::{Engine, engine::general_purpose};
 use boringtun::{
     noise::Tunn,
     x25519::{PublicKey, StaticSecret},
@@ -18,11 +18,12 @@ use tokio::{
 use tun_rs::DeviceBuilder;
 
 mod tunnel_manager;
-use crate::tunnel_manager::{TunnelHandle, TUNNEL_MANAGER};
+use crate::tunnel_manager::{TUNNEL_MANAGER, TunnelHandle};
 
 pub mod constants;
 pub mod daemon_client;
 use crate::dns_macos::DomainNameSystemOverrideGuard;
+mod error;
 
 #[cfg(target_os = "macos")]
 mod dns_macos;
@@ -127,7 +128,9 @@ async fn disconnect_vpn() {
         if handle.shutdown.send(()).is_ok() {
             println!("[VPN Disconnect] Shutdown signal sent to tunnel task.");
         } else {
-            eprintln!("[VPN Disconnect] Warning: Failed to send shutdown signal (tunnel task likely already stopped).");
+            eprintln!(
+                "[VPN Disconnect] Warning: Failed to send shutdown signal (tunnel task likely already stopped)."
+            );
         }
 
         // Wait for the tunnel task to complete
@@ -239,9 +242,11 @@ async fn connect_vpn(config_path: String) -> Result<(), Box<dyn std::error::Erro
     // println!("Tunnel running: {}", is_tunnel_running);
 
     // //Step 4: route internet traffic
+
     println!("Adding VPN routes...");
     add_vpn_routes(&iface_name, &endpoint.ip().to_string()).await;
 
+    println!("Configuring DNS...");
     #[cfg(target_os = "macos")]
     let optional_domain_name_system_override_guard: Option<DomainNameSystemOverrideGuard> = {
         println!("getting dns");

@@ -1,14 +1,15 @@
 use crate::{
-    CloudProvider,
+    cloud_provider::CloudProvider,
+    credentials::get_configs_path,
     daemon_client::{DaemonClient, DaemonCommand},
-    get_configs_path,
+    error::Result,
 };
 
 pub async fn connect(
     provider: &dyn CloudProvider,
     daemon_client: &dyn DaemonClient,
     instance_id: String,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     println!(
         "is daemon running: {}",
         daemon_client.is_daemon_running().await

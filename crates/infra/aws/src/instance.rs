@@ -7,14 +7,23 @@ use base64::{Engine, engine::general_purpose};
 use byocvpn_core::cloud_provider::InstanceInfo;
 use tokio::time::Duration;
 
-use crate::{AwsProvider, cloud_init, config, network};
-
+use crate::{
+    AwsProvider, cloud_init, config,
+    error::{
+        Error::{
+            Ec2WaitInstanceRunning, InstanceMissingId, MissingPublicIpv4, MissingPublicIpv6,
+            MissingSecurityGroup, NoInstanceInResponse,
+        },
+        Result,
+    },
+    network,
+};
 pub(super) async fn spawn_instance(
     provider: &AwsProvider,
     subnet_id: &str,
     server_private_key: &str,
     client_public_key: &str,
-) -> Result<(String, String, String), Box<dyn std::error::Error>> {
+) -> Result<(String, String, String)> {
     let user_data =
         cloud_init::generate_wireguard_cloud_init(server_private_key, client_public_key);
 
@@ -27,7 +36,7 @@ pub(super) async fn spawn_instance(
     let group_name = "byocvpn-security-group";
     let security_group_id = network::get_security_group_by_name(&provider.ec2_client, group_name)
         .await?
-        .unwrap();
+        .ok_or_else(|| MissingSecurityGroup(group_name.to_string()))?;
 
     println!("Security group ID: {}", security_group_id);
 
@@ -49,15 +58,16 @@ pub(super) async fn spawn_instance(
         .tag_specifications(tags)
         .send()
         .await?;
-    let instance = resp.instances().first().ok_or("No instance found")?;
-    let instance_id = instance.instance_id().ok_or("No instance ID")?.to_string();
+    let instance = resp.instances().first().ok_or(NoInstanceInResponse)?;
+    let instance_id = instance.instance_id().ok_or(InstanceMissingId)?.to_string();
 
     provider
         .ec2_client
         .wait_until_instance_running()
         .instance_ids(&instance_id)
         .wait(Duration::from_secs(60))
-        .await?;
+        .await
+        .map_err(|error| Ec2WaitInstanceRunning(error.to_string()))?;
 
     let desc = provider
         .ec2_client
@@ -72,7 +82,7 @@ pub(super) async fn spawn_instance(
         .flat_map(|r| r.instances())
         .filter_map(|i| i.public_ip_address())
         .next()
-        .ok_or("No public IP address yet")?
+        .ok_or(MissingPublicIpv4)?
         .to_string();
 
     let public_ip_v6 = desc
@@ -81,7 +91,7 @@ pub(super) async fn spawn_instance(
         .flat_map(|r| r.instances())
         .filter_map(|i| i.ipv6_address())
         .next()
-        .ok_or("No public IPv6 address yet")?
+        .ok_or(MissingPublicIpv6)?
         .to_string();
     println!("Instance ID: {}", instance_id);
     println!("Public IPv4: {}", public_ip_v4);
@@ -90,10 +100,7 @@ pub(super) async fn spawn_instance(
     Ok((instance_id, public_ip_v4, public_ip_v6))
 }
 
-pub async fn terminate_instance(
-    ec2_client: &Ec2Client,
-    instance_id: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn terminate_instance(ec2_client: &Ec2Client, instance_id: &str) -> Result<()> {
     ec2_client
         .terminate_instances()
         .instance_ids(instance_id)
@@ -103,9 +110,7 @@ pub async fn terminate_instance(
     Ok(())
 }
 
-pub(super) async fn list_instances(
-    ec2_client: &Ec2Client,
-) -> Result<Vec<InstanceInfo>, Box<dyn std::error::Error>> {
+pub(super) async fn list_instances(ec2_client: &Ec2Client) -> Result<Vec<InstanceInfo>> {
     let resp = ec2_client.describe_instances().send().await?;
 
     let instances = resp
@@ -117,27 +122,20 @@ pub(super) async fn list_instances(
 
             let state = i
                 .state()
-                .and_then(|s| s.name().map(|s| s.as_str()))
-                .unwrap_or("unknown")
+                .and_then(|s| s.name().map(|s| s.as_str()))?
                 .to_string();
 
             if state != "running" {
                 return None;
             }
-            let name = i
-                .tags()
-                .iter()
-                .find(|t| t.key().unwrap_or_default() == "Name")
-                .and_then(|t| t.value().map(|v| v.to_string()));
-            let public_ip_v4 = i
-                .public_ip_address()
-                .map(|ip| ip.to_string())
-                .unwrap_or_default();
+            let name = i.tags().iter().find_map(|tag| {
+                tag.key()
+                    .filter(|key| *key == "Name")
+                    .and_then(|_| tag.value().map(ToString::to_string))
+            });
 
-            let public_ip_v6 = i
-                .ipv6_address()
-                .map(|ip| ip.to_string())
-                .unwrap_or_default();
+            let public_ip_v4 = i.public_ip_address().map(|ip| ip.to_string())?;
+            let public_ip_v6 = i.ipv6_address().map(|ip| ip.to_string())?;
 
             Some(InstanceInfo {
                 id,

@@ -1,6 +1,7 @@
 mod cloud_init;
 mod config;
+mod error;
 mod instance;
 mod network;
-pub mod provider;
+mod provider;
 pub use provider::AwsProvider;

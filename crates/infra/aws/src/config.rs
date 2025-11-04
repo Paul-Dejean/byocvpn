@@ -3,11 +3,12 @@ use aws_credential_types::Credentials;
 use aws_sdk_ec2::config::{Region, SharedCredentialsProvider};
 use aws_sdk_ssm::Client as SsmClient;
 
-use crate::provider::AwsProviderConfig;
+use crate::{
+    error::{Error::MissingSsmParameter, Result},
+    provider::AwsProviderConfig,
+};
 
-pub(super) async fn get_config(
-    config: &AwsProviderConfig,
-) -> Result<SdkConfig, Box<dyn std::error::Error>> {
+pub(super) async fn get_config(config: &AwsProviderConfig) -> Result<SdkConfig> {
     let region_provider = match &config.region {
         Some(r) => RegionProviderChain::first_try(Region::new(r.clone())).or_default_provider(),
         None => RegionProviderChain::default_provider(),
@@ -27,9 +28,7 @@ pub(super) async fn get_config(
     Ok(config)
 }
 
-pub(super) async fn get_al2023_ami(
-    ssm_client: &SsmClient,
-) -> Result<String, Box<dyn std::error::Error>> {
+pub(super) async fn get_al2023_ami(ssm_client: &SsmClient) -> Result<String> {
     // AL2023 x86_64 SSM parameter name
     let param_name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64";
 
@@ -39,7 +38,7 @@ pub(super) async fn get_al2023_ami(
     let ami_id = result
         .parameter()
         .and_then(|p| p.value())
-        .ok_or("AMI ID not found in parameter store")?
+        .ok_or(MissingSsmParameter("AMI al2023 not found".to_string()))?
         .to_string();
 
     Ok(ami_id)
