@@ -8,7 +8,7 @@ use aws_sdk_ec2::{
     },
 };
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 
 pub(super) async fn create_security_group(
     ec2_client: &Ec2Client,
@@ -26,7 +26,7 @@ pub(super) async fn create_security_group(
 
     let group_id = create_resp
         .group_id()
-        .ok_or("No security group ID returned")?
+        .ok_or(Error::MissingSecurityGroupIdentifier)?
         .to_string();
 
     println!("Created security group with ID: {}", group_id);
@@ -94,7 +94,10 @@ pub(super) async fn create_vpc(
         .send()
         .await?;
 
-    let vpc_id = resp.vpc().and_then(|vpc| vpc.vpc_id()).unwrap();
+    let vpc_id = resp
+        .vpc()
+        .and_then(|vpc| vpc.vpc_id())
+        .ok_or_else(|| Error::MissingVpcIdentifier)?;
 
     println!("Created VPC: {}", vpc_id);
     Ok(vpc_id.to_string())
@@ -140,7 +143,10 @@ pub(super) async fn create_subnet(
         .send()
         .await?;
 
-    let subnet_id = resp.subnet().and_then(|subnet| subnet.subnet_id()).unwrap();
+    let subnet_id = resp
+        .subnet()
+        .and_then(|subnet| subnet.subnet_id())
+        .ok_or_else(|| Error::MissingSubnetIdentifier)?;
 
     println!("Created Subnet: {}", subnet_id);
     Ok(subnet_id.to_string())
@@ -168,13 +174,20 @@ pub(super) async fn get_vpc_ipv6_block(ec2_client: &Ec2Client, vpc_id: &str) -> 
         .flat_map(|vpc| vpc.ipv6_cidr_block_association_set())
         .filter_map(|assoc| assoc.ipv6_cidr_block())
         .next()
-        .ok_or("No IPv6 CIDR block associated with VPC")?;
+        .ok_or_else(|| Error::MissingVpcIpv6Cidr {
+            vpc_identifier: vpc_id.to_string(),
+        })?;
 
     Ok(cidr.to_string())
 }
 
 pub(super) fn carve_ipv6_subnet(base_cidr: &str, index: u8) -> Result<String> {
-    let (base_ip, _prefix) = base_cidr.split_once('/').ok_or("Invalid IPv6 CIDR")?;
+    let (base_ip, _prefix) = base_cidr
+        .split_once('/')
+        .ok_or_else(|| Error::InvalidIpv6Cidr {
+            cidr: base_cidr.to_string(),
+            reason: "Missing '/' separator".to_string(),
+        })?;
     let mut bytes = Ipv6Addr::from_str(base_ip)?.octets();
 
     // Increment the 8 bits after the /56 (byte 7)
@@ -188,9 +201,8 @@ pub(super) async fn create_and_attach_igw(ec2: &Ec2Client, vpc_id: &str) -> Resu
     let igw = ec2.create_internet_gateway().send().await?;
     let igw_id = igw
         .internet_gateway()
-        .unwrap()
-        .internet_gateway_id()
-        .unwrap();
+        .and_then(|gateway| gateway.internet_gateway_id())
+        .ok_or_else(|| Error::MissingInternetGatewayIdentifier)?;
 
     ec2.attach_internet_gateway()
         .internet_gateway_id(igw_id)
@@ -259,7 +271,9 @@ pub(super) async fn find_main_route_table(ec2: &Ec2Client, vpc_id: &str) -> Resu
                 .any(|assoc| assoc.main().unwrap_or(false))
         })
         .and_then(|rt| rt.route_table_id())
-        .ok_or("No main route table found")?;
+        .ok_or_else(|| Error::MissingMainRouteTable {
+            vpc_identifier: vpc_id.to_string(),
+        })?;
 
     Ok(rt_id.to_string())
 }

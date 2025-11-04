@@ -52,6 +52,15 @@ pub enum Error {
     #[error("No security group identifier returned by AWS")]
     MissingSecurityGroupIdentifier,
 
+    #[error("No internet gateway identifier returned by AWS")]
+    MissingInternetGatewayIdentifier,
+
+    #[error("No VPC identifier returned by AWS")]
+    MissingVpcIdentifier,
+
+    #[error("No subnet identifier returned by AWS")]
+    MissingSubnetIdentifier,
+
     #[error("No IPv6 CIDR block associated with VPC {vpc_identifier}")]
     MissingVpcIpv6Cidr { vpc_identifier: String },
 
