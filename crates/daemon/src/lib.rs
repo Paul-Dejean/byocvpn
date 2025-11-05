@@ -23,7 +23,6 @@ use crate::tunnel_manager::{TUNNEL_MANAGER, TunnelHandle};
 pub mod constants;
 pub mod daemon_client;
 use crate::dns_macos::DomainNameSystemOverrideGuard;
-mod error;
 
 #[cfg(target_os = "macos")]
 mod dns_macos;

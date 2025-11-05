@@ -4,20 +4,13 @@ use aws_sdk_ec2::{
     types::{ResourceType, Tag, TagSpecification},
 };
 use base64::{Engine, engine::general_purpose};
-use byocvpn_core::cloud_provider::InstanceInfo;
+use byocvpn_core::{
+    cloud_provider::InstanceInfo,
+    error::{Error, Result},
+};
 use tokio::time::Duration;
 
-use crate::{
-    AwsProvider, cloud_init, config,
-    error::{
-        Error::{
-            Ec2WaitInstanceRunning, InstanceMissingId, MissingPublicIpv4, MissingPublicIpv6,
-            MissingSecurityGroup, NoInstanceInResponse,
-        },
-        Result,
-    },
-    network,
-};
+use crate::{AwsProvider, cloud_init, config, network};
 pub(super) async fn spawn_instance(
     provider: &AwsProvider,
     subnet_id: &str,

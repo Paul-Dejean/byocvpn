@@ -6,12 +6,12 @@ use aws_sdk_ssm::Client as SsmClient;
 use byocvpn_core::{
     cloud_provider::{CloudProvider, InstanceInfo},
     commands::setup::Region,
-    error::Result as CoreResult,
+    error::{Error, Result},
 };
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::{config, error::Result, instance, network};
+use crate::{config, instance, network};
 
 pub struct AwsProvider {
     pub ec2_client: Ec2Client,
@@ -57,7 +57,7 @@ pub struct AwsPermissionsResult {
 
 #[async_trait]
 impl CloudProvider for AwsProvider {
-    async fn verify_permissions(&self) -> CoreResult<Value> {
+    async fn verify_permissions(&self) -> Result<Value> {
         let ec2_run_instances = self
             .ec2_client
             .run_instances()
@@ -217,13 +217,11 @@ impl CloudProvider for AwsProvider {
             ssm_get_parameter,
         };
 
-        Ok(serde_json::to_value(permissions)?)
+        Ok(serde_json::to_value(permissions))
     }
 
-    async fn setup(&self) -> CoreResult<()> {
-        let existing_vpc_id = network::get_vpc_by_name(&self.ec2_client, "byocvpn-vpc")
-            .await
-            .unwrap();
+    async fn setup(&self) -> Result<()> {
+        let existing_vpc_id = network::get_vpc_by_name(&self.ec2_client, "byocvpn-vpc").await?;
         if existing_vpc_id.is_some() {
             println!("Existing VPC found, skipping creation.");
             return Ok(());
@@ -243,7 +241,7 @@ impl CloudProvider for AwsProvider {
         Ok(())
     }
 
-    async fn enable_region(&self, _region: &str) -> CoreResult<()> {
+    async fn enable_region(&self, _region: &str) -> Result<()> {
         let vpc_id = network::get_vpc_by_name(&self.ec2_client, "byocvpn-vpc")
             .await
             .unwrap()
@@ -311,7 +309,7 @@ impl CloudProvider for AwsProvider {
         &self,
         server_private_key: &str,
         client_public_key: &str,
-    ) -> CoreResult<(String, String, String)> {
+    ) -> Result<(String, String, String)> {
         let vpc_id = network::get_vpc_by_name(&self.ec2_client, "byocvpn-vpc")
             .await
             .unwrap()
@@ -323,15 +321,15 @@ impl CloudProvider for AwsProvider {
         instance::spawn_instance(self, &subnet_id, server_private_key, client_public_key).await
     }
 
-    async fn terminate_instance(&self, instance_id: &str) -> CoreResult<()> {
+    async fn terminate_instance(&self, instance_id: &str) -> Result<()> {
         instance::terminate_instance(&self.ec2_client, instance_id).await
     }
 
-    async fn list_instances(&self) -> CoreResult<Vec<InstanceInfo>> {
+    async fn list_instances(&self) -> Result<Vec<InstanceInfo>> {
         instance::list_instances(&self.ec2_client).await
     }
 
-    fn get_config_file_name(&self, instance_id: &str) -> CoreResult<String> {
+    fn get_config_file_name(&self, instance_id: &str) -> Result<String> {
         let region = self
             .ec2_client
             .config()
@@ -343,7 +341,7 @@ impl CloudProvider for AwsProvider {
         Ok(path)
     }
 
-    async fn get_regions(&self) -> CoreResult<Vec<Region>> {
+    async fn get_regions(&self) -> Result<Vec<Region>> {
         let regions_map = HashMap::from([
             ("us", "United States"),
             ("eu", "Europe"),

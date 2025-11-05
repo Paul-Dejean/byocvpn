@@ -7,8 +7,7 @@ use aws_sdk_ec2::{
         TagSpecification,
     },
 };
-
-use crate::error::{Error, Result};
+use byocvpn_core::error::{Error, Result};
 
 pub(super) async fn create_security_group(
     ec2_client: &Ec2Client,

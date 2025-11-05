@@ -6,7 +6,7 @@ use tokio::fs::{create_dir_all, try_exists};
 use crate::{
     cloud_provider::CloudProviderName,
     error::{
-        Error::{HomeDirectoryNotAvailable, InvalidFile, IoError},
+        Error::{HomeDirectoryNotAvailable, InvalidCredentialsFile, IoError},
         Result,
     },
 };
@@ -68,32 +68,34 @@ pub async fn get_credentials() -> Result<Credentials> {
     let credentials_path = get_credentials_path().await?;
     let config = Ini::load_from_file(credentials_path).map_err(|error| match error {
         ini::Error::Io(io_error) => IoError(io_error),
-        ini::Error::Parse(parse_error) => InvalidFile(parse_error.to_string()),
+        ini::Error::Parse(parse_error) => InvalidCredentialsFile(parse_error.to_string()),
     })?;
 
     let cloud_provider_name =
         config
             .general_section()
             .get("cloud_provider_name")
-            .ok_or(InvalidFile(
+            .ok_or(InvalidCredentialsFile(
                 "missing cloud provider name in credentials file".to_string(),
             ))?;
 
     let section = config
         .section(Some(cloud_provider_name.to_string()))
-        .ok_or(InvalidFile(
+        .ok_or(InvalidCredentialsFile(
             "missing cloud provider section in credentials file".to_string(),
         ))?;
 
-    let access_key = section.get("access_key").ok_or(InvalidFile(
+    let access_key = section.get("access_key").ok_or(InvalidCredentialsFile(
         "missing access key in credentials file".to_string(),
     ))?;
-    let secret_access_key = section.get("secret_access_key").ok_or(InvalidFile(
-        "missing secret access key in credentials file".to_string(),
-    ))?;
+    let secret_access_key = section
+        .get("secret_access_key")
+        .ok_or(InvalidCredentialsFile(
+            "missing secret access key in credentials file".to_string(),
+        ))?;
     Ok(Credentials {
         cloud_provider_name: CloudProviderName::from_str(cloud_provider_name).map_err(|e| {
-            InvalidFile(format!(
+            InvalidCredentialsFile(format!(
                 "Invalid cloud provider name in credentials file: {e}"
             ))
         })?,
