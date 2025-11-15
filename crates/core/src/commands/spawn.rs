@@ -3,12 +3,11 @@ use std::os::unix::fs::PermissionsExt;
 use tokio::{fs, io::AsyncWriteExt};
 
 use crate::{
-    cloud_provider::CloudProvider, generate_client_config, generate_keypair, get_configs_path,
+    cloud_provider::CloudProvider, config::generate_client_config, credentials::get_configs_path,
+    crypto::generate_keypair, error::Result,
 };
 
-pub async fn spawn_instance(
-    provider: &dyn CloudProvider,
-) -> Result<(String, String, String), Box<dyn std::error::Error>> {
+pub async fn spawn_instance(provider: &dyn CloudProvider) -> Result<(String, String, String)> {
     let (client_private_key, client_public_key) = generate_keypair();
     let (server_private_key, server_public_key) = generate_keypair();
 

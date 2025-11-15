@@ -1,35 +1,24 @@
 import { useState, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useProfile } from "../hooks";
 import { Page } from "../App";
 
 export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
   const [isVisible, setIsVisible] = useState(false);
-  const [isCheckingProfile, setIsCheckingProfile] = useState(false);
+  const { isChecking, checkProfile } = useProfile();
 
   useEffect(() => {
     setIsVisible(true);
   }, []);
 
   const handleGetStarted = async () => {
-    setIsCheckingProfile(true);
+    const hasProfile = await checkProfile();
 
-    try {
-      // Check if user already has a profile set up
-      const hasProfile = (await invoke("has_profile")) as boolean;
-
-      if (hasProfile) {
-        // User has credentials, go directly to VPN page
-        setPage(Page.VPN);
-      } else {
-        // No credentials, go to setup page
-        setPage(Page.SETUP);
-      }
-    } catch (error) {
-      console.error("Failed to check profile:", error);
-      // Default to setup page on error
+    if (hasProfile) {
+      // User has credentials, go directly to VPN page
+      setPage(Page.VPN);
+    } else {
+      // No credentials, go to setup page
       setPage(Page.SETUP);
-    } finally {
-      setIsCheckingProfile(false);
     }
   };
 
@@ -83,9 +72,9 @@ export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
               <button
                 className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-all duration-300 transform hover:scale-105 font-medium flex items-center justify-center shadow-lg shadow-blue-600/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 onClick={handleGetStarted}
-                disabled={isCheckingProfile}
+                disabled={isChecking}
               >
-                {isCheckingProfile ? (
+                {isChecking ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
                     <span>Checking...</span>

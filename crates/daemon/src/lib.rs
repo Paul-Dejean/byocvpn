@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-use base64::{engine::general_purpose, Engine};
+use base64::{Engine, engine::general_purpose};
 use boringtun::{
     noise::Tunn,
     x25519::{PublicKey, StaticSecret},
@@ -18,16 +18,18 @@ use tokio::{
 use tun_rs::DeviceBuilder;
 
 mod tunnel_manager;
-use crate::tunnel_manager::{TunnelHandle, TUNNEL_MANAGER};
+use crate::tunnel_manager::{TUNNEL_MANAGER, TunnelHandle};
 
 pub mod constants;
 pub mod daemon_client;
+use byocvpn_core::error::Result;
+
 use crate::dns_macos::DomainNameSystemOverrideGuard;
 
 #[cfg(target_os = "macos")]
 mod dns_macos;
 
-pub async fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
+pub async fn run_daemon() -> Result<()> {
     let socket_path = constants::socket_path().to_string_lossy().to_string();
     if fs::try_exists(&socket_path).await? {
         fs::remove_file(&socket_path).await?;
@@ -127,7 +129,9 @@ async fn disconnect_vpn() {
         if handle.shutdown.send(()).is_ok() {
             println!("[VPN Disconnect] Shutdown signal sent to tunnel task.");
         } else {
-            eprintln!("[VPN Disconnect] Warning: Failed to send shutdown signal (tunnel task likely already stopped).");
+            eprintln!(
+                "[VPN Disconnect] Warning: Failed to send shutdown signal (tunnel task likely already stopped)."
+            );
         }
 
         // Wait for the tunnel task to complete
@@ -144,7 +148,7 @@ async fn disconnect_vpn() {
     // DON'T exit the process - daemon should keep running for new connections
 }
 
-async fn connect_vpn(config_path: String) -> Result<(), Box<dyn std::error::Error>> {
+async fn connect_vpn(config_path: String) -> Result<()> {
     println!("Daemon received connect: {}", &config_path);
 
     let config =
@@ -195,8 +199,14 @@ async fn connect_vpn(config_path: String) -> Result<(), Box<dyn std::error::Erro
     }
     println!("Creating Tunel");
     let tunn = Tunn::new(
-        StaticSecret::from(<[u8; 32]>::try_from(private_key.as_slice())?),
-        PublicKey::from(<[u8; 32]>::try_from(public_key.as_slice())?),
+        StaticSecret::from(
+            <[u8; 32]>::try_from(private_key.as_slice())
+                .expect("Private key must be exactly 32 bytes"),
+        ),
+        PublicKey::from(
+            <[u8; 32]>::try_from(public_key.as_slice())
+                .expect("Public key must be exactly 32 bytes"),
+        ),
         None,     // preshared key
         Some(25), // Vec<IpNet>
         0,
@@ -207,7 +217,9 @@ async fn connect_vpn(config_path: String) -> Result<(), Box<dyn std::error::Erro
 
     // Step 3: poll loop
     // Step 3: UDP socket + Tunnel loop
-    let local = "0.0.0.0:0".parse::<SocketAddr>()?;
+    let local = "0.0.0.0:0"
+        .parse::<SocketAddr>()
+        .expect("Failed to parse hardcoded socket address");
     let udp = UdpSocket::bind(local).await?;
     println!("{endpoint:?} UDP socket bound to {}", udp.local_addr()?);
     udp.connect(endpoint).await?;
@@ -239,9 +251,11 @@ async fn connect_vpn(config_path: String) -> Result<(), Box<dyn std::error::Erro
     // println!("Tunnel running: {}", is_tunnel_running);
 
     // //Step 4: route internet traffic
+
     println!("Adding VPN routes...");
     add_vpn_routes(&iface_name, &endpoint.ip().to_string()).await;
 
+    println!("Configuring DNS...");
     #[cfg(target_os = "macos")]
     let optional_domain_name_system_override_guard: Option<DomainNameSystemOverrideGuard> = {
         println!("getting dns");
@@ -336,7 +350,7 @@ async fn remove_vpn_routes(iface_name: &str, server_ip: &str) {
     println!("Finished removing VPN routes");
 }
 
-async fn add_route(destination: &str, interface: &str) -> Result<(), Box<dyn std::error::Error>> {
+async fn add_route(destination: &str, interface: &str) -> Result<()> {
     println!("destination: {}", destination);
     let subnet: IpNet = destination.parse().unwrap();
 
@@ -381,10 +395,7 @@ async fn add_route(destination: &str, interface: &str) -> Result<(), Box<dyn std
     Ok(())
 }
 
-async fn delete_route(
-    destination: &str,
-    interface: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn delete_route(destination: &str, interface: &str) -> Result<()> {
     let subnet: IpNet = destination.parse().unwrap();
     // Get the interface index
     let ifindex = get_ifindex(interface).await;

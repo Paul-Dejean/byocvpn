@@ -1,6 +1,8 @@
 #[cfg(target_os = "macos")]
 use std::{collections::HashMap, io, process::Command};
 
+use byocvpn_core::error::Result;
+
 #[cfg(target_os = "macos")]
 #[derive(Debug)]
 pub struct DomainNameSystemOverrideGuard {
@@ -12,12 +14,13 @@ pub struct DomainNameSystemOverrideGuard {
 impl DomainNameSystemOverrideGuard {
     /// Applies the given DNS servers to every enabled macOS network service.
     /// Returns a guard that restores the original DNS on Drop.
-    pub fn apply_to_all_services(desired_domain_name_system_servers: &[&str]) -> io::Result<Self> {
+    pub fn apply_to_all_services(desired_domain_name_system_servers: &[&str]) -> Result<Self> {
         if desired_domain_name_system_servers.is_empty() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "desired_domain_name_system_servers is empty",
-            ));
+            )
+            .into());
         }
 
         let network_service_names = list_all_enabled_network_services()?;
@@ -100,7 +103,7 @@ impl Drop for DomainNameSystemOverrideGuard {
 }
 
 #[cfg(target_os = "macos")]
-fn list_all_enabled_network_services() -> io::Result<Vec<String>> {
+fn list_all_enabled_network_services() -> Result<Vec<String>> {
     let mut cmd = Command::new("networksetup");
     cmd.arg("-listallnetworkservices");
     println!("Executing command: {:?}", cmd);
@@ -112,7 +115,8 @@ fn list_all_enabled_network_services() -> io::Result<Vec<String>> {
                 "networksetup -listallnetworkservices failed: {}",
                 String::from_utf8_lossy(&output.stderr)
             ),
-        ));
+        )
+        .into());
     }
 
     let mut result = Vec::new();

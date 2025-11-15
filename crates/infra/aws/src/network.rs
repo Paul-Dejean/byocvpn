@@ -7,24 +7,30 @@ use aws_sdk_ec2::{
         TagSpecification,
     },
 };
+use byocvpn_core::error::{NetworkProvisioningError, Result};
 
 pub(super) async fn create_security_group(
     ec2_client: &Ec2Client,
     vpc_id: &str,
     group_name: &str,
     description: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
+) -> Result<String> {
     let create_resp = ec2_client
         .create_security_group()
         .vpc_id(vpc_id) // Replace with your VPC ID
         .group_name(group_name)
         .description(description)
         .send()
-        .await?;
+        .await
+        .map_err(
+            |error| NetworkProvisioningError::SecurityGroupCreationFailed {
+                reason: error.to_string(),
+            },
+        )?;
 
     let group_id = create_resp
         .group_id()
-        .ok_or("No security group ID returned")?
+        .ok_or(NetworkProvisioningError::MissingSecurityGroupIdentifier)?
         .to_string();
 
     println!("Created security group with ID: {}", group_id);
@@ -43,7 +49,12 @@ pub(super) async fn create_security_group(
                 .build(),
         )
         .send()
-        .await?;
+        .await
+        .map_err(
+            |error| NetworkProvisioningError::SecurityGroupRuleConfigFailed {
+                reason: error.to_string(),
+            },
+        )?;
 
     println!("Added SSH ingress rule to security group");
 
@@ -53,7 +64,7 @@ pub(super) async fn create_security_group(
 pub(super) async fn get_security_group_by_name(
     ec2_client: &Ec2Client,
     group_name: &str,
-) -> Result<Option<String>, Box<dyn std::error::Error>> {
+) -> Result<Option<String>> {
     let filters = Filter::builder()
         .name("group-name")
         .values(group_name)
@@ -63,7 +74,10 @@ pub(super) async fn get_security_group_by_name(
         .describe_security_groups()
         .filters(filters)
         .send()
-        .await?;
+        .await
+        .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+            reason: error.to_string(),
+        })?;
 
     let group_id = resp
         .security_groups()
@@ -78,7 +92,7 @@ pub(super) async fn create_vpc(
     ec2_client: &Ec2Client,
     cidr_block: &str,
     name: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
+) -> Result<String> {
     let tag_spec = TagSpecification::builder()
         .resource_type(ResourceType::Vpc)
         .tags(Tag::builder().key("Name").value(name).build())
@@ -90,24 +104,34 @@ pub(super) async fn create_vpc(
         .amazon_provided_ipv6_cidr_block(true)
         .tag_specifications(tag_spec)
         .send()
-        .await?;
+        .await
+        .map_err(|error| NetworkProvisioningError::NetworkCreationFailed {
+            reason: error.to_string(),
+        })?;
 
-    let vpc_id = resp.vpc().and_then(|vpc| vpc.vpc_id()).unwrap();
+    let vpc_id = resp
+        .vpc()
+        .and_then(|vpc| vpc.vpc_id())
+        .ok_or_else(|| NetworkProvisioningError::MissingVpcIdentifier)?;
 
     println!("Created VPC: {}", vpc_id);
     Ok(vpc_id.to_string())
 }
 
-pub(super) async fn get_vpc_by_name(
-    ec2_client: &Ec2Client,
-    name: &str,
-) -> Result<Option<String>, Box<dyn std::error::Error>> {
+pub(super) async fn get_vpc_by_name(ec2_client: &Ec2Client, name: &str) -> Result<Option<String>> {
     let filter = Filter::builder()
         .name("tag:Name") // Tag-based filter
         .values(name)
         .build();
 
-    let resp = ec2_client.describe_vpcs().filters(filter).send().await?;
+    let resp = ec2_client
+        .describe_vpcs()
+        .filters(filter)
+        .send()
+        .await
+        .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+            reason: error.to_string(),
+        })?;
 
     let vpc_id = resp
         .vpcs()
@@ -125,7 +149,7 @@ pub(super) async fn create_subnet(
     ipv6_cidr_block: &str,
     az: &str,
     name: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
+) -> Result<String> {
     let tag_spec = TagSpecification::builder()
         .resource_type(ResourceType::Subnet)
         .tags(Tag::builder().key("Name").value(name).build())
@@ -139,18 +163,28 @@ pub(super) async fn create_subnet(
         .availability_zone(az)
         .tag_specifications(tag_spec)
         .send()
-        .await?;
+        .await
+        .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {
+            reason: error.to_string(),
+        })?;
 
-    let subnet_id = resp.subnet().and_then(|subnet| subnet.subnet_id()).unwrap();
+    let subnet_id = resp
+        .subnet()
+        .and_then(|subnet| subnet.subnet_id())
+        .ok_or_else(|| NetworkProvisioningError::MissingSubnetIdentifier)?;
 
     println!("Created Subnet: {}", subnet_id);
     Ok(subnet_id.to_string())
 }
 
-pub(super) async fn list_availability_zones(
-    ec2_client: &Ec2Client,
-) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    let resp = ec2_client.describe_availability_zones().send().await?;
+pub(super) async fn list_availability_zones(ec2_client: &Ec2Client) -> Result<Vec<String>> {
+    let resp = ec2_client
+        .describe_availability_zones()
+        .send()
+        .await
+        .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+            reason: error.to_string(),
+        })?;
 
     let azs = resp
         .availability_zones()
@@ -162,11 +196,13 @@ pub(super) async fn list_availability_zones(
     Ok(azs)
 }
 
-pub(super) async fn get_vpc_ipv6_block(
-    ec2_client: &Ec2Client,
-    vpc_id: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
-    let resp = ec2_client.describe_vpcs().vpc_ids(vpc_id).send().await?;
+pub(super) async fn get_vpc_ipv6_block(ec2_client: &Ec2Client, vpc_id: &str) -> Result<String> {
+    let resp = ec2_client
+        .describe_vpcs()
+        .vpc_ids(vpc_id)
+        .send()
+        .await
+        .map_err(|_error| NetworkProvisioningError::MissingVpcIdentifier)?;
 
     let cidr = resp
         .vpcs()
@@ -174,17 +210,25 @@ pub(super) async fn get_vpc_ipv6_block(
         .flat_map(|vpc| vpc.ipv6_cidr_block_association_set())
         .filter_map(|assoc| assoc.ipv6_cidr_block())
         .next()
-        .ok_or("No IPv6 CIDR block associated with VPC")?;
+        .ok_or_else(|| NetworkProvisioningError::MissingVpcIpv6Cidr {
+            vpc_id: vpc_id.to_string(),
+        })?;
 
     Ok(cidr.to_string())
 }
 
-pub(super) fn carve_ipv6_subnet(
-    base_cidr: &str,
-    index: u8,
-) -> Result<String, Box<dyn std::error::Error>> {
-    let (base_ip, _prefix) = base_cidr.split_once('/').ok_or("Invalid IPv6 CIDR")?;
-    let mut bytes = Ipv6Addr::from_str(base_ip)?.octets();
+pub(super) fn carve_ipv6_subnet(base_cidr: &str, index: u8) -> Result<String> {
+    let (base_ip, _prefix) =
+        base_cidr
+            .split_once('/')
+            .ok_or_else(|| NetworkProvisioningError::InvalidIpv6Cidr {
+                cidr: base_cidr.to_string(),
+            })?;
+    let mut bytes = Ipv6Addr::from_str(base_ip)
+        .map_err(|_| NetworkProvisioningError::InvalidIpv6Cidr {
+            cidr: base_ip.to_string(),
+        })?
+        .octets();
 
     // Increment the 8 bits after the /56 (byte 7)
     bytes[7] = index;
@@ -193,22 +237,31 @@ pub(super) fn carve_ipv6_subnet(
     Ok(format!("{}/64", subnet))
 }
 
-pub(super) async fn create_and_attach_igw(
-    ec2: &Ec2Client,
-    vpc_id: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
-    let igw = ec2.create_internet_gateway().send().await?;
+pub(super) async fn create_and_attach_igw(ec2: &Ec2Client, vpc_id: &str) -> Result<String> {
+    let igw = ec2
+        .create_internet_gateway()
+        .send()
+        .await
+        .map_err(
+            |error| NetworkProvisioningError::InternetGatewayOperationFailed {
+                reason: error.to_string(),
+            },
+        )?;
     let igw_id = igw
         .internet_gateway()
-        .unwrap()
-        .internet_gateway_id()
-        .unwrap();
+        .and_then(|gateway| gateway.internet_gateway_id())
+        .ok_or_else(|| NetworkProvisioningError::MissingInternetGatewayIdentifier)?;
 
     ec2.attach_internet_gateway()
         .internet_gateway_id(igw_id)
         .vpc_id(vpc_id)
         .send()
-        .await?;
+        .await
+        .map_err(
+            |error| NetworkProvisioningError::InternetGatewayOperationFailed {
+                reason: error.to_string(),
+            },
+        )?;
 
     println!("🌐 Internet Gateway {igw_id} attached to VPC {vpc_id}");
     Ok(igw_id.to_string())
@@ -218,7 +271,7 @@ pub(super) async fn add_igw_routes_to_table(
     ec2: &Ec2Client,
     route_table_id: &str,
     igw_id: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     // IPv4 default route
     let _ = ec2
         .create_route()
@@ -241,32 +294,45 @@ pub(super) async fn add_igw_routes_to_table(
     Ok(())
 }
 
-pub(super) async fn enable_auto_ip_assign(
-    ec2: &Ec2Client,
-    subnet_id: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub(super) async fn enable_auto_ip_assign(ec2: &Ec2Client, subnet_id: &str) -> Result<()> {
     ec2.modify_subnet_attribute()
         .subnet_id(subnet_id)
         .map_public_ip_on_launch(AttributeBooleanValue::builder().value(true).build())
         .send()
-        .await?;
+        .await
+        .map_err(
+            |error| NetworkProvisioningError::SubnetConfigurationFailed {
+                reason: error.to_string(),
+            },
+        )?;
 
     ec2.modify_subnet_attribute()
         .subnet_id(subnet_id)
         .assign_ipv6_address_on_creation(AttributeBooleanValue::builder().value(true).build())
         .send()
-        .await?;
+        .await
+        .map_err(
+            |error| NetworkProvisioningError::SubnetConfigurationFailed {
+                reason: error.to_string(),
+            },
+        )?;
 
     Ok(())
 }
 
-pub(super) async fn find_main_route_table(
-    ec2: &Ec2Client,
-    vpc_id: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
+pub(super) async fn find_main_route_table(ec2: &Ec2Client, vpc_id: &str) -> Result<String> {
     let filters = Filter::builder().name("vpc-id").values(vpc_id).build();
 
-    let resp = ec2.describe_route_tables().filters(filters).send().await?;
+    let resp = ec2
+        .describe_route_tables()
+        .filters(filters)
+        .send()
+        .await
+        .map_err(
+            |error| NetworkProvisioningError::RouteTableOperationFailed {
+                reason: error.to_string(),
+            },
+        )?;
 
     let rt_id = resp
         .route_tables()
@@ -277,15 +343,14 @@ pub(super) async fn find_main_route_table(
                 .any(|assoc| assoc.main().unwrap_or(false))
         })
         .and_then(|rt| rt.route_table_id())
-        .ok_or("No main route table found")?;
+        .ok_or_else(|| NetworkProvisioningError::MissingMainRouteTable {
+            vpc_id: vpc_id.to_string(),
+        })?;
 
     Ok(rt_id.to_string())
 }
 
-pub async fn get_subnets_in_vpc(
-    ec2_client: &Ec2Client,
-    vpc_id: &str,
-) -> Result<Vec<Subnet>, Box<dyn std::error::Error>> {
+pub async fn get_subnets_in_vpc(ec2_client: &Ec2Client, vpc_id: &str) -> Result<Vec<Subnet>> {
     let resp = ec2_client
         .describe_subnets()
         .filters(
@@ -295,7 +360,10 @@ pub async fn get_subnets_in_vpc(
                 .build(),
         )
         .send()
-        .await?;
+        .await
+        .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+            reason: error.to_string(),
+        })?;
 
     Ok(resp.subnets().to_vec())
 }
@@ -304,7 +372,7 @@ pub async fn tag_resource_with_name(
     ec2_client: &Ec2Client,
     resource_id: &str,
     name: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     let tag = Tag::builder().key("Name").value(name).build();
 
     ec2_client
@@ -312,7 +380,10 @@ pub async fn tag_resource_with_name(
         .resources(resource_id)
         .tags(tag)
         .send()
-        .await?;
+        .await
+        .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+            reason: error.to_string(),
+        })?;
 
     Ok(())
 }

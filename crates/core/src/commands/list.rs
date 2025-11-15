@@ -1,7 +1,8 @@
-use crate::cloud_provider::{CloudProvider, InstanceInfo};
+use crate::{
+    cloud_provider::{CloudProvider, InstanceInfo},
+    error::Result,
+};
 
-pub async fn list_instances(
-    provider: &dyn CloudProvider,
-) -> Result<Vec<InstanceInfo>, Box<dyn std::error::Error>> {
+pub async fn list_instances(provider: &dyn CloudProvider) -> Result<Vec<InstanceInfo>> {
     provider.list_instances().await
 }

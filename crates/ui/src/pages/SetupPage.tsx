@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Page } from "../App";
-import { invoke } from "@tauri-apps/api/core";
+import { useCredentials } from "../hooks";
 
 type CloudProvider = "aws" | "gcp" | "azure" | null;
 
@@ -17,7 +17,8 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
     accessKeyId: "",
     secretAccessKey: "",
   });
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { isSaving, error, saveCredentials } = useCredentials();
 
   const handleProviderSelect = (provider: CloudProvider) => {
     // Only allow AWS selection for now
@@ -41,24 +42,18 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
       credentials.accessKeyId &&
       credentials.secretAccessKey
     ) {
-      setIsSubmitting(true);
       console.log("Starting setup with:", { selectedProvider, credentials });
-      try {
-        // Save credentials to ~/.byocvpn/credentials
-        const result = await invoke("save_credentials", {
-          cloudProviderName: selectedProvider,
-          accessKeyId: credentials.accessKeyId,
-          secretAccessKey: credentials.secretAccessKey,
-        });
 
-        console.log("Credentials saved:", result);
+      const success = await saveCredentials(
+        selectedProvider,
+        credentials.accessKeyId,
+        credentials.secretAccessKey
+      );
 
+      if (success) {
+        console.log("Credentials saved successfully");
         // Navigate to VPN page after successful save
         setPage(Page.VPN);
-      } catch (error) {
-        console.error("Failed to save credentials:", error);
-        // You could show an error message to the user here
-        setIsSubmitting(false);
       }
     } else {
       console.log("Please select a cloud provider and provide credentials");
@@ -222,6 +217,13 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
               />
             </div>
           </div>
+
+          {/* Error Display */}
+          {error && (
+            <div className="mt-4 p-3 bg-red-900 border border-red-700 rounded-lg">
+              <p className="text-red-300 text-sm">{error}</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -238,10 +240,10 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
           !selectedProvider ||
           !credentials.accessKeyId ||
           !credentials.secretAccessKey ||
-          isSubmitting
+          isSaving
         }
       >
-        {isSubmitting ? "Setting up..." : "Start Setup"}
+        {isSaving ? "Setting up..." : "Start Setup"}
       </button>
     </div>
   );

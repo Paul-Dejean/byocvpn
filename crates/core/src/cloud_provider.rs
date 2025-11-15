@@ -4,26 +4,28 @@ use std::{
 };
 
 use async_trait::async_trait;
+use serde_json::Value;
 
-use crate::commands::setup::Region;
+use crate::{
+    commands::setup::Region,
+    error::{Error, Error::InvalidCloudProviderName, Result},
+};
 
 #[async_trait]
 pub trait CloudProvider: Send + Sync {
-    async fn setup(&self) -> Result<(), Box<dyn std::error::Error>>;
-    async fn verify_permissions(&self) -> Result<serde_json::Value, Box<dyn std::error::Error>>;
-    async fn enable_region(&self, region: &str) -> Result<(), Box<dyn std::error::Error>>;
+    async fn setup(&self) -> Result<()>;
+    async fn verify_permissions(&self) -> Result<Value>;
+    async fn enable_region(&self, region: &str) -> Result<()>;
     async fn spawn_instance(
         &self,
         server_private_key: &str,
         client_public_key: &str,
-    ) -> Result<(String, String, String), Box<dyn std::error::Error>>;
-    async fn terminate_instance(&self, instance_id: &str)
-    -> Result<(), Box<dyn std::error::Error>>;
-    async fn list_instances(&self) -> Result<Vec<InstanceInfo>, Box<dyn std::error::Error>>;
-    fn get_config_file_name(&self, instance_id: &str)
-    -> Result<String, Box<dyn std::error::Error>>;
+    ) -> Result<(String, String, String)>;
+    async fn terminate_instance(&self, instance_id: &str) -> Result<()>;
+    async fn list_instances(&self) -> Result<Vec<InstanceInfo>>;
+    fn get_config_file_name(&self, instance_id: &str) -> Result<String>;
 
-    async fn get_regions(&self) -> Result<Vec<Region>, Box<dyn std::error::Error>>;
+    async fn get_regions(&self) -> Result<Vec<Region>>;
 }
 
 #[derive(Debug)]
@@ -34,14 +36,14 @@ pub enum CloudProviderName {
 }
 
 impl FromStr for CloudProviderName {
-    type Err = String;
+    type Err = Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self> {
         match s.to_lowercase().as_str() {
             "aws" => Ok(CloudProviderName::Aws),
             "azure" => Ok(CloudProviderName::Azure),
             "gcp" => Ok(CloudProviderName::Gcp),
-            _ => Err(format!("Unknown cloud provider type: {}", s)),
+            e => Err(InvalidCloudProviderName(e.to_string())),
         }
     }
 }

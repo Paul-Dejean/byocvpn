@@ -1,8 +1,12 @@
-use byocvpn_aws::{AwsProvider, provider::AwsProviderConfig};
-use byocvpn_core::{cloud_provider::CloudProvider, commands};
+use byocvpn_aws::{AwsProvider, AwsProviderConfig};
+use byocvpn_core::{
+    cloud_provider::CloudProvider,
+    commands,
+    credentials::get_credentials,
+    error::{Error, Result},
+};
 use byocvpn_daemon::daemon_client::UnixDaemonClient;
 use clap::{Parser, Subcommand};
-
 #[derive(Parser)]
 #[command(name = "byocvpn")]
 #[command(about = "BYOC VPN CLI", long_about = None)]
@@ -46,11 +50,11 @@ enum Commands {
 async fn create_cloud_provider(
     cloud_provider_name: &str,
     region: Option<String>,
-) -> Result<Box<dyn CloudProvider>, Box<dyn std::error::Error>> {
+) -> Result<Box<dyn CloudProvider>> {
     match cloud_provider_name {
         "aws" => {
             // Get stored credentials
-            let credentials = byocvpn_core::get_credentials().await?;
+            let credentials = get_credentials().await?;
 
             // Create AWS provider config
             let config = AwsProviderConfig {
@@ -58,16 +62,20 @@ async fn create_cloud_provider(
                 access_key_id: Some(credentials.access_key.clone()),
                 secret_access_key: Some(credentials.secret_access_key.clone()),
             };
-            let cloud_provider = AwsProvider::new(&config).await?;
+            let cloud_provider = AwsProvider::new(&config).await;
 
             Ok(Box::new(cloud_provider))
         }
-        _ => return Err("Unsupported cloud provider".into()),
+        _ => {
+            return Err(Error::InvalidCloudProviderName(
+                cloud_provider_name.to_string(),
+            ));
+        }
     }
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {

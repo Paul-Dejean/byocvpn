@@ -6,8 +6,10 @@ use aws_sdk_ssm::Client as SsmClient;
 use byocvpn_core::{
     cloud_provider::{CloudProvider, InstanceInfo},
     commands::setup::Region,
+    error::{Error, NetworkProvisioningError, Result},
 };
 use serde::Serialize;
+use serde_json::Value;
 
 use crate::{config, instance, network};
 
@@ -24,14 +26,23 @@ pub struct AwsProviderConfig {
     pub secret_access_key: Option<String>,
 }
 impl AwsProvider {
-    pub async fn new(config: &AwsProviderConfig) -> Result<Self, Box<dyn std::error::Error>> {
-        let aws_config = config::get_config(config).await?;
+    pub async fn new(config: &AwsProviderConfig) -> Self {
+        let aws_config = config::get_config(config).await;
+
         let ec2_client = aws_sdk_ec2::Client::new(&aws_config);
         let ssm_client = aws_sdk_ssm::Client::new(&aws_config);
-        Ok(Self {
+        Self {
             ec2_client,
             ssm_client,
-        })
+        }
+    }
+
+    pub fn get_region_name(&self) -> String {
+        self.ec2_client
+            .config()
+            .region()
+            .map(|r| r.as_ref().to_string())
+            .unwrap_or_else(|| "unknown".to_string())
     }
 }
 
@@ -55,7 +66,7 @@ pub struct AwsPermissionsResult {
 
 #[async_trait]
 impl CloudProvider for AwsProvider {
-    async fn verify_permissions(&self) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    async fn verify_permissions(&self) -> Result<Value> {
         let ec2_run_instances = self
             .ec2_client
             .run_instances()
@@ -215,13 +226,11 @@ impl CloudProvider for AwsProvider {
             ssm_get_parameter,
         };
 
-        Ok(serde_json::to_value(permissions)?)
+        Ok(serde_json::to_value(permissions).unwrap())
     }
 
-    async fn setup(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let existing_vpc_id = network::get_vpc_by_name(&self.ec2_client, "byocvpn-vpc")
-            .await
-            .unwrap();
+    async fn setup(&self) -> Result<()> {
+        let existing_vpc_id = network::get_vpc_by_name(&self.ec2_client, "byocvpn-vpc").await?;
         if existing_vpc_id.is_some() {
             println!("Existing VPC found, skipping creation.");
             return Ok(());
@@ -241,7 +250,7 @@ impl CloudProvider for AwsProvider {
         Ok(())
     }
 
-    async fn enable_region(&self, _region: &str) -> Result<(), Box<dyn std::error::Error>> {
+    async fn enable_region(&self, _region: &str) -> Result<()> {
         let vpc_id = network::get_vpc_by_name(&self.ec2_client, "byocvpn-vpc")
             .await
             .unwrap()
@@ -309,7 +318,7 @@ impl CloudProvider for AwsProvider {
         &self,
         server_private_key: &str,
         client_public_key: &str,
-    ) -> Result<(String, String, String), Box<dyn std::error::Error>> {
+    ) -> Result<(String, String, String)> {
         let vpc_id = network::get_vpc_by_name(&self.ec2_client, "byocvpn-vpc")
             .await
             .unwrap()
@@ -321,33 +330,29 @@ impl CloudProvider for AwsProvider {
         instance::spawn_instance(self, &subnet_id, server_private_key, client_public_key).await
     }
 
-    async fn terminate_instance(
-        &self,
-        instance_id: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    async fn terminate_instance(&self, instance_id: &str) -> Result<()> {
         instance::terminate_instance(&self.ec2_client, instance_id).await
     }
 
-    async fn list_instances(&self) -> Result<Vec<InstanceInfo>, Box<dyn std::error::Error>> {
+    async fn list_instances(&self) -> Result<Vec<InstanceInfo>> {
         instance::list_instances(&self.ec2_client).await
     }
 
-    fn get_config_file_name(
-        &self,
-        instance_id: &str,
-    ) -> Result<String, Box<dyn std::error::Error>> {
+    fn get_config_file_name(&self, instance_id: &str) -> Result<String> {
         let region = self
             .ec2_client
             .config()
             .region()
-            .ok_or("Region not set in EC2 client")?
+            .ok_or_else(|| {
+                Error::InvalidCloudProviderConfig("Region not set in EC2 client".to_string())
+            })?
             .as_ref()
             .to_string();
         let path = format!("aws-{}-{}.conf", region, instance_id);
         Ok(path)
     }
 
-    async fn get_regions(&self) -> Result<Vec<Region>, Box<dyn std::error::Error>> {
+    async fn get_regions(&self) -> Result<Vec<Region>> {
         let regions_map = HashMap::from([
             ("us", "United States"),
             ("eu", "Europe"),
@@ -364,7 +369,10 @@ impl CloudProvider for AwsProvider {
             .describe_regions()
             // .all_regions(true)
             .send()
-            .await?
+            .await
+            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+                reason: error.to_string(),
+            })?
             .regions()
             .iter()
             .filter_map(|region| region.region_name())
