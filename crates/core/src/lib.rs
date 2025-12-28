@@ -6,4 +6,5 @@ pub mod credentials;
 pub mod crypto;
 pub mod daemon_client;
 pub mod error;
+pub mod ipc;
 pub mod tunnel;

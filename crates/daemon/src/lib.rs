@@ -7,17 +7,13 @@ use boringtun::{
 };
 use byocvpn_core::{
     daemon_client::DaemonCommand,
+    ipc::{IpcSocket, IpcStream},
     tunnel::{Tunnel, TunnelMetrics, TunnelMetricsWithRates},
 };
 use ini::Ini;
 use ipnet::IpNet;
 use net_route::{Handle, Route};
-use tokio::{
-    fs,
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    net::{UdpSocket, UnixListener},
-    sync::watch,
-};
+use tokio::{fs, net::UdpSocket, sync::watch};
 use tun_rs::DeviceBuilder;
 
 mod tunnel_manager;
@@ -33,30 +29,19 @@ use crate::dns_macos::DomainNameSystemOverrideGuard;
 mod dns_macos;
 
 pub async fn run_daemon() -> Result<()> {
-    let socket_path = constants::socket_path().to_string_lossy().to_string();
-    if fs::try_exists(&socket_path).await? {
-        fs::remove_file(&socket_path).await?;
-    }
+    let socket_path = constants::socket_path();
 
-    let listener = UnixListener::bind(&socket_path)?;
+    let listener = IpcSocket::bind(socket_path.clone()).await?;
 
-    // Set socket permissions so non-root users can connect
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = std::fs::metadata(&socket_path)?.permissions();
-        perms.set_mode(0o777); // Read/write for all users
-        std::fs::set_permissions(&socket_path, perms)?;
-    }
-
-    println!("Daemon listening on {}", &socket_path);
+    println!("Daemon listening on {}", socket_path.to_string_lossy());
     println!("process id: {}", std::process::id());
-    loop {
-        let (stream, _) = listener.accept().await?;
-        let (reader, mut writer) = stream.into_split();
-        let mut lines = BufReader::new(reader).lines();
 
-        if let Ok(Some(line)) = lines.next_line().await {
+    loop {
+        let stream = listener.accept().await?;
+        let (read, mut write) = stream.into_split();
+        let mut reader = read.into_buf_reader();
+
+        if let Ok(Some(line)) = reader.next_line().await {
             println!("Daemon received: {line}");
             println!("process id: {}", std::process::id());
             match serde_json::from_str::<DaemonCommand>(&line) {
@@ -64,10 +49,10 @@ pub async fn run_daemon() -> Result<()> {
                     println!("Daemon received connect: {config_path}");
                     match connect_vpn(config_path).await {
                         Ok(_) => {
-                            writer.write_all(b"Connected!\n").await?;
+                            write.write_all(b"Connected!\n").await?;
                         }
                         Err(e) => {
-                            writer
+                            write
                                 .write_all(format!("Connect error: {e}\n").as_bytes())
                                 .await?;
                         }
@@ -75,21 +60,21 @@ pub async fn run_daemon() -> Result<()> {
                 }
                 Ok(DaemonCommand::Disconnect) => {
                     disconnect_vpn().await;
-                    writer.write_all(b"Disconnected.\n").await?;
+                    write.write_all(b"Disconnected.\n").await?;
                 }
                 Ok(DaemonCommand::Status) => {
-                    writer.write_all(b"Status: dummy running\n").await?;
+                    write.write_all(b"Status: dummy running\n").await?;
                 }
                 Ok(DaemonCommand::Stats) => {
                     let stats = get_current_metrics().await;
                     let response =
                         serde_json::to_string(&stats).unwrap_or_else(|_| "null".to_string());
-                    writer.write_all(response.as_bytes()).await?;
-                    writer.write_all(b"\n").await?;
+                    write.write_all(response.as_bytes()).await?;
+                    write.write_all(b"\n").await?;
                 }
 
                 Err(e) => {
-                    writer
+                    write
                         .write_all(format!("Invalid command: {e}\n").as_bytes())
                         .await?;
                 }
@@ -265,26 +250,17 @@ async fn connect_vpn(config_path: String) -> Result<()> {
 
     // Create Unix socket for metrics streaming
     let metrics_socket_path = constants::metrics_socket_path();
-    let metrics_socket_path_str = metrics_socket_path.to_string_lossy().to_string();
-
-    // Remove old socket if it exists
-    if fs::try_exists(&metrics_socket_path_str)
-        .await
-        .unwrap_or(false)
-    {
-        let _ = fs::remove_file(&metrics_socket_path_str).await;
-    }
 
     // Spawn metrics streaming task
     let metrics_clone = metrics.clone();
     let (metrics_shutdown_tx, mut metrics_shutdown_rx) = watch::channel(());
 
     let metrics_task = tokio::spawn(async move {
-        let listener = match UnixListener::bind(&metrics_socket_path_str) {
+        let listener = match IpcSocket::bind(metrics_socket_path.clone()).await {
             Ok(l) => {
                 println!(
                     "[Metrics] Created metrics socket at {}",
-                    metrics_socket_path_str
+                    metrics_socket_path.to_string_lossy()
                 );
                 l
             }
@@ -294,21 +270,10 @@ async fn connect_vpn(config_path: String) -> Result<()> {
             }
         };
 
-        // Set socket permissions
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            if let Ok(metadata) = std::fs::metadata(&metrics_socket_path_str) {
-                let mut perms = metadata.permissions();
-                perms.set_mode(0o777);
-                let _ = std::fs::set_permissions(&metrics_socket_path_str, perms);
-            }
-        }
-
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
         let mut last_metrics = TunnelMetrics::default();
         let mut last_time = tokio::time::Instant::now();
-        let mut connected_stream: Option<tokio::net::UnixStream> = None;
+        let mut connected_stream: Option<IpcStream> = None;
 
         // Moving average buffers (10 samples = 10 seconds)
         use std::collections::VecDeque;
@@ -318,7 +283,7 @@ async fn connect_vpn(config_path: String) -> Result<()> {
         loop {
             tokio::select! {
                 // Accept new connections (only keep one active)
-                Ok((stream, _)) = listener.accept() => {
+                Ok(stream) = listener.accept() => {
                     println!("[Metrics] Client connected to metrics stream");
                     connected_stream = Some(stream);
                 }
@@ -396,9 +361,6 @@ async fn connect_vpn(config_path: String) -> Result<()> {
                 }
             }
         }
-
-        // Cleanup socket on shutdown
-        let _ = fs::remove_file(&metrics_socket_path_str).await;
     });
 
     println!("Tunnel task spawned: {:?}", task.is_finished());

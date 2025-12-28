@@ -202,17 +202,14 @@ async fn start_metrics_stream(app_handle: AppHandle) -> Result<()> {
     // Get metrics socket path
     let metrics_socket_path = byocvpn_daemon::metrics_socket_path();
 
-    // Spawn task to read from Unix socket and forward to Tauri events
+    // Spawn task to read from IPC socket and forward to Tauri events
     tauri::async_runtime::spawn(async move {
-        use std::{
-            io::{BufRead, BufReader},
-            os::unix::net::UnixStream as StdUnixStream,
-        };
+        use byocvpn_core::ipc::IpcStream;
 
         // Retry connection a few times in case daemon is still setting up
         let mut stream = None;
         for attempt in 1..=5 {
-            match StdUnixStream::connect(&metrics_socket_path) {
+            match IpcStream::connect(&metrics_socket_path).await {
                 Ok(s) => {
                     println!("Connected to metrics socket on attempt {}", attempt);
                     stream = Some(s);
@@ -238,12 +235,10 @@ async fn start_metrics_stream(app_handle: AppHandle) -> Result<()> {
             }
         };
 
-        // Set non-blocking mode for the stream
-        stream.set_nonblocking(false).ok();
+        let (read, _write) = stream.into_split();
+        let mut reader = read.into_buf_reader();
 
-        let reader = BufReader::new(stream);
-
-        for line in reader.lines() {
+        loop {
             // Check if we should stop
             {
                 let broadcaster = METRICS_BROADCASTER.lock().unwrap();
@@ -252,15 +247,21 @@ async fn start_metrics_stream(app_handle: AppHandle) -> Result<()> {
                 }
             }
 
-            match line {
-                Ok(line_str) => {
+            // Read metrics from IPC socket
+            match reader.read_message().await {
+                Ok(Some(line)) => {
                     // Parse JSON metrics
-                    if let Ok(metrics) = serde_json::from_str::<TunnelMetricsWithRates>(&line_str) {
+                    if let Ok(metrics) = serde_json::from_str::<TunnelMetricsWithRates>(&line) {
                         // Emit as Tauri event
                         let _ = app_handle.emit("vpn-metrics", &metrics);
                     } else {
-                        eprintln!("Failed to parse metrics: {}", line_str);
+                        eprintln!("Failed to parse metrics: {}", line);
                     }
+                }
+                Ok(None) => {
+                    // Stream ended
+                    println!("Metrics stream ended");
+                    break;
                 }
                 Err(e) => {
                     eprintln!("Error reading from metrics socket: {}", e);
