@@ -54,8 +54,11 @@ pub enum Error {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
-    #[error("Invalid cloud provider config")]
+    #[error("Invalid cloud provider config: {0}")]
     InvalidCloudProviderConfig(String),
+
+    #[error("Tunnel creation error: {0}")]
+    TunnelCreationError(String),
 }
 
 #[derive(Debug, Error)]

@@ -5,7 +5,10 @@ use boringtun::{
     noise::Tunn,
     x25519::{PublicKey, StaticSecret},
 };
-use byocvpn_core::{daemon_client::DaemonCommand, tunnel::Tunnel};
+use byocvpn_core::{
+    daemon_client::DaemonCommand,
+    tunnel::{Tunnel, TunnelMetrics, TunnelMetricsWithRates},
+};
 use ini::Ini;
 use ipnet::IpNet;
 use net_route::{Handle, Route};
@@ -77,6 +80,13 @@ pub async fn run_daemon() -> Result<()> {
                 Ok(DaemonCommand::Status) => {
                     writer.write_all(b"Status: dummy running\n").await?;
                 }
+                Ok(DaemonCommand::Stats) => {
+                    let stats = get_current_metrics().await;
+                    let response =
+                        serde_json::to_string(&stats).unwrap_or_else(|_| "null".to_string());
+                    writer.write_all(response.as_bytes()).await?;
+                    writer.write_all(b"\n").await?;
+                }
 
                 Err(e) => {
                     writer
@@ -134,12 +144,19 @@ async fn disconnect_vpn() {
             );
         }
 
+        // Stop metrics broadcaster
+        let _ = handle.metrics_shutdown.send(());
+        println!("[VPN Disconnect] Metrics broadcaster stopped.");
+
         // Wait for the tunnel task to complete
         println!("[VPN Disconnect] Waiting for tunnel task to complete...");
         match handle.task.await {
             Ok(_) => println!("[VPN Disconnect] Tunnel task completed successfully."),
             Err(e) => eprintln!("[VPN Disconnect] Error: Tunnel task failed: {:?}", e),
         }
+
+        // Wait for metrics task
+        let _ = handle.metrics_task.await;
     } else {
         println!("[VPN Disconnect] No active tunnel found.");
     }
@@ -177,13 +194,23 @@ async fn connect_vpn(config_path: String) -> Result<()> {
     let ipv4 = addresses.iter().find(|ip| ip.addr().is_ipv4()).unwrap();
     let ipv6 = addresses.iter().find(|ip| ip.addr().is_ipv6()).unwrap();
 
-    let tun = DeviceBuilder::new()
+    let tun = match DeviceBuilder::new()
         .name("utun4")
         .ipv4(ipv4.addr(), ipv4.prefix_len(), None)
         .ipv6(ipv6.addr(), ipv6.prefix_len())
         .mtu(1280)
         .build_async()
-        .unwrap();
+    {
+        Ok(tun) => tun,
+        Err(e) => {
+            eprintln!("Failed to create TUN device: {}", e);
+            return Err(byocvpn_core::error::Error::TunnelCreationError(format!(
+                "Failed to create TUN device: {}",
+                e
+            )));
+        }
+    };
+
     let iface_name = tun.name().expect("Failed to get TUN name");
     println!("Created TUN device: {}", iface_name);
 
@@ -228,10 +255,150 @@ async fn connect_vpn(config_path: String) -> Result<()> {
     let (shutdown_tx, shutdown_rx) = watch::channel(());
 
     let mut tunnel = Tunnel::new(tun, udp, tunn, shutdown_rx);
+    let metrics = tunnel.metrics.clone();
+
     let task = tokio::spawn(async move {
         if let Err(e) = tunnel.run().await {
             eprintln!("Tunnel exited: {e}");
         }
+    });
+
+    // Create Unix socket for metrics streaming
+    let metrics_socket_path = constants::metrics_socket_path();
+    let metrics_socket_path_str = metrics_socket_path.to_string_lossy().to_string();
+
+    // Remove old socket if it exists
+    if fs::try_exists(&metrics_socket_path_str)
+        .await
+        .unwrap_or(false)
+    {
+        let _ = fs::remove_file(&metrics_socket_path_str).await;
+    }
+
+    // Spawn metrics streaming task
+    let metrics_clone = metrics.clone();
+    let (metrics_shutdown_tx, mut metrics_shutdown_rx) = watch::channel(());
+
+    let metrics_task = tokio::spawn(async move {
+        let listener = match UnixListener::bind(&metrics_socket_path_str) {
+            Ok(l) => {
+                println!(
+                    "[Metrics] Created metrics socket at {}",
+                    metrics_socket_path_str
+                );
+                l
+            }
+            Err(e) => {
+                eprintln!("[Metrics] Failed to create metrics socket: {}", e);
+                return;
+            }
+        };
+
+        // Set socket permissions
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if let Ok(metadata) = std::fs::metadata(&metrics_socket_path_str) {
+                let mut perms = metadata.permissions();
+                perms.set_mode(0o777);
+                let _ = std::fs::set_permissions(&metrics_socket_path_str, perms);
+            }
+        }
+
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
+        let mut last_metrics = TunnelMetrics::default();
+        let mut last_time = tokio::time::Instant::now();
+        let mut connected_stream: Option<tokio::net::UnixStream> = None;
+
+        // Moving average buffers (10 samples = 10 seconds)
+        use std::collections::VecDeque;
+        let mut upload_history: VecDeque<u64> = VecDeque::with_capacity(10);
+        let mut download_history: VecDeque<u64> = VecDeque::with_capacity(10);
+
+        loop {
+            tokio::select! {
+                // Accept new connections (only keep one active)
+                Ok((stream, _)) = listener.accept() => {
+                    println!("[Metrics] Client connected to metrics stream");
+                    connected_stream = Some(stream);
+                }
+
+                _ = interval.tick() => {
+                    if let Some(stream) = connected_stream.as_mut() {
+                        let current_metrics = metrics_clone.read().await.clone();
+                        let now = tokio::time::Instant::now();
+                        let elapsed = now.duration_since(last_time).as_secs_f64();
+
+                        // Calculate instantaneous rates (bytes per second)
+                        let upload_rate_instant = if elapsed > 0.0 {
+                            ((current_metrics.bytes_sent - last_metrics.bytes_sent) as f64 / elapsed) as u64
+                        } else {
+                            0
+                        };
+
+                        let download_rate_instant = if elapsed > 0.0 {
+                            ((current_metrics.bytes_received - last_metrics.bytes_received) as f64 / elapsed) as u64
+                        } else {
+                            0
+                        };
+
+                        // Add to history
+                        upload_history.push_back(upload_rate_instant);
+                        download_history.push_back(download_rate_instant);
+
+                        // Keep only last 10 samples
+                        if upload_history.len() > 10 {
+                            upload_history.pop_front();
+                        }
+                        if download_history.len() > 10 {
+                            download_history.pop_front();
+                        }
+
+                        // Calculate moving average
+                        let upload_rate = if !upload_history.is_empty() {
+                            upload_history.iter().sum::<u64>() / upload_history.len() as u64
+                        } else {
+                            0
+                        };
+
+                        let download_rate = if !download_history.is_empty() {
+                            download_history.iter().sum::<u64>() / download_history.len() as u64
+                        } else {
+                            0
+                        };
+
+                        let metrics_with_rates = TunnelMetricsWithRates {
+                            bytes_sent: current_metrics.bytes_sent,
+                            bytes_received: current_metrics.bytes_received,
+                            packets_sent: current_metrics.packets_sent,
+                            packets_received: current_metrics.packets_received,
+                            upload_rate,
+                            download_rate,
+                        };
+
+                        // Write metrics as JSON to the stream
+                        if let Ok(json) = serde_json::to_string(&metrics_with_rates) {
+                            if stream.write_all(json.as_bytes()).await.is_err()
+                                || stream.write_all(b"\n").await.is_err() {
+                                println!("[Metrics] Client disconnected");
+                                connected_stream = None;
+                            }
+                        }
+
+                        last_metrics = current_metrics;
+                        last_time = now;
+                    }
+                }
+
+                _ = metrics_shutdown_rx.changed() => {
+                    println!("[Metrics] Stopping metrics streamer");
+                    break;
+                }
+            }
+        }
+
+        // Cleanup socket on shutdown
+        let _ = fs::remove_file(&metrics_socket_path_str).await;
     });
 
     println!("Tunnel task spawned: {:?}", task.is_finished());
@@ -288,6 +455,9 @@ async fn connect_vpn(config_path: String) -> Result<()> {
     *manager = Some(TunnelHandle {
         shutdown: shutdown_tx,
         task: task,
+        metrics,
+        metrics_task,
+        metrics_shutdown: metrics_shutdown_tx,
         #[cfg(target_os = "macos")]
         domain_name_system_override_guard: optional_domain_name_system_override_guard,
     });
@@ -426,6 +596,22 @@ async fn delete_route(destination: &str, interface: &str) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Get current VPN metrics if tunnel is active
+pub async fn get_current_metrics() -> Option<TunnelMetrics> {
+    let manager = TUNNEL_MANAGER.lock().ok()?;
+    if let Some(handle) = manager.as_ref() {
+        let metrics = handle.metrics.read().await;
+        Some(metrics.clone())
+    } else {
+        None
+    }
+}
+
+/// Get the path to the metrics Unix socket
+pub fn metrics_socket_path() -> std::path::PathBuf {
+    constants::metrics_socket_path()
 }
 
 async fn get_ifindex(interface: &str) -> u32 {

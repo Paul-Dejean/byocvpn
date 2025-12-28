@@ -9,6 +9,7 @@ pub enum DaemonCommand {
     Connect { config_path: String },
     Disconnect,
     Status,
+    Stats,
 }
 #[async_trait]
 pub trait DaemonClient: Send + Sync {

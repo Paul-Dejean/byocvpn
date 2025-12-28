@@ -22,7 +22,9 @@ export const useVpnConnection = () => {
       });
 
       console.log("VPN connected:", response);
+      console.log("Setting serverStatus to 'connected'");
       setServerStatus("connected");
+      toast.success("Connected to VPN successfully!");
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Failed to connect to VPN";

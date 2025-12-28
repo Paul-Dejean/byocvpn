@@ -4,12 +4,17 @@ import {
   useVpnConnection,
   useSpawnInstance,
   useTerminateInstance,
+  useVpnMetrics,
 } from "../hooks";
 import { AwsRegion, ExistingInstance } from "../types";
 import { LoadingSpinner } from "../components/common/LoadingSpinner";
 import { SettingsButton } from "../components/settings/SettingsButton";
 import { InstanceList } from "../components/instances/InstanceList";
 import { RegionList } from "../components/regions/RegionList";
+import {
+  MetricsDisplay,
+  MetricsDetails,
+} from "../components/common/MetricsDisplay";
 
 interface VpnPageProps {
   onNavigateToSettings?: () => void;
@@ -63,6 +68,9 @@ export function VpnPage({ onNavigateToSettings }: VpnPageProps) {
     handleDisconnectFromVpn,
     clearError: clearVpnError,
   } = useVpnConnection();
+
+  // VPN Metrics
+  const metrics = useVpnMetrics(serverStatus === "connected");
 
   // Local state removed - now managed in hooks
 
@@ -176,29 +184,12 @@ export function VpnPage({ onNavigateToSettings }: VpnPageProps) {
             {selectedInstance ? (
               /* Instance Details View */
               <>
+                {/* Metrics Display */}
                 <div className="mb-6">
-                  <h3 className="text-lg font-medium mb-2">
-                    Selected Instance
-                  </h3>
-                  <div className="bg-gray-700 rounded-lg p-4">
-                    <p className="font-medium text-blue-300 mb-2">
-                      {existingInstances.find(
-                        (i) => i.id === selectedInstance.instance_id
-                      )?.name || "VPN Server"}
-                    </p>
-                    <p className="text-sm text-gray-400 mb-1">
-                      <span className="font-medium">Instance ID:</span>{" "}
-                      {selectedInstance.instance_id}
-                    </p>
-                    <p className="text-sm text-gray-400 mb-1">
-                      <span className="font-medium">Public IP:</span>{" "}
-                      {selectedInstance.public_ip_v4}
-                    </p>
-                    <p className="text-sm text-gray-400">
-                      <span className="font-medium">Region:</span>{" "}
-                      {selectedInstance.region}
-                    </p>
-                  </div>
+                  <MetricsDisplay
+                    metrics={metrics}
+                    isConnected={serverStatus === "connected"}
+                  />
                 </div>
 
                 {/* Instance Actions */}
@@ -255,6 +246,37 @@ export function VpnPage({ onNavigateToSettings }: VpnPageProps) {
                       )}
                     </button>
                   )}
+                </div>
+
+                {/* Additional Metrics Details */}
+                <div className="mt-6">
+                  <MetricsDetails metrics={metrics} />
+                </div>
+
+                {/* Selected Instance Details */}
+                <div className="mt-6">
+                  <h3 className="text-lg font-medium mb-2">
+                    Selected Instance
+                  </h3>
+                  <div className="bg-gray-700 rounded-lg p-4">
+                    <p className="font-medium text-blue-300 mb-2">
+                      {existingInstances.find(
+                        (i) => i.id === selectedInstance.instance_id
+                      )?.name || "VPN Server"}
+                    </p>
+                    <p className="text-sm text-gray-400 mb-1">
+                      <span className="font-medium">Instance ID:</span>{" "}
+                      {selectedInstance.instance_id}
+                    </p>
+                    <p className="text-sm text-gray-400 mb-1">
+                      <span className="font-medium">Public IP:</span>{" "}
+                      {selectedInstance.public_ip_v4}
+                    </p>
+                    <p className="text-sm text-gray-400">
+                      <span className="font-medium">Region:</span>{" "}
+                      {selectedInstance.region}
+                    </p>
+                  </div>
                 </div>
               </>
             ) : (

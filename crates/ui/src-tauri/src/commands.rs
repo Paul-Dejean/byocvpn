@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{str::FromStr, sync::Mutex as StdMutex};
 
 use byocvpn_aws::{AwsProvider, AwsProviderConfig};
 use byocvpn_core::{
@@ -6,9 +6,14 @@ use byocvpn_core::{
     cloud_provider::{CloudProvider, CloudProviderName},
     commands, credentials,
     error::{Error, Result},
+    tunnel::TunnelMetricsWithRates,
 };
 use byocvpn_daemon::daemon_client::UnixDaemonClient;
 use serde_json::{Value, json};
+use tauri::{AppHandle, Emitter};
+
+// Global state to track if broadcaster is running
+static METRICS_BROADCASTER: StdMutex<Option<()>> = StdMutex::new(None);
 
 async fn create_cloud_provider(
     cloud_provider_name: &str,
@@ -143,11 +148,19 @@ pub async fn get_regions() -> Result<Vec<serde_json::Value>> {
 }
 
 #[tauri::command]
-pub async fn connect(instance_id: String, region: String) -> Result<String> {
+pub async fn connect(instance_id: String, region: String, app_handle: AppHandle) -> Result<String> {
     let cloud_provider = create_cloud_provider("aws", Some(region)).await?;
     let daemon_client = UnixDaemonClient;
     println!("Connecting to instance {}", instance_id.clone());
     commands::connect::connect(&*cloud_provider, &daemon_client, instance_id.clone()).await?;
+
+    // Subscribe to metrics broadcast and emit as Tauri events
+    // Small delay to ensure daemon is ready
+    println!("Starting metrics stream...");
+    match start_metrics_stream(app_handle).await {
+        Ok(_) => println!("Started metrics stream"),
+        Err(e) => println!("Failed to start metrics stream: {}", e),
+    }
 
     Ok(format!(
         "Connected to instance {} successfully.",
@@ -157,7 +170,117 @@ pub async fn connect(instance_id: String, region: String) -> Result<String> {
 
 #[tauri::command]
 pub async fn disconnect() -> Result<String> {
+    // Stop metrics streaming
+    stop_metrics_stream().await?;
+
     let daemon_client = UnixDaemonClient;
     commands::disconnect::disconnect(&daemon_client).await?;
     Ok("Disconnected successfully.".to_string())
+}
+
+async fn start_metrics_stream(app_handle: AppHandle) -> Result<()> {
+    println!("Starting metrics stream...");
+    let mut broadcaster = match METRICS_BROADCASTER.lock() {
+        Ok(guard) => guard,
+        Err(e) => {
+            eprintln!("Failed to acquire metrics broadcaster lock : {e}");
+            return Err(Error::InvalidCloudProviderConfig(
+                "Failed to acquire metrics broadcaster lock".to_string(),
+            ));
+        }
+    };
+
+    // Don't start if already running
+    if broadcaster.is_some() {
+        return Ok(());
+    }
+
+    // Mark as running
+    *broadcaster = Some(());
+    drop(broadcaster); // Release lock before spawning
+
+    // Get metrics socket path
+    let metrics_socket_path = byocvpn_daemon::metrics_socket_path();
+
+    // Spawn task to read from Unix socket and forward to Tauri events
+    tauri::async_runtime::spawn(async move {
+        use std::{
+            io::{BufRead, BufReader},
+            os::unix::net::UnixStream as StdUnixStream,
+        };
+
+        // Retry connection a few times in case daemon is still setting up
+        let mut stream = None;
+        for attempt in 1..=5 {
+            match StdUnixStream::connect(&metrics_socket_path) {
+                Ok(s) => {
+                    println!("Connected to metrics socket on attempt {}", attempt);
+                    stream = Some(s);
+                    break;
+                }
+                Err(e) => {
+                    eprintln!(
+                        "Failed to connect to metrics socket (attempt {}): {}",
+                        attempt, e
+                    );
+                    std::thread::sleep(std::time::Duration::from_millis(500));
+                }
+            }
+        }
+
+        let stream = match stream {
+            Some(s) => s,
+            None => {
+                eprintln!("Failed to connect to metrics socket after retries");
+                let mut broadcaster = METRICS_BROADCASTER.lock().unwrap();
+                *broadcaster = None;
+                return;
+            }
+        };
+
+        // Set non-blocking mode for the stream
+        stream.set_nonblocking(false).ok();
+
+        let reader = BufReader::new(stream);
+
+        for line in reader.lines() {
+            // Check if we should stop
+            {
+                let broadcaster = METRICS_BROADCASTER.lock().unwrap();
+                if broadcaster.is_none() {
+                    break;
+                }
+            }
+
+            match line {
+                Ok(line_str) => {
+                    // Parse JSON metrics
+                    if let Ok(metrics) = serde_json::from_str::<TunnelMetricsWithRates>(&line_str) {
+                        // Emit as Tauri event
+                        let _ = app_handle.emit("vpn-metrics", &metrics);
+                    } else {
+                        eprintln!("Failed to parse metrics: {}", line_str);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Error reading from metrics socket: {}", e);
+                    break;
+                }
+            }
+        }
+
+        println!("Metrics forwarder stopped");
+
+        // Clear the broadcaster flag
+        let mut broadcaster = METRICS_BROADCASTER.lock().unwrap();
+        *broadcaster = None;
+    });
+
+    Ok(())
+}
+
+async fn stop_metrics_stream() -> Result<()> {
+    let mut broadcaster = METRICS_BROADCASTER.lock().unwrap();
+    *broadcaster = None;
+    Ok(())
 }
