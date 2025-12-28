@@ -2,7 +2,6 @@ use std::{str::FromStr, sync::Mutex as StdMutex};
 
 use byocvpn_aws::{AwsProvider, AwsProviderConfig};
 use byocvpn_core::{
-    self,
     cloud_provider::{CloudProvider, CloudProviderName},
     commands, credentials,
     error::{Error, Result},
@@ -56,14 +55,14 @@ pub async fn save_credentials(
 }
 
 #[tauri::command]
-pub async fn verify_permissions() -> Result<serde_json::Value> {
+pub async fn verify_permissions() -> Result<Value> {
     let cloud_provider = create_cloud_provider("aws", None).await?;
     let result = commands::verify_permissions::verify_permissions(&*cloud_provider).await;
     return result;
 }
 
 #[tauri::command]
-pub async fn spawn_instance(region: String) -> Result<serde_json::Value> {
+pub async fn spawn_instance(region: String) -> Result<Value> {
     // Get stored credentials
     let cloud_provider = create_cloud_provider("aws", Some(region.clone())).await?;
 
@@ -76,7 +75,7 @@ pub async fn spawn_instance(region: String) -> Result<serde_json::Value> {
         commands::spawn::spawn_instance(&*cloud_provider).await?;
 
     // Return instance details
-    Ok(serde_json::json!({
+    Ok(json!({
         "instance_id": instance_id,
         "public_ip_v4": public_ip_v4,
         "public_ip_v6": public_ip_v6,
@@ -131,7 +130,7 @@ pub async fn has_profile() -> Result<bool> {
 }
 
 #[tauri::command]
-pub async fn get_regions() -> Result<Vec<serde_json::Value>> {
+pub async fn get_regions() -> Result<Vec<Value>> {
     let cloud_provider = create_cloud_provider("aws", None).await?;
 
     let regions = commands::setup::get_regions(&*cloud_provider).await?;
@@ -139,7 +138,7 @@ pub async fn get_regions() -> Result<Vec<serde_json::Value>> {
     Ok(regions
         .into_iter()
         .map(|r| {
-            serde_json::json!({
+            json!({
                 "name": r.name,
                 "country": r.country,
             })
@@ -204,6 +203,8 @@ async fn start_metrics_stream(app_handle: AppHandle) -> Result<()> {
 
     // Spawn task to read from IPC socket and forward to Tauri events
     tauri::async_runtime::spawn(async move {
+        use std::{thread::sleep, time::Duration};
+
         use byocvpn_core::ipc::IpcStream;
 
         // Retry connection a few times in case daemon is still setting up
@@ -220,7 +221,7 @@ async fn start_metrics_stream(app_handle: AppHandle) -> Result<()> {
                         "Failed to connect to metrics socket (attempt {}): {}",
                         attempt, e
                     );
-                    std::thread::sleep(std::time::Duration::from_millis(500));
+                    sleep(Duration::from_millis(500));
                 }
             }
         }

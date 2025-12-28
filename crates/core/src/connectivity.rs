@@ -1,7 +1,7 @@
-use core::net::SocketAddr;
-use std::net::TcpStream;
-
-use tokio::time::Duration;
+use std::{
+    net::{SocketAddr, TcpStream},
+    time::Duration,
+};
 
 pub fn can_connect_ipv6() -> bool {
     // Google's IPv6 DNS server (UDP/53, but TCP test works fine)
