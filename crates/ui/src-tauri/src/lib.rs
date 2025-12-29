@@ -15,6 +15,7 @@ pub fn run() {
             commands::connect,
             commands::disconnect,
             commands::get_vpn_status,
+            commands::start_metrics_stream,
         ]);
 
     #[cfg(debug_assertions)]

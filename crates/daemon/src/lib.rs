@@ -308,14 +308,14 @@ async fn connect_vpn(config_path: String) -> Result<()> {
 
     // Parse config file
     let wg_config = parse_wireguard_config(&config_path).await?;
-    
+
     // Extract instance_id from config filename
     // Expected format: /path/to/{instance_id}.conf
     let instance_id = std::path::Path::new(&config_path)
         .file_stem()
         .and_then(|s| s.to_str())
         .map(|s| s.to_string());
-    
+
     // Extract IP addresses from endpoint
     let endpoint_ip = wg_config.endpoint.ip().to_string();
     let (public_ip_v4, public_ip_v6) = if wg_config.endpoint.is_ipv4() {

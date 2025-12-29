@@ -157,7 +157,7 @@ pub async fn connect(instance_id: String, region: String, app_handle: AppHandle)
     // Subscribe to metrics broadcast and emit as Tauri events
     // Small delay to ensure daemon is ready
     println!("Starting metrics stream...");
-    match start_metrics_stream(app_handle).await {
+    match start_metrics_stream_internal(app_handle).await {
         Ok(_) => println!("Started metrics stream"),
         Err(e) => println!("Failed to start metrics stream: {}", e),
     }
@@ -201,7 +201,13 @@ pub async fn get_vpn_status() -> Result<VpnStatus> {
     Ok(status)
 }
 
-async fn start_metrics_stream(app_handle: AppHandle) -> Result<()> {
+#[tauri::command]
+pub async fn start_metrics_stream(app_handle: AppHandle) -> Result<()> {
+    println!("Starting metrics stream from command...");
+    start_metrics_stream_internal(app_handle).await
+}
+
+async fn start_metrics_stream_internal(app_handle: AppHandle) -> Result<()> {
     println!("Starting metrics stream...");
     let mut broadcaster = match METRICS_BROADCASTER.lock() {
         Ok(guard) => guard,

@@ -1,0 +1,173 @@
+import { AwsRegion, ExistingInstance, RegionGroup } from "../../types";
+import { useState } from "react";
+
+interface RegionSelectorProps {
+  groupedRegions: RegionGroup[];
+  existingInstances: ExistingInstance[];
+  isSpawning: boolean;
+  spawnError: string | null;
+  onSelectRegion: (region: AwsRegion) => void;
+  onClose: () => void;
+}
+
+export function RegionSelector({
+  groupedRegions,
+  existingInstances,
+  isSpawning,
+  spawnError,
+  onSelectRegion,
+  onClose,
+}: RegionSelectorProps) {
+  const [selectedRegion, setSelectedRegion] = useState<AwsRegion | null>(null);
+
+  const handleDeploy = () => {
+    if (selectedRegion) {
+      onSelectRegion(selectedRegion);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-screen bg-gray-900">
+      {/* Header with Back Button */}
+      <div className="bg-gray-800 p-6 border-b border-gray-700">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-700 rounded-lg transition"
+          >
+            <svg
+              className="w-6 h-6 text-gray-300"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 19l-7-7 7-7"
+              />
+            </svg>
+          </button>
+          <div>
+            <h1 className="text-3xl font-bold text-blue-400">
+              Deploy New Server
+            </h1>
+            <p className="text-gray-300 mt-1">
+              Select a region to deploy your VPN server
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="space-y-6">
+          {groupedRegions.map((group, idx) => (
+            <div key={idx}>
+              <h3 className="text-xs uppercase text-gray-400 font-semibold mb-3 px-2">
+                {group.continent}
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                {group.regions.map((region) => (
+                  <button
+                    key={region.name}
+                    onClick={() => setSelectedRegion(region)}
+                    disabled={isSpawning}
+                    className={`p-4 bg-gray-800 border rounded-lg transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed ${
+                      selectedRegion?.name === region.name
+                        ? "border-blue-500 bg-blue-900/20"
+                        : "border-gray-700 hover:border-gray-600 hover:bg-gray-700"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="text-2xl">{(region as any).flag}</span>
+                      <div>
+                        <p className="font-medium text-sm">{region.name}</p>
+                        <p className="text-xs text-gray-400">
+                          {region.country}
+                        </p>
+                      </div>
+                    </div>
+                    {existingInstances.filter((i) => i.region === region.name)
+                      .length > 0 && (
+                      <div className="flex items-center gap-1 text-xs text-gray-400">
+                        <svg
+                          className="w-3 h-3"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm3.293 1.293a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L7.586 10 5.293 7.707a1 1 0 010-1.414zM11 12a1 1 0 100 2h3a1 1 0 100-2h-3z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        <span>
+                          {
+                            existingInstances.filter(
+                              (i) => i.region === region.name
+                            ).length
+                          }{" "}
+                          active
+                        </span>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Deploy Button - Fixed at bottom */}
+        {selectedRegion && !isSpawning && (
+          <div className="sticky bottom-0 bg-gray-900 border-t border-gray-700 p-6">
+            <div className="max-w-4xl mx-auto">
+              <button
+                onClick={handleDeploy}
+                className="w-full px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-medium text-lg shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+                Deploy Server in {selectedRegion.name}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {isSpawning && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
+            <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                <div>
+                  <p className="font-semibold">Deploying server...</p>
+                  <p className="text-sm text-gray-400">
+                    This may take a minute
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {spawnError && (
+          <div className="mt-4 p-4 bg-red-900/20 border border-red-500/50 rounded-lg">
+            <p className="text-red-300 text-sm">{spawnError}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

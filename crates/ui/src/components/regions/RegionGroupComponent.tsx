@@ -17,7 +17,7 @@ export function RegionGroupComponent({
       <h3 className="text-lg font-semibold text-blue-300 border-b border-gray-700 pb-2">
         {group.continent}
       </h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="space-y-2">
         {group.regions.map((region) => (
           <RegionCard
             key={region.name}
