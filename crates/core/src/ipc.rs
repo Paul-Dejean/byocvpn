@@ -116,12 +116,9 @@ impl IpcStream {
             match reader.read_line(&mut line).await? {
                 0 => Ok(None), // EOF
                 _ => {
-                    // Remove trailing newline
+                    // Remove trailing newline (read_line includes it)
                     if line.ends_with('\n') {
                         line.pop();
-                        if line.ends_with('\r') {
-                            line.pop();
-                        }
                     }
                     Ok(Some(line))
                 }
@@ -146,106 +143,5 @@ impl IpcStream {
         {
             unimplemented!("Windows named pipes not yet implemented")
         }
-    }
-
-    /// Split the stream into read and write halves
-    pub fn into_split(self) -> (IpcReadHalf, IpcWriteHalf) {
-        #[cfg(unix)]
-        {
-            let (read, write) = self.stream.into_split();
-            (IpcReadHalf { read }, IpcWriteHalf { write })
-        }
-
-        #[cfg(windows)]
-        {
-            unimplemented!("Windows named pipes not yet implemented")
-        }
-    }
-}
-
-/// Read half of an IPC stream
-pub struct IpcReadHalf {
-    #[cfg(unix)]
-    read: tokio::net::unix::OwnedReadHalf,
-}
-
-impl IpcReadHalf {
-    /// Create a buffered reader
-    pub fn into_buf_reader(self) -> IpcBufReader {
-        #[cfg(unix)]
-        {
-            IpcBufReader {
-                reader: BufReader::new(self.read).lines(),
-            }
-        }
-
-        #[cfg(windows)]
-        {
-            unimplemented!("Windows named pipes not yet implemented")
-        }
-    }
-}
-
-/// Write half of an IPC stream
-pub struct IpcWriteHalf {
-    #[cfg(unix)]
-    write: tokio::net::unix::OwnedWriteHalf,
-}
-
-impl IpcWriteHalf {
-    /// Send a message (writes data followed by newline)
-    pub async fn send_message(&mut self, message: &str) -> Result<()> {
-        #[cfg(unix)]
-        {
-            self.write.write_all(message.as_bytes()).await?;
-            self.write.write_all(b"\n").await?;
-            Ok(())
-        }
-
-        #[cfg(windows)]
-        {
-            unimplemented!("Windows named pipes not yet implemented")
-        }
-    }
-
-    /// Write raw data to the stream
-    pub async fn write_all(&mut self, data: &[u8]) -> Result<()> {
-        #[cfg(unix)]
-        {
-            self.write.write_all(data).await?;
-            Ok(())
-        }
-
-        #[cfg(windows)]
-        {
-            unimplemented!("Windows named pipes not yet implemented")
-        }
-    }
-}
-
-/// Buffered reader for IPC streams
-pub struct IpcBufReader {
-    #[cfg(unix)]
-    reader: tokio::io::Lines<BufReader<tokio::net::unix::OwnedReadHalf>>,
-}
-
-impl IpcBufReader {
-    /// Read the next message (reads until newline)
-    pub async fn read_message(&mut self) -> Result<Option<String>> {
-        #[cfg(unix)]
-        {
-            let line = self.reader.next_line().await?;
-            Ok(line)
-        }
-
-        #[cfg(windows)]
-        {
-            unimplemented!("Windows named pipes not yet implemented")
-        }
-    }
-
-    /// Legacy method name for compatibility
-    pub async fn next_line(&mut self) -> Result<Option<String>> {
-        self.read_message().await
     }
 }

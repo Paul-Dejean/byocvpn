@@ -2,40 +2,66 @@ use async_trait::async_trait;
 use byocvpn_core::{
     daemon_client::{DaemonClient, DaemonCommand},
     error::Result,
+    ipc::IpcStream,
 };
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt, Error, ErrorKind},
-    net::UnixStream,
-    time::{Duration, sleep},
-};
+use tokio::time::{Duration, sleep};
 
 use crate::constants;
+
 pub struct UnixDaemonClient;
 
 #[async_trait]
 impl DaemonClient for UnixDaemonClient {
     async fn send_command(&self, cmd: DaemonCommand) -> Result<String> {
-        let socket_path = constants::socket_path().to_string_lossy().to_string();
+        let socket_path = constants::socket_path();
         wait_for_socket(&socket_path, 50).await?;
-        let mut stream = UnixStream::connect(&socket_path).await?;
-        println!("Connected to daemon at {}", &socket_path);
-        // Serializing DaemonCommand should never fail as it's a simple enum
-        let msg = serde_json::to_string(&cmd).expect("Failed to serialize DaemonCommand") + "\n";
-        stream.write_all(msg.as_bytes()).await?;
 
-        let mut response = String::new();
-        stream.read_to_string(&mut response).await?;
+        let mut stream = IpcStream::connect(&socket_path).await?;
+        println!("Connected to daemon at {}", socket_path.to_string_lossy());
+
+        // Serializing DaemonCommand should never fail as it's a simple enum
+        let msg = serde_json::to_string(&cmd).expect("Failed to serialize DaemonCommand");
+        stream.send_message(&msg).await?;
+
+        let response = stream.read_message().await?.ok_or_else(|| {
+            byocvpn_core::error::Error::IoError(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "Daemon closed connection without response",
+            ))
+        })?;
         Ok(response)
     }
+
     async fn is_daemon_running(&self) -> bool {
-        let socket_path = constants::socket_path().to_string_lossy().to_string();
-        match UnixStream::connect(&socket_path).await {
-            Ok(_) => {
-                println!("Successfully connected to daemon at {}", &socket_path);
-                true
-            } // Connection succeeded — daemon is alive
+        let socket_path = constants::socket_path();
+
+        // Try to send a health check command
+        match IpcStream::connect(&socket_path).await {
+            Ok(mut stream) => {
+                // Send health check command
+                let health_cmd = DaemonCommand::HealthCheck;
+                let msg = match serde_json::to_string(&health_cmd) {
+                    Ok(m) => m,
+                    Err(_) => return false,
+                };
+
+                if stream.send_message(&msg).await.is_err() {
+                    return false;
+                }
+
+                // Try to read response
+                match stream.read_message().await {
+                    Ok(Some(_)) => {
+                        println!("Daemon is healthy at {}", socket_path.to_string_lossy());
+                        true
+                    }
+                    _ => {
+                        println!("Daemon did not respond to health check");
+                        false
+                    }
+                }
+            }
             Err(e) => {
-                // Connection failed — probably not running
                 println!("Daemon connection error: {:?}", e);
                 false
             }
@@ -43,21 +69,18 @@ impl DaemonClient for UnixDaemonClient {
     }
 }
 
-async fn wait_for_socket(path: &str, max_retries: u32) -> std::io::Result<()> {
+async fn wait_for_socket(path: &std::path::PathBuf, max_retries: u32) -> Result<()> {
     for _ in 0..max_retries {
-        match UnixStream::connect(path).await {
-            Ok(_) => return Ok(()), // Daemon is up and accepting
-            Err(e)
-                if e.kind() == ErrorKind::ConnectionRefused || e.kind() == ErrorKind::NotFound =>
-            {
+        match IpcStream::connect(path).await {
+            Ok(_) => return Ok(()),
+            Err(_) => {
                 sleep(Duration::from_millis(100)).await;
             }
-            Err(e) => return Err(e), // Any other error (e.g., permission denied)
         }
     }
 
-    Err(Error::new(
-        ErrorKind::TimedOut,
+    Err(byocvpn_core::error::Error::IoError(std::io::Error::new(
+        std::io::ErrorKind::TimedOut,
         "Timed out waiting for daemon socket",
-    ))
+    )))
 }

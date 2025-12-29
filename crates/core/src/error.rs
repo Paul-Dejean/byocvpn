@@ -59,6 +59,21 @@ pub enum Error {
 
     #[error("Tunnel creation error: {0}")]
     TunnelCreationError(String),
+
+    #[error("Configuration parsing error: {0}")]
+    ConfigParseError(String),
+
+    #[error("Invalid configuration: {0}")]
+    InvalidConfig(String),
+
+    #[error("Network configuration error: {0}")]
+    NetworkConfigError(String),
+
+    #[error("Route operation failed: {0}")]
+    RouteError(String),
+
+    #[error("DNS configuration error: {0}")]
+    DnsError(String),
 }
 
 #[derive(Debug, Error)]

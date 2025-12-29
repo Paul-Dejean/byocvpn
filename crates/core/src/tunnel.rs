@@ -22,15 +22,20 @@ pub struct TunnelMetrics {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TunnelMetricsWithRates {
-    // Cumulative totals (since connection started)
     pub bytes_sent: u64,
     pub bytes_received: u64,
     pub packets_sent: u64,
     pub packets_received: u64,
-
-    // Current speeds (bytes per second)
     pub upload_rate: u64,
     pub download_rate: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VpnStatus {
+    pub connected: bool,
+    pub instance_id: Option<String>,
+    pub public_ip_v4: Option<String>,
+    pub public_ip_v6: Option<String>,
 }
 
 pub struct Tunnel {

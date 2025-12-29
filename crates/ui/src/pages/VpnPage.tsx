@@ -15,6 +15,9 @@ import {
   MetricsDisplay,
   MetricsDetails,
 } from "../components/common/MetricsDisplay";
+import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import toast from "react-hot-toast";
 
 interface VpnPageProps {
   onNavigateToSettings?: () => void;
@@ -73,6 +76,7 @@ export function VpnPage({ onNavigateToSettings }: VpnPageProps) {
   const metrics = useVpnMetrics(serverStatus === "connected");
 
   // Local state removed - now managed in hooks
+  const [checkingStatus, setCheckingStatus] = useState(true);
 
   const handleRegionSelectWrapper = (region: AwsRegion) => {
     handleRegionSelect(region);
@@ -132,272 +136,331 @@ export function VpnPage({ onNavigateToSettings }: VpnPageProps) {
     }
   };
 
-  const isLoading = regionsLoading || instancesLoading;
+  // Check VPN status on mount
+  useEffect(() => {
+    async function checkStatus() {
+      try {
+        const status: any = await invoke("get_vpn_status");
+        console.log("VPN Status on mount:", status);
+        if (status.connected) {
+          console.log("Restoring VPN connection state");
+          setServerStatus("connected");
+          
+          if (status.instance_id) {
+            console.log("Looking for instance:", status.instance_id);
+            // Find the instance in existingInstances and select it
+            const instance = existingInstances.find(
+              (i) => i.id === status.instance_id
+            );
+            if (instance && instance.region) {
+              console.log("Found matching instance:", instance);
+              // We don't have the full ServerDetails, so just mark as connected
+              // The user can see the instance in the list
+              toast.success(`VPN connected to ${instance.name || instance.id}`);
+            } else {
+              console.log("Instance not found in list, showing generic message");
+              toast.success("VPN connection restored");
+            }
+          } else {
+            console.log("No instance_id in status");
+            toast.success("VPN connection restored");
+          }
+        } else {
+          console.log("VPN not connected");
+        }
+      } catch (err) {
+        console.error("Failed to check VPN status:", err);
+      } finally {
+        setCheckingStatus(false);
+      }
+    }
+
+    checkStatus();
+  }, [existingInstances, setServerStatus]);
+
+  const isLoading = regionsLoading || instancesLoading || checkingStatus;
 
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white overflow-hidden">
-      {/* Header */}
-      <div className="bg-gray-800 p-6 border-b border-gray-700 flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold mb-2 text-blue-400">
-              VPN Server Deployment
-            </h1>
-            <p className="text-gray-300">
-              Select an AWS region to deploy your VPN server
-            </p>
-          </div>
-          <SettingsButton onClick={() => onNavigateToSettings?.()} />
+      {checkingStatus ? (
+        <div className="flex flex-col items-center justify-center h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+          <p className="text-gray-400">Checking VPN status...</p>
         </div>
-      </div>
+      ) : (
+        <>
+          {/* Header */}
+          <div className="bg-gray-800 p-6 border-b border-gray-700 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold mb-2 text-blue-400">
+                  VPN Server Deployment
+                </h1>
+                <p className="text-gray-300">
+                  Select an AWS region to deploy your VPN server
+                </p>
+              </div>
+              <SettingsButton onClick={() => onNavigateToSettings?.()} />
+            </div>
+          </div>
 
-      <div className="flex-1 flex min-h-0">
-        {/* Show loading state */}
-        {isLoading ? (
-          <LoadingSpinner message="Loading existing instances..." />
-        ) : (
-          <>
-            {/* Existing Instances Section */}
-            <InstanceList
-              instances={existingInstances}
-              selectedInstance={selectedInstance}
-              onInstanceSelect={handleInstanceSelectWrapper}
-            />
-
-            {/* Region List */}
-            <RegionList
-              groupedRegions={groupedRegions}
-              selectedRegion={selectedRegion}
-              onRegionSelect={handleRegionSelectWrapper}
-              existingInstancesCount={existingInstances.length}
-            />
-          </>
-        )}
-
-        {/* Control Panel */}
-        <div className="w-80 bg-gray-800 p-6 border-l border-gray-700 flex flex-col min-h-0">
-          <h2 className="text-xl font-semibold mb-4 text-blue-400">
-            {selectedInstance ? "Instance Details" : "Server Control"}
-          </h2>
-
-          <div className="flex-1 overflow-y-auto">
-            {selectedInstance ? (
-              /* Instance Details View */
-              <>
-                {/* Metrics Display */}
-                <div className="mb-6">
-                  <MetricsDisplay
-                    metrics={metrics}
-                    isConnected={serverStatus === "connected"}
-                  />
-                </div>
-
-                {/* Instance Actions */}
-                <div className="space-y-3">
-                  <button
-                    onClick={() => handleConnectToVpn(selectedInstance)}
-                    disabled={isConnecting || serverStatus === "connected"}
-                    className={`w-full px-4 py-3 rounded-lg transition font-medium shadow-lg hover:shadow-xl ${
-                      isConnecting
-                        ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                        : serverStatus === "connected"
-                          ? "bg-green-800 text-green-200 cursor-not-allowed"
-                          : "bg-green-600 hover:bg-green-700 text-white"
-                    }`}
-                  >
-                    {isConnecting ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Connecting...
-                      </div>
-                    ) : serverStatus === "connected" ? (
-                      "Connected to VPN"
-                    ) : (
-                      "Connect to VPN"
-                    )}
-                  </button>
-
-                  {serverStatus === "connected" && (
-                    <button
-                      onClick={handleDisconnectFromVpn}
-                      className="w-full px-4 py-3 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition font-medium shadow-lg hover:shadow-xl"
-                    >
-                      Disconnect from VPN
-                    </button>
-                  )}
-
-                  {serverStatus !== "connected" && (
-                    <button
-                      onClick={handleTerminateServer}
-                      disabled={isTerminating}
-                      className={`w-full px-4 py-3 rounded-lg transition font-medium shadow-lg hover:shadow-xl ${
-                        isTerminating
-                          ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                          : "bg-red-600 hover:bg-red-700 text-white"
-                      }`}
-                    >
-                      {isTerminating ? (
-                        <div className="flex items-center justify-center gap-2">
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          Terminating...
-                        </div>
-                      ) : (
-                        "Terminate Server"
-                      )}
-                    </button>
-                  )}
-                </div>
-
-                {/* Additional Metrics Details */}
-                <div className="mt-6">
-                  <MetricsDetails metrics={metrics} />
-                </div>
-
-                {/* Selected Instance Details */}
-                <div className="mt-6">
-                  <h3 className="text-lg font-medium mb-2">
-                    Selected Instance
-                  </h3>
-                  <div className="bg-gray-700 rounded-lg p-4">
-                    <p className="font-medium text-blue-300 mb-2">
-                      {existingInstances.find(
-                        (i) => i.id === selectedInstance.instance_id
-                      )?.name || "VPN Server"}
-                    </p>
-                    <p className="text-sm text-gray-400 mb-1">
-                      <span className="font-medium">Instance ID:</span>{" "}
-                      {selectedInstance.instance_id}
-                    </p>
-                    <p className="text-sm text-gray-400 mb-1">
-                      <span className="font-medium">Public IP:</span>{" "}
-                      {selectedInstance.public_ip_v4}
-                    </p>
-                    <p className="text-sm text-gray-400">
-                      <span className="font-medium">Region:</span>{" "}
-                      {selectedInstance.region}
-                    </p>
-                  </div>
-                </div>
-              </>
+          <div className="flex-1 flex min-h-0">
+            {/* Show loading state */}
+            {isLoading ? (
+              <LoadingSpinner message="Loading existing instances..." />
             ) : (
-              /* Region Selection / Spawn Controls View */
               <>
-                {selectedRegion ? (
-                  <div className="mb-6">
-                    <h3 className="text-lg font-medium mb-2">
-                      Selected Region
-                    </h3>
-                    <div className="bg-gray-700 rounded-lg p-4">
-                      <p className="font-medium text-blue-300">
-                        {selectedRegion.name}
-                      </p>
-                      <p className="text-sm text-gray-400 mt-1">
-                        {selectedRegion.country}
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mb-6">
-                    <p className="text-gray-400">
-                      Select a region from the list to continue
-                    </p>
-                  </div>
-                )}
+                {/* Existing Instances Section */}
+                <InstanceList
+                  instances={existingInstances}
+                  selectedInstance={selectedInstance}
+                  onInstanceSelect={handleInstanceSelectWrapper}
+                />
 
-                {/* Server Status */}
-                <div className="mb-6">
-                  <h3 className="text-lg font-medium mb-2">Server Status</h3>
-                  <div className="flex items-center gap-3 p-3 bg-gray-700 rounded-lg">
-                    <div
-                      className={`w-4 h-4 rounded-full ${
-                        serverStatus === "running"
-                          ? "bg-green-500"
-                          : serverStatus === "spawning"
-                            ? "bg-yellow-500 animate-pulse"
-                            : serverStatus === "terminating"
-                              ? "bg-orange-500 animate-pulse"
-                              : serverStatus === "error"
-                                ? "bg-red-500"
-                                : "bg-gray-500"
-                      }`}
-                    />
-                    <span className="capitalize">
-                      {serverStatus === "idle"
-                        ? "Ready to deploy"
-                        : serverStatus}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Spawn Actions */}
-                <div className="space-y-3">
-                  <button
-                    onClick={handleSpawnServer}
-                    disabled={!selectedRegion || isSpawning || isTerminating}
-                    className={`w-full px-4 py-3 rounded-lg transition font-medium ${
-                      !selectedRegion || isSpawning || isTerminating
-                        ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                        : "bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl"
-                    }`}
-                  >
-                    {isSpawning ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Deploying Server...
-                      </div>
-                    ) : (
-                      "Deploy VPN Server"
-                    )}
-                  </button>
-
-                  {serverStatus === "error" && (
-                    <div className="p-3 bg-red-900 border border-red-700 rounded-lg">
-                      <p className="text-red-300 text-sm">
-                        {spawnError ||
-                          "Failed to deploy server. Please try again or check your credentials."}
-                      </p>
-                    </div>
-                  )}
-
-                  {regionsError && (
-                    <div className="p-3 bg-red-900 border border-red-700 rounded-lg">
-                      <p className="text-red-300 text-sm">{regionsError}</p>
-                    </div>
-                  )}
-
-                  {instancesError && (
-                    <div className="p-3 bg-red-900 border border-red-700 rounded-lg">
-                      <p className="text-red-300 text-sm">{instancesError}</p>
-                    </div>
-                  )}
-
-                  {vpnError && (
-                    <div className="p-3 bg-red-900 border border-red-700 rounded-lg">
-                      <p className="text-red-300 text-sm">{vpnError}</p>
-                    </div>
-                  )}
-
-                  {terminateError && (
-                    <div className="p-3 bg-red-900 border border-red-700 rounded-lg">
-                      <p className="text-red-300 text-sm">{terminateError}</p>
-                    </div>
-                  )}
-                </div>
+                {/* Region List */}
+                <RegionList
+                  groupedRegions={groupedRegions}
+                  selectedRegion={selectedRegion}
+                  onRegionSelect={handleRegionSelectWrapper}
+                  existingInstancesCount={existingInstances.length}
+                />
               </>
             )}
 
-            {/* Info */}
-            <div className="mt-6 p-3 bg-gray-700 rounded-lg">
-              <h4 className="font-medium mb-2 text-sm">ℹ️ Information</h4>
-              <p className="text-xs text-gray-400 leading-relaxed">
-                Deploying a server will create an EC2 instance in your selected
-                region. You'll be charged according to AWS pricing for the
-                instance runtime.
-              </p>
+            {/* Control Panel */}
+            <div className="w-80 bg-gray-800 p-6 border-l border-gray-700 flex flex-col min-h-0">
+              <h2 className="text-xl font-semibold mb-4 text-blue-400">
+                {selectedInstance ? "Instance Details" : "Server Control"}
+              </h2>
+
+              <div className="flex-1 overflow-y-auto">
+                {selectedInstance ? (
+                  /* Instance Details View */
+                  <>
+                    {/* Metrics Display */}
+                    <div className="mb-6">
+                      <MetricsDisplay
+                        metrics={metrics}
+                        isConnected={serverStatus === "connected"}
+                      />
+                    </div>
+
+                    {/* Instance Actions */}
+                    <div className="space-y-3">
+                      <button
+                        onClick={() => handleConnectToVpn(selectedInstance)}
+                        disabled={isConnecting || serverStatus === "connected"}
+                        className={`w-full px-4 py-3 rounded-lg transition font-medium shadow-lg hover:shadow-xl ${
+                          isConnecting
+                            ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                            : serverStatus === "connected"
+                              ? "bg-green-800 text-green-200 cursor-not-allowed"
+                              : "bg-green-600 hover:bg-green-700 text-white"
+                        }`}
+                      >
+                        {isConnecting ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            Connecting...
+                          </div>
+                        ) : serverStatus === "connected" ? (
+                          "Connected to VPN"
+                        ) : (
+                          "Connect to VPN"
+                        )}
+                      </button>
+
+                      {serverStatus === "connected" && (
+                        <button
+                          onClick={handleDisconnectFromVpn}
+                          className="w-full px-4 py-3 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition font-medium shadow-lg hover:shadow-xl"
+                        >
+                          Disconnect from VPN
+                        </button>
+                      )}
+
+                      {serverStatus !== "connected" && (
+                        <button
+                          onClick={handleTerminateServer}
+                          disabled={isTerminating}
+                          className={`w-full px-4 py-3 rounded-lg transition font-medium shadow-lg hover:shadow-xl ${
+                            isTerminating
+                              ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                              : "bg-red-600 hover:bg-red-700 text-white"
+                          }`}
+                        >
+                          {isTerminating ? (
+                            <div className="flex items-center justify-center gap-2">
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                              Terminating...
+                            </div>
+                          ) : (
+                            "Terminate Server"
+                          )}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Additional Metrics Details */}
+                    <div className="mt-6">
+                      <MetricsDetails metrics={metrics} />
+                    </div>
+
+                    {/* Selected Instance Details */}
+                    <div className="mt-6">
+                      <h3 className="text-lg font-medium mb-2">
+                        Selected Instance
+                      </h3>
+                      <div className="bg-gray-700 rounded-lg p-4">
+                        <p className="font-medium text-blue-300 mb-2">
+                          {existingInstances.find(
+                            (i) => i.id === selectedInstance.instance_id
+                          )?.name || "VPN Server"}
+                        </p>
+                        <p className="text-sm text-gray-400 mb-1">
+                          <span className="font-medium">Instance ID:</span>{" "}
+                          {selectedInstance.instance_id}
+                        </p>
+                        <p className="text-sm text-gray-400 mb-1">
+                          <span className="font-medium">Public IP:</span>{" "}
+                          {selectedInstance.public_ip_v4}
+                        </p>
+                        <p className="text-sm text-gray-400">
+                          <span className="font-medium">Region:</span>{" "}
+                          {selectedInstance.region}
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  /* Region Selection / Spawn Controls View */
+                  <>
+                    {selectedRegion ? (
+                      <div className="mb-6">
+                        <h3 className="text-lg font-medium mb-2">
+                          Selected Region
+                        </h3>
+                        <div className="bg-gray-700 rounded-lg p-4">
+                          <p className="font-medium text-blue-300">
+                            {selectedRegion.name}
+                          </p>
+                          <p className="text-sm text-gray-400 mt-1">
+                            {selectedRegion.country}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mb-6">
+                        <p className="text-gray-400">
+                          Select a region from the list to continue
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Server Status */}
+                    <div className="mb-6">
+                      <h3 className="text-lg font-medium mb-2">
+                        Server Status
+                      </h3>
+                      <div className="flex items-center gap-3 p-3 bg-gray-700 rounded-lg">
+                        <div
+                          className={`w-4 h-4 rounded-full ${
+                            serverStatus === "running"
+                              ? "bg-green-500"
+                              : serverStatus === "spawning"
+                                ? "bg-yellow-500 animate-pulse"
+                                : serverStatus === "terminating"
+                                  ? "bg-orange-500 animate-pulse"
+                                  : serverStatus === "error"
+                                    ? "bg-red-500"
+                                    : "bg-gray-500"
+                          }`}
+                        />
+                        <span className="capitalize">
+                          {serverStatus === "idle"
+                            ? "Ready to deploy"
+                            : serverStatus}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Spawn Actions */}
+                    <div className="space-y-3">
+                      <button
+                        onClick={handleSpawnServer}
+                        disabled={
+                          !selectedRegion || isSpawning || isTerminating
+                        }
+                        className={`w-full px-4 py-3 rounded-lg transition font-medium ${
+                          !selectedRegion || isSpawning || isTerminating
+                            ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                            : "bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl"
+                        }`}
+                      >
+                        {isSpawning ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            Deploying Server...
+                          </div>
+                        ) : (
+                          "Deploy VPN Server"
+                        )}
+                      </button>
+
+                      {serverStatus === "error" && (
+                        <div className="p-3 bg-red-900 border border-red-700 rounded-lg">
+                          <p className="text-red-300 text-sm">
+                            {spawnError ||
+                              "Failed to deploy server. Please try again or check your credentials."}
+                          </p>
+                        </div>
+                      )}
+
+                      {regionsError && (
+                        <div className="p-3 bg-red-900 border border-red-700 rounded-lg">
+                          <p className="text-red-300 text-sm">{regionsError}</p>
+                        </div>
+                      )}
+
+                      {instancesError && (
+                        <div className="p-3 bg-red-900 border border-red-700 rounded-lg">
+                          <p className="text-red-300 text-sm">
+                            {instancesError}
+                          </p>
+                        </div>
+                      )}
+
+                      {vpnError && (
+                        <div className="p-3 bg-red-900 border border-red-700 rounded-lg">
+                          <p className="text-red-300 text-sm">{vpnError}</p>
+                        </div>
+                      )}
+
+                      {terminateError && (
+                        <div className="p-3 bg-red-900 border border-red-700 rounded-lg">
+                          <p className="text-red-300 text-sm">
+                            {terminateError}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* Info */}
+                <div className="mt-6 p-3 bg-gray-700 rounded-lg">
+                  <h4 className="font-medium mb-2 text-sm">ℹ️ Information</h4>
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    Deploying a server will create an EC2 instance in your
+                    selected region. You'll be charged according to AWS pricing
+                    for the instance runtime.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }

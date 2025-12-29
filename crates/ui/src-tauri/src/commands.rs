@@ -4,8 +4,9 @@ use byocvpn_aws::{AwsProvider, AwsProviderConfig};
 use byocvpn_core::{
     cloud_provider::{CloudProvider, CloudProviderName},
     commands, credentials,
+    daemon_client::{DaemonClient, DaemonCommand},
     error::{Error, Result},
-    tunnel::TunnelMetricsWithRates,
+    tunnel::{TunnelMetricsWithRates, VpnStatus},
 };
 use byocvpn_daemon::daemon_client::UnixDaemonClient;
 use serde_json::{Value, json};
@@ -177,6 +178,29 @@ pub async fn disconnect() -> Result<String> {
     Ok("Disconnected successfully.".to_string())
 }
 
+#[tauri::command]
+pub async fn get_vpn_status() -> Result<VpnStatus> {
+    let daemon_client = UnixDaemonClient;
+
+    // Check if daemon is running first
+    if !daemon_client.is_daemon_running().await {
+        return Ok(VpnStatus {
+            connected: false,
+            instance_id: None,
+            public_ip_v4: None,
+            public_ip_v6: None,
+        });
+    }
+
+    // Get status from daemon
+    let response = daemon_client.send_command(DaemonCommand::Status).await?;
+
+    let status: VpnStatus = serde_json::from_str(&response)
+        .map_err(|e| Error::InvalidCloudProviderConfig(format!("Failed to parse status: {}", e)))?;
+
+    Ok(status)
+}
+
 async fn start_metrics_stream(app_handle: AppHandle) -> Result<()> {
     println!("Starting metrics stream...");
     let mut broadcaster = match METRICS_BROADCASTER.lock() {
@@ -236,8 +260,7 @@ async fn start_metrics_stream(app_handle: AppHandle) -> Result<()> {
             }
         };
 
-        let (read, _write) = stream.into_split();
-        let mut reader = read.into_buf_reader();
+        let mut stream = stream;
 
         loop {
             // Check if we should stop
@@ -249,7 +272,7 @@ async fn start_metrics_stream(app_handle: AppHandle) -> Result<()> {
             }
 
             // Read metrics from IPC socket
-            match reader.read_message().await {
+            match stream.read_message().await {
                 Ok(Some(line)) => {
                     // Parse JSON metrics
                     if let Ok(metrics) = serde_json::from_str::<TunnelMetricsWithRates>(&line) {

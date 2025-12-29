@@ -14,24 +14,11 @@ interface MetricsDisplayProps {
 }
 
 export function MetricsDisplay({ metrics, isConnected }: MetricsDisplayProps) {
-  if (!isConnected) {
+  if (!isConnected || !metrics) {
     return (
-      <div className="bg-gray-800 rounded-lg p-4">
-        <h3 className="text-lg font-semibold text-white mb-3">
-          📊 VPN Statistics
-        </h3>
-        <p className="text-gray-400 text-sm">Connect to view live statistics</p>
-      </div>
-    );
-  }
-
-  if (!metrics) {
-    return (
-      <div className="bg-gray-800 rounded-lg p-4">
-        <h3 className="text-lg font-semibold text-white mb-3">
-          📊 VPN Statistics
-        </h3>
-        <p className="text-gray-400 text-sm">Loading metrics...</p>
+      <div className="bg-gray-700 rounded-lg p-4">
+        <h3 className="text-sm font-medium text-gray-400 mb-2">VPN Metrics</h3>
+        <p className="text-xs text-gray-500">Not connected</p>
       </div>
     );
   }
@@ -42,7 +29,7 @@ export function MetricsDisplay({ metrics, isConnected }: MetricsDisplayProps) {
         <div className="flex items-center justify-between w-full">
           <span className="text-gray-400 text-sm">Upload</span>
           <span className="text-green-400 font-mono text-lg font-semibold min-w-[120px] text-right">
-            ↑ {formatBytes(metrics.uploadRate)}/s
+            ↑ {formatBytes(metrics.uploadRate ?? 0)}/s
           </span>
         </div>
       </div>
@@ -51,7 +38,7 @@ export function MetricsDisplay({ metrics, isConnected }: MetricsDisplayProps) {
         <div className="flex items-center justify-between w-full">
           <span className="text-gray-400 text-sm">Download</span>
           <span className="text-blue-400 font-mono text-lg font-semibold min-w-[120px] text-right">
-            ↓ {formatBytes(metrics.downloadRate)}/s
+            ↓ {formatBytes(metrics.downloadRate ?? 0)}/s
           </span>
         </div>
       </div>
@@ -61,7 +48,9 @@ export function MetricsDisplay({ metrics, isConnected }: MetricsDisplayProps) {
 
 // Additional metrics component for details below buttons
 export function MetricsDetails({ metrics }: { metrics: VpnMetrics | null }) {
-  if (!metrics) return null;
+  if (!metrics) {
+    return null;
+  }
 
   return (
     <>
@@ -74,14 +63,14 @@ export function MetricsDetails({ metrics }: { metrics: VpnMetrics | null }) {
           <div className="bg-gray-700 rounded-lg p-3">
             <span className="text-gray-400 text-xs block mb-1">Upload</span>
             <span className="text-white font-mono text-sm">
-              {formatBytes(metrics.bytesSent)}
+              {formatBytes(metrics.bytesSent ?? 0)}
             </span>
           </div>
 
           <div className="bg-gray-700 rounded-lg p-3">
             <span className="text-gray-400 text-xs block mb-1">Download</span>
             <span className="text-white font-mono text-sm">
-              {formatBytes(metrics.bytesReceived)}
+              {formatBytes(metrics.bytesReceived ?? 0)}
             </span>
           </div>
         </div>
@@ -96,14 +85,14 @@ export function MetricsDetails({ metrics }: { metrics: VpnMetrics | null }) {
           <div className="bg-gray-700 rounded-lg p-3">
             <span className="text-gray-400 text-xs block mb-1">Sent</span>
             <span className="text-white font-mono text-sm">
-              {metrics.packetsSent.toLocaleString()}
+              {(metrics.packetsSent ?? 0).toLocaleString()}
             </span>
           </div>
 
           <div className="bg-gray-700 rounded-lg p-3">
             <span className="text-gray-400 text-xs block mb-1">Received</span>
             <span className="text-white font-mono text-sm">
-              {metrics.packetsReceived.toLocaleString()}
+              {(metrics.packetsReceived ?? 0).toLocaleString()}
             </span>
           </div>
         </div>

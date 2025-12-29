@@ -7,13 +7,14 @@ use boringtun::{
 };
 use byocvpn_core::{
     daemon_client::DaemonCommand,
+    error::{Error, Result},
     ipc::{IpcSocket, IpcStream},
-    tunnel::{Tunnel, TunnelMetrics, TunnelMetricsWithRates},
+    tunnel::{Tunnel, TunnelMetrics, TunnelMetricsWithRates, VpnStatus},
 };
 use ini::Ini;
 use ipnet::IpNet;
 use net_route::{Handle, Route};
-use tokio::{fs, net::UdpSocket, sync::watch};
+use tokio::{net::UdpSocket, sync::watch};
 use tun_rs::DeviceBuilder;
 
 mod tunnel_manager;
@@ -21,7 +22,6 @@ use crate::tunnel_manager::{TUNNEL_MANAGER, TunnelHandle};
 
 pub mod constants;
 pub mod daemon_client;
-use byocvpn_core::error::Result;
 
 use crate::dns_macos::DomainNameSystemOverrideGuard;
 
@@ -37,11 +37,9 @@ pub async fn run_daemon() -> Result<()> {
     println!("process id: {}", std::process::id());
 
     loop {
-        let stream = listener.accept().await?;
-        let (read, mut write) = stream.into_split();
-        let mut reader = read.into_buf_reader();
+        let mut stream = listener.accept().await?;
 
-        if let Ok(Some(line)) = reader.next_line().await {
+        while let Ok(Some(line)) = stream.read_message().await {
             println!("Daemon received: {line}");
             println!("process id: {}", std::process::id());
             match serde_json::from_str::<DaemonCommand>(&line) {
@@ -49,41 +47,92 @@ pub async fn run_daemon() -> Result<()> {
                     println!("Daemon received connect: {config_path}");
                     match connect_vpn(config_path).await {
                         Ok(_) => {
-                            write.write_all(b"Connected!\n").await?;
+                            if stream.send_message("Connected!").await.is_err() {
+                                eprintln!("Failed to send response to client");
+                            }
                         }
                         Err(e) => {
-                            write
-                                .write_all(format!("Connect error: {e}\n").as_bytes())
-                                .await?;
+                            let error_msg = format!("Connect error: {}", e);
+                            eprintln!("{}", error_msg);
+                            if stream.send_message(&error_msg).await.is_err() {
+                                eprintln!("Failed to send error response to client");
+                            }
                         }
                     }
                 }
-                Ok(DaemonCommand::Disconnect) => {
-                    disconnect_vpn().await;
-                    write.write_all(b"Disconnected.\n").await?;
-                }
-                Ok(DaemonCommand::Status) => {
-                    write.write_all(b"Status: dummy running\n").await?;
-                }
+                Ok(DaemonCommand::Disconnect) => match disconnect_vpn().await {
+                    Ok(_) => {
+                        if stream.send_message("Disconnected.").await.is_err() {
+                            eprintln!("Failed to send response to client");
+                        }
+                    }
+                    Err(e) => {
+                        let error_msg = format!("Disconnect error: {}", e);
+                        eprintln!("{}", error_msg);
+                        if stream.send_message(&error_msg).await.is_err() {
+                            eprintln!("Failed to send error response to client");
+                        }
+                    }
+                },
+                Ok(DaemonCommand::Status) => match get_vpn_status().await {
+                    Ok(status) => match serde_json::to_string(&status) {
+                        Ok(json) => {
+                            if stream.send_message(&json).await.is_err() {
+                                eprintln!("Failed to send status response to client");
+                            }
+                        }
+                        Err(e) => {
+                            let error_msg = format!("Status serialization error: {}", e);
+                            eprintln!("{}", error_msg);
+                            if stream.send_message(&error_msg).await.is_err() {
+                                eprintln!("Failed to send error response to client");
+                            }
+                        }
+                    },
+                    Err(e) => {
+                        let error_msg = format!("Status error: {}", e);
+                        eprintln!("{}", error_msg);
+                        if stream.send_message(&error_msg).await.is_err() {
+                            eprintln!("Failed to send error response to client");
+                        }
+                    }
+                },
                 Ok(DaemonCommand::Stats) => {
                     let stats = get_current_metrics().await;
-                    let response =
-                        serde_json::to_string(&stats).unwrap_or_else(|_| "null".to_string());
-                    write.write_all(response.as_bytes()).await?;
-                    write.write_all(b"\n").await?;
+                    match serde_json::to_string(&stats) {
+                        Ok(response) => {
+                            if stream.send_message(&response).await.is_err() {
+                                eprintln!("Failed to send stats response to client");
+                            }
+                        }
+                        Err(e) => {
+                            let error_msg = format!("Stats serialization error: {}", e);
+                            eprintln!("{}", error_msg);
+                            if stream.send_message("null").await.is_err() {
+                                eprintln!("Failed to send error response to client");
+                            }
+                        }
+                    }
+                }
+                Ok(DaemonCommand::HealthCheck) => {
+                    if stream.send_message("healthy").await.is_err() {
+                        eprintln!("Failed to send health response to client");
+                    }
                 }
 
                 Err(e) => {
-                    write
-                        .write_all(format!("Invalid command: {e}\n").as_bytes())
-                        .await?;
+                    let error_msg = format!("Invalid command: {}", e);
+                    eprintln!("{}", error_msg);
+                    if stream.send_message(&error_msg).await.is_err() {
+                        eprintln!("Failed to send error response to client");
+                    }
                 }
             }
         }
     }
 }
 
-async fn disconnect_vpn() {
+async fn disconnect_vpn() -> Result<()> {
     println!("[VPN Disconnect] Disconnecting VPN tunnel...");
 
     // Check if config file exists to get endpoint info for route cleanup
@@ -102,7 +151,7 @@ async fn disconnect_vpn() {
     let maybe_handle = {
         let mut manager_guard = TUNNEL_MANAGER
             .lock()
-            .expect("FATAL: TUNNEL_MANAGER mutex poisoned!");
+            .map_err(|_| Error::TunnelCreationError("Mutex poisoned".to_string()))?;
         manager_guard.take()
     };
 
@@ -147,95 +196,200 @@ async fn disconnect_vpn() {
     }
 
     println!("[VPN Disconnect] VPN disconnected. Daemon continues running.");
-    // DON'T exit the process - daemon should keep running for new connections
+    Ok(())
+}
+
+async fn get_vpn_status() -> Result<VpnStatus> {
+    let manager = TUNNEL_MANAGER
+        .lock()
+        .map_err(|_| Error::TunnelCreationError("Mutex poisoned".to_string()))?;
+
+    if let Some(handle) = manager.as_ref() {
+        let is_running = !handle.task.is_finished();
+
+        Ok(VpnStatus {
+            connected: is_running,
+            instance_id: handle.instance_id.clone(),
+            public_ip_v4: handle.public_ip_v4.clone(),
+            public_ip_v6: handle.public_ip_v6.clone(),
+        })
+    } else {
+        Ok(VpnStatus {
+            connected: false,
+            instance_id: None,
+            public_ip_v4: None,
+            public_ip_v6: None,
+        })
+    }
+}
+
+struct WireguardConfig {
+    private_key: Vec<u8>,
+    public_key: Vec<u8>,
+    endpoint: SocketAddr,
+    ipv4: IpNet,
+    ipv6: IpNet,
+    interface_section: ini::Properties,
+}
+
+async fn parse_wireguard_config(config_path: &str) -> Result<WireguardConfig> {
+    // Parse config file
+    let config = Ini::load_from_file(config_path)
+        .map_err(|e| Error::ConfigParseError(format!("Failed to read config file: {}", e)))?;
+
+    let interface = config
+        .section(Some("Interface"))
+        .ok_or_else(|| Error::InvalidConfig("[Interface] section missing".to_string()))?;
+    let peer = config
+        .section(Some("Peer"))
+        .ok_or_else(|| Error::InvalidConfig("[Peer] section missing".to_string()))?;
+
+    // Parse private key
+    let private_key_str = interface
+        .get("PrivateKey")
+        .ok_or_else(|| Error::InvalidConfig("PrivateKey missing".to_string()))?;
+    let private_key = general_purpose::STANDARD
+        .decode(private_key_str)
+        .map_err(|e| Error::InvalidConfig(format!("Invalid PrivateKey: {}", e)))?;
+
+    // Parse addresses
+    let addresses_str = interface
+        .get("Address")
+        .ok_or_else(|| Error::InvalidConfig("Address missing".to_string()))?;
+    let addresses: Result<Vec<IpNet>> = addresses_str
+        .split(',')
+        .map(|s| {
+            s.trim()
+                .parse::<IpNet>()
+                .map_err(|e| Error::InvalidConfig(format!("Invalid address: {}", e)))
+        })
+        .collect();
+    let addresses = addresses?;
+
+    // Parse public key
+    let public_key_str = peer
+        .get("PublicKey")
+        .ok_or_else(|| Error::InvalidConfig("PublicKey missing".to_string()))?;
+    let public_key = general_purpose::STANDARD
+        .decode(public_key_str)
+        .map_err(|e| Error::InvalidConfig(format!("Invalid PublicKey: {}", e)))?;
+
+    // Parse endpoint
+    let endpoint_str = peer
+        .get("Endpoint")
+        .ok_or_else(|| Error::InvalidConfig("Endpoint missing".to_string()))?;
+    let endpoint: SocketAddr = endpoint_str
+        .parse()
+        .map_err(|e| Error::InvalidConfig(format!("Invalid Endpoint: {}", e)))?;
+
+    let ipv4 = addresses
+        .iter()
+        .find(|ip| ip.addr().is_ipv4())
+        .ok_or_else(|| Error::InvalidConfig("No IPv4 address found".to_string()))?
+        .clone();
+    let ipv6 = addresses
+        .iter()
+        .find(|ip| ip.addr().is_ipv6())
+        .ok_or_else(|| Error::InvalidConfig("No IPv6 address found".to_string()))?
+        .clone();
+
+    Ok(WireguardConfig {
+        private_key,
+        public_key,
+        endpoint,
+        ipv4,
+        ipv6,
+        interface_section: interface.clone(),
+    })
 }
 
 async fn connect_vpn(config_path: String) -> Result<()> {
     println!("Daemon received connect: {}", &config_path);
 
-    let config =
-        Ini::load_from_file(&config_path).expect(&format!("Failed to read {}", &config_path));
-
-    let interface = config
-        .section(Some("Interface"))
-        .expect("[Interface] missing");
-    let peer = config.section(Some("Peer")).expect("[Peer] missing");
-
-    let private_key = general_purpose::STANDARD
-        .decode(interface.get("PrivateKey").unwrap())
-        .unwrap();
-    let addresses: Vec<IpNet> = interface
-        .get("Address")
-        .unwrap()
-        .split(',')
-        .map(|s| s.trim().parse::<IpNet>().unwrap())
-        .collect();
-
-    let public_key = general_purpose::STANDARD
-        .decode(peer.get("PublicKey").unwrap())
-        .unwrap();
-    let endpoint: SocketAddr = peer.get("Endpoint").unwrap().parse().unwrap();
-
-    let ipv4 = addresses.iter().find(|ip| ip.addr().is_ipv4()).unwrap();
-    let ipv6 = addresses.iter().find(|ip| ip.addr().is_ipv6()).unwrap();
-
-    let tun = match DeviceBuilder::new()
-        .name("utun4")
-        .ipv4(ipv4.addr(), ipv4.prefix_len(), None)
-        .ipv6(ipv6.addr(), ipv6.prefix_len())
-        .mtu(1280)
-        .build_async()
-    {
-        Ok(tun) => tun,
-        Err(e) => {
-            eprintln!("Failed to create TUN device: {}", e);
-            return Err(byocvpn_core::error::Error::TunnelCreationError(format!(
-                "Failed to create TUN device: {}",
-                e
-            )));
-        }
+    // Parse config file
+    let wg_config = parse_wireguard_config(&config_path).await?;
+    
+    // Extract instance_id from config filename
+    // Expected format: /path/to/{instance_id}.conf
+    let instance_id = std::path::Path::new(&config_path)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_string());
+    
+    // Extract IP addresses from endpoint
+    let endpoint_ip = wg_config.endpoint.ip().to_string();
+    let (public_ip_v4, public_ip_v6) = if wg_config.endpoint.is_ipv4() {
+        (Some(endpoint_ip), None)
+    } else {
+        (None, Some(endpoint_ip))
     };
 
-    let iface_name = tun.name().expect("Failed to get TUN name");
+    // Create TUN device
+    let tun = DeviceBuilder::new()
+        .name("utun4")
+        .ipv4(wg_config.ipv4.addr(), wg_config.ipv4.prefix_len(), None)
+        .ipv6(wg_config.ipv6.addr(), wg_config.ipv6.prefix_len())
+        .mtu(1280)
+        .build_async()
+        .map_err(|e| Error::TunnelCreationError(format!("Failed to create TUN device: {}", e)))?;
+
+    let iface_name = tun
+        .name()
+        .map_err(|e| Error::TunnelCreationError(format!("Failed to get TUN name: {}", e)))?
+        .to_string();
     println!("Created TUN device: {}", iface_name);
 
-    // Step 2: boringtun
+    // Check if tunnel is already running
     let is_tunnel_running = TUNNEL_MANAGER
         .lock()
-        .unwrap()
+        .map_err(|_| Error::TunnelCreationError("Mutex poisoned".to_string()))?
         .as_ref()
         .map_or(false, |handle| !handle.task.is_finished());
+
     println!("Previous Tunnel running: {}", is_tunnel_running);
     if is_tunnel_running {
-        return Ok(());
+        return Err(Error::TunnelCreationError(
+            "Tunnel already running".to_string(),
+        ));
     }
-    println!("Creating Tunel");
+
+    println!("Creating Tunnel");
+
+    // Convert keys
+    let private_key_bytes: [u8; 32] =
+        wg_config.private_key.as_slice().try_into().map_err(|_| {
+            Error::InvalidConfig("Private key must be exactly 32 bytes".to_string())
+        })?;
+    let public_key_bytes: [u8; 32] = wg_config
+        .public_key
+        .as_slice()
+        .try_into()
+        .map_err(|_| Error::InvalidConfig("Public key must be exactly 32 bytes".to_string()))?;
+
     let tunn = Tunn::new(
-        StaticSecret::from(
-            <[u8; 32]>::try_from(private_key.as_slice())
-                .expect("Private key must be exactly 32 bytes"),
-        ),
-        PublicKey::from(
-            <[u8; 32]>::try_from(public_key.as_slice())
-                .expect("Public key must be exactly 32 bytes"),
-        ),
+        StaticSecret::from(private_key_bytes),
+        PublicKey::from(public_key_bytes),
         None,     // preshared key
-        Some(25), // Vec<IpNet>
+        Some(25), // keepalive
         0,
         None,
     )
-    .expect("error creating tunn");
+    .map_err(|e| Error::TunnelCreationError(format!("Failed to create tunnel: {:?}", e)))?;
+
     println!("Created Tunn device");
 
-    // Step 3: poll loop
-    // Step 3: UDP socket + Tunnel loop
-    let local = "0.0.0.0:0"
-        .parse::<SocketAddr>()
-        .expect("Failed to parse hardcoded socket address");
+    // Create UDP socket
+    let local: SocketAddr = "0.0.0.0:0"
+        .parse()
+        .map_err(|e| Error::NetworkConfigError(format!("Invalid local address: {}", e)))?;
     let udp = UdpSocket::bind(local).await?;
-    println!("{endpoint:?} UDP socket bound to {}", udp.local_addr()?);
-    udp.connect(endpoint).await?;
-    println!("UDP socket bound to {}", udp.local_addr()?);
+    println!(
+        "{:?} UDP socket bound to {}",
+        wg_config.endpoint,
+        udp.local_addr()?
+    );
+    udp.connect(wg_config.endpoint).await?;
+    println!("UDP socket connected to {}", wg_config.endpoint);
 
     let (shutdown_tx, shutdown_rx) = watch::channel(());
 
@@ -248,10 +402,8 @@ async fn connect_vpn(config_path: String) -> Result<()> {
         }
     });
 
-    // Create Unix socket for metrics streaming
+    // Create metrics streaming task
     let metrics_socket_path = constants::metrics_socket_path();
-
-    // Spawn metrics streaming task
     let metrics_clone = metrics.clone();
     let (metrics_shutdown_tx, mut metrics_shutdown_rx) = watch::channel(());
 
@@ -363,33 +515,21 @@ async fn connect_vpn(config_path: String) -> Result<()> {
         }
     });
 
-    println!("Tunnel task spawned: {:?}", task.is_finished());
+    println!("Tunnel task spawned");
 
-    println!("{:?} Tunnel task spawned", task.id());
-    // Step 2: boringtun
+    let mut manager = TUNNEL_MANAGER
+        .lock()
+        .map_err(|_| Error::TunnelCreationError("Mutex poisoned".to_string()))?;
 
-    println!("Before Manager Tunnel running: {}", is_tunnel_running);
-
-    let mut manager = TUNNEL_MANAGER.lock().unwrap();
-    println!("{:?} Manager Tunnel running", manager.is_some());
-
-    println!("{:?} Manager Tunnel running", manager.is_some());
-
-    // let is_tunnel_running = !manager.as_ref().unwrap().task.is_finished();
-
-    // println!("Tunnel running: {}", is_tunnel_running);
-
-    // //Step 4: route internet traffic
-
+    // Add VPN routes
     println!("Adding VPN routes...");
-    add_vpn_routes(&iface_name, &endpoint.ip().to_string()).await;
+    add_vpn_routes(&iface_name, &wg_config.endpoint.ip().to_string()).await?;
 
     println!("Configuring DNS...");
     #[cfg(target_os = "macos")]
     let optional_domain_name_system_override_guard: Option<DomainNameSystemOverrideGuard> = {
-        println!("getting dns");
         let domain_name_system_servers =
-            parse_domain_name_system_servers_from_interface_section(interface);
+            parse_domain_name_system_servers_from_interface_section(&wg_config.interface_section);
         println!(
             "Parsed DNS servers from config: {:?}",
             domain_name_system_servers
@@ -416,19 +556,22 @@ async fn connect_vpn(config_path: String) -> Result<()> {
 
     *manager = Some(TunnelHandle {
         shutdown: shutdown_tx,
-        task: task,
+        task,
         metrics,
         metrics_task,
         metrics_shutdown: metrics_shutdown_tx,
         #[cfg(target_os = "macos")]
         domain_name_system_override_guard: optional_domain_name_system_override_guard,
+        instance_id,
+        public_ip_v4,
+        public_ip_v6,
     });
 
     println!("VPN setup complete.");
     Ok(())
 }
 
-async fn add_vpn_routes(iface_name: &str, server_ip: &str) {
+async fn add_vpn_routes(iface_name: &str, server_ip: &str) -> Result<()> {
     println!(
         "Adding VPN routes for server {} via interface {}",
         server_ip, iface_name
@@ -449,10 +592,12 @@ async fn add_vpn_routes(iface_name: &str, server_ip: &str) {
                 "Warning: Failed to add route {} via {}: {}",
                 destination, interface, e
             );
+            // Continue with other routes even if one fails
         }
     }
 
     println!("Finished adding VPN routes");
+    Ok(())
 }
 
 async fn remove_vpn_routes(iface_name: &str, server_ip: &str) {
@@ -483,55 +628,63 @@ async fn remove_vpn_routes(iface_name: &str, server_ip: &str) {
 }
 
 async fn add_route(destination: &str, interface: &str) -> Result<()> {
-    println!("destination: {}", destination);
-    let subnet: IpNet = destination.parse().unwrap();
+    println!("Adding route: {} via {}", destination, interface);
+
+    let subnet: IpNet = destination
+        .parse()
+        .map_err(|e| Error::RouteError(format!("Invalid subnet {}: {}", destination, e)))?;
 
     let handle = Handle::new()?;
-    let ifindex = get_ifindex(interface).await;
+    let ifindex = get_ifindex(interface).await?;
 
-    // Get the interface index
-    println!("ifindex: {}", ifindex);
+    println!("Interface index: {}", ifindex);
 
     // Build the route
-    let route;
-    if interface == "default" {
+    let route = if interface == "default" {
         // Set the default route
-        let default_route = handle.default_route().await.unwrap().unwrap();
-        route = Route::new(subnet.addr(), subnet.prefix_len())
-            .with_gateway(default_route.gateway.unwrap());
+        let default_route = handle
+            .default_route()
+            .await?
+            .ok_or_else(|| Error::RouteError("No default route found".to_string()))?;
+        let gateway = default_route
+            .gateway
+            .ok_or_else(|| Error::RouteError("Default route has no gateway".to_string()))?;
+        Route::new(subnet.addr(), subnet.prefix_len()).with_gateway(gateway)
     } else {
-        route = Route::new(subnet.addr(), subnet.prefix_len()).with_ifindex(ifindex);
-    }
+        Route::new(subnet.addr(), subnet.prefix_len()).with_ifindex(ifindex)
+    };
 
-    println!("new route {:?}", route);
+    println!("Route configuration: {:?}", route);
 
     match handle.add(&route).await {
         Ok(_) => {
             println!("Added route: {} via {}", destination, interface);
+            Ok(())
         }
         Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
             println!(
                 "Route already exists: {} via {} (skipping)",
                 destination, interface
             );
+            Ok(())
         }
         Err(e) => {
-            eprintln!(
+            let err_msg = format!(
                 "Failed to add route {} via {}: {}",
                 destination, interface, e
             );
-            return Err(e.into());
+            eprintln!("{}", err_msg);
+            Err(Error::RouteError(err_msg))
         }
     }
-
-    Ok(())
 }
 
 async fn delete_route(destination: &str, interface: &str) -> Result<()> {
-    let subnet: IpNet = destination.parse().unwrap();
-    // Get the interface index
-    let ifindex = get_ifindex(interface).await;
+    let subnet: IpNet = destination
+        .parse()
+        .map_err(|e| Error::RouteError(format!("Invalid subnet {}: {}", destination, e)))?;
 
+    let ifindex = get_ifindex(interface).await?;
     let handle = Handle::new()?;
 
     // Build the route
@@ -541,23 +694,24 @@ async fn delete_route(destination: &str, interface: &str) -> Result<()> {
     match handle.delete(&route).await {
         Ok(_) => {
             println!("Deleted route: {} dev {}", destination, interface);
+            Ok(())
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             println!(
                 "Route not found: {} dev {} (already removed)",
                 destination, interface
             );
+            Ok(())
         }
         Err(e) => {
-            eprintln!(
+            let err_msg = format!(
                 "Failed to delete route {} dev {}: {}",
                 destination, interface, e
             );
-            return Err(e.into());
+            eprintln!("{}", err_msg);
+            Err(Error::RouteError(err_msg))
         }
     }
-
-    Ok(())
 }
 
 /// Get current VPN metrics if tunnel is active
@@ -576,14 +730,22 @@ pub fn metrics_socket_path() -> std::path::PathBuf {
     constants::metrics_socket_path()
 }
 
-async fn get_ifindex(interface: &str) -> u32 {
-    let handle = Handle::new().unwrap();
+async fn get_ifindex(interface: &str) -> Result<u32> {
+    let handle = Handle::new()?;
+
     if interface == "default" {
         // Get the default route
-        let default_route = handle.default_route().await.unwrap().unwrap();
-        return default_route.ifindex.unwrap();
+        let default_route = handle
+            .default_route()
+            .await?
+            .ok_or_else(|| Error::NetworkConfigError("No default route found".to_string()))?;
+        default_route.ifindex.ok_or_else(|| {
+            Error::NetworkConfigError("Default route has no interface index".to_string())
+        })
     } else {
-        return net_route::ifname_to_index(interface).expect("Failed to get interface index");
+        net_route::ifname_to_index(interface).ok_or_else(|| {
+            Error::NetworkConfigError(format!("Failed to get interface index for {}", interface))
+        })
     }
 }
 

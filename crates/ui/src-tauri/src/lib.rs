@@ -14,6 +14,7 @@ pub fn run() {
             commands::get_regions,
             commands::connect,
             commands::disconnect,
+            commands::get_vpn_status,
         ]);
 
     #[cfg(debug_assertions)]

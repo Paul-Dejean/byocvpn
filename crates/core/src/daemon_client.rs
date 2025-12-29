@@ -3,13 +3,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::Result;
 
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(tag = "cmd")]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum DaemonCommand {
     Connect { config_path: String },
     Disconnect,
     Status,
     Stats,
+    HealthCheck,
 }
 #[async_trait]
 pub trait DaemonClient: Send + Sync {
