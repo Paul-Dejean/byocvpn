@@ -7,7 +7,7 @@ use tokio::{
 };
 
 #[cfg(target_os = "macos")]
-use crate::dns_macos::DomainNameSystemOverrideGuard;
+use crate::routing::dns_macos::DomainNameSystemOverrideGuard;
 
 pub struct TunnelHandle {
     pub shutdown: watch::Sender<()>,

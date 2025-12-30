@@ -229,7 +229,7 @@ async fn start_metrics_stream_internal(app_handle: AppHandle) -> Result<()> {
     drop(broadcaster); // Release lock before spawning
 
     // Get metrics socket path
-    let metrics_socket_path = byocvpn_daemon::metrics_socket_path();
+    let metrics_socket_path = byocvpn_daemon::constants::metrics_socket_path();
 
     // Spawn task to read from IPC socket and forward to Tauri events
     tauri::async_runtime::spawn(async move {
