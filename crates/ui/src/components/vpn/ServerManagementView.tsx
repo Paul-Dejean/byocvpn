@@ -5,85 +5,100 @@ import { ServerList } from "../servers/ServerList";
 import { RegionSelector } from "../regions/RegionSelector";
 import { ServerDetails } from "../servers/ServerDetails";
 import { EmptyState } from "../common/EmptyState";
+import { useRegions, useInstances, useVpnConnection } from "../../hooks";
 
 interface ServerManagementViewProps {
-  // Regions
-  groupedRegions: RegionGroup[];
-  selectedRegion: AwsRegion | null;
-  onRegionSelect: (region: AwsRegion) => void;
-  regionsError: string | null;
-
-  // Instances
-  existingInstances: ExistingInstance[];
-  selectedInstance: any;
-  onInstanceSelect: (instance: ExistingInstance) => void;
-  instancesError: string | null;
-
-  // Actions
-  onSpawnServer: () => void;
-  onTerminateServer: () => void;
-  onConnectToVpn: (instance: any) => void;
-
-  // State
-  serverStatus: string;
-  isSpawning: boolean;
-  isTerminating: boolean;
-  isConnecting: boolean;
-  isLoading: boolean;
-
-  // Errors
-  spawnError: string | null;
-  terminateError: string | null;
-  vpnError: string | null;
-
   onNavigateToSettings?: () => void;
 }
 
 export function ServerManagementView({
-  groupedRegions,
-  selectedRegion,
-  onRegionSelect,
-  regionsError,
-  existingInstances,
-  selectedInstance,
-  onInstanceSelect,
-  instancesError,
-  onSpawnServer,
-  onTerminateServer,
-  onConnectToVpn,
-  serverStatus,
-  isSpawning,
-  isTerminating,
-  isConnecting,
-  isLoading,
-  spawnError,
-  terminateError,
-  vpnError,
   onNavigateToSettings,
 }: ServerManagementViewProps) {
   const [showRegionSelector, setShowRegionSelector] = useState(false);
   const [localSelectedInstance, setLocalSelectedInstance] =
     useState<ExistingInstance | null>(null);
+  const [spawningRegions, setSpawningRegions] = useState<string[]>([]);
 
-  // Use local state if parent doesn't provide selectedInstance
-  const currentInstance = selectedInstance || localSelectedInstance;
+  // Use all hooks needed for server management
+  const {
+    regions,
+    groupedRegions,
+    selectedRegion,
+    isLoading: regionsLoading,
+    error: regionsError,
+    handleRegionSelect,
+  } = useRegions();
+
+  const {
+    existingInstances,
+    isLoading: instancesLoading,
+    isSpawning,
+    isTerminating,
+    spawnInstance,
+    terminateInstance,
+    clearSelectedInstance,
+  } = useInstances(regions);
+
+  const {
+    isConnecting,
+    error: vpnError,
+    handleConnectToVpn,
+  } = useVpnConnection();
+
+  // Use local state for selected instance
+  const currentInstance = localSelectedInstance;
+
+  const isLoading = regionsLoading || instancesLoading;
 
   const handleSelectInstance = (instance: ExistingInstance) => {
     setLocalSelectedInstance(instance);
-    onInstanceSelect(instance);
     // Find and select the region for this instance
     const region = groupedRegions
       .flatMap((g) => g.regions)
       .find((r) => r.name === instance.region);
-    if (region) onRegionSelect(region);
+    if (region) handleRegionSelect(region);
     // Close region selector if it's open
     setShowRegionSelector(false);
   };
 
-  const handleSelectRegion = (region: AwsRegion) => {
-    onRegionSelect(region);
-    onSpawnServer();
+  const handleSelectRegion = async (region: AwsRegion) => {
+    handleRegionSelect(region);
+    clearSelectedInstance();
     setShowRegionSelector(false);
+
+    // Add region to spawning list
+    setSpawningRegions((prev) => [...prev, region.name]);
+
+    // Spawn server in selected region
+    try {
+      const serverDetails = await spawnInstance(region.name);
+      // Instance is automatically added to list by the hook
+      setLocalSelectedInstance({
+        id: serverDetails.instance_id,
+        name: "VPN Server",
+        state: "running",
+        public_ip_v4: serverDetails.public_ip_v4,
+        public_ip_v6: serverDetails.public_ip_v6 || "",
+        region: region.name,
+      });
+    } catch (error) {
+      console.error("Failed to spawn server:", error);
+    } finally {
+      // Remove region from spawning list
+      setSpawningRegions((prev) => prev.filter((r) => r !== region.name));
+    }
+  };
+
+  const handleTerminateServer = async () => {
+    if (!currentInstance) return;
+
+    try {
+      await terminateInstance(currentInstance.id, currentInstance.region || "");
+      // Instance is automatically removed from list by the hook
+      setLocalSelectedInstance(null);
+    } catch (error) {
+      console.error("Failed to terminate server:", error);
+    }
   };
 
   return (
@@ -93,8 +108,6 @@ export function ServerManagementView({
         <RegionSelector
           groupedRegions={groupedRegions}
           existingInstances={existingInstances}
-          isSpawning={isSpawning}
-          spawnError={spawnError}
           onSelectRegion={handleSelectRegion}
           onClose={() => setShowRegionSelector(false)}
         />
@@ -123,11 +136,9 @@ export function ServerManagementView({
               selectedInstance={currentInstance}
               groupedRegions={groupedRegions}
               isLoading={isLoading}
-              error={instancesError}
               onSelectInstance={handleSelectInstance}
               onAddNewServer={() => setShowRegionSelector(true)}
-              isSpawning={isSpawning}
-              spawningRegion={selectedRegion?.name}
+              spawningRegions={spawningRegions}
             />
 
             {/* Right Panel: Dynamic Content */}
@@ -138,12 +149,17 @@ export function ServerManagementView({
                 isConnecting={isConnecting}
                 isTerminating={isTerminating}
                 vpnError={vpnError}
-                terminateError={terminateError}
-                onConnect={onConnectToVpn}
-                onTerminate={(instance) => {
-                  onInstanceSelect(instance);
-                  onTerminateServer();
-                }}
+                onConnect={(data) =>
+                  handleConnectToVpn({
+                    instance_id: data.instance_id,
+                    public_ip_v4: data.public_ip_v4,
+                    public_ip_v6: data.public_ip_v6,
+                    region: data.region || "",
+                    client_private_key: data.client_private_key,
+                    server_public_key: data.server_public_key,
+                  })
+                }
+                onTerminate={handleTerminateServer}
               />
             ) : (
               <EmptyState

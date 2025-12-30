@@ -1,4 +1,8 @@
-import { ExistingInstance, RegionGroup } from "../../types";
+import {
+  ExistingInstance,
+  RegionGroup,
+  ServerDetails as ServerDetailsType,
+} from "../../types";
 
 interface ServerDetailsProps {
   instance: ExistingInstance;
@@ -6,16 +10,8 @@ interface ServerDetailsProps {
   isConnecting: boolean;
   isTerminating: boolean;
   vpnError: string | null;
-  terminateError: string | null;
-  onConnect: (data: {
-    instance_id: string;
-    public_ip_v4: string;
-    public_ip_v6: string | undefined;
-    region: string | undefined;
-    client_private_key: string;
-    server_public_key: string;
-  }) => void;
-  onTerminate: (instance: ExistingInstance) => void;
+  onConnect: (data: ServerDetailsType) => void;
+  onTerminate: () => void;
 }
 
 export function ServerDetails({
@@ -24,7 +20,6 @@ export function ServerDetails({
   isConnecting,
   isTerminating,
   vpnError,
-  terminateError,
   onConnect,
   onTerminate,
 }: ServerDetailsProps) {
@@ -80,7 +75,7 @@ export function ServerDetails({
                   instance_id: instance.id,
                   public_ip_v4: instance.public_ip_v4,
                   public_ip_v6: instance.public_ip_v6,
-                  region: instance.region,
+                  region: instance.region || "",
                   client_private_key: "",
                   server_public_key: "",
                 })
@@ -99,9 +94,7 @@ export function ServerDetails({
             </button>
 
             <button
-              onClick={() => {
-                onTerminate(instance);
-              }}
+              onClick={onTerminate}
               disabled={isTerminating}
               className="w-full px-6 py-4 bg-red-600 hover:bg-red-700 text-white rounded-lg transition font-medium text-lg shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -120,11 +113,6 @@ export function ServerDetails({
           {vpnError && (
             <div className="p-4 bg-red-900/20 border border-red-500/50 rounded-lg">
               <p className="text-red-300 text-sm">{vpnError}</p>
-            </div>
-          )}
-          {terminateError && (
-            <div className="p-4 bg-red-900/20 border border-red-500/50 rounded-lg">
-              <p className="text-red-300 text-sm">{terminateError}</p>
             </div>
           )}
         </div>

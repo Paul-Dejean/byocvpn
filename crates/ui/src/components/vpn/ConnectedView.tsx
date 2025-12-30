@@ -1,6 +1,7 @@
 import { MetricsDetails } from "../common/MetricsDisplay";
 import { SettingsButton } from "../settings/SettingsButton";
-import { VpnMetrics } from "../../hooks/useVpnMetrics";
+import { useVpnMetrics, useVpnConnection } from "../../hooks";
+import { ServerDetails } from "../../types";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -11,25 +12,34 @@ function formatBytes(bytes: number): string {
 }
 
 interface ConnectedViewProps {
-  metrics: VpnMetrics | null;
-  serverInfo?: {
-    instanceId: string;
-    region: string;
-    publicIpv4: string;
-    publicIpv6?: string;
-  };
+  selectedInstance: ServerDetails | null;
   onDisconnect: () => void;
   onNavigateToSettings?: () => void;
-  isDisconnecting?: boolean;
 }
 
 export function ConnectedView({
-  metrics,
-  serverInfo,
+  selectedInstance,
   onDisconnect,
   onNavigateToSettings,
-  isDisconnecting = false,
 }: ConnectedViewProps) {
+  // Use hooks specific to connected view
+  const { handleDisconnectFromVpn } = useVpnConnection();
+  const metrics = useVpnMetrics(true);
+
+  const handleDisconnectClick = async () => {
+    await handleDisconnectFromVpn();
+    onDisconnect();
+  };
+
+  const serverInfo = selectedInstance
+    ? {
+        instanceId: selectedInstance.instance_id,
+        region: selectedInstance.region,
+        publicIpv4: selectedInstance.public_ip_v4,
+        publicIpv6: selectedInstance.public_ip_v6 || undefined,
+      }
+    : undefined;
+
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white overflow-hidden">
       {/* Header */}
@@ -184,24 +194,12 @@ export function ConnectedView({
             <MetricsDetails metrics={metrics} />
           </div>
 
-          {/* Disconnect Button */}
+          {/* Disconnect Button - update onClick handler */}
           <button
-            onClick={onDisconnect}
-            disabled={isDisconnecting}
-            className={`w-full px-6 py-4 rounded-lg transition font-medium text-lg shadow-lg hover:shadow-xl ${
-              isDisconnecting
-                ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                : "bg-red-600 hover:bg-red-700 text-white"
-            }`}
+            onClick={handleDisconnectClick}
+            className="px-8 py-4 bg-red-600 hover:bg-red-700 text-white rounded-lg transition font-medium text-lg shadow-lg hover:shadow-xl"
           >
-            {isDisconnecting ? (
-              <div className="flex items-center justify-center gap-2">
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                Disconnecting...
-              </div>
-            ) : (
-              "Disconnect from VPN"
-            )}
+            Disconnect
           </button>
 
           {/* Info */}

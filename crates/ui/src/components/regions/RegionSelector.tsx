@@ -4,8 +4,6 @@ import { useState } from "react";
 interface RegionSelectorProps {
   groupedRegions: RegionGroup[];
   existingInstances: ExistingInstance[];
-  isSpawning: boolean;
-  spawnError: string | null;
   onSelectRegion: (region: AwsRegion) => void;
   onClose: () => void;
 }
@@ -13,8 +11,6 @@ interface RegionSelectorProps {
 export function RegionSelector({
   groupedRegions,
   existingInstances,
-  isSpawning,
-  spawnError,
   onSelectRegion,
   onClose,
 }: RegionSelectorProps) {
@@ -23,6 +19,7 @@ export function RegionSelector({
   const handleDeploy = () => {
     if (selectedRegion) {
       onSelectRegion(selectedRegion);
+      onClose(); // Close immediately to show placeholder card
     }
   };
 
@@ -72,8 +69,7 @@ export function RegionSelector({
                   <button
                     key={region.name}
                     onClick={() => setSelectedRegion(region)}
-                    disabled={isSpawning}
-                    className={`p-4 bg-gray-800 border rounded-lg transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed ${
+                    className={`p-4 bg-gray-800 border rounded-lg transition-all text-left ${
                       selectedRegion?.name === region.name
                         ? "border-blue-500 bg-blue-900/20"
                         : "border-gray-700 hover:border-gray-600 hover:bg-gray-700"
@@ -120,7 +116,7 @@ export function RegionSelector({
         </div>
 
         {/* Deploy Button - Fixed at bottom */}
-        {selectedRegion && !isSpawning && (
+        {selectedRegion && (
           <div className="sticky bottom-0 bg-gray-900 border-t border-gray-700 p-6">
             <div className="max-w-4xl mx-auto">
               <button
@@ -143,28 +139,6 @@ export function RegionSelector({
                 Deploy Server in {selectedRegion.name}
               </button>
             </div>
-          </div>
-        )}
-
-        {isSpawning && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
-            <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                <div>
-                  <p className="font-semibold">Deploying server...</p>
-                  <p className="text-sm text-gray-400">
-                    This may take a minute
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {spawnError && (
-          <div className="mt-4 p-4 bg-red-900/20 border border-red-500/50 rounded-lg">
-            <p className="text-red-300 text-sm">{spawnError}</p>
           </div>
         )}
       </div>

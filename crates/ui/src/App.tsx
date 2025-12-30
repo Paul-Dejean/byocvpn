@@ -3,6 +3,7 @@ import { Toaster } from "react-hot-toast";
 
 import "./App.css";
 import { VpnPage, SetupPage, LandingPage, SettingsPage } from "./pages";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
 
 export enum Page {
   LANDING = "LANDING",
@@ -15,37 +16,39 @@ function App() {
 
   return (
     <main>
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            background: "#1f2937",
-            color: "#fff",
-            border: "1px solid #374151",
-          },
-          success: {
-            iconTheme: {
-              primary: "#10b981",
-              secondary: "#fff",
+      <ErrorBoundary>
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: "#1f2937",
+              color: "#fff",
+              border: "1px solid #374151",
             },
-          },
-          error: {
-            iconTheme: {
-              primary: "#ef4444",
-              secondary: "#fff",
+            success: {
+              iconTheme: {
+                primary: "#10b981",
+                secondary: "#fff",
+              },
             },
-          },
-        }}
-      />
-      {page === Page.LANDING && <LandingPage setPage={setPage} />}
-      {page === Page.SETUP && <SetupPage setPage={setPage} />}
-      {page === Page.VPN && (
-        <VpnPage onNavigateToSettings={() => setPage(Page.SETTINGS)} />
-      )}
-      {page === Page.SETTINGS && (
-        <SettingsPage onNavigateBack={() => setPage(Page.VPN)} />
-      )}
+            error: {
+              iconTheme: {
+                primary: "#ef4444",
+                secondary: "#fff",
+              },
+            },
+          }}
+        />
+        {page === Page.LANDING && <LandingPage setPage={setPage} />}
+        {page === Page.SETUP && <SetupPage setPage={setPage} />}
+        {page === Page.VPN && (
+          <VpnPage onNavigateToSettings={() => setPage(Page.SETTINGS)} />
+        )}
+        {page === Page.SETTINGS && (
+          <SettingsPage onNavigateBack={() => setPage(Page.VPN)} />
+        )}
+      </ErrorBoundary>
     </main>
   );
 }
