@@ -1,7 +1,7 @@
 import { MetricsDetails } from "../common/MetricsDisplay";
 import { SettingsButton } from "../settings/SettingsButton";
 import { useVpnMetrics, useVpnConnection } from "../../hooks";
-import { ServerDetails } from "../../types";
+import { Instance } from "../../types";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -12,33 +12,21 @@ function formatBytes(bytes: number): string {
 }
 
 interface ConnectedViewProps {
-  selectedInstance: ServerDetails | null;
-  onDisconnect: () => void;
+  connectedInstance: Instance;
   onNavigateToSettings?: () => void;
 }
 
 export function ConnectedView({
-  selectedInstance,
-  onDisconnect,
+  connectedInstance,
   onNavigateToSettings,
 }: ConnectedViewProps) {
   // Use hooks specific to connected view
-  const { handleDisconnectFromVpn } = useVpnConnection();
+  const { disconnectFromVpn } = useVpnConnection();
   const metrics = useVpnMetrics(true);
 
   const handleDisconnectClick = async () => {
-    await handleDisconnectFromVpn();
-    onDisconnect();
+    await disconnectFromVpn();
   };
-
-  const serverInfo = selectedInstance
-    ? {
-        instanceId: selectedInstance.instance_id,
-        region: selectedInstance.region,
-        publicIpv4: selectedInstance.public_ip_v4,
-        publicIpv6: selectedInstance.public_ip_v6 || undefined,
-      }
-    : undefined;
 
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white overflow-hidden">
@@ -61,28 +49,28 @@ export function ConnectedView({
       <div className="flex-1 flex justify-center p-8 overflow-y-auto">
         <div className="max-w-3xl w-full space-y-6">
           {/* Compact Server Info Bar */}
-          {serverInfo && (
+          {connectedInstance && (
             <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                   <span className="text-sm text-gray-400">Connected to</span>
                   <span className="font-semibold text-white">
-                    {serverInfo.region}
+                    {connectedInstance.region}
                   </span>
                 </div>
                 <div className="flex items-center gap-4 text-sm">
                   <div>
                     <span className="text-gray-400">IPv4: </span>
                     <span className="text-white font-mono">
-                      {serverInfo.publicIpv4}
+                      {connectedInstance.publicIpV4}
                     </span>
                   </div>
-                  {serverInfo.publicIpv6 && (
+                  {connectedInstance.publicIpV6 && (
                     <div>
                       <span className="text-gray-400">IPv6: </span>
                       <span className="text-white font-mono text-xs">
-                        {serverInfo.publicIpv6}
+                        {connectedInstance.publicIpV6}
                       </span>
                     </div>
                   )}

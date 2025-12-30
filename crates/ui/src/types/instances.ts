@@ -1,19 +1,10 @@
-export interface ExistingInstance {
+export interface Instance {
   id: string;
-  name?: string;
+  name: string;
   state: string;
-  public_ip_v4: string;
-  public_ip_v6: string;
-  region?: string;
-}
-
-export interface ServerDetails {
-  instance_id: string;
-  public_ip_v4: string;
-  public_ip_v6?: string;
+  publicIpV4: string;
+  publicIpV6: string;
   region: string;
-  client_private_key: string;
-  server_public_key: string;
 }
 
 export type ServerStatus =

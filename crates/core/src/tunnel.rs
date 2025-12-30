@@ -31,9 +31,16 @@ pub struct TunnelMetricsWithRates {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct VpnStatus {
     pub connected: bool,
-    pub instance_id: Option<String>,
+    pub instance: Option<ConnectedInstance>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectedInstance {
+    pub instance_id: String,
     pub public_ip_v4: Option<String>,
     pub public_ip_v6: Option<String>,
 }

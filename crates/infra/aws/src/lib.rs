@@ -1,8 +1,8 @@
 mod cloud_init;
 mod config;
 
+mod aws_error;
 mod instance;
 mod network;
 mod provider;
-mod ssm_error;
 pub use provider::{AwsProvider, AwsProviderConfig};

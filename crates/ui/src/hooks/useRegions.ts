@@ -6,7 +6,6 @@ import { AwsRegion, RegionGroup } from "../types";
 export const useRegions = () => {
   const [regions, setRegions] = useState<AwsRegion[]>([]);
   const [groupedRegions, setGroupedRegions] = useState<RegionGroup[]>([]);
-  const [selectedRegion, setSelectedRegion] = useState<AwsRegion | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,10 +83,6 @@ export const useRegions = () => {
     }
   }, [regions]);
 
-  const handleRegionSelect = (region: AwsRegion) => {
-    setSelectedRegion(region);
-  };
-
   const clearError = () => {
     setError(null);
   };
@@ -95,11 +90,9 @@ export const useRegions = () => {
   return {
     regions,
     groupedRegions,
-    selectedRegion,
     isLoading,
     error,
     loadRegions,
-    handleRegionSelect,
     clearError,
   };
 };

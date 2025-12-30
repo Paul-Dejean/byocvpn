@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-use byocvpn_core::error::{Error, Result};
+use byocvpn_core::error::{Result, SystemError};
 use ini::Ini;
 
 use crate::{routing::routes::remove_vpn_routes, tunnel_manager::TUNNEL_MANAGER};
@@ -24,7 +24,7 @@ pub async fn disconnect_vpn() -> Result<()> {
     let maybe_handle = {
         let mut manager_guard = TUNNEL_MANAGER
             .lock()
-            .map_err(|_| Error::TunnelCreationError("Mutex poisoned".to_string()))?;
+            .map_err(|_| SystemError::MutexPoisoned("TUNNEL_MANAGER".to_string()))?;
         manager_guard.take()
     };
 

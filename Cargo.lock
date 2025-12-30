@@ -942,6 +942,7 @@ dependencies = [
  "aws-sdk-ssm",
  "base64 0.22.1",
  "byocvpn_core",
+ "futures",
  "handlebars",
  "serde",
  "serde_json",

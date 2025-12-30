@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use byocvpn_core::tunnel::TunnelMetrics;
+use byocvpn_core::tunnel::{ConnectedInstance, TunnelMetrics};
 use tokio::{
     sync::{RwLock, watch},
     task::JoinHandle,
@@ -19,9 +19,7 @@ pub struct TunnelHandle {
     pub domain_name_system_override_guard: Option<DomainNameSystemOverrideGuard>,
 
     // Connection details
-    pub instance_id: Option<String>,
-    pub public_ip_v4: Option<String>,
-    pub public_ip_v6: Option<String>,
+    pub instance: Option<ConnectedInstance>,
 }
 
 pub static TUNNEL_MANAGER: Mutex<Option<TunnelHandle>> = Mutex::new(None);

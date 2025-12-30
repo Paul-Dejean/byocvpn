@@ -1,10 +1,16 @@
-import { ExistingInstance, RegionGroup } from "../../types";
+import { Instance, RegionGroup } from "../../types";
 
 interface ServerCardProps {
-  instance: ExistingInstance;
+  instance: Instance;
   isSelected: boolean;
   groupedRegions: RegionGroup[];
-  onSelect: (instance: ExistingInstance) => void;
+  onSelect: (instance: Instance) => void;
+}
+
+function MiniSpinner() {
+  return (
+    <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+  );
 }
 
 export function ServerCard({
@@ -20,13 +26,18 @@ export function ServerCard({
     return region?.flag || "🌍";
   };
 
+  const isSpawning = instance.state === "spawning";
+
   return (
     <button
-      onClick={() => onSelect(instance)}
+      onClick={() => !isSpawning && onSelect(instance)}
+      disabled={isSpawning}
       className={`w-full text-left p-3 rounded-lg transition-all ${
-        isSelected
-          ? "bg-blue-600 text-white shadow-lg"
-          : "bg-gray-700 hover:bg-gray-600 text-gray-200"
+        isSpawning
+          ? "bg-gray-800 text-gray-400 cursor-wait opacity-75"
+          : isSelected
+            ? "bg-blue-600 text-white shadow-lg"
+            : "bg-gray-700 hover:bg-gray-600 text-gray-200"
       }`}
     >
       <div className="flex items-center justify-between mb-2">
@@ -41,16 +52,19 @@ export function ServerCard({
         </div>
         <span
           className={`px-2 py-1 rounded text-xs font-medium ${
-            instance.state === "running"
-              ? "bg-green-900/50 text-green-300"
-              : "bg-gray-900/50 text-gray-400"
+            isSpawning
+              ? "bg-blue-900/50 text-blue-300 flex items-center gap-1"
+              : instance.state === "running"
+                ? "bg-green-900/50 text-green-300"
+                : "bg-gray-900/50 text-gray-400"
           }`}
         >
+          {isSpawning && <MiniSpinner />}
           {instance.state}
         </span>
       </div>
       <p className="text-xs font-mono opacity-75 truncate">
-        {instance.public_ip_v4}
+        {isSpawning ? "Creating server instance..." : instance.publicIpV4}
       </p>
     </button>
   );

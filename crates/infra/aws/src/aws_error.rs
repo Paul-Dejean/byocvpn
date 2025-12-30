@@ -1,7 +1,7 @@
 use aws_sdk_ssm::error::{ProvideErrorMetadata, SdkError};
 use byocvpn_core::error::Error;
 
-pub fn map_aws_ssm_error<E>(operation_name: &'static str, sdk_error: SdkError<E>) -> Error
+pub fn map_aws_error<E>(operation_name: &'static str, sdk_error: SdkError<E>) -> Error
 where
     E: std::error::Error + Send + Sync + 'static + ProvideErrorMetadata,
 {
@@ -12,27 +12,25 @@ where
             let message_string = error.message().unwrap_or_default().to_string();
 
             match code_string {
-                "AccessDeniedException" | "UnauthorizedOperation" => {
-                    Error::Authorization(message_string)
-                }
+                "UnauthorizedOperation" => Error::Authentication,
+                "AccessDeniedException" => Error::Authorization {
+                    operation: operation_name.to_string(),
+                },
                 "ThrottlingException" | "RequestLimitExceeded" => Error::Quota,
                 _ => Error::Unknown {
-                    operation_name,
+                    operation_name: operation_name.to_string(),
                     detail: message_string,
-                    source: Some(Box::new(error)),
                 },
             }
         }
 
         SdkError::TimeoutError(_) | SdkError::DispatchFailure(_) => Error::Transient {
-            operation_name,
-            source: Box::new(sdk_error),
+            operation_name: operation_name.to_string(),
         },
 
         other => Error::Unknown {
-            operation_name,
+            operation_name: operation_name.to_string(),
             detail: other.to_string(),
-            source: Some(Box::new(other)),
         },
     }
 }

@@ -1,4 +1,4 @@
-use byocvpn_core::error::{Error, Result};
+use byocvpn_core::error::{ConfigurationError, Result};
 use ipnet::IpNet;
 use net_route::{Handle, Route};
 
@@ -65,7 +65,10 @@ async fn add_route(destination: &str, interface: &str) -> Result<()> {
 
     let subnet: IpNet = destination
         .parse()
-        .map_err(|e| Error::RouteError(format!("Invalid subnet {}: {}", destination, e)))?;
+        .map_err(|e| ConfigurationError::ParseError {
+            value: "destination".to_string(),
+            reason: format!("Invalid subnet {}: {}", destination, e),
+        })?;
 
     let handle = Handle::new()?;
     let ifindex = get_ifindex(interface).await?;
@@ -75,13 +78,17 @@ async fn add_route(destination: &str, interface: &str) -> Result<()> {
     // Build the route
     let route = if interface == "default" {
         // Set the default route
-        let default_route = handle
-            .default_route()
-            .await?
-            .ok_or_else(|| Error::RouteError("No default route found".to_string()))?;
-        let gateway = default_route
-            .gateway
-            .ok_or_else(|| Error::RouteError("Default route has no gateway".to_string()))?;
+        let default_route = handle.default_route().await?.ok_or_else(|| {
+            ConfigurationError::RouteConfiguration {
+                reason: "No default route found".to_string(),
+            }
+        })?;
+        let gateway =
+            default_route
+                .gateway
+                .ok_or_else(|| ConfigurationError::RouteConfiguration {
+                    reason: "Default route has no gateway".to_string(),
+                })?;
         Route::new(subnet.addr(), subnet.prefix_len()).with_gateway(gateway)
     } else {
         Route::new(subnet.addr(), subnet.prefix_len()).with_ifindex(ifindex)
@@ -107,15 +114,18 @@ async fn add_route(destination: &str, interface: &str) -> Result<()> {
                 destination, interface, e
             );
             eprintln!("{}", err_msg);
-            Err(Error::RouteError(err_msg))
+            Err(ConfigurationError::RouteConfiguration { reason: err_msg }.into())
         }
     }
 }
 
 async fn delete_route(destination: &str, interface: &str) -> Result<()> {
-    let subnet: IpNet = destination
-        .parse()
-        .map_err(|e| Error::RouteError(format!("Invalid subnet {}: {}", destination, e)))?;
+    let subnet: IpNet =
+        destination
+            .parse()
+            .map_err(|e| ConfigurationError::RouteConfiguration {
+                reason: format!("Invalid subnet {}: {}", destination, e),
+            })?;
 
     let ifindex = get_ifindex(interface).await?;
     let handle = Handle::new()?;
@@ -142,7 +152,10 @@ async fn delete_route(destination: &str, interface: &str) -> Result<()> {
                 destination, interface, e
             );
             eprintln!("{}", err_msg);
-            Err(Error::RouteError(err_msg))
+            Err(ConfigurationError::RouteConfiguration {
+                reason: format!("Invalid subnet {}: {}", destination, e),
+            }
+            .into())
         }
     }
 }

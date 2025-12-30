@@ -5,9 +5,9 @@ use boringtun::{
     x25519::{PublicKey, StaticSecret},
 };
 use byocvpn_core::{
-    error::{Error, Result},
+    error::{ConfigurationError, Result, SystemError},
     ipc::{IpcSocket, IpcStream},
-    tunnel::{Tunnel, TunnelMetrics, TunnelMetricsWithRates},
+    tunnel::{ConnectedInstance, Tunnel, TunnelMetrics, TunnelMetricsWithRates},
 };
 use tokio::{net::UdpSocket, sync::watch};
 use tun_rs::DeviceBuilder;
@@ -30,7 +30,11 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
     let instance_id = Path::new(&config_path)
         .file_stem()
         .and_then(|s| s.to_str())
-        .map(|s| s.to_string());
+        .map(|s| s.to_string())
+        .ok_or(ConfigurationError::InvalidValue {
+            field: "filename".to_string(),
+            reason: "unable to extract instance ID".to_string(),
+        })?;
 
     // Extract IP addresses from endpoint
     let endpoint_ip = wg_config.endpoint.ip().to_string();
@@ -47,26 +51,31 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
         .ipv6(wg_config.ipv6.addr(), wg_config.ipv6.prefix_len())
         .mtu(1280)
         .build_async()
-        .map_err(|e| Error::TunnelCreationError(format!("Failed to create TUN device: {}", e)))?;
+        .map_err(|e| ConfigurationError::TunnelConfiguration {
+            reason: format!("Failed to create TUN device: {}", e),
+        })?;
 
     let iface_name = tun
         .name()
-        .map_err(|e| Error::TunnelCreationError(format!("Failed to get TUN name: {}", e)))?
-        .to_string();
+        .map_err(|e| ConfigurationError::TunnelConfiguration {
+            reason: format!("Failed to get TUN name: {}", e),
+        })?;
+
     println!("Created TUN device: {}", iface_name);
 
     // Check if tunnel is already running
     let is_tunnel_running = TUNNEL_MANAGER
         .lock()
-        .map_err(|_| Error::TunnelCreationError("Mutex poisoned".to_string()))?
+        .map_err(|_| SystemError::MutexPoisoned("TUNNEL_MANAGER".to_string()))?
         .as_ref()
         .map_or(false, |handle| !handle.task.is_finished());
 
     println!("Previous Tunnel running: {}", is_tunnel_running);
     if is_tunnel_running {
-        return Err(Error::TunnelCreationError(
-            "Tunnel already running".to_string(),
-        ));
+        return Err(ConfigurationError::TunnelConfiguration {
+            reason: "Tunnel already running".to_string(),
+        }
+        .into());
     }
 
     println!("Creating Tunnel");
@@ -74,13 +83,17 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
     // Convert keys
     let private_key_bytes: [u8; 32] =
         wg_config.private_key.as_slice().try_into().map_err(|_| {
-            Error::InvalidConfig("Private key must be exactly 32 bytes".to_string())
+            ConfigurationError::InvalidValue {
+                field: "private_key".to_string(),
+                reason: "Private key must be exactly 32 bytes".to_string(),
+            }
         })?;
-    let public_key_bytes: [u8; 32] = wg_config
-        .public_key
-        .as_slice()
-        .try_into()
-        .map_err(|_| Error::InvalidConfig("Public key must be exactly 32 bytes".to_string()))?;
+    let public_key_bytes: [u8; 32] = wg_config.public_key.as_slice().try_into().map_err(|_| {
+        ConfigurationError::InvalidValue {
+            field: "public_key".to_string(),
+            reason: "Public key must be exactly 32 bytes".to_string(),
+        }
+    })?;
 
     let tunn = Tunn::new(
         StaticSecret::from(private_key_bytes),
@@ -90,14 +103,19 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
         0,
         None,
     )
-    .map_err(|e| Error::TunnelCreationError(format!("Failed to create tunnel: {:?}", e)))?;
+    .map_err(|e| ConfigurationError::TunnelConfiguration {
+        reason: format!("Failed to create tunnel: {:?}", e),
+    })?;
 
     println!("Created Tunn device");
 
     // Create UDP socket
     let local: SocketAddr = "0.0.0.0:0"
         .parse()
-        .map_err(|e| Error::NetworkConfigError(format!("Invalid local address: {}", e)))?;
+        .map_err(|e| ConfigurationError::ParseError {
+            reason: format!("Failed to parse local socket address: {}", e),
+            value: "0.0.0.0".to_string(),
+        })?;
     let udp = UdpSocket::bind(local).await?;
     println!(
         "{:?} UDP socket bound to {}",
@@ -235,7 +253,7 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
 
     let mut manager = TUNNEL_MANAGER
         .lock()
-        .map_err(|_| Error::TunnelCreationError("Mutex poisoned".to_string()))?;
+        .map_err(|_| SystemError::MutexPoisoned("TUNNEL_MANAGER".to_string()))?;
 
     // Add VPN routes
     println!("Adding VPN routes...");
@@ -278,9 +296,11 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
         metrics_shutdown: metrics_shutdown_tx,
         #[cfg(target_os = "macos")]
         domain_name_system_override_guard: optional_domain_name_system_override_guard,
-        instance_id,
-        public_ip_v4,
-        public_ip_v6,
+        instance: Some(ConnectedInstance {
+            instance_id,
+            public_ip_v4,
+            public_ip_v6,
+        }),
     });
 
     println!("VPN setup complete.");

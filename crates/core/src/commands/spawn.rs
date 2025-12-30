@@ -3,39 +3,54 @@ use std::os::unix::fs::PermissionsExt;
 use tokio::{fs, io::AsyncWriteExt};
 
 use crate::{
-    cloud_provider::CloudProvider, config::generate_client_config, credentials::get_configs_path,
-    crypto::generate_keypair, error::Result,
+    cloud_provider::{CloudProvider, InstanceInfo, SpawnInstanceParams},
+    config::{generate_client_config, get_wireguard_config_file_path},
+    crypto::generate_keypair,
+    error::{ComputeProvisioningError, Result},
 };
 
-pub async fn spawn_instance(provider: &dyn CloudProvider) -> Result<(String, String, String)> {
+pub async fn spawn_instance(provider: &dyn CloudProvider, region: &str) -> Result<InstanceInfo> {
     let (client_private_key, client_public_key) = generate_keypair();
     let (server_private_key, server_public_key) = generate_keypair();
 
-    let (instance_id, public_ip_v4, _public_ip_v6) = provider
-        .spawn_instance(&server_private_key, &client_public_key)
-        .await
-        .expect("Failed to spawn instance");
+    let params = SpawnInstanceParams {
+        region,
+        server_private_key: &server_private_key,
+        client_public_key: &client_public_key,
+    };
 
-    println!("Spawned instance: {}", instance_id);
+    let instance = provider.spawn_instance(&params).await.map_err(|error| {
+        ComputeProvisioningError::InstanceSpawnFailed {
+            region_name: region.to_string(),
+            reason: error.to_string(),
+        }
+    })?;
 
-    let client_config =
-        generate_client_config(&client_private_key, &server_public_key, &public_ip_v4);
+    println!("Spawned instance: {}", instance.id);
 
-    let directory = get_configs_path().await?;
-    let file_name = provider.get_config_file_name(&instance_id)?;
-    let path = directory.join(file_name);
-    let mut file = fs::File::create(path.clone()).await?;
+    let client_config = generate_client_config(
+        &client_private_key,
+        &server_public_key,
+        &instance.public_ip_v4,
+    )?;
+
+    let provider_name = provider.get_provider_name();
+    let wireguard_file_path =
+        get_wireguard_config_file_path(&provider_name, region, &instance.id).await?;
+
+    let mut file = fs::File::create(wireguard_file_path.clone()).await?;
     file.write_all(client_config.as_bytes()).await?;
 
     // Set permissions: rw------- (i.e., 0o600)
-    let metadata = fs::metadata(path.clone()).await?;
+    let metadata = fs::metadata(wireguard_file_path.clone()).await?;
     let mut perms = metadata.permissions();
     perms.set_mode(0o600);
-    fs::set_permissions(path.clone(), perms).await?;
+    fs::set_permissions(wireguard_file_path.clone(), perms).await?;
 
-    println!(
-        "Client config written to {}",
-        path.clone().to_str().unwrap()
-    );
-    Ok((instance_id, public_ip_v4, client_config))
+    let str_path = wireguard_file_path.to_str();
+    if let Some(sp) = str_path {
+        println!("Client config written to {}", sp);
+    }
+
+    Ok(instance)
 }

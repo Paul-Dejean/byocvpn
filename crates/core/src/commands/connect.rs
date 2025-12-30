@@ -1,29 +1,24 @@
 use crate::{
     cloud_provider::CloudProvider,
-    credentials::get_configs_path,
+    config::get_wireguard_config_file_path,
     daemon_client::{DaemonClient, DaemonCommand},
     error::Result,
 };
-
 pub async fn connect(
     provider: &dyn CloudProvider,
     daemon_client: &dyn DaemonClient,
-    instance_id: String,
+    region: &str,
+    instance_id: &str,
 ) -> Result<()> {
-    println!(
-        "is daemon running: {}",
-        daemon_client.is_daemon_running().await
-    );
-
-    let directory = get_configs_path().await?;
-    let file_name = provider.get_config_file_name(&instance_id)?;
-    let file_path = directory.join(file_name);
+    let provider_name = provider.get_provider_name();
+    let wireguard_file_path =
+        get_wireguard_config_file_path(&provider_name, region, instance_id).await?;
 
     // ✅ Now send the Connect command
     println!("Sending connect command to daemon...");
     let response = daemon_client
         .send_command(DaemonCommand::Connect {
-            config_path: file_path.to_string_lossy().to_string(),
+            config_path: wireguard_file_path.to_string_lossy().to_string(),
         })
         .await?;
 

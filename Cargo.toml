@@ -18,6 +18,8 @@ thiserror = "2.0.17"
 # Use rand 0.8 to match Tauri's ecosystem
 rand = "0.8"
 handlebars = "6.3.2"
+futures = "0.3"
+
 
 [profile.dev]
 opt-level = 0

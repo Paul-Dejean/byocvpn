@@ -3,6 +3,7 @@ use aws_sdk_ec2::{
     client::Waiters,
     types::{ResourceType, Tag, TagSpecification},
 };
+use aws_sdk_ssm::Client as SsmClient;
 use base64::{Engine, engine::general_purpose};
 use byocvpn_core::{
     cloud_provider::InstanceInfo,
@@ -10,24 +11,37 @@ use byocvpn_core::{
 };
 use tokio::time::Duration;
 
-use crate::{AwsProvider, cloud_init, config, network};
+use crate::{cloud_init, config, network};
 pub(super) async fn spawn_instance(
-    provider: &AwsProvider,
-    subnet_id: &str,
+    ec2_client: &Ec2Client,
+    ssm_client: &SsmClient,
+    region: &str,
     server_private_key: &str,
     client_public_key: &str,
-) -> Result<(String, String, String)> {
+) -> Result<InstanceInfo> {
+    let vpc_id = network::get_vpc_by_name(&ec2_client, "byocvpn-vpc")
+        .await?
+        .ok_or_else(|| NetworkProvisioningError::VpcNotFound {
+            vpc_name: "byocvpn-vpc".to_string(),
+        })?;
+
+    let subnets = network::get_subnets_in_vpc(&ec2_client, &vpc_id).await?;
+
+    let subnet_id = subnets[0]
+        .subnet_id
+        .clone()
+        .ok_or(NetworkProvisioningError::SubnetMissingIdentifier {})?;
     let user_data =
-        cloud_init::generate_wireguard_cloud_init(server_private_key, client_public_key);
+        cloud_init::generate_wireguard_cloud_init(server_private_key, client_public_key)?;
 
     println!("{:?}", user_data);
     let encoded_user_data = general_purpose::STANDARD.encode(user_data);
 
-    let ami_id = config::get_al2023_ami(&provider.ssm_client).await?;
+    let ami_id = config::get_al2023_ami(&ssm_client).await?;
     println!("AMI ID: {}", ami_id);
 
     let group_name = "byocvpn-security-group";
-    let security_group_id = network::get_security_group_by_name(&provider.ec2_client, group_name)
+    let security_group_id = network::get_security_group_by_name(&ec2_client, group_name)
         .await?
         .ok_or_else(|| NetworkProvisioningError::SecurityGroupNotFound {
             group_name: group_name.to_string(),
@@ -39,8 +53,7 @@ pub(super) async fn spawn_instance(
         .resource_type(ResourceType::Instance)
         .tags(Tag::builder().key("Name").value("byocvpn-server").build())
         .build();
-    let resp = provider
-        .ec2_client
+    let resp = ec2_client
         .run_instances()
         .subnet_id(subnet_id)
         .image_id(ami_id)
@@ -54,7 +67,7 @@ pub(super) async fn spawn_instance(
         .send()
         .await
         .map_err(|error| ComputeProvisioningError::InstanceSpawnFailed {
-            region_name: provider.get_region_name(),
+            region_name: region.to_string(),
             reason: error.to_string(),
         })?;
     let instance = resp
@@ -63,11 +76,10 @@ pub(super) async fn spawn_instance(
         .ok_or_else(|| ComputeProvisioningError::NoInstanceInResponse)?;
     let instance_id = instance
         .instance_id()
-        .ok_or_else(|| ComputeProvisioningError::InstanceMissingId)?
+        .ok_or_else(|| ComputeProvisioningError::MissingInstanceIdentifier)?
         .to_string();
 
-    provider
-        .ec2_client
+    ec2_client
         .wait_until_instance_running()
         .instance_ids(&instance_id)
         .wait(Duration::from_secs(60))
@@ -76,14 +88,13 @@ pub(super) async fn spawn_instance(
             reason: error.to_string(),
         })?;
 
-    let desc = provider
-        .ec2_client
+    let desc = ec2_client
         .describe_instances()
         .instance_ids(&instance_id)
         .send()
         .await
         .map_err(|error| ComputeProvisioningError::InstanceSpawnFailed {
-            region_name: provider.get_region_name(),
+            region_name: region.to_string(),
             reason: error.to_string(),
         })?;
 
@@ -108,7 +119,14 @@ pub(super) async fn spawn_instance(
     println!("Public IPv4: {}", public_ip_v4);
     println!("Public IPv6: {}", public_ip_v6);
 
-    Ok((instance_id, public_ip_v4, public_ip_v6))
+    Ok(InstanceInfo {
+        id: instance_id,
+        name: Some("byocvpn-server".to_string()),
+        state: "running".to_string(),
+        public_ip_v4,
+        public_ip_v6,
+        region: region.to_string(),
+    })
 }
 
 pub async fn terminate_instance(ec2_client: &Ec2Client, instance_id: &str) -> Result<()> {
@@ -127,7 +145,10 @@ pub async fn terminate_instance(ec2_client: &Ec2Client, instance_id: &str) -> Re
     Ok(())
 }
 
-pub(super) async fn list_instances(ec2_client: &Ec2Client) -> Result<Vec<InstanceInfo>> {
+pub(super) async fn list_instances_in_region(
+    ec2_client: &Ec2Client,
+    region: &str,
+) -> Result<Vec<InstanceInfo>> {
     let resp = ec2_client
         .describe_instances()
         .send()
@@ -167,6 +188,7 @@ pub(super) async fn list_instances(ec2_client: &Ec2Client) -> Result<Vec<Instanc
                 state,
                 public_ip_v4,
                 public_ip_v6,
+                region: region.to_string(),
             })
         })
         .collect();

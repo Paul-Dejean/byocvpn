@@ -1,16 +1,12 @@
-import {
-  ExistingInstance,
-  RegionGroup,
-  ServerDetails as ServerDetailsType,
-} from "../../types";
+import { Instance, RegionGroup } from "../../types";
 
 interface ServerDetailsProps {
-  instance: ExistingInstance;
+  instance: Instance;
   groupedRegions: RegionGroup[];
   isConnecting: boolean;
   isTerminating: boolean;
   vpnError: string | null;
-  onConnect: (data: ServerDetailsType) => void;
+  onConnect: (data: Instance) => void;
   onTerminate: () => void;
 }
 
@@ -29,6 +25,8 @@ export function ServerDetails({
       .find((r) => r.name === regionName) as any;
     return region?.flag || "🌍";
   };
+
+  const isSpawning = instance.state === "spawning";
 
   return (
     <div className="flex-1 flex flex-col bg-gray-900">
@@ -53,14 +51,20 @@ export function ServerDetails({
               <div>
                 <p className="text-xs text-gray-400 mb-1">IPv4 Address</p>
                 <p className="text-sm font-mono text-white">
-                  {instance.public_ip_v4}
+                  {isSpawning ? (
+                    <span className="text-gray-500 italic">
+                      Assigning IP address...
+                    </span>
+                  ) : (
+                    instance.publicIpV4
+                  )}
                 </p>
               </div>
-              {instance.public_ip_v6 && (
+              {instance.publicIpV6 && !isSpawning && (
                 <div>
                   <p className="text-xs text-gray-400 mb-1">IPv6 Address</p>
                   <p className="text-sm font-mono text-white">
-                    {instance.public_ip_v6}
+                    {instance.publicIpV6}
                   </p>
                 </div>
               )}
@@ -69,44 +73,48 @@ export function ServerDetails({
 
           {/* Actions */}
           <div className="space-y-3">
-            <button
-              onClick={() =>
-                onConnect({
-                  instance_id: instance.id,
-                  public_ip_v4: instance.public_ip_v4,
-                  public_ip_v6: instance.public_ip_v6,
-                  region: instance.region || "",
-                  client_private_key: "",
-                  server_public_key: "",
-                })
-              }
-              disabled={isConnecting}
-              className="w-full px-6 py-4 bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-medium text-lg shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isConnecting ? (
+            {isSpawning ? (
+              <div className="w-full px-6 py-4 bg-blue-600 text-white rounded-lg font-medium text-lg shadow-lg">
                 <div className="flex items-center justify-center gap-2">
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Connecting...
+                  Creating server instance...
                 </div>
-              ) : (
-                "Connect to VPN"
-              )}
-            </button>
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={() => onConnect(instance)}
+                  disabled={isConnecting}
+                  className="w-full px-6 py-4 bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-medium text-lg shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isConnecting ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Connecting...
+                    </div>
+                  ) : (
+                    "Connect to VPN"
+                  )}
+                </button>
 
-            <button
-              onClick={onTerminate}
-              disabled={isTerminating}
-              className="w-full px-6 py-4 bg-red-600 hover:bg-red-700 text-white rounded-lg transition font-medium text-lg shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isTerminating ? (
-                <div className="flex items-center justify-center gap-2">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Terminating...
-                </div>
-              ) : (
-                "Terminate Server"
-              )}
-            </button>
+                <button
+                  onClick={() => {
+                    onTerminate();
+                  }}
+                  disabled={isTerminating}
+                  className="w-full px-6 py-4 bg-red-600 hover:bg-red-700 text-white rounded-lg transition font-medium text-lg shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isTerminating ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Terminating...
+                    </div>
+                  ) : (
+                    "Terminate Server"
+                  )}
+                </button>
+              </>
+            )}
           </div>
 
           {/* Errors */}

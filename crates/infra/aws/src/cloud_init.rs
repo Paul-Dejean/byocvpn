@@ -1,3 +1,4 @@
+use byocvpn_core::error::{ConfigurationError, Result};
 use handlebars::Handlebars;
 use serde::Serialize;
 
@@ -8,8 +9,8 @@ struct WireguardCloudInitContext {
 pub(super) fn generate_wireguard_cloud_init(
     server_private_key: &str,
     client_public_key: &str,
-) -> String {
-    let wg_config = generate_server_config(server_private_key, client_public_key);
+) -> Result<String> {
+    let wg_config = generate_server_config(server_private_key, client_public_key)?;
 
     let template_text: &str = include_str!("templates/user_data.hbs");
 
@@ -23,9 +24,11 @@ pub(super) fn generate_wireguard_cloud_init(
 
     let config = handlebars_registry
         .render_template(template_text, &context)
-        .expect("Failed to render user data template");
+        .map_err(|e| ConfigurationError::TemplateRender {
+            reason: e.to_string(),
+        })?;
     println!("{}", &config);
-    config
+    Ok(config)
 }
 
 #[derive(Serialize)]
@@ -34,7 +37,7 @@ struct ServerConfigContext {
     client_public_key: String,
 }
 
-fn generate_server_config(server_private_key: &str, client_public_key: &str) -> String {
+fn generate_server_config(server_private_key: &str, client_public_key: &str) -> Result<String> {
     let template_text: &str = include_str!("templates/server_config.hbs");
 
     // 2. Build the context (the data injected into the template)
@@ -48,5 +51,10 @@ fn generate_server_config(server_private_key: &str, client_public_key: &str) -> 
 
     handlebars_registry
         .render_template(template_text, &context)
-        .expect("Failed to render server configuration template")
+        .map_err(|e| {
+            ConfigurationError::TemplateRender {
+                reason: e.to_string(),
+            }
+            .into()
+        })
 }

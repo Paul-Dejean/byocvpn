@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use byocvpn_core::{
     daemon_client::{DaemonClient, DaemonCommand},
-    error::Result,
+    error::{DaemonError, Error, Result},
     ipc::IpcStream,
 };
 use tokio::time::{Duration, sleep};
@@ -13,6 +13,9 @@ pub struct UnixDaemonClient;
 #[async_trait]
 impl DaemonClient for UnixDaemonClient {
     async fn send_command(&self, cmd: DaemonCommand) -> Result<String> {
+        if !self.is_daemon_running().await {
+            return Err(DaemonError::NotRunning.into());
+        }
         let socket_path = constants::socket_path();
         wait_for_socket(&socket_path, 50).await?;
 
@@ -20,11 +23,11 @@ impl DaemonClient for UnixDaemonClient {
         println!("Connected to daemon at {}", socket_path.to_string_lossy());
 
         // Serializing DaemonCommand should never fail as it's a simple enum
-        let msg = serde_json::to_string(&cmd).expect("Failed to serialize DaemonCommand");
+        let msg = serde_json::to_string(&cmd).map_err(|error| Error::Json(error))?;
         stream.send_message(&msg).await?;
 
         let response = stream.read_message().await?.ok_or_else(|| {
-            byocvpn_core::error::Error::IoError(std::io::Error::new(
+            Error::InputOutput(std::io::Error::new(
                 std::io::ErrorKind::UnexpectedEof,
                 "Daemon closed connection without response",
             ))
@@ -79,7 +82,7 @@ async fn wait_for_socket(path: &std::path::PathBuf, max_retries: u32) -> Result<
         }
     }
 
-    Err(byocvpn_core::error::Error::IoError(std::io::Error::new(
+    Err(Error::InputOutput(std::io::Error::new(
         std::io::ErrorKind::TimedOut,
         "Timed out waiting for daemon socket",
     )))

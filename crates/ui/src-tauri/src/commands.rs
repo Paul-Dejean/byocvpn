@@ -2,10 +2,10 @@ use std::{str::FromStr, sync::Mutex as StdMutex};
 
 use byocvpn_aws::{AwsProvider, AwsProviderConfig};
 use byocvpn_core::{
-    cloud_provider::{CloudProvider, CloudProviderName},
+    cloud_provider::{CloudProvider, CloudProviderName, InstanceInfo},
     commands, credentials,
     daemon_client::{DaemonClient, DaemonCommand},
-    error::{Error, Result},
+    error::{ConfigurationError, Error, Result},
     tunnel::{TunnelMetricsWithRates, VpnStatus},
 };
 use byocvpn_daemon::daemon_client::UnixDaemonClient;
@@ -15,10 +15,7 @@ use tauri::{AppHandle, Emitter};
 // Global state to track if broadcaster is running
 static METRICS_BROADCASTER: StdMutex<Option<()>> = StdMutex::new(None);
 
-async fn create_cloud_provider(
-    cloud_provider_name: &str,
-    region: Option<String>,
-) -> Result<Box<dyn CloudProvider>> {
+async fn create_cloud_provider(cloud_provider_name: &str) -> Result<Box<dyn CloudProvider>> {
     // Get stored credentials
     let credentials = credentials::get_credentials().await?;
 
@@ -26,17 +23,16 @@ async fn create_cloud_provider(
     match cloud_provider_name {
         "aws" => {
             let config = AwsProviderConfig {
-                region,
                 access_key_id: Some(credentials.access_key.clone()),
                 secret_access_key: Some(credentials.secret_access_key.clone()),
             };
-            let cloud_provider = AwsProvider::new(&config).await;
+            let cloud_provider = AwsProvider::new(config).await;
             Ok(Box::new(cloud_provider))
         }
         _ => {
-            return Err(Error::InvalidCloudProviderName(
-                cloud_provider_name.to_string(),
-            ));
+            return Err(
+                ConfigurationError::InvalidCloudProvider(cloud_provider_name.to_string()).into(),
+            );
         }
     }
 }
@@ -49,7 +45,7 @@ pub async fn save_credentials(
 ) -> Result<()> {
     let cloud_provider = match CloudProviderName::from_str(&cloud_provider_name) {
         Ok(provider) => provider,
-        Err(_) => return Err(Error::InvalidCloudProviderName(cloud_provider_name)),
+        Err(_) => return Err(ConfigurationError::InvalidCloudProvider(cloud_provider_name).into()),
     };
     credentials::save_credentials(&cloud_provider, &access_key_id, &secret_access_key).await?;
     Ok(())
@@ -57,58 +53,37 @@ pub async fn save_credentials(
 
 #[tauri::command]
 pub async fn verify_permissions() -> Result<Value> {
-    let cloud_provider = create_cloud_provider("aws", None).await?;
+    let cloud_provider = create_cloud_provider("aws").await?;
     let result = commands::verify_permissions::verify_permissions(&*cloud_provider).await;
     return result;
 }
 
 #[tauri::command]
-pub async fn spawn_instance(region: String) -> Result<Value> {
+pub async fn spawn_instance(region: String) -> Result<InstanceInfo> {
     // Get stored credentials
-    let cloud_provider = create_cloud_provider("aws", Some(region.clone())).await?;
+    let cloud_provider = create_cloud_provider("aws").await?;
 
     // Generate keypair for this instance
     commands::setup::setup(&*cloud_provider).await?;
-
     commands::setup::enable_region(&*cloud_provider, &region).await?;
 
-    let (instance_id, public_ip_v4, public_ip_v6) =
-        commands::spawn::spawn_instance(&*cloud_provider).await?;
+    let instance = commands::spawn::spawn_instance(&*cloud_provider, &region).await?;
 
-    // Return instance details
-    Ok(json!({
-        "instance_id": instance_id,
-        "public_ip_v4": public_ip_v4,
-        "public_ip_v6": public_ip_v6,
-        "region": region,
-    }))
+    Ok(instance)
 }
 
 #[tauri::command]
 pub async fn terminate_instance(instance_id: String, region: String) -> Result<String> {
-    let cloud_provider = create_cloud_provider("aws", Some(region)).await?;
-    commands::terminate::terminate_instance(&*cloud_provider, &instance_id).await?;
+    let cloud_provider = create_cloud_provider("aws").await?;
+    commands::terminate::terminate_instance(&*cloud_provider, &region, &instance_id).await?;
     Ok(format!("Instance {} terminated successfully.", instance_id))
 }
 
 #[tauri::command]
-pub async fn list_instances(region: String) -> Result<Vec<Value>> {
-    let cloud_provider = create_cloud_provider("aws", Some(region)).await?;
-    // Terminate the instance
-    let instances = commands::list::list_instances(&*cloud_provider).await?;
-
-    Ok(instances
-        .into_iter()
-        .map(|instance| {
-            json!({
-                "id": instance.id,
-                "name": instance.name,
-                "state": instance.state,
-                "public_ip_v4": instance.public_ip_v4,
-                "public_ip_v6": instance.public_ip_v6,
-            })
-        })
-        .collect::<Vec<Value>>())
+pub async fn list_instances(region: Option<String>) -> Result<Vec<InstanceInfo>> {
+    let cloud_provider = create_cloud_provider("aws").await?;
+    let instances = commands::list::list_instances(&*cloud_provider, region.as_deref()).await?;
+    Ok(instances)
 }
 
 #[tauri::command]
@@ -132,7 +107,7 @@ pub async fn has_profile() -> Result<bool> {
 
 #[tauri::command]
 pub async fn get_regions() -> Result<Vec<Value>> {
-    let cloud_provider = create_cloud_provider("aws", None).await?;
+    let cloud_provider = create_cloud_provider("aws").await?;
 
     let regions = commands::setup::get_regions(&*cloud_provider).await?;
 
@@ -149,10 +124,16 @@ pub async fn get_regions() -> Result<Vec<Value>> {
 
 #[tauri::command]
 pub async fn connect(instance_id: String, region: String, app_handle: AppHandle) -> Result<String> {
-    let cloud_provider = create_cloud_provider("aws", Some(region)).await?;
+    let cloud_provider = create_cloud_provider("aws").await?;
     let daemon_client = UnixDaemonClient;
     println!("Connecting to instance {}", instance_id.clone());
-    commands::connect::connect(&*cloud_provider, &daemon_client, instance_id.clone()).await?;
+    commands::connect::connect(
+        &*cloud_provider,
+        &daemon_client,
+        region.as_str(),
+        &instance_id,
+    )
+    .await?;
 
     // Subscribe to metrics broadcast and emit as Tauri events
     // Small delay to ensure daemon is ready
@@ -186,17 +167,16 @@ pub async fn get_vpn_status() -> Result<VpnStatus> {
     if !daemon_client.is_daemon_running().await {
         return Ok(VpnStatus {
             connected: false,
-            instance_id: None,
-            public_ip_v4: None,
-            public_ip_v6: None,
+            instance: None,
         });
     }
 
     // Get status from daemon
     let response = daemon_client.send_command(DaemonCommand::Status).await?;
 
-    let status: VpnStatus = serde_json::from_str(&response)
-        .map_err(|e| Error::InvalidCloudProviderConfig(format!("Failed to parse status: {}", e)))?;
+    let status: VpnStatus = serde_json::from_str(&response).map_err(|e| {
+        ConfigurationError::InvalidCloudProvider(format!("Failed to parse status: {}", e))
+    })?;
 
     Ok(status)
 }
@@ -213,9 +193,10 @@ async fn start_metrics_stream_internal(app_handle: AppHandle) -> Result<()> {
         Ok(guard) => guard,
         Err(e) => {
             eprintln!("Failed to acquire metrics broadcaster lock : {e}");
-            return Err(Error::InvalidCloudProviderConfig(
+            return Err(ConfigurationError::InvalidCloudProvider(
                 "Failed to acquire metrics broadcaster lock".to_string(),
-            ));
+            )
+            .into());
         }
     };
 
@@ -260,8 +241,9 @@ async fn start_metrics_stream_internal(app_handle: AppHandle) -> Result<()> {
             Some(s) => s,
             None => {
                 eprintln!("Failed to connect to metrics socket after retries");
-                let mut broadcaster = METRICS_BROADCASTER.lock().unwrap();
-                *broadcaster = None;
+                if let Ok(mut broadcaster) = METRICS_BROADCASTER.lock() {
+                    *broadcaster = None;
+                }
                 return;
             }
         };
@@ -271,7 +253,13 @@ async fn start_metrics_stream_internal(app_handle: AppHandle) -> Result<()> {
         loop {
             // Check if we should stop
             {
-                let broadcaster = METRICS_BROADCASTER.lock().unwrap();
+                let broadcaster = match METRICS_BROADCASTER.lock() {
+                    Ok(guard) => guard,
+                    Err(error) => {
+                        eprintln!("Failed to acquire lock: {error}");
+                        break;
+                    }
+                };
                 if broadcaster.is_none() {
                     break;
                 }
@@ -303,15 +291,20 @@ async fn start_metrics_stream_internal(app_handle: AppHandle) -> Result<()> {
         println!("Metrics forwarder stopped");
 
         // Clear the broadcaster flag
-        let mut broadcaster = METRICS_BROADCASTER.lock().unwrap();
-        *broadcaster = None;
+        if let Ok(mut broadcaster) = METRICS_BROADCASTER.lock() {
+            *broadcaster = None;
+        }
     });
 
     Ok(())
 }
 
 async fn stop_metrics_stream() -> Result<()> {
-    let mut broadcaster = METRICS_BROADCASTER.lock().unwrap();
+    let mut broadcaster = METRICS_BROADCASTER.lock().map_err(|error| {
+        eprintln!("Failed to acquire metrics broadcaster lock: {error}");
+        ConfigurationError::InvalidCloudProvider("Failed to stop metrics stream".to_string())
+    })?;
+
     *broadcaster = None;
     Ok(())
 }

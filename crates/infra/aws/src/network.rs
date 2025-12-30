@@ -51,7 +51,7 @@ pub(super) async fn create_security_group(
         .send()
         .await
         .map_err(
-            |error| NetworkProvisioningError::SecurityGroupRuleConfigFailed {
+            |error| NetworkProvisioningError::SecurityGroupRuleConfigurationFailed {
                 reason: error.to_string(),
             },
         )?;
@@ -105,7 +105,7 @@ pub(super) async fn create_vpc(
         .tag_specifications(tag_spec)
         .send()
         .await
-        .map_err(|error| NetworkProvisioningError::NetworkCreationFailed {
+        .map_err(|error| NetworkProvisioningError::VpcCreationFailed {
             reason: error.to_string(),
         })?;
 

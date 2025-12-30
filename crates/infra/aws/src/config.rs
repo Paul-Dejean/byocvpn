@@ -5,12 +5,15 @@ use aws_sdk_ec2::{
     error::ProvideErrorMetadata,
 };
 use aws_sdk_ssm::{Client as SsmClient, error::SdkError};
-use byocvpn_core::error::{Error, Result};
+use byocvpn_core::error::{ComputeProvisioningError, Result};
 
-use crate::{provider::AwsProviderConfig, ssm_error::map_aws_ssm_error};
+use crate::{aws_error::map_aws_error, provider::AwsProviderConfig};
 
-pub(super) async fn get_config(config: &AwsProviderConfig) -> SdkConfig {
-    let region_provider = match &config.region {
+pub(super) async fn get_sdk_config(
+    config: &AwsProviderConfig,
+    region: Option<String>,
+) -> SdkConfig {
+    let region_provider = match &region {
         Some(r) => RegionProviderChain::first_try(Region::new(r.clone())).or_default_provider(),
         None => RegionProviderChain::default_provider(),
     };
@@ -43,15 +46,22 @@ pub(super) async fn get_al2023_ami(ssm_client: &SsmClient) -> Result<String> {
             SdkError::ServiceError(service_error)
                 if matches!(service_error.err().code(), Some("ParameterNotFound")) =>
             {
-                Error::BaseImageNotFound("al2023".to_string())
+                ComputeProvisioningError::AmiLookupFailed {
+                    name: "al2023".to_string(),
+                    reason: "parameter not found".to_string(),
+                }
+                .into()
             }
-            other => map_aws_ssm_error("get_parameter", other),
+            other => map_aws_error("get_parameter", other),
         })?;
 
     let ami_id = result
         .parameter()
         .and_then(|p| p.value())
-        .ok_or(Error::BaseImageNotFound("al2023".to_string()))?
+        .ok_or(ComputeProvisioningError::AmiLookupFailed {
+            name: "al2023".to_string(),
+            reason: "parameter not found".to_string(),
+        })?
         .to_string();
 
     Ok(ami_id)

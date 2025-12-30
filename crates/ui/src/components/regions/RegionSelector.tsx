@@ -1,24 +1,19 @@
-import { AwsRegion, ExistingInstance, RegionGroup } from "../../types";
+import { useInstancesContext, useRegionsContext } from "../../contexts";
+import { AwsRegion } from "../../types";
 import { useState } from "react";
 
 interface RegionSelectorProps {
-  groupedRegions: RegionGroup[];
-  existingInstances: ExistingInstance[];
-  onSelectRegion: (region: AwsRegion) => void;
   onClose: () => void;
 }
 
-export function RegionSelector({
-  groupedRegions,
-  existingInstances,
-  onSelectRegion,
-  onClose,
-}: RegionSelectorProps) {
+export function RegionSelector({ onClose }: RegionSelectorProps) {
   const [selectedRegion, setSelectedRegion] = useState<AwsRegion | null>(null);
+  const { groupedRegions } = useRegionsContext();
+  const { spawnInstance, instances } = useInstancesContext();
 
   const handleDeploy = () => {
     if (selectedRegion) {
-      onSelectRegion(selectedRegion);
+      spawnInstance(selectedRegion.name);
       onClose(); // Close immediately to show placeholder card
     }
   };
@@ -84,8 +79,9 @@ export function RegionSelector({
                         </p>
                       </div>
                     </div>
-                    {existingInstances.filter((i) => i.region === region.name)
-                      .length > 0 && (
+                    {instances.filter(
+                      (instance) => instance.region === region.name
+                    ).length > 0 && (
                       <div className="flex items-center gap-1 text-xs text-gray-400">
                         <svg
                           className="w-3 h-3"
@@ -100,8 +96,8 @@ export function RegionSelector({
                         </svg>
                         <span>
                           {
-                            existingInstances.filter(
-                              (i) => i.region === region.name
+                            instances.filter(
+                              (instance) => instance.region === region.name
                             ).length
                           }{" "}
                           active

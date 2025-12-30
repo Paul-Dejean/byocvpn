@@ -1,17 +1,13 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import toast from "react-hot-toast";
-import { AwsRegion, ExistingInstance, ServerDetails } from "../types";
+import { AwsRegion, Instance } from "../types";
 
 /**
  * Hook for managing EC2 instances - listing, spawning, and terminating
  */
 export const useInstances = (regions: AwsRegion[]) => {
-  const [existingInstances, setExistingInstances] = useState<
-    ExistingInstance[]
-  >([]);
-  const [selectedInstance, setSelectedInstance] =
-    useState<ServerDetails | null>(null);
+  const [instances, setInstances] = useState<Instance[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSpawning, setIsSpawning] = useState(false);
   const [isTerminating, setIsTerminating] = useState(false);
@@ -19,37 +15,17 @@ export const useInstances = (regions: AwsRegion[]) => {
 
   useEffect(() => {
     if (regions.length > 0) {
-      fetchExistingInstances();
+      fetchInstances();
     }
   }, [regions]);
 
-  const fetchExistingInstances = async () => {
+  const fetchInstances = async () => {
     setIsLoading(true);
-    setError(null); // Clear error at start of fetch
+    setError(null);
 
     try {
-      // Fetch instances from all regions
-      const allInstances: ExistingInstance[] = [];
-
-      for (const region of regions) {
-        try {
-          const instances = await invoke<ExistingInstance[]>("list_instances", {
-            region: region.name,
-          });
-          allInstances.push(...instances);
-        } catch (error) {
-          console.error(
-            `Failed to fetch instances from ${region.name}:`,
-            error
-          );
-          // Continue with other regions even if one fails
-        }
-      }
-
-      console.log("Existing instances fetched successfully:", allInstances);
-      console.log("Number of instances:", allInstances.length);
-      setExistingInstances(allInstances);
-      // Success - error stays cleared
+      const instances = await invoke<Instance[]>("list_instances");
+      setInstances(instances);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Failed to fetch instances";
@@ -60,33 +36,46 @@ export const useInstances = (regions: AwsRegion[]) => {
     }
   };
 
-  const spawnInstance = async (regionName: string): Promise<ServerDetails> => {
+  const spawnInstance = async (regionName: string): Promise<Instance> => {
+    const tempId = `spawning-${Date.now()}`;
+
+    // Add placeholder instance in spawning state
+    const spawningInstance: Instance = {
+      id: tempId,
+      name: "Spawning...",
+      state: "spawning",
+      publicIpV4: "",
+      publicIpV6: "",
+      region: regionName,
+    };
+
+    setInstances((prev) => [
+      ...prev,
+      { ...spawningInstance, region: regionName },
+    ]);
     setIsSpawning(true);
     setError(null);
 
     try {
-      const result = await invoke<ServerDetails>("spawn_instance", {
+      const instance = await invoke<Instance>("spawn_instance", {
         region: regionName,
       });
 
-      console.log("Server spawned:", result);
+      console.log("Server spawned:", instance);
 
-      // Automatically add to instance list
-      const newInstance: ExistingInstance = {
-        id: result.instance_id,
-        name: "VPN Server",
-        state: "running",
-        public_ip_v4: result.public_ip_v4,
-        public_ip_v6: result.public_ip_v6 || "",
-        region: regionName,
-      };
+      // Replace spawning instance with real instance
+      setInstances((prev) =>
+        prev.map((inst) =>
+          inst.id === tempId ? { ...instance, region: regionName } : inst
+        )
+      );
 
-      setExistingInstances((prev) => [...prev, newInstance]);
-      setSelectedInstance(result);
       toast.success("Server deployed successfully!");
-
-      return result;
+      return instance;
     } catch (error) {
+      // Remove spawning instance on error
+      setInstances((prev) => prev.filter((inst) => inst.id !== tempId));
+
       const errorMessage =
         error instanceof Error ? error.message : "Failed to spawn instance";
       setError(errorMessage);
@@ -114,12 +103,7 @@ export const useInstances = (regions: AwsRegion[]) => {
       console.log("Instance terminated:", instanceId);
 
       // Automatically remove from instance list
-      setExistingInstances((prev) => prev.filter((i) => i.id !== instanceId));
-
-      // Clear selection if terminated instance was selected
-      if (selectedInstance?.instance_id === instanceId) {
-        setSelectedInstance(null);
-      }
+      setInstances((prev) => prev.filter((i) => i.id !== instanceId));
 
       toast.success("Server terminated successfully!");
     } catch (error) {
@@ -134,39 +118,19 @@ export const useInstances = (regions: AwsRegion[]) => {
     }
   };
 
-  const handleInstanceSelect = (instance: ExistingInstance) => {
-    const serverDetails: ServerDetails = {
-      instance_id: instance.id,
-      public_ip_v4: instance.public_ip_v4 || "",
-      public_ip_v6: instance.public_ip_v6 || "",
-      region: instance.region || "",
-      client_private_key: "",
-      server_public_key: "",
-    };
-    setSelectedInstance(serverDetails);
-  };
-
-  const clearSelectedInstance = () => {
-    setSelectedInstance(null);
-  };
-
   const clearError = () => {
     setError(null);
   };
 
   return {
-    existingInstances,
-    selectedInstance,
+    instances,
     isLoading,
     isSpawning,
     isTerminating,
     error,
     spawnInstance,
     terminateInstance,
-    handleInstanceSelect,
-    clearSelectedInstance,
-    setSelectedInstance,
     clearError,
-    refetch: fetchExistingInstances,
+    refetch: fetchInstances,
   };
 };
