@@ -1,20 +1,19 @@
 import { useEffect, useState } from "react";
-import { useVpnConnection } from "../hooks";
-import {
-  RegionsProvider,
-  InstancesProvider,
-  useInstancesContext,
-} from "../contexts";
+import { RegionsProvider, InstancesProvider } from "../contexts";
 import { ConnectedView } from "../components/vpn/ConnectedView";
 import { ServerManagementView } from "../components/vpn/ServerManagementView";
 import { Instance } from "../types";
+import {
+  useVpnConnectionContext,
+  VpnConnectionProvider,
+} from "../contexts/VpnConnectionContext";
 
 /**
  * Props for the VpnPage component
  */
 interface VpnPageProps {
   /** Callback to navigate to settings page */
-  onNavigateToSettings?: () => void;
+  onNavigateToSettings: () => void;
 }
 
 /**
@@ -24,7 +23,9 @@ export function VpnPage({ onNavigateToSettings }: VpnPageProps) {
   return (
     <RegionsProvider>
       <InstancesProvider>
-        <VpnPageContent onNavigateToSettings={onNavigateToSettings} />
+        <VpnConnectionProvider>
+          <VpnPageContent onNavigateToSettings={onNavigateToSettings} />
+        </VpnConnectionProvider>
       </InstancesProvider>
     </RegionsProvider>
   );
@@ -34,37 +35,24 @@ export function VpnPage({ onNavigateToSettings }: VpnPageProps) {
  * Inner component that uses the contexts
  */
 function VpnPageContent({ onNavigateToSettings }: VpnPageProps) {
-  const { vpnStatus, checkVpnStatus } = useVpnConnection();
-  const { instances } = useInstancesContext();
+  const { vpnStatus, checkVpnStatus } = useVpnConnectionContext();
 
   const [connectedInstance, setConnectedInstance] = useState<Instance | null>(
     null
   );
 
   useEffect(() => {
-    // Check VPN status on mount and when instances change
     checkVpnStatus();
-  }, [instances]);
-
-  useEffect(() => {
-    // Poll VPN status every 2 seconds to catch connection changes
-    const interval = setInterval(() => {
-      checkVpnStatus();
-    }, 2000);
-
-    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
+    console.log("effect", vpnStatus);
     if (vpnStatus.connected) {
-      const region = instances.find(
-        (inst) => inst.id === vpnStatus.instance.id
-      )?.region;
-      setConnectedInstance({ ...vpnStatus.instance, region: region ?? "" });
+      setConnectedInstance(vpnStatus.instance);
     } else {
       setConnectedInstance(null);
     }
-  }, [vpnStatus, instances]);
+  }, [vpnStatus]);
 
   if (vpnStatus.connected && connectedInstance) {
     return (

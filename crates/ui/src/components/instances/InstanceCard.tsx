@@ -1,9 +1,9 @@
-import { ExistingInstance } from "../../types";
+import { Instance } from "../../types";
 
 interface InstanceCardProps {
-  instance: ExistingInstance;
+  instance: Instance;
   isSelected: boolean;
-  onSelect: (instance: ExistingInstance) => void;
+  onSelect: (instance: Instance) => void;
 }
 
 export function InstanceCard({
@@ -39,7 +39,7 @@ export function InstanceCard({
         <span className="font-medium">Instance ID:</span> {instance.id}
       </p>
       <p className="text-sm text-gray-400 mb-1">
-        <span className="font-medium">Public IP:</span> {instance.public_ip_v4}
+        <span className="font-medium">Public IP:</span> {instance.publicIpV4}
       </p>
       <p className="text-sm text-gray-400">
         <span className="font-medium">Region:</span> {instance.region}

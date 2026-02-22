@@ -16,7 +16,7 @@ export enum ServerStatus {
  * VPN status response from backend
  */
 
-type VpnStatus =
+export type VpnStatus =
   | {
       connected: false;
     }
@@ -35,7 +35,7 @@ export const useVpnConnection = () => {
   const checkVpnStatus = async () => {
     try {
       const status = await invoke<VpnStatus>("get_vpn_status");
-      console.log("VPN Status on mount:", status);
+      console.log("VPN Status", status);
       setVpnStatus(status);
     } catch (error) {
       console.error("Failed to check VPN status:", error);
@@ -57,6 +57,7 @@ export const useVpnConnection = () => {
       console.log("VPN connected:", response);
       console.log("Setting serverStatus to 'connected'");
       toast.success("Connected to VPN successfully!");
+
       await checkVpnStatus();
     } catch (error) {
       const errorMessage =
@@ -64,6 +65,8 @@ export const useVpnConnection = () => {
       setError(errorMessage);
       console.error("Failed to connect to VPN:", error);
       toast.error(errorMessage);
+    } finally {
+      setIsConnecting(false);
     }
   };
 
@@ -75,6 +78,7 @@ export const useVpnConnection = () => {
       console.log("VPN disconnected:", response);
 
       toast.success("Disconnected from VPN");
+      await checkVpnStatus();
     } catch (error) {
       const errorMessage =
         error instanceof Error

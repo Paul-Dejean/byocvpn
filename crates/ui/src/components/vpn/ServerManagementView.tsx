@@ -5,13 +5,12 @@ import { ServerList } from "../servers/ServerList";
 import { RegionSelector } from "../regions/RegionSelector";
 import { ServerDetails } from "../servers/ServerDetails";
 import { EmptyState } from "../common/EmptyState";
-import { useVpnConnection } from "../../hooks";
+
 import { useInstancesContext, useRegionsContext } from "../../contexts";
+import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
 
 interface ServerManagementViewProps {
-  selectedInstance?: Instance | null;
-  setSelectedInstance?: (instance: Instance | null) => void;
-  onNavigateToSettings?: () => void;
+  onNavigateToSettings: () => void;
 }
 
 export function ServerManagementView({
@@ -35,22 +34,21 @@ export function ServerManagementView({
   } = useInstancesContext();
 
   const {
-    vpnStatus,
     isConnecting,
     error: vpnError,
     connectToVpn,
-  } = useVpnConnection();
+  } = useVpnConnectionContext();
 
   const isLoading = regionsLoading || instancesLoading;
-
-  const connectedInstance =
-    vpnStatus.connected === true ? vpnStatus.instance : null;
 
   const handleSelectInstance = (instance: Instance) => {
     setSelectedInstance(instance);
   };
+  const onConnect = async (instance: Instance) => {
+    await connectToVpn(instance);
+  };
 
-  const handleTerminateServer = async () => {
+  const onTerminate = async () => {
     if (!selectedInstance) return;
     console.log({ selectedInstance });
 
@@ -84,7 +82,7 @@ export function ServerManagementView({
                   Select a region and manage your servers
                 </p>
               </div>
-              <SettingsButton onClick={() => onNavigateToSettings?.()} />
+              <SettingsButton onClick={() => onNavigateToSettings()} />
             </div>
           </div>
 
@@ -108,8 +106,8 @@ export function ServerManagementView({
                 isConnecting={isConnecting}
                 isTerminating={isTerminating}
                 vpnError={vpnError}
-                onConnect={(instance) => connectToVpn(instance)}
-                onTerminate={handleTerminateServer}
+                onConnect={onConnect}
+                onTerminate={onTerminate}
               />
             ) : (
               <EmptyState

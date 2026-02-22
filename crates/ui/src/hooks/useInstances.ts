@@ -65,9 +65,7 @@ export const useInstances = (regions: AwsRegion[]) => {
 
       // Replace spawning instance with real instance
       setInstances((prev) =>
-        prev.map((inst) =>
-          inst.id === tempId ? { ...instance, region: regionName } : inst
-        )
+        prev.map((inst) => (inst.id === tempId ? instance : inst))
       );
 
       toast.success("Server deployed successfully!");

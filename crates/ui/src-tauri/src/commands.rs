@@ -5,7 +5,7 @@ use byocvpn_core::{
     cloud_provider::{CloudProvider, CloudProviderName, InstanceInfo},
     commands, credentials,
     daemon_client::{DaemonClient, DaemonCommand},
-    error::{ConfigurationError, Error, Result},
+    error::{ConfigurationError, Result},
     tunnel::{TunnelMetricsWithRates, VpnStatus},
 };
 use byocvpn_daemon::daemon_client::UnixDaemonClient;

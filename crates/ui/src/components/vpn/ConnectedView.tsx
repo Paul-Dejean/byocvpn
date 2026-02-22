@@ -1,7 +1,8 @@
 import { MetricsDetails } from "../common/MetricsDisplay";
 import { SettingsButton } from "../settings/SettingsButton";
-import { useVpnMetrics, useVpnConnection } from "../../hooks";
+import { useVpnMetrics } from "../../hooks";
 import { Instance } from "../../types";
+import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -21,7 +22,7 @@ export function ConnectedView({
   onNavigateToSettings,
 }: ConnectedViewProps) {
   // Use hooks specific to connected view
-  const { disconnectFromVpn } = useVpnConnection();
+  const { disconnectFromVpn } = useVpnConnectionContext();
   const metrics = useVpnMetrics(true);
 
   const handleDisconnectClick = async () => {
