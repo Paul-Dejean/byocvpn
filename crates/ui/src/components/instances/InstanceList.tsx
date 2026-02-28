@@ -1,10 +1,10 @@
-import { ExistingInstance, ServerDetails } from "../../types";
+import { Instance } from "../../types";
 import { InstanceCard } from "./InstanceCard";
 
 interface InstanceListProps {
-  instances: ExistingInstance[];
-  selectedInstance: ServerDetails | null;
-  onInstanceSelect: (instance: ExistingInstance) => void;
+  instances: Instance[];
+  selectedInstance: Instance | null;
+  onInstanceSelect: (instance: Instance) => void;
 }
 
 export function InstanceList({
@@ -28,7 +28,7 @@ export function InstanceList({
               <InstanceCard
                 key={instance.id}
                 instance={instance}
-                isSelected={selectedInstance?.instance_id === instance.id}
+                isSelected={selectedInstance?.id === instance.id}
                 onSelect={onInstanceSelect}
               />
             ))}

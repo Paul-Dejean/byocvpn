@@ -133,18 +133,17 @@ async fn fetch_vpn_status() -> Result<VpnStatus> {
 
     let response = daemon_client.send_command(DaemonCommand::Status).await?;
 
-    let status: VpnStatus = serde_json::from_str(&response).map_err(|e| {
-        ConfigurationError::InvalidCloudProvider(format!("Failed to parse status: {}", e))
-    })?;
-
-    Ok(status)
+    serde_json::from_str(&response).map_err(|error| {
+        ConfigurationError::InvalidCloudProvider(format!("Failed to parse status: {}", error))
+            .into()
+    })
 }
 
 #[tauri::command]
 pub async fn connect(instance_id: String, region: String, app_handle: AppHandle) -> Result<String> {
     let cloud_provider = create_cloud_provider("aws").await?;
     let daemon_client = UnixDaemonClient;
-    println!("Connecting to instance {}", instance_id.clone());
+
     commands::connect::connect(
         &*cloud_provider,
         &daemon_client,
@@ -156,9 +155,8 @@ pub async fn connect(instance_id: String, region: String, app_handle: AppHandle)
     let vpn_status = fetch_vpn_status().await?;
 
     if let Some(ref connected_instance) = vpn_status.instance {
-        println!("Starting metrics stream...");
         let emit_handle = app_handle.clone();
-        match metrics_stream::start(
+        if let Err(error) = metrics_stream::start(
             byocvpn_daemon::constants::metrics_socket_path(),
             connected_instance.clone(),
             move |status| {
@@ -167,19 +165,11 @@ pub async fn connect(instance_id: String, region: String, app_handle: AppHandle)
         )
         .await
         {
-            Ok(_) => println!("Started metrics stream"),
-            Err(error) => eprintln!("Failed to start metrics stream: {}", error),
+            eprintln!("Failed to start metrics stream: {}", error);
         }
     }
 
-    let _ = app_handle.emit(
-        "vpn-status",
-        &VpnStatus {
-            connected: vpn_status.connected,
-            instance: vpn_status.instance,
-            metrics: None,
-        },
-    );
+    let _ = app_handle.emit("vpn-status", &vpn_status);
 
     Ok(format!(
         "Connected to instance {} successfully.",
@@ -208,22 +198,17 @@ pub async fn disconnect(app_handle: AppHandle) -> Result<String> {
 
 #[tauri::command]
 pub async fn get_vpn_status() -> Result<VpnStatus> {
-    let status = fetch_vpn_status().await?;
-    Ok(VpnStatus {
-        connected: status.connected,
-        instance: status.instance,
-        metrics: None,
-    })
+    fetch_vpn_status().await
 }
 
 #[tauri::command]
-pub async fn start_metrics_stream(app_handle: AppHandle) -> Result<()> {
+pub async fn subscribe_to_vpn_status(app_handle: AppHandle) -> Result<()> {
     let status = fetch_vpn_status().await?;
     match status.instance {
-        Some(instance) => {
+        Some(connected_instance) => {
             metrics_stream::start(
                 byocvpn_daemon::constants::metrics_socket_path(),
-                instance,
+                connected_instance,
                 move |vpn_status| {
                     let _ = app_handle.emit("vpn-status", &vpn_status);
                 },
@@ -231,8 +216,132 @@ pub async fn start_metrics_stream(app_handle: AppHandle) -> Result<()> {
             .await
         }
         None => Err(ConfigurationError::InvalidCloudProvider(
-            "Cannot start metrics stream: not connected to VPN".to_string(),
+            "Cannot subscribe to VPN status: not connected to VPN".to_string(),
         )
         .into()),
+    }
+}
+
+#[tauri::command]
+pub async fn is_daemon_installed() -> Result<bool> {
+    let installed_binary_name = if cfg!(debug_assertions) {
+        "byocvpn-daemon-dev"
+    } else {
+        "byocvpn-daemon"
+    };
+    let label = if cfg!(debug_assertions) {
+        "com.byocvpn.daemon.dev"
+    } else {
+        "com.byocvpn.daemon"
+    };
+    Ok(std::path::Path::new(&format!(
+        "/Library/PrivilegedHelperTools/{}",
+        installed_binary_name
+    ))
+    .exists()
+        && std::path::Path::new(&format!("/Library/LaunchDaemons/{}.plist", label)).exists())
+}
+
+#[tauri::command]
+pub async fn install_daemon() -> Result<()> {
+    // In debug mode install the dev daemon; in release install the production daemon.
+    let is_dev = cfg!(debug_assertions);
+
+    let installed_binary_name = if is_dev {
+        "byocvpn-daemon-dev"
+    } else {
+        "byocvpn-daemon"
+    };
+    let plist_name = if is_dev {
+        "com.byocvpn.daemon.dev.plist"
+    } else {
+        "com.byocvpn.daemon.plist"
+    };
+    let label = if is_dev {
+        "com.byocvpn.daemon.dev"
+    } else {
+        "com.byocvpn.daemon"
+    };
+    let build_dir = if is_dev { "debug" } else { "release" };
+
+    let current_executable_path = std::env::current_exe()
+        .map_err(|error| ConfigurationError::InvalidCloudProvider(error.to_string()))?;
+
+    let workspace_root = current_executable_path
+        .ancestors()
+        .find(|path| path.join("Cargo.toml").exists());
+
+    let exe_dir = current_executable_path.parent().ok_or_else(|| {
+        ConfigurationError::InvalidCloudProvider("Could not determine exe directory".to_string())
+    })?;
+
+    // Look for the daemon binary: bundled Resources/ first, then alongside exe, then workspace target/
+    let daemon_binary_path = [
+        exe_dir
+            .parent()
+            .map(|p| p.join("Resources").join("byocvpn-daemon"))
+            .unwrap_or_default(),
+        exe_dir.join(installed_binary_name),
+        exe_dir.join("byocvpn_daemon"),
+        workspace_root
+            .map(|root| root.join("target").join(build_dir).join("byocvpn_daemon"))
+            .unwrap_or_default(),
+    ]
+    .into_iter()
+    .find(|path| path.exists())
+    .ok_or_else(|| {
+        ConfigurationError::InvalidCloudProvider(format!(
+            "Daemon binary not found in target/{}/",
+            build_dir
+        ))
+    })?;
+
+    let daemon_plist_path = [
+        exe_dir
+            .parent()
+            .map(|p| p.join("Resources").join(plist_name))
+            .unwrap_or_default(),
+        workspace_root
+            .map(|root| root.join("scripts").join(plist_name))
+            .unwrap_or_default(),
+    ]
+    .into_iter()
+    .find(|path| path.exists())
+    .ok_or_else(|| ConfigurationError::InvalidCloudProvider(format!("{} not found", plist_name)))?;
+
+    let script = format!(
+        r#"do shell script "
+            launchctl unload '/Library/LaunchDaemons/{label}.plist' 2>/dev/null; \
+            cp '{}' '/Library/PrivilegedHelperTools/{installed_binary_name}' && \
+            chmod 544 '/Library/PrivilegedHelperTools/{installed_binary_name}' && \
+            chown root:wheel '/Library/PrivilegedHelperTools/{installed_binary_name}' && \
+            cp '{}' '/Library/LaunchDaemons/{label}.plist' && \
+            chmod 644 '/Library/LaunchDaemons/{label}.plist' && \
+            chown root:wheel '/Library/LaunchDaemons/{label}.plist' && \
+            launchctl load '/Library/LaunchDaemons/{label}.plist'
+        " with administrator privileges"#,
+        daemon_binary_path.display(),
+        daemon_plist_path.display(),
+        label = label,
+        installed_binary_name = installed_binary_name,
+    );
+
+    let output = std::process::Command::new("osascript")
+        .arg("-e")
+        .arg(&script)
+        .output()
+        .map_err(|error| ConfigurationError::InvalidCloudProvider(error.to_string()))?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let detail = if !stderr.is_empty() { stderr } else { stdout };
+        Err(ConfigurationError::InvalidCloudProvider(format!(
+            "osascript failed: {}",
+            detail.trim()
+        ))
+        .into())
     }
 }

@@ -2,11 +2,18 @@ import { useState } from "react";
 import { Toaster } from "react-hot-toast";
 
 import "./App.css";
-import { VpnPage, SetupPage, LandingPage, SettingsPage } from "./pages";
+import {
+  VpnPage,
+  SetupPage,
+  LandingPage,
+  SettingsPage,
+  DaemonSetupPage,
+} from "./pages";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 
 export enum Page {
   LANDING = "LANDING",
+  DAEMON_SETUP = "DAEMON_SETUP",
   SETUP = "SETUP",
   VPN = "VPN",
   SETTINGS = "SETTINGS",
@@ -41,6 +48,7 @@ function App() {
           }}
         />
         {page === Page.LANDING && <LandingPage setPage={setPage} />}
+        {page === Page.DAEMON_SETUP && <DaemonSetupPage setPage={setPage} />}
         {page === Page.SETUP && <SetupPage setPage={setPage} />}
         {page === Page.VPN && (
           <VpnPage onNavigateToSettings={() => setPage(Page.SETTINGS)} />

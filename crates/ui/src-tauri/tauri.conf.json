@@ -1,18 +1,18 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "ui",
+  "productName": "ByocVPN",
   "version": "0.1.0",
   "identifier": "com.byocvpn.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "npm run build && CARGO_TARGET_DIR=../../target cargo build --release -p byocvpn_daemon --manifest-path ../../Cargo.toml",
     "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
-        "title": "ui",
+        "title": "ByocVPN",
         "width": 800,
         "height": 600
       }
@@ -30,6 +30,10 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "resources": {
+      "../../../target/release/byocvpn_daemon": "byocvpn-daemon",
+      "../../../scripts/com.byocvpn.daemon.plist": "com.byocvpn.daemon.plist"
+    }
   }
 }

@@ -11,6 +11,11 @@ use crate::{
 pub async fn run_daemon() -> Result<()> {
     let socket_path = constants::socket_path();
 
+    // Ensure the socket directory exists before binding
+    if let Some(socket_dir) = socket_path.parent() {
+        tokio::fs::create_dir_all(socket_dir).await?;
+    }
+
     let listener = IpcSocket::bind(socket_path.clone()).await?;
 
     println!("Daemon listening on {}", socket_path.to_string_lossy());

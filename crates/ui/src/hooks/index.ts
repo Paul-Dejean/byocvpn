@@ -7,3 +7,4 @@ export {
 } from "./useVpnConnection";
 export { useProfile } from "./useProfile";
 export { useCredentials } from "./useCredentials";
+export { useDaemonInstaller } from "./useDaemonInstaller";
