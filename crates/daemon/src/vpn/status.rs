@@ -16,11 +16,13 @@ pub async fn get_vpn_status() -> Result<VpnStatus> {
         Ok(VpnStatus {
             connected: is_running,
             instance: handle.instance.clone(),
+            metrics: Some(handle.metrics.read().await.clone()),
         })
     } else {
         Ok(VpnStatus {
             connected: false,
             instance: None,
+            metrics: None,
         })
     }
 }

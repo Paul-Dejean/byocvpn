@@ -1,4 +1,4 @@
-use std::{str::FromStr, sync::Mutex as StdMutex};
+use std::str::FromStr;
 
 use byocvpn_aws::{AwsProvider, AwsProviderConfig};
 use byocvpn_core::{
@@ -6,14 +6,12 @@ use byocvpn_core::{
     commands, credentials,
     daemon_client::{DaemonClient, DaemonCommand},
     error::{ConfigurationError, Result},
-    tunnel::{TunnelMetricsWithRates, VpnStatus},
+    metrics_stream,
+    tunnel::VpnStatus,
 };
 use byocvpn_daemon::daemon_client::UnixDaemonClient;
 use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter};
-
-// Global state to track if broadcaster is running
-static METRICS_BROADCASTER: StdMutex<Option<()>> = StdMutex::new(None);
 
 async fn create_cloud_provider(cloud_provider_name: &str) -> Result<Box<dyn CloudProvider>> {
     // Get stored credentials
@@ -122,6 +120,26 @@ pub async fn get_regions() -> Result<Vec<Value>> {
         .collect())
 }
 
+async fn fetch_vpn_status() -> Result<VpnStatus> {
+    let daemon_client = UnixDaemonClient;
+
+    if !daemon_client.is_daemon_running().await {
+        return Ok(VpnStatus {
+            connected: false,
+            instance: None,
+            metrics: None,
+        });
+    }
+
+    let response = daemon_client.send_command(DaemonCommand::Status).await?;
+
+    let status: VpnStatus = serde_json::from_str(&response).map_err(|e| {
+        ConfigurationError::InvalidCloudProvider(format!("Failed to parse status: {}", e))
+    })?;
+
+    Ok(status)
+}
+
 #[tauri::command]
 pub async fn connect(instance_id: String, region: String, app_handle: AppHandle) -> Result<String> {
     let cloud_provider = create_cloud_provider("aws").await?;
@@ -135,176 +153,86 @@ pub async fn connect(instance_id: String, region: String, app_handle: AppHandle)
     )
     .await?;
 
-    // Subscribe to metrics broadcast and emit as Tauri events
-    // Small delay to ensure daemon is ready
-    println!("Starting metrics stream...");
-    match start_metrics_stream_internal(app_handle).await {
-        Ok(_) => println!("Started metrics stream"),
-        Err(e) => println!("Failed to start metrics stream: {}", e),
+    let vpn_status = fetch_vpn_status().await?;
+
+    if let Some(ref connected_instance) = vpn_status.instance {
+        println!("Starting metrics stream...");
+        let emit_handle = app_handle.clone();
+        match metrics_stream::start(
+            byocvpn_daemon::constants::metrics_socket_path(),
+            connected_instance.clone(),
+            move |status| {
+                let _ = emit_handle.emit("vpn-status", &status);
+            },
+        )
+        .await
+        {
+            Ok(_) => println!("Started metrics stream"),
+            Err(error) => eprintln!("Failed to start metrics stream: {}", error),
+        }
     }
+
+    let _ = app_handle.emit(
+        "vpn-status",
+        &VpnStatus {
+            connected: vpn_status.connected,
+            instance: vpn_status.instance,
+            metrics: None,
+        },
+    );
 
     Ok(format!(
         "Connected to instance {} successfully.",
-        instance_id.clone()
+        instance_id
     ))
 }
 
 #[tauri::command]
-pub async fn disconnect() -> Result<String> {
-    // Stop metrics streaming
-    stop_metrics_stream().await?;
+pub async fn disconnect(app_handle: AppHandle) -> Result<String> {
+    metrics_stream::stop().await?;
 
     let daemon_client = UnixDaemonClient;
     commands::disconnect::disconnect(&daemon_client).await?;
+
+    let _ = app_handle.emit(
+        "vpn-status",
+        &VpnStatus {
+            connected: false,
+            instance: None,
+            metrics: None,
+        },
+    );
+
     Ok("Disconnected successfully.".to_string())
 }
 
 #[tauri::command]
 pub async fn get_vpn_status() -> Result<VpnStatus> {
-    let daemon_client = UnixDaemonClient;
-
-    // Check if daemon is running first
-    if !daemon_client.is_daemon_running().await {
-        return Ok(VpnStatus {
-            connected: false,
-            instance: None,
-        });
-    }
-
-    // Get status from daemon
-    let response = daemon_client.send_command(DaemonCommand::Status).await?;
-
-    let status: VpnStatus = serde_json::from_str(&response).map_err(|e| {
-        ConfigurationError::InvalidCloudProvider(format!("Failed to parse status: {}", e))
-    })?;
-
-    Ok(status)
+    let status = fetch_vpn_status().await?;
+    Ok(VpnStatus {
+        connected: status.connected,
+        instance: status.instance,
+        metrics: None,
+    })
 }
 
 #[tauri::command]
 pub async fn start_metrics_stream(app_handle: AppHandle) -> Result<()> {
-    println!("Starting metrics stream from command...");
-    start_metrics_stream_internal(app_handle).await
-}
-
-async fn start_metrics_stream_internal(app_handle: AppHandle) -> Result<()> {
-    println!("Starting metrics stream...");
-    let mut broadcaster = match METRICS_BROADCASTER.lock() {
-        Ok(guard) => guard,
-        Err(e) => {
-            eprintln!("Failed to acquire metrics broadcaster lock : {e}");
-            return Err(ConfigurationError::InvalidCloudProvider(
-                "Failed to acquire metrics broadcaster lock".to_string(),
+    let status = fetch_vpn_status().await?;
+    match status.instance {
+        Some(instance) => {
+            metrics_stream::start(
+                byocvpn_daemon::constants::metrics_socket_path(),
+                instance,
+                move |vpn_status| {
+                    let _ = app_handle.emit("vpn-status", &vpn_status);
+                },
             )
-            .into());
+            .await
         }
-    };
-
-    // Don't start if already running
-    if broadcaster.is_some() {
-        return Ok(());
+        None => Err(ConfigurationError::InvalidCloudProvider(
+            "Cannot start metrics stream: not connected to VPN".to_string(),
+        )
+        .into()),
     }
-
-    // Mark as running
-    *broadcaster = Some(());
-    drop(broadcaster); // Release lock before spawning
-
-    // Get metrics socket path
-    let metrics_socket_path = byocvpn_daemon::constants::metrics_socket_path();
-
-    // Spawn task to read from IPC socket and forward to Tauri events
-    tauri::async_runtime::spawn(async move {
-        use std::{thread::sleep, time::Duration};
-
-        use byocvpn_core::ipc::IpcStream;
-
-        // Retry connection a few times in case daemon is still setting up
-        let mut stream = None;
-        for attempt in 1..=5 {
-            match IpcStream::connect(&metrics_socket_path).await {
-                Ok(s) => {
-                    println!("Connected to metrics socket on attempt {}", attempt);
-                    stream = Some(s);
-                    break;
-                }
-                Err(e) => {
-                    eprintln!(
-                        "Failed to connect to metrics socket (attempt {}): {}",
-                        attempt, e
-                    );
-                    sleep(Duration::from_millis(500));
-                }
-            }
-        }
-
-        let stream = match stream {
-            Some(s) => s,
-            None => {
-                eprintln!("Failed to connect to metrics socket after retries");
-                if let Ok(mut broadcaster) = METRICS_BROADCASTER.lock() {
-                    *broadcaster = None;
-                }
-                return;
-            }
-        };
-
-        let mut stream = stream;
-
-        loop {
-            // Check if we should stop
-            {
-                let broadcaster = match METRICS_BROADCASTER.lock() {
-                    Ok(guard) => guard,
-                    Err(error) => {
-                        eprintln!("Failed to acquire lock: {error}");
-                        break;
-                    }
-                };
-                if broadcaster.is_none() {
-                    break;
-                }
-            }
-
-            // Read metrics from IPC socket
-            match stream.read_message().await {
-                Ok(Some(line)) => {
-                    // Parse JSON metrics
-                    if let Ok(metrics) = serde_json::from_str::<TunnelMetricsWithRates>(&line) {
-                        // Emit as Tauri event
-                        let _ = app_handle.emit("vpn-metrics", &metrics);
-                    } else {
-                        eprintln!("Failed to parse metrics: {}", line);
-                    }
-                }
-                Ok(None) => {
-                    // Stream ended
-                    println!("Metrics stream ended");
-                    break;
-                }
-                Err(e) => {
-                    eprintln!("Error reading from metrics socket: {}", e);
-                    break;
-                }
-            }
-        }
-
-        println!("Metrics forwarder stopped");
-
-        // Clear the broadcaster flag
-        if let Ok(mut broadcaster) = METRICS_BROADCASTER.lock() {
-            *broadcaster = None;
-        }
-    });
-
-    Ok(())
-}
-
-async fn stop_metrics_stream() -> Result<()> {
-    let mut broadcaster = METRICS_BROADCASTER.lock().map_err(|error| {
-        eprintln!("Failed to acquire metrics broadcaster lock: {error}");
-        ConfigurationError::InvalidCloudProvider("Failed to stop metrics stream".to_string())
-    })?;
-
-    *broadcaster = None;
-    Ok(())
 }

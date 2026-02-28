@@ -12,16 +12,8 @@ use tun_rs::AsyncDevice;
 use crate::error::Result;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct TunnelMetrics {
-    pub bytes_sent: u64,
-    pub bytes_received: u64,
-    pub packets_sent: u64,
-    pub packets_received: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TunnelMetricsWithRates {
+pub struct TunnelMetrics {
     pub bytes_sent: u64,
     pub bytes_received: u64,
     pub packets_sent: u64,
@@ -32,17 +24,18 @@ pub struct TunnelMetricsWithRates {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct VpnStatus {
-    pub connected: bool,
-    pub instance: Option<ConnectedInstance>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ConnectedInstance {
     pub instance_id: String,
     pub public_ip_v4: Option<String>,
     pub public_ip_v6: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VpnStatus {
+    pub connected: bool,
+    pub instance: Option<ConnectedInstance>,
+    pub metrics: Option<TunnelMetrics>,
 }
 
 pub struct Tunnel {

@@ -1,6 +1,5 @@
 import { MetricsDetails } from "../common/MetricsDisplay";
 import { SettingsButton } from "../settings/SettingsButton";
-import { useVpnMetrics } from "../../hooks";
 import { Instance } from "../../types";
 import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
 
@@ -21,9 +20,7 @@ export function ConnectedView({
   connectedInstance,
   onNavigateToSettings,
 }: ConnectedViewProps) {
-  // Use hooks specific to connected view
-  const { disconnectFromVpn } = useVpnConnectionContext();
-  const metrics = useVpnMetrics(true);
+  const { disconnectFromVpn, vpnStatus } = useVpnConnectionContext();
 
   const handleDisconnectClick = async () => {
     await disconnectFromVpn();
@@ -110,10 +107,10 @@ export function ConnectedView({
                   </span>
                 </div>
                 <div className="text-3xl font-bold text-green-400 font-mono">
-                  {formatBytes(metrics?.uploadRate ?? 0)}/s
+                  {formatBytes(vpnStatus.metrics?.uploadRate ?? 0)}/s
                 </div>
                 <div className="mt-2 text-xs text-gray-500">
-                  Total: {formatBytes(metrics?.bytesSent ?? 0)}
+                  Total: {formatBytes(vpnStatus.metrics?.bytesSent ?? 0)}
                 </div>
               </div>
 
@@ -122,7 +119,7 @@ export function ConnectedView({
                 <div
                   className="h-full bg-green-500 transition-all duration-500 ease-out"
                   style={{
-                    width: `${Math.min(((metrics?.uploadRate ?? 0) / (1024 * 1024)) * 100, 100)}%`,
+                    width: `${Math.min(((vpnStatus.metrics?.uploadRate ?? 0) / (1024 * 1024)) * 100, 100)}%`,
                   }}
                 ></div>
               </div>
@@ -156,10 +153,10 @@ export function ConnectedView({
                   </span>
                 </div>
                 <div className="text-3xl font-bold text-blue-400 font-mono">
-                  {formatBytes(metrics?.downloadRate ?? 0)}/s
+                  {formatBytes(vpnStatus.metrics?.downloadRate ?? 0)}/s
                 </div>
                 <div className="mt-2 text-xs text-gray-500">
-                  Total: {formatBytes(metrics?.bytesReceived ?? 0)}
+                  Total: {formatBytes(vpnStatus.metrics?.bytesReceived ?? 0)}
                 </div>
               </div>
 
@@ -168,7 +165,7 @@ export function ConnectedView({
                 <div
                   className="h-full bg-blue-500 transition-all duration-500 ease-out"
                   style={{
-                    width: `${Math.min(((metrics?.downloadRate ?? 0) / (1024 * 1024)) * 100, 100)}%`,
+                    width: `${Math.min(((vpnStatus.metrics?.downloadRate ?? 0) / (1024 * 1024)) * 100, 100)}%`,
                   }}
                 ></div>
               </div>
@@ -180,7 +177,7 @@ export function ConnectedView({
             <h2 className="text-lg font-semibold mb-4 text-blue-400">
               Packet Statistics
             </h2>
-            <MetricsDetails metrics={metrics} />
+            <MetricsDetails metrics={vpnStatus.metrics} />
           </div>
 
           {/* Disconnect Button - update onClick handler */}

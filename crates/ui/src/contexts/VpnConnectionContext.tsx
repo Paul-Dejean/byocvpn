@@ -14,7 +14,7 @@ interface VpnConnectionContextValue {
 }
 
 const VpnConnectionContext = createContext<VpnConnectionContextValue | null>(
-  null
+  null,
 );
 
 interface VpnConnectionProviderProps {
@@ -37,7 +37,7 @@ export function useVpnConnectionContext() {
   const context = useContext(VpnConnectionContext);
   if (!context) {
     throw new Error(
-      "useVpnConnectionContext must be used within VpnConnectionProvider"
+      "useVpnConnectionContext must be used within VpnConnectionProvider",
     );
   }
   return context;

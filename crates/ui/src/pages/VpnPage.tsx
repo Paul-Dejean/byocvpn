@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { RegionsProvider, InstancesProvider } from "../contexts";
 import { ConnectedView } from "../components/vpn/ConnectedView";
 import { ServerManagementView } from "../components/vpn/ServerManagementView";
-import { Instance } from "../types";
 import {
   useVpnConnectionContext,
   VpnConnectionProvider,
@@ -37,27 +36,14 @@ export function VpnPage({ onNavigateToSettings }: VpnPageProps) {
 function VpnPageContent({ onNavigateToSettings }: VpnPageProps) {
   const { vpnStatus, checkVpnStatus } = useVpnConnectionContext();
 
-  const [connectedInstance, setConnectedInstance] = useState<Instance | null>(
-    null
-  );
-
   useEffect(() => {
     checkVpnStatus();
   }, []);
 
-  useEffect(() => {
-    console.log("effect", vpnStatus);
-    if (vpnStatus.connected) {
-      setConnectedInstance(vpnStatus.instance);
-    } else {
-      setConnectedInstance(null);
-    }
-  }, [vpnStatus]);
-
-  if (vpnStatus.connected && connectedInstance) {
+  if (vpnStatus.connected && vpnStatus.instance) {
     return (
       <ConnectedView
-        connectedInstance={connectedInstance}
+        connectedInstance={vpnStatus.instance}
         onNavigateToSettings={onNavigateToSettings}
       />
     );

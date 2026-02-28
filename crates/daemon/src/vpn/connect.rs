@@ -7,7 +7,7 @@ use boringtun::{
 use byocvpn_core::{
     error::{ConfigurationError, Result, SystemError},
     ipc::{IpcSocket, IpcStream},
-    tunnel::{ConnectedInstance, Tunnel, TunnelMetrics, TunnelMetricsWithRates},
+    tunnel::{ConnectedInstance, Tunnel, TunnelMetrics},
 };
 use tokio::{net::UdpSocket, sync::watch};
 use tun_rs::DeviceBuilder;
@@ -218,7 +218,7 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
                             0
                         };
 
-                        let metrics_with_rates = TunnelMetricsWithRates {
+                        let metrics = TunnelMetrics {
                             bytes_sent: current_metrics.bytes_sent,
                             bytes_received: current_metrics.bytes_received,
                             packets_sent: current_metrics.packets_sent,
@@ -228,7 +228,7 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
                         };
 
                         // Write metrics as JSON to the stream
-                        if let Ok(json) = serde_json::to_string(&metrics_with_rates) {
+                        if let Ok(json) = serde_json::to_string(&metrics) {
                             if stream.write_all(json.as_bytes()).await.is_err()
                                 || stream.write_all(b"\n").await.is_err() {
                                 println!("[Metrics] Client disconnected");
