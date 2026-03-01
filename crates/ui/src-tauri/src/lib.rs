@@ -5,6 +5,7 @@ pub fn run() {
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
+            commands::get_credentials,
             commands::save_credentials,
             commands::verify_permissions,
             commands::spawn_instance,

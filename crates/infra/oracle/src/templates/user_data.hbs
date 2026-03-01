@@ -1,0 +1,42 @@
+#!/bin/bash
+# Mirror all output to the OCI serial console (visible under Instance → Console
+# History in the OCI web console) and to /var/log/byocvpn-setup.log.
+exec > >(tee /dev/console /var/log/byocvpn-setup.log) 2>&1
+set -xe
+
+apt-get update -y
+apt-get install -y wireguard iptables
+
+# Detect the default network interface (enp0s3 on OCI ARM, ens3 on older shapes).
+DEFAULT_IFACE=$(ip route show default | awk '/default/ {print $5; exit}')
+echo "[byocvpn] Default interface: $DEFAULT_IFACE"
+
+# Open WireGuard port in the OS-level iptables firewall before starting wg-quick.
+iptables  -I INPUT   -p udp --dport 51820 -j ACCEPT
+iptables  -I FORWARD -j ACCEPT
+iptables  -t nat -A POSTROUTING -o "$DEFAULT_IFACE" -j MASQUERADE
+ip6tables -I INPUT   -p udp --dport 51820 -j ACCEPT
+ip6tables -I FORWARD -j ACCEPT
+ip6tables -t nat -A POSTROUTING -o "$DEFAULT_IFACE" -j MASQUERADE
+
+# Write the WireGuard config with the detected interface name substituted.
+sed "s/__DEFAULT_IFACE__/$DEFAULT_IFACE/g" >/etc/wireguard/wg0.conf <<'EOF'
+{{{wg_config}}}
+EOF
+
+echo "[byocvpn] WireGuard config written:"
+cat /etc/wireguard/wg0.conf
+
+echo "net.ipv4.ip_forward=1">>/etc/sysctl.conf
+echo "net.ipv6.conf.all.forwarding=1">>/etc/sysctl.conf
+# Keep accepting Router Advertisements even with forwarding on, so the VM
+# retains its OCI SLAAC IPv6 address and default route.
+echo "net.ipv6.conf.all.accept_ra=2">>/etc/sysctl.conf
+sysctl -p
+
+systemctl start wg-quick@wg0
+systemctl enable wg-quick@wg0
+echo "[byocvpn] wg-quick status:"
+systemctl status wg-quick@wg0 --no-pager || true
+echo "[byocvpn] WireGuard interface:"
+wg show || true

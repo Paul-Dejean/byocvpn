@@ -126,6 +126,7 @@ pub(super) async fn spawn_instance(
         public_ip_v4,
         public_ip_v6,
         region: region.to_string(),
+        provider: "aws".to_string(),
     })
 }
 
@@ -189,6 +190,7 @@ pub(super) async fn list_instances_in_region(
                 public_ip_v4,
                 public_ip_v6,
                 region: region.to_string(),
+                provider: "aws".to_string(),
             })
         })
         .collect();

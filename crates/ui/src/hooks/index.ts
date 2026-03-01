@@ -7,4 +7,5 @@ export {
 } from "./useVpnConnection";
 export { useProfile } from "./useProfile";
 export { useCredentials } from "./useCredentials";
+export type { AwsCredentials, OracleCredentials } from "./useCredentials";
 export { useDaemonInstaller } from "./useDaemonInstaller";

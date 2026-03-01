@@ -56,7 +56,9 @@ export const useRegions = () => {
     setError(null);
     try {
       console.log("Loading regions...");
-      const fetchedRegions = (await invoke("get_regions")) as AwsRegion[];
+      const fetchedRegions = (await invoke("get_regions", {
+        provider: "aws",
+      })) as AwsRegion[];
       console.log({ fetchedRegions });
       setRegions(fetchedRegions);
     } catch (error) {

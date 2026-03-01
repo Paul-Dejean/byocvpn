@@ -5,9 +5,12 @@ import { ServerList } from "../servers/ServerList";
 import { RegionSelector } from "../regions/RegionSelector";
 import { ServerDetails } from "../servers/ServerDetails";
 import { EmptyState } from "../common/EmptyState";
+import { ProviderSelector } from "../providers/ProviderSelector";
 
 import { useInstancesContext, useRegionsContext } from "../../contexts";
 import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
+
+type CreationStep = "idle" | "selecting-provider" | "selecting-region";
 
 interface ServerManagementViewProps {
   onNavigateToSettings: () => void;
@@ -16,11 +19,11 @@ interface ServerManagementViewProps {
 export function ServerManagementView({
   onNavigateToSettings,
 }: ServerManagementViewProps) {
-  const [isInstanceCreationFormVisible, showInstanceCreationForm] =
-    useState(false);
+  const [creationStep, setCreationStep] = useState<CreationStep>("idle");
+  const [selectedProvider, setSelectedProvider] = useState<string>("aws");
 
   const [selectedInstance, setSelectedInstance] = useState<Instance | null>(
-    null
+    null,
   );
 
   // Use all hooks needed for server management
@@ -55,7 +58,8 @@ export function ServerManagementView({
     try {
       await terminateInstance(
         selectedInstance.id,
-        selectedInstance.region || ""
+        selectedInstance.region || "",
+        selectedInstance.provider || "aws",
       );
       // Instance is automatically removed from list by the hook
       setSelectedInstance(null);
@@ -64,11 +68,24 @@ export function ServerManagementView({
     }
   };
 
+  const handleSelectProvider = (provider: string) => {
+    setSelectedProvider(provider);
+    setCreationStep("selecting-region");
+  };
+
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white overflow-hidden">
-      {isInstanceCreationFormVisible ? (
+      {creationStep === "selecting-provider" ? (
+        <ProviderSelector
+          onSelectProvider={handleSelectProvider}
+          onClose={() => setCreationStep("idle")}
+        />
+      ) : creationStep === "selecting-region" ? (
         /* Full-screen Region Selector View */
-        <RegionSelector onClose={() => showInstanceCreationForm(false)} />
+        <RegionSelector
+          provider={selectedProvider}
+          onClose={() => setCreationStep("idle")}
+        />
       ) : (
         <>
           {/* Header */}
@@ -95,7 +112,7 @@ export function ServerManagementView({
               groupedRegions={groupedRegions}
               isLoading={isLoading}
               onSelectInstance={handleSelectInstance}
-              onAddNewServer={() => showInstanceCreationForm(true)}
+              onAddNewServer={() => setCreationStep("selecting-provider")}
             />
 
             {/* Right Panel: Dynamic Content */}

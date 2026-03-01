@@ -25,4 +25,5 @@ serde_json = { workspace = true }
 tauri-plugin-devtools = "2.0.0"
 byocvpn_core = { path = "../../core" }
 byocvpn_aws = { path = "../../infra/aws" }
+byocvpn_oracle = { path = "../../infra/oracle" }
 byocvpn_daemon = { path = "../../daemon" }

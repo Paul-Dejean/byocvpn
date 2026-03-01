@@ -40,6 +40,7 @@ pub enum CloudProviderName {
     Aws,
     Azure,
     Gcp,
+    Oracle,
 }
 
 impl FromStr for CloudProviderName {
@@ -50,6 +51,7 @@ impl FromStr for CloudProviderName {
             "aws" => Ok(CloudProviderName::Aws),
             "azure" => Ok(CloudProviderName::Azure),
             "gcp" => Ok(CloudProviderName::Gcp),
+            "oracle" | "oci" => Ok(CloudProviderName::Oracle),
             e => Err(ConfigurationError::InvalidCloudProvider(e.to_string()).into()),
         }
     }
@@ -61,6 +63,7 @@ impl Display for CloudProviderName {
             CloudProviderName::Aws => "AWS",
             CloudProviderName::Gcp => "GCP",
             CloudProviderName::Azure => "AZURE",
+            CloudProviderName::Oracle => "ORACLE",
         };
         write!(f, "{}", value)
     }
@@ -75,4 +78,5 @@ pub struct InstanceInfo {
     pub state: String,
     pub public_ip_v4: String,
     pub public_ip_v6: String,
+    pub provider: String,
 }

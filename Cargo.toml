@@ -5,6 +5,7 @@ members = [
     "crates/cli",
     "crates/ui/src-tauri",
     "crates/infra/aws",
+    "crates/infra/oracle",
 ]
 
 [workspace.dependencies]
@@ -19,6 +20,14 @@ thiserror = "2.0.17"
 rand = "0.8"
 handlebars = "6.3.2"
 futures = "0.3"
+reqwest = { version = "0.12", default-features = false, features = [
+    "json",
+    "rustls-tls",
+] }
+rsa = { version = "0.9", features = ["sha2", "pem"] }
+sha2 = "0.10"
+uuid = { version = "1", features = ["v4"] }
+hex = "0.4"
 
 
 [profile.dev]

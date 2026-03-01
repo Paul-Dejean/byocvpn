@@ -14,39 +14,113 @@ use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter};
 
 async fn create_cloud_provider(cloud_provider_name: &str) -> Result<Box<dyn CloudProvider>> {
-    // Get stored credentials
-    let credentials = credentials::get_credentials().await?;
-
-    // Create AWS provider config
     match cloud_provider_name {
         "aws" => {
+            let credentials = credentials::get_credentials().await?;
             let config = AwsProviderConfig {
                 access_key_id: Some(credentials.access_key.clone()),
                 secret_access_key: Some(credentials.secret_access_key.clone()),
             };
             let cloud_provider = AwsProvider::new(config).await;
-            Ok(Box::new(cloud_provider))
+            Ok(Box::new(cloud_provider) as Box<dyn CloudProvider>)
         }
-        _ => {
-            return Err(
-                ConfigurationError::InvalidCloudProvider(cloud_provider_name.to_string()).into(),
-            );
+        "oracle" => {
+            let oracle_credentials = credentials::get_oracle_credentials().await?;
+            let config = byocvpn_oracle::OracleProviderConfig {
+                tenancy_ocid: oracle_credentials.tenancy_ocid,
+                user_ocid: oracle_credentials.user_ocid,
+                fingerprint: oracle_credentials.fingerprint,
+                private_key_pem: oracle_credentials.private_key_pem,
+                region: oracle_credentials.region,
+            };
+            Ok(Box::new(byocvpn_oracle::OracleProvider::new(config)) as Box<dyn CloudProvider>)
         }
+        _ => Err(ConfigurationError::InvalidCloudProvider(cloud_provider_name.to_string()).into()),
     }
 }
 
 #[tauri::command]
-pub async fn save_credentials(
-    cloud_provider_name: String,
-    access_key_id: String,
-    secret_access_key: String,
-) -> Result<()> {
-    let cloud_provider = match CloudProviderName::from_str(&cloud_provider_name) {
-        Ok(provider) => provider,
-        Err(_) => return Err(ConfigurationError::InvalidCloudProvider(cloud_provider_name).into()),
-    };
-    credentials::save_credentials(&cloud_provider, &access_key_id, &secret_access_key).await?;
-    Ok(())
+pub async fn get_credentials(provider: String) -> Result<Value> {
+    match provider.as_str() {
+        "aws" => match credentials::get_credentials().await {
+            Ok(creds) => Ok(json!({
+                "accessKeyId": creds.access_key,
+                "secretAccessKey": creds.secret_access_key,
+            })),
+            Err(_) => Ok(json!(null)),
+        },
+        "oracle" => match credentials::get_oracle_credentials().await {
+            Ok(creds) => Ok(json!({
+                "tenancyOcid": creds.tenancy_ocid,
+                "userOcid": creds.user_ocid,
+                "fingerprint": creds.fingerprint,
+                "privateKeyPem": creds.private_key_pem,
+                "region": creds.region,
+            })),
+            Err(_) => Ok(json!(null)),
+        },
+        _ => Err(ConfigurationError::InvalidCloudProvider(provider).into()),
+    }
+}
+
+#[tauri::command]
+pub async fn save_credentials(provider: String, creds: Value) -> Result<()> {
+    match provider.as_str() {
+        "aws" => {
+            let access_key_id = creds["accessKeyId"]
+                .as_str()
+                .ok_or_else(|| {
+                    ConfigurationError::InvalidCloudProvider("missing accessKeyId".into())
+                })?
+                .to_string();
+            let secret_access_key = creds["secretAccessKey"]
+                .as_str()
+                .ok_or_else(|| {
+                    ConfigurationError::InvalidCloudProvider("missing secretAccessKey".into())
+                })?
+                .to_string();
+            let cloud_provider = CloudProviderName::from_str(&provider)
+                .map_err(|_| ConfigurationError::InvalidCloudProvider(provider.clone()))?;
+            credentials::save_credentials(&cloud_provider, &access_key_id, &secret_access_key).await
+        }
+        "oracle" => {
+            let tenancy_ocid = creds["tenancyOcid"]
+                .as_str()
+                .ok_or_else(|| {
+                    ConfigurationError::InvalidCloudProvider("missing tenancyOcid".into())
+                })?
+                .to_string();
+            let user_ocid = creds["userOcid"]
+                .as_str()
+                .ok_or_else(|| ConfigurationError::InvalidCloudProvider("missing userOcid".into()))?
+                .to_string();
+            let fingerprint = creds["fingerprint"]
+                .as_str()
+                .ok_or_else(|| {
+                    ConfigurationError::InvalidCloudProvider("missing fingerprint".into())
+                })?
+                .to_string();
+            let private_key_pem = creds["privateKeyPem"]
+                .as_str()
+                .ok_or_else(|| {
+                    ConfigurationError::InvalidCloudProvider("missing privateKeyPem".into())
+                })?
+                .to_string();
+            let region = creds["region"]
+                .as_str()
+                .ok_or_else(|| ConfigurationError::InvalidCloudProvider("missing region".into()))?
+                .to_string();
+            credentials::save_oracle_credentials(
+                &tenancy_ocid,
+                &user_ocid,
+                &fingerprint,
+                &private_key_pem,
+                &region,
+            )
+            .await
+        }
+        _ => Err(ConfigurationError::InvalidCloudProvider(provider).into()),
+    }
 }
 
 #[tauri::command]
@@ -57,11 +131,9 @@ pub async fn verify_permissions() -> Result<Value> {
 }
 
 #[tauri::command]
-pub async fn spawn_instance(region: String) -> Result<InstanceInfo> {
-    // Get stored credentials
-    let cloud_provider = create_cloud_provider("aws").await?;
+pub async fn spawn_instance(region: String, provider: String) -> Result<InstanceInfo> {
+    let cloud_provider = create_cloud_provider(&provider).await?;
 
-    // Generate keypair for this instance
     commands::setup::setup(&*cloud_provider).await?;
     commands::setup::enable_region(&*cloud_provider, &region).await?;
 
@@ -71,17 +143,35 @@ pub async fn spawn_instance(region: String) -> Result<InstanceInfo> {
 }
 
 #[tauri::command]
-pub async fn terminate_instance(instance_id: String, region: String) -> Result<String> {
-    let cloud_provider = create_cloud_provider("aws").await?;
+pub async fn terminate_instance(
+    instance_id: String,
+    region: String,
+    provider: String,
+) -> Result<String> {
+    let cloud_provider = create_cloud_provider(&provider).await?;
     commands::terminate::terminate_instance(&*cloud_provider, &region, &instance_id).await?;
     Ok(format!("Instance {} terminated successfully.", instance_id))
 }
 
 #[tauri::command]
 pub async fn list_instances(region: Option<String>) -> Result<Vec<InstanceInfo>> {
-    let cloud_provider = create_cloud_provider("aws").await?;
-    let instances = commands::list::list_instances(&*cloud_provider, region.as_deref()).await?;
-    Ok(instances)
+    let mut all_instances: Vec<InstanceInfo> = Vec::new();
+
+    for provider_name in &["aws", "oracle"] {
+        match create_cloud_provider(provider_name).await {
+            Ok(provider) => {
+                match commands::list::list_instances(&*provider, region.as_deref()).await {
+                    Ok(instances) => all_instances.extend(instances),
+                    Err(error) => {
+                        eprintln!("Failed to list {} instances: {}", provider_name, error)
+                    }
+                }
+            }
+            Err(_) => {} // Provider not configured; skip silently.
+        }
+    }
+
+    Ok(all_instances)
 }
 
 #[tauri::command]
@@ -104,8 +194,8 @@ pub async fn has_profile() -> Result<bool> {
 }
 
 #[tauri::command]
-pub async fn get_regions() -> Result<Vec<Value>> {
-    let cloud_provider = create_cloud_provider("aws").await?;
+pub async fn get_regions(provider: String) -> Result<Vec<Value>> {
+    let cloud_provider = create_cloud_provider(&provider).await?;
 
     let regions = commands::setup::get_regions(&*cloud_provider).await?;
 
@@ -140,8 +230,13 @@ async fn fetch_vpn_status() -> Result<VpnStatus> {
 }
 
 #[tauri::command]
-pub async fn connect(instance_id: String, region: String, app_handle: AppHandle) -> Result<String> {
-    let cloud_provider = create_cloud_provider("aws").await?;
+pub async fn connect(
+    instance_id: String,
+    region: String,
+    provider: String,
+    app_handle: AppHandle,
+) -> Result<String> {
+    let cloud_provider = create_cloud_provider(&provider).await?;
     let daemon_client = UnixDaemonClient;
 
     commands::connect::connect(

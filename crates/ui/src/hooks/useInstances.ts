@@ -36,7 +36,10 @@ export const useInstances = (regions: AwsRegion[]) => {
     }
   };
 
-  const spawnInstance = async (regionName: string): Promise<Instance> => {
+  const spawnInstance = async (
+    regionName: string,
+    provider: string,
+  ): Promise<Instance> => {
     const tempId = `spawning-${Date.now()}`;
 
     // Add placeholder instance in spawning state
@@ -47,6 +50,7 @@ export const useInstances = (regions: AwsRegion[]) => {
       publicIpV4: "",
       publicIpV6: "",
       region: regionName,
+      provider,
     };
 
     setInstances((prev) => [
@@ -59,13 +63,14 @@ export const useInstances = (regions: AwsRegion[]) => {
     try {
       const instance = await invoke<Instance>("spawn_instance", {
         region: regionName,
+        provider,
       });
 
       console.log("Server spawned:", instance);
 
       // Replace spawning instance with real instance
       setInstances((prev) =>
-        prev.map((inst) => (inst.id === tempId ? instance : inst))
+        prev.map((inst) => (inst.id === tempId ? instance : inst)),
       );
 
       toast.success("Server deployed successfully!");
@@ -87,7 +92,8 @@ export const useInstances = (regions: AwsRegion[]) => {
 
   const terminateInstance = async (
     instanceId: string,
-    region: string
+    region: string,
+    provider: string,
   ): Promise<void> => {
     setIsTerminating(true);
     setError(null);
@@ -96,6 +102,7 @@ export const useInstances = (regions: AwsRegion[]) => {
       await invoke("terminate_instance", {
         instanceId,
         region,
+        provider,
       });
 
       console.log("Instance terminated:", instanceId);

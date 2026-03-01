@@ -1,19 +1,69 @@
 import { useInstancesContext, useRegionsContext } from "../../contexts";
-import { AwsRegion } from "../../types";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
+
+interface SimpleRegion {
+  name: string;
+  country: string;
+}
+
+interface SimpleRegionGroup {
+  continent: string;
+  regions: SimpleRegion[];
+}
 
 interface RegionSelectorProps {
+  /** The cloud provider to fetch regions for (e.g. "aws" or "oracle") */
+  provider: string;
   onClose: () => void;
 }
 
-export function RegionSelector({ onClose }: RegionSelectorProps) {
-  const [selectedRegion, setSelectedRegion] = useState<AwsRegion | null>(null);
-  const { groupedRegions } = useRegionsContext();
+export function RegionSelector({ provider, onClose }: RegionSelectorProps) {
+  const [selectedRegion, setSelectedRegion] = useState<SimpleRegion | null>(
+    null,
+  );
+  const [groupedRegions, setGroupedRegions] = useState<SimpleRegionGroup[]>([]);
+  const [isLoadingRegions, setIsLoadingRegions] = useState(true);
+
+  // AWS regions from context are used only for flag lookups
+  const { groupedRegions: awsGroupedRegions } = useRegionsContext();
   const { spawnInstance, instances } = useInstancesContext();
+
+  useEffect(() => {
+    setIsLoadingRegions(true);
+    setSelectedRegion(null);
+    invoke<SimpleRegion[]>("get_regions", { provider })
+      .then((regions) => {
+        const groups: Record<string, SimpleRegion[]> = {};
+        regions.forEach((region) => {
+          if (!groups[region.country]) groups[region.country] = [];
+          groups[region.country].push(region);
+        });
+        setGroupedRegions(
+          Object.entries(groups)
+            .map(([continent, continentRegions]) => ({
+              continent,
+              regions: continentRegions.sort((a, b) =>
+                a.name.localeCompare(b.name),
+              ),
+            }))
+            .sort((a, b) => a.continent.localeCompare(b.continent)),
+        );
+      })
+      .catch(console.error)
+      .finally(() => setIsLoadingRegions(false));
+  }, [provider]);
+
+  const getRegionFlag = (regionName: string): string => {
+    const region = awsGroupedRegions
+      .flatMap((g) => g.regions)
+      .find((r) => r.name === regionName) as any;
+    return region?.flag ?? "🌍";
+  };
 
   const handleDeploy = () => {
     if (selectedRegion) {
-      spawnInstance(selectedRegion.name);
+      spawnInstance(selectedRegion.name, provider);
       onClose(); // Close immediately to show placeholder card
     }
   };
@@ -53,63 +103,71 @@ export function RegionSelector({ onClose }: RegionSelectorProps) {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
-        <div className="space-y-6">
-          {groupedRegions.map((group, idx) => (
-            <div key={idx}>
-              <h3 className="text-xs uppercase text-gray-400 font-semibold mb-3 px-2">
-                {group.continent}
-              </h3>
-              <div className="grid grid-cols-2 gap-3">
-                {group.regions.map((region) => (
-                  <button
-                    key={region.name}
-                    onClick={() => setSelectedRegion(region)}
-                    className={`p-4 bg-gray-800 border rounded-lg transition-all text-left ${
-                      selectedRegion?.name === region.name
-                        ? "border-blue-500 bg-blue-900/20"
-                        : "border-gray-700 hover:border-gray-600 hover:bg-gray-700"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="text-2xl">{(region as any).flag}</span>
-                      <div>
-                        <p className="font-medium text-sm">{region.name}</p>
-                        <p className="text-xs text-gray-400">
-                          {region.country}
-                        </p>
-                      </div>
-                    </div>
-                    {instances.filter(
-                      (instance) => instance.region === region.name
-                    ).length > 0 && (
-                      <div className="flex items-center gap-1 text-xs text-gray-400">
-                        <svg
-                          className="w-3 h-3"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm3.293 1.293a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L7.586 10 5.293 7.707a1 1 0 010-1.414zM11 12a1 1 0 100 2h3a1 1 0 100-2h-3z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                        <span>
-                          {
-                            instances.filter(
-                              (instance) => instance.region === region.name
-                            ).length
-                          }{" "}
-                          active
+        {isLoadingRegions ? (
+          <div className="flex justify-center items-center h-32">
+            <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {groupedRegions.map((group, idx) => (
+              <div key={idx}>
+                <h3 className="text-xs uppercase text-gray-400 font-semibold mb-3 px-2">
+                  {group.continent}
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {group.regions.map((region) => (
+                    <button
+                      key={region.name}
+                      onClick={() => setSelectedRegion(region)}
+                      className={`p-4 bg-gray-800 border rounded-lg transition-all text-left ${
+                        selectedRegion?.name === region.name
+                          ? "border-blue-500 bg-blue-900/20"
+                          : "border-gray-700 hover:border-gray-600 hover:bg-gray-700"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="text-2xl">
+                          {getRegionFlag(region.name)}
                         </span>
+                        <div>
+                          <p className="font-medium text-sm">{region.name}</p>
+                          <p className="text-xs text-gray-400">
+                            {region.country}
+                          </p>
+                        </div>
                       </div>
-                    )}
-                  </button>
-                ))}
+                      {instances.filter(
+                        (instance) => instance.region === region.name,
+                      ).length > 0 && (
+                        <div className="flex items-center gap-1 text-xs text-gray-400">
+                          <svg
+                            className="w-3 h-3"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm3.293 1.293a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L7.586 10 5.293 7.707a1 1 0 010-1.414zM11 12a1 1 0 100 2h3a1 1 0 100-2h-3z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          <span>
+                            {
+                              instances.filter(
+                                (instance) => instance.region === region.name,
+                              ).length
+                            }{" "}
+                            active
+                          </span>
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* Deploy Button - Fixed at bottom */}
         {selectedRegion && (

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useCredentials } from "../hooks/useCredentials";
+import { OracleProfileCard } from "../components/settings/OracleProfileCard";
 
 interface SettingsPageProps {
   onNavigateBack?: () => void;
@@ -10,9 +11,15 @@ export function SettingsPage({ onNavigateBack }: SettingsPageProps) {
   const [accessKey, setAccessKey] = useState("");
   const [secretKey, setSecretKey] = useState("");
 
-  const { isSaving, error, successMessage, saveCredentials } = useCredentials();
+  const { isSaving, error, successMessage, saveCredentials, loadCredentials } =
+    useCredentials();
 
-  const handleEditProfile = () => {
+  const handleEditProfile = async () => {
+    const existing = await loadCredentials("aws");
+    if (existing) {
+      setAccessKey((existing as { accessKeyId: string }).accessKeyId);
+      // secret key is never pre-filled — user must re-enter to change it
+    }
     setIsEditing(true);
   };
 
@@ -23,14 +30,16 @@ export function SettingsPage({ onNavigateBack }: SettingsPageProps) {
   };
 
   const handleSaveProfile = async () => {
-    if (!accessKey.trim() || !secretKey.trim()) {
+    if (!accessKey.trim()) {
       return;
     }
 
-    const success = await saveCredentials("aws", accessKey, secretKey);
+    const success = await saveCredentials("aws", {
+      accessKeyId: accessKey.trim(),
+      secretAccessKey: secretKey.trim(),
+    });
 
     if (success) {
-      // Clear form and exit edit mode
       setAccessKey("");
       setSecretKey("");
       setIsEditing(false);
@@ -156,28 +165,32 @@ export function SettingsPage({ onNavigateBack }: SettingsPageProps) {
 
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-gray-300 mb-1">
                         Access Key ID
                       </label>
+                      <p className="text-xs text-gray-500 mb-2">
+                        e.g. AKIAIOSFODNN7EXAMPLE
+                      </p>
                       <input
                         type="text"
                         value={accessKey}
                         onChange={(e) => setAccessKey(e.target.value)}
                         className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none"
-                        placeholder="AKIA..."
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-gray-300 mb-1">
                         Secret Access Key
                       </label>
+                      <p className="text-xs text-gray-500 mb-2">
+                        Leave blank to keep your existing key
+                      </p>
                       <input
                         type="password"
                         value={secretKey}
                         onChange={(e) => setSecretKey(e.target.value)}
                         className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none"
-                        placeholder="Enter your secret key..."
                       />
                     </div>
 
@@ -206,11 +219,9 @@ export function SettingsPage({ onNavigateBack }: SettingsPageProps) {
                       </button>
                       <button
                         onClick={handleSaveProfile}
-                        disabled={
-                          isSaving || !accessKey.trim() || !secretKey.trim()
-                        }
+                        disabled={isSaving || !accessKey.trim()}
                         className={`flex-1 px-4 py-2 rounded-lg transition font-medium ${
-                          isSaving || !accessKey.trim() || !secretKey.trim()
+                          isSaving || !accessKey.trim()
                             ? "bg-gray-600 text-gray-400 cursor-not-allowed"
                             : "bg-blue-600 hover:bg-blue-700 text-white"
                         }`}
@@ -229,6 +240,8 @@ export function SettingsPage({ onNavigateBack }: SettingsPageProps) {
                 </div>
               )}
             </div>
+
+            <OracleProfileCard />
           </div>
         </div>
       </div>

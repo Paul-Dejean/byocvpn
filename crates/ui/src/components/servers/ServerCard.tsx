@@ -1,5 +1,31 @@
 import { Instance, RegionGroup } from "../../types";
 
+interface ProviderBadgeProps {
+  provider: string;
+}
+
+function ProviderBadge({ provider }: ProviderBadgeProps) {
+  if (provider === "aws") {
+    return (
+      <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-orange-900/50 text-orange-300">
+        AWS
+      </span>
+    );
+  }
+  if (provider === "oracle") {
+    return (
+      <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-red-900/50 text-red-300">
+        OCI
+      </span>
+    );
+  }
+  return (
+    <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-gray-700 text-gray-400">
+      ?
+    </span>
+  );
+}
+
 interface ServerCardProps {
   instance: Instance;
   isSelected: boolean;
@@ -50,18 +76,21 @@ export function ServerCard({
             <p className="text-xs opacity-75">{instance.region}</p>
           </div>
         </div>
-        <span
-          className={`px-2 py-1 rounded text-xs font-medium ${
-            isSpawning
-              ? "bg-blue-900/50 text-blue-300 flex items-center gap-1"
-              : instance.state === "running"
-                ? "bg-green-900/50 text-green-300"
-                : "bg-gray-900/50 text-gray-400"
-          }`}
-        >
-          {isSpawning && <MiniSpinner />}
-          {instance.state}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <ProviderBadge provider={instance.provider} />
+          <span
+            className={`px-2 py-1 rounded text-xs font-medium ${
+              isSpawning
+                ? "bg-blue-900/50 text-blue-300 flex items-center gap-1"
+                : instance.state === "running"
+                  ? "bg-green-900/50 text-green-300"
+                  : "bg-gray-900/50 text-gray-400"
+            }`}
+          >
+            {isSpawning && <MiniSpinner />}
+            {instance.state}
+          </span>
+        </div>
       </div>
       <p className="text-xs font-mono opacity-75 truncate">
         {isSpawning ? "Creating server instance..." : instance.publicIpV4}

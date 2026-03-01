@@ -46,7 +46,9 @@ export function ServerDetails({
             <div className="space-y-3">
               <div>
                 <p className="text-xs text-gray-400 mb-1">Instance ID</p>
-                <p className="text-sm font-mono text-white">{instance.id}</p>
+                <p className="text-sm font-mono text-white break-all">
+                  {instance.id}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-gray-400 mb-1">IPv4 Address</p>

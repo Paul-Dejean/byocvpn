@@ -72,6 +72,7 @@ export const useVpnConnection = () => {
       const response = await invoke("connect", {
         instanceId: selectedInstance.id,
         region: selectedInstance.region,
+        provider: selectedInstance.provider,
       });
 
       console.log("VPN connected:", response);
