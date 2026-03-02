@@ -10,6 +10,7 @@ use byocvpn_core::{
     tunnel::VpnStatus,
 };
 use byocvpn_daemon::daemon_client::UnixDaemonClient;
+use byocvpn_gcp::{GcpProvider, GcpProviderConfig};
 use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter};
 
@@ -35,6 +36,13 @@ async fn create_cloud_provider(cloud_provider_name: &str) -> Result<Box<dyn Clou
             };
             Ok(Box::new(byocvpn_oracle::OracleProvider::new(config)) as Box<dyn CloudProvider>)
         }
+        "gcp" => {
+            let gcp_credentials = credentials::get_gcp_credentials().await?;
+            let config = GcpProviderConfig {
+                service_account_json: gcp_credentials.service_account_json,
+            };
+            Ok(Box::new(GcpProvider::new(config)?) as Box<dyn CloudProvider>)
+        }
         _ => Err(ConfigurationError::InvalidCloudProvider(cloud_provider_name.to_string()).into()),
     }
 }
@@ -56,6 +64,13 @@ pub async fn get_credentials(provider: String) -> Result<Value> {
                 "fingerprint": creds.fingerprint,
                 "privateKeyPem": creds.private_key_pem,
                 "region": creds.region,
+            })),
+            Err(_) => Ok(json!(null)),
+        },
+        "gcp" => match credentials::get_gcp_credentials().await {
+            Ok(creds) => Ok(json!({
+                "projectId": creds.project_id,
+                "serviceAccountJson": creds.service_account_json,
             })),
             Err(_) => Ok(json!(null)),
         },
@@ -119,6 +134,21 @@ pub async fn save_credentials(provider: String, creds: Value) -> Result<()> {
             )
             .await
         }
+        "gcp" => {
+            let project_id = creds["projectId"]
+                .as_str()
+                .ok_or_else(|| {
+                    ConfigurationError::InvalidCloudProvider("missing projectId".into())
+                })?
+                .to_string();
+            let service_account_json = creds["serviceAccountJson"]
+                .as_str()
+                .ok_or_else(|| {
+                    ConfigurationError::InvalidCloudProvider("missing serviceAccountJson".into())
+                })?
+                .to_string();
+            credentials::save_gcp_credentials(&project_id, &service_account_json).await
+        }
         _ => Err(ConfigurationError::InvalidCloudProvider(provider).into()),
     }
 }
@@ -157,7 +187,7 @@ pub async fn terminate_instance(
 pub async fn list_instances(region: Option<String>) -> Result<Vec<InstanceInfo>> {
     let mut all_instances: Vec<InstanceInfo> = Vec::new();
 
-    for provider_name in &["aws", "oracle"] {
+    for provider_name in &["aws", "oracle", "gcp"] {
         match create_cloud_provider(provider_name).await {
             Ok(provider) => {
                 match commands::list::list_instances(&*provider, region.as_deref()).await {

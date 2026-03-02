@@ -38,6 +38,17 @@ const providers: ProviderOption[] = [
       </div>
     ),
   },
+  {
+    id: "gcp",
+    label: "Google Cloud Platform",
+    description:
+      "Deploy on GCP Compute Engine — available in 40+ regions worldwide",
+    badge: (
+      <div className="w-14 h-14 rounded-xl bg-blue-600/20 flex items-center justify-center">
+        <span className="text-blue-400 font-black text-xl">GCP</span>
+      </div>
+    ),
+  },
 ];
 
 export function ProviderSelector({

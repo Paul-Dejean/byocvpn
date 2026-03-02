@@ -69,5 +69,8 @@ fn get_wireguard_config_file_name(
     region: &str,
     instance_id: &str,
 ) -> String {
-    format!("{provider_name}-{region}-{instance_id}.conf")
+    // GCP instance IDs contain a slash (zone/name) — replace with underscore
+    // so it stays as a flat filename rather than creating a subdirectory.
+    let safe_id = instance_id.replace('/', "_");
+    format!("{provider_name}-{region}-{safe_id}.conf")
 }

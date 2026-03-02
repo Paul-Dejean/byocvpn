@@ -174,6 +174,90 @@ pub async fn save_oracle_credentials(
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// GCP
+// ---------------------------------------------------------------------------
+
+#[derive(Debug)]
+pub struct GcpCredentials {
+    pub project_id: String,
+    /// Full service-account JSON key (stored base64-encoded in the INI file).
+    pub service_account_json: String,
+}
+
+pub async fn save_gcp_credentials(project_id: &str, service_account_json: &str) -> Result<()> {
+    let credentials_path = get_credentials_path().await?;
+    let mut config = if credentials_path.exists() {
+        Ini::load_from_file(&credentials_path).map_err(|error| match error {
+            ini::Error::Io(io_error) => Error::InputOutput(io_error),
+            ini::Error::Parse(parse_error) => CredentialsError::InvalidFormat {
+                reason: parse_error.to_string(),
+            }
+            .into(),
+        })?
+    } else {
+        Ini::new()
+    };
+
+    use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+    let json_b64 = BASE64.encode(service_account_json.as_bytes());
+
+    config
+        .with_section(Some("GCP"))
+        .set("project_id", project_id)
+        .set("service_account_json_b64", &json_b64);
+
+    config.write_to_file(credentials_path)?;
+    Ok(())
+}
+
+pub async fn get_gcp_credentials() -> Result<GcpCredentials> {
+    let credentials_path = get_credentials_path().await?;
+    let config = Ini::load_from_file(credentials_path).map_err(|error| match error {
+        ini::Error::Io(io_error) => Error::InputOutput(io_error),
+        ini::Error::Parse(parse_error) => CredentialsError::InvalidFormat {
+            reason: parse_error.to_string(),
+        }
+        .into(),
+    })?;
+
+    let section = config
+        .section(Some("GCP"))
+        .ok_or(CredentialsError::InvalidFormat {
+            reason: "missing [GCP] section in credentials file".to_string(),
+        })?;
+
+    let project_id = section
+        .get("project_id")
+        .ok_or(CredentialsError::InvalidFormat {
+            reason: "missing project_id".to_string(),
+        })?
+        .to_string();
+
+    let json_b64 =
+        section
+            .get("service_account_json_b64")
+            .ok_or(CredentialsError::InvalidFormat {
+                reason: "missing service_account_json_b64".to_string(),
+            })?;
+
+    use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+    let json_bytes = BASE64
+        .decode(json_b64)
+        .map_err(|error| CredentialsError::InvalidFormat {
+            reason: format!("Invalid base64 in service_account_json_b64: {}", error),
+        })?;
+    let service_account_json =
+        String::from_utf8(json_bytes).map_err(|error| CredentialsError::InvalidFormat {
+            reason: format!("service_account_json is not valid UTF-8: {}", error),
+        })?;
+
+    Ok(GcpCredentials {
+        project_id,
+        service_account_json,
+    })
+}
+
 pub async fn get_oracle_credentials() -> Result<OracleCredentials> {
     let credentials_path = get_credentials_path().await?;
     let config = Ini::load_from_file(credentials_path).map_err(|error| match error {

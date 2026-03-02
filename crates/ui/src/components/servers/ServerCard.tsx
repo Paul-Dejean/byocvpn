@@ -19,6 +19,13 @@ function ProviderBadge({ provider }: ProviderBadgeProps) {
       </span>
     );
   }
+  if (provider === "gcp") {
+    return (
+      <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-blue-900/50 text-blue-300">
+        GCP
+      </span>
+    );
+  }
   return (
     <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-gray-700 text-gray-400">
       ?

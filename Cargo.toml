@@ -6,6 +6,7 @@ members = [
     "crates/ui/src-tauri",
     "crates/infra/aws",
     "crates/infra/oracle",
+    "crates/infra/gcp",
 ]
 
 [workspace.dependencies]

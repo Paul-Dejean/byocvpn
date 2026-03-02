@@ -1,0 +1,20 @@
+[package]
+name = "byocvpn_gcp"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+byocvpn_core = { path = "../../core" }
+async-trait = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+handlebars = { workspace = true }
+thiserror = { workspace = true }
+futures = { workspace = true }
+reqwest = { workspace = true }
+uuid = { workspace = true }
+# Official Google Cloud auth library — handles JWT/RSA/OAuth2 for service accounts
+google-cloud-auth = "1.6"
+# HTTP types used by google-cloud-auth's CredentialsProvider trait
+http = "1"
