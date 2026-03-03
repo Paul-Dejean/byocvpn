@@ -313,3 +313,94 @@ pub async fn get_oracle_credentials() -> Result<OracleCredentials> {
         region,
     })
 }
+
+// ---------------------------------------------------------------------------
+// Azure
+// ---------------------------------------------------------------------------
+
+#[derive(Debug)]
+pub struct AzureCredentials {
+    pub subscription_id: String,
+    pub tenant_id: String,
+    pub client_id: String,
+    pub client_secret: String,
+}
+
+pub async fn save_azure_credentials(
+    subscription_id: &str,
+    tenant_id: &str,
+    client_id: &str,
+    client_secret: &str,
+) -> Result<()> {
+    let credentials_path = get_credentials_path().await?;
+    let mut config = if credentials_path.exists() {
+        Ini::load_from_file(&credentials_path).map_err(|error| match error {
+            ini::Error::Io(io_error) => Error::InputOutput(io_error),
+            ini::Error::Parse(parse_error) => CredentialsError::InvalidFormat {
+                reason: parse_error.to_string(),
+            }
+            .into(),
+        })?
+    } else {
+        Ini::new()
+    };
+
+    config
+        .with_section(Some("AZURE"))
+        .set("subscription_id", subscription_id)
+        .set("tenant_id", tenant_id)
+        .set("client_id", client_id)
+        .set("client_secret", client_secret);
+
+    config.write_to_file(credentials_path)?;
+    Ok(())
+}
+
+pub async fn get_azure_credentials() -> Result<AzureCredentials> {
+    let credentials_path = get_credentials_path().await?;
+    let config = Ini::load_from_file(credentials_path).map_err(|error| match error {
+        ini::Error::Io(io_error) => Error::InputOutput(io_error),
+        ini::Error::Parse(parse_error) => CredentialsError::InvalidFormat {
+            reason: parse_error.to_string(),
+        }
+        .into(),
+    })?;
+
+    let section = config
+        .section(Some("AZURE"))
+        .ok_or(CredentialsError::InvalidFormat {
+            reason: "missing [AZURE] section in credentials file".to_string(),
+        })?;
+
+    let subscription_id = section
+        .get("subscription_id")
+        .ok_or(CredentialsError::InvalidFormat {
+            reason: "missing subscription_id".to_string(),
+        })?
+        .to_string();
+    let tenant_id = section
+        .get("tenant_id")
+        .ok_or(CredentialsError::InvalidFormat {
+            reason: "missing tenant_id".to_string(),
+        })?
+        .to_string();
+    let client_id = section
+        .get("client_id")
+        .ok_or(CredentialsError::InvalidFormat {
+            reason: "missing client_id".to_string(),
+        })?
+        .to_string();
+    let client_secret = section
+        .get("client_secret")
+        .ok_or(CredentialsError::InvalidFormat {
+            reason: "missing client_secret".to_string(),
+        })?
+        .to_string();
+
+    Ok(AzureCredentials {
+        subscription_id,
+        tenant_id,
+        client_id,
+        client_secret,
+    })
+}

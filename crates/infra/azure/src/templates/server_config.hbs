@@ -1,0 +1,13 @@
+[Interface]
+PrivateKey={{{server_private_key}}}
+Address=10.66.66.1/24,fd86:ea04:1111::1/64
+ListenPort=51820
+
+PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o __DEFAULT_IFACE__ -j MASQUERADE
+PostUp = ip6tables -A FORWARD -i wg0 -j ACCEPT; ip6tables -t nat -A POSTROUTING -o __DEFAULT_IFACE__ -j MASQUERADE
+PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o __DEFAULT_IFACE__ -j MASQUERADE
+PostDown = ip6tables -D FORWARD -i wg0 -j ACCEPT; ip6tables -t nat -D POSTROUTING -o __DEFAULT_IFACE__ -j MASQUERADE
+
+[Peer]
+PublicKey={{{client_public_key}}}
+AllowedIPs=10.66.66.2/32,fd86:ea04:1111::2/128

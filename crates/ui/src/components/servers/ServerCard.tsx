@@ -26,6 +26,13 @@ function ProviderBadge({ provider }: ProviderBadgeProps) {
       </span>
     );
   }
+  if (provider === "azure") {
+    return (
+      <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-sky-900/50 text-sky-300">
+        AZ
+      </span>
+    );
+  }
   return (
     <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-gray-700 text-gray-400">
       ?

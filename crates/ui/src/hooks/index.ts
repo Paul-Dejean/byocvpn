@@ -11,5 +11,6 @@ export type {
   AwsCredentials,
   OracleCredentials,
   GcpCredentials,
+  AzureCredentials,
 } from "./useCredentials";
 export { useDaemonInstaller } from "./useDaemonInstaller";

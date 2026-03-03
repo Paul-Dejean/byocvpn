@@ -20,14 +20,27 @@ export interface GcpCredentials {
   serviceAccountJson: string;
 }
 
+export interface AzureCredentials {
+  subscriptionId: string;
+  tenantId: string;
+  clientId: string;
+  clientSecret: string;
+}
+
 export const useCredentials = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const loadCredentials = async (
-    provider: "aws" | "oracle" | "gcp",
-  ): Promise<AwsCredentials | OracleCredentials | GcpCredentials | null> => {
+    provider: "aws" | "oracle" | "gcp" | "azure",
+  ): Promise<
+    | AwsCredentials
+    | OracleCredentials
+    | GcpCredentials
+    | AzureCredentials
+    | null
+  > => {
     try {
       return await invoke("get_credentials", { provider });
     } catch {
@@ -36,8 +49,12 @@ export const useCredentials = () => {
   };
 
   const saveCredentials = async (
-    provider: "aws" | "oracle" | "gcp",
-    creds: AwsCredentials | OracleCredentials | GcpCredentials,
+    provider: "aws" | "oracle" | "gcp" | "azure",
+    creds:
+      | AwsCredentials
+      | OracleCredentials
+      | GcpCredentials
+      | AzureCredentials,
   ): Promise<boolean> => {
     setIsSaving(true);
     setError(null);

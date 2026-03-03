@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use byocvpn_aws::{AwsProvider, AwsProviderConfig};
+use byocvpn_azure::{AzureProvider, AzureProviderConfig};
 use byocvpn_core::{
     cloud_provider::{CloudProvider, CloudProviderName, InstanceInfo},
     commands, credentials,
@@ -43,6 +44,17 @@ async fn create_cloud_provider(cloud_provider_name: &str) -> Result<Box<dyn Clou
             };
             Ok(Box::new(GcpProvider::new(config)?) as Box<dyn CloudProvider>)
         }
+        "azure" => {
+            let azure_credentials = credentials::get_azure_credentials().await?;
+            let config = AzureProviderConfig {
+                subscription_id: azure_credentials.subscription_id,
+                tenant_id: azure_credentials.tenant_id,
+                client_id: azure_credentials.client_id,
+                client_secret: azure_credentials.client_secret,
+            };
+            let provider = AzureProvider::new(config)?;
+            Ok(Box::new(provider) as Box<dyn CloudProvider>)
+        }
         _ => Err(ConfigurationError::InvalidCloudProvider(cloud_provider_name.to_string()).into()),
     }
 }
@@ -71,6 +83,15 @@ pub async fn get_credentials(provider: String) -> Result<Value> {
             Ok(creds) => Ok(json!({
                 "projectId": creds.project_id,
                 "serviceAccountJson": creds.service_account_json,
+            })),
+            Err(_) => Ok(json!(null)),
+        },
+        "azure" => match credentials::get_azure_credentials().await {
+            Ok(creds) => Ok(json!({
+                "subscriptionId": creds.subscription_id,
+                "tenantId": creds.tenant_id,
+                "clientId": creds.client_id,
+                "clientSecret": creds.client_secret,
             })),
             Err(_) => Ok(json!(null)),
         },
@@ -149,6 +170,35 @@ pub async fn save_credentials(provider: String, creds: Value) -> Result<()> {
                 .to_string();
             credentials::save_gcp_credentials(&project_id, &service_account_json).await
         }
+        "azure" => {
+            let subscription_id = creds["subscriptionId"]
+                .as_str()
+                .ok_or_else(|| {
+                    ConfigurationError::InvalidCloudProvider("missing subscriptionId".into())
+                })?
+                .to_string();
+            let tenant_id = creds["tenantId"]
+                .as_str()
+                .ok_or_else(|| ConfigurationError::InvalidCloudProvider("missing tenantId".into()))?
+                .to_string();
+            let client_id = creds["clientId"]
+                .as_str()
+                .ok_or_else(|| ConfigurationError::InvalidCloudProvider("missing clientId".into()))?
+                .to_string();
+            let client_secret = creds["clientSecret"]
+                .as_str()
+                .ok_or_else(|| {
+                    ConfigurationError::InvalidCloudProvider("missing clientSecret".into())
+                })?
+                .to_string();
+            credentials::save_azure_credentials(
+                &subscription_id,
+                &tenant_id,
+                &client_id,
+                &client_secret,
+            )
+            .await
+        }
         _ => Err(ConfigurationError::InvalidCloudProvider(provider).into()),
     }
 }
@@ -187,7 +237,7 @@ pub async fn terminate_instance(
 pub async fn list_instances(region: Option<String>) -> Result<Vec<InstanceInfo>> {
     let mut all_instances: Vec<InstanceInfo> = Vec::new();
 
-    for provider_name in &["aws", "oracle", "gcp"] {
+    for provider_name in &["aws", "oracle", "gcp", "azure"] {
         match create_cloud_provider(provider_name).await {
             Ok(provider) => {
                 match commands::list::list_instances(&*provider, region.as_deref()).await {

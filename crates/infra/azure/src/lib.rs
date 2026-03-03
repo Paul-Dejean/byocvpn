@@ -1,0 +1,8 @@
+pub mod auth;
+pub mod client;
+pub mod cloud_init;
+pub mod instance;
+pub mod network;
+pub mod provider;
+
+pub use provider::{AzureProvider, AzureProviderConfig};

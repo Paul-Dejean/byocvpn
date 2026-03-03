@@ -27,4 +27,5 @@ byocvpn_core = { path = "../../core" }
 byocvpn_aws = { path = "../../infra/aws" }
 byocvpn_oracle = { path = "../../infra/oracle" }
 byocvpn_gcp = { path = "../../infra/gcp" }
+byocvpn_azure = { path = "../../infra/azure" }
 byocvpn_daemon = { path = "../../daemon" }

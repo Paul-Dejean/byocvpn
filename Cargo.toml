@@ -7,6 +7,7 @@ members = [
     "crates/infra/aws",
     "crates/infra/oracle",
     "crates/infra/gcp",
+    "crates/infra/azure",
 ]
 
 [workspace.dependencies]

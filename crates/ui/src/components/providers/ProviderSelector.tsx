@@ -49,6 +49,16 @@ const providers: ProviderOption[] = [
       </div>
     ),
   },
+  {
+    id: "azure",
+    label: "Microsoft Azure",
+    description: "Deploy on Azure VMs — available in 60+ regions worldwide",
+    badge: (
+      <div className="w-14 h-14 rounded-xl bg-sky-600/20 flex items-center justify-center">
+        <span className="text-sky-400 font-black text-xl">AZ</span>
+      </div>
+    ),
+  },
 ];
 
 export function ProviderSelector({

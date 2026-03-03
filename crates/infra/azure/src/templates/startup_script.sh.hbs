@@ -1,0 +1,56 @@
+#!/bin/bash
+# Azure cloud-init user-data — runs as root on first boot via cloud-init.
+# Output is logged to /var/log/byocvpn-setup.log and the serial console.
+exec > >(tee /dev/console /var/log/byocvpn-setup.log) 2>&1
+set -xe
+
+apt-get update -y
+apt-get install -y wireguard iptables
+
+# Detect the default network interface (eth0 / ens3 / ens4 depending on image).
+DEFAULT_IFACE=$(ip route show default | awk '/default/ {print $5; exit}')
+echo "[byocvpn] Default interface: $DEFAULT_IFACE"
+
+# Set up packet forwarding before WireGuard starts.
+iptables  -I FORWARD -j ACCEPT
+iptables  -t nat -A POSTROUTING -o "$DEFAULT_IFACE" -j MASQUERADE
+ip6tables -I FORWARD -j ACCEPT
+ip6tables -t nat -A POSTROUTING -o "$DEFAULT_IFACE" -j MASQUERADE
+
+# Write the WireGuard config with the real interface name substituted.
+sed "s/__DEFAULT_IFACE__/$DEFAULT_IFACE/g" >/etc/wireguard/wg0.conf <<'EOF'
+{{{wg_config}}}
+EOF
+
+echo "[byocvpn] WireGuard config written:"
+cat /etc/wireguard/wg0.conf
+
+# Save the IPv6 default route before enabling forwarding (enabling forwarding
+# may cause the kernel to ignore RAs, which drops the default route).
+IPV6_GW=$(ip -6 route show default 2>/dev/null | awk '/default/ {print $3; exit}')
+IPV6_GW_DEV=$(ip -6 route show default 2>/dev/null | awk '/default/ {print $5; exit}')
+echo "[byocvpn] IPv6 default gateway: $IPV6_GW dev $IPV6_GW_DEV"
+
+# Set accept_ra=2 so forwarding and RA acceptance can coexist.
+sysctl -w net.ipv6.conf.all.accept_ra=2
+sysctl -w net.ipv6.conf.default.accept_ra=2
+
+echo "net.ipv4.ip_forward=1">>/etc/sysctl.conf
+echo "net.ipv6.conf.all.forwarding=1">>/etc/sysctl.conf
+echo "net.ipv6.conf.all.accept_ra=2">>/etc/sysctl.conf
+sysctl -p
+
+# Restore the IPv6 default route if forwarding transition dropped it.
+if [ -n "$IPV6_GW" ] && ! ip -6 route show default 2>/dev/null | grep -q "default"; then
+    ip -6 route add default via "$IPV6_GW" dev "$IPV6_GW_DEV" || true
+    echo "[byocvpn] Restored IPv6 default route via $IPV6_GW dev $IPV6_GW_DEV"
+else
+    echo "[byocvpn] IPv6 default route intact."
+fi
+
+systemctl start wg-quick@wg0
+systemctl enable wg-quick@wg0
+echo "[byocvpn] wg-quick status:"
+systemctl status wg-quick@wg0 --no-pager || true
+echo "[byocvpn] WireGuard interface:"
+wg show || true

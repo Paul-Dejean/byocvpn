@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useCredentials } from "../hooks/useCredentials";
 import { OracleProfileCard } from "../components/settings/OracleProfileCard";
 import { GcpProfileCard } from "../components/settings/GcpProfileCard";
+import { AzureProfileCard } from "../components/settings/AzureProfileCard";
 
 interface SettingsPageProps {
   onNavigateBack?: () => void;
@@ -244,6 +245,7 @@ export function SettingsPage({ onNavigateBack }: SettingsPageProps) {
 
             <OracleProfileCard />
             <GcpProfileCard />
+            <AzureProfileCard />
           </div>
         </div>
       </div>
