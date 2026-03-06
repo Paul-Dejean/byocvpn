@@ -12,6 +12,7 @@ use byocvpn_core::{
     cloud_provider::{InstanceInfo, SpawnInstanceParams},
     error::{ComputeProvisioningError, Result},
 };
+use chrono::Utc;
 use futures::future::join_all;
 use serde_json::json;
 use tokio::time::{Duration, sleep};
@@ -176,7 +177,7 @@ pub async fn spawn_instance(
         Uuid::new_v4().to_string().replace('-', "")[..16].to_uppercase()
     );
 
-    let async_op_url = {
+    let (async_op_url, used_vm_size) = {
         let mut last_error = String::new();
         let mut result = None;
         for &vm_size in VM_SIZES {
@@ -219,7 +220,7 @@ pub async fn spawn_instance(
             match client.put(&vm_url, &vm_body).await {
                 Ok(op_url) => {
                     eprintln!("[Azure] VM '{}' creating with size {}...", vm_name, vm_size);
-                    result = Some(op_url);
+                    result = Some((op_url, vm_size));
                     break;
                 }
                 Err(error) => {
@@ -248,7 +249,7 @@ pub async fn spawn_instance(
             }
         }
         match result {
-            Some(op_url) => op_url,
+            Some((op_url, vm_size)) => (op_url, vm_size),
             None => {
                 eprintln!(
                     "[Azure] All VM sizes exhausted in {}: {}",
@@ -295,6 +296,8 @@ pub async fn spawn_instance(
         public_ip_v4,
         public_ip_v6,
         provider: "azure".to_string(),
+        instance_type: used_vm_size.to_string(),
+        launched_at: Some(Utc::now()),
     })
 }
 
@@ -436,6 +439,16 @@ async fn resolve_vm_info(
         .unwrap_or("Unknown")
         .to_string();
 
+    let instance_type = vm["properties"]["hardwareProfile"]["vmSize"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string();
+
+    let launched_at = vm["properties"]["timeCreated"]
+        .as_str()
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&chrono::Utc));
+
     // Try to resolve the public IPs; tolerate failures (VM may still be provisioning).
     let public_ip_v4 = get_public_ipv4(client, &location, &vm_name)
         .await
@@ -454,6 +467,8 @@ async fn resolve_vm_info(
         public_ip_v4,
         public_ip_v6,
         provider: "azure".to_string(),
+        instance_type,
+        launched_at,
     }))
 }
 

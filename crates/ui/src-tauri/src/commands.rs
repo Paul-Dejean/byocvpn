@@ -1,19 +1,23 @@
-use std::str::FromStr;
+use std::{str::FromStr, time::Instant};
 
-use byocvpn_aws::{AwsProvider, AwsProviderConfig};
-use byocvpn_azure::{AzureProvider, AzureProviderConfig};
+use byocvpn_aws::{AwsProvider, AwsProviderConfig, pricing as aws_pricing};
+use byocvpn_azure::{AzureProvider, AzureProviderConfig, pricing as azure_pricing};
 use byocvpn_core::{
-    cloud_provider::{CloudProvider, CloudProviderName, InstanceInfo},
+    cloud_provider::{CloudProvider, CloudProviderName, InstanceInfo, PricingInfo},
     commands, credentials,
     daemon_client::{DaemonClient, DaemonCommand},
     error::{ConfigurationError, Result},
+    ledger::LedgerEntry,
     metrics_stream,
     tunnel::VpnStatus,
 };
 use byocvpn_daemon::daemon_client::UnixDaemonClient;
-use byocvpn_gcp::{GcpProvider, GcpProviderConfig};
+use byocvpn_gcp::{GcpProvider, GcpProviderConfig, pricing as gcp_pricing};
+use byocvpn_oracle::pricing as oracle_pricing;
+use chrono::Utc;
 use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter};
+use tauri_plugin_store::StoreExt;
 
 async fn create_cloud_provider(cloud_provider_name: &str) -> Result<Box<dyn CloudProvider>> {
     match cloud_provider_name {
@@ -211,13 +215,37 @@ pub async fn verify_permissions() -> Result<Value> {
 }
 
 #[tauri::command]
-pub async fn spawn_instance(region: String, provider: String) -> Result<InstanceInfo> {
+pub async fn spawn_instance(
+    region: String,
+    provider: String,
+    app_handle: AppHandle,
+) -> Result<InstanceInfo> {
     let cloud_provider = create_cloud_provider(&provider).await?;
 
     commands::setup::setup(&*cloud_provider).await?;
     commands::setup::enable_region(&*cloud_provider, &region).await?;
 
     let instance = commands::spawn::spawn_instance(&*cloud_provider, &region).await?;
+
+    // Write a new ledger entry for cost tracking.
+    let entry = LedgerEntry {
+        instance_id: instance.id.clone(),
+        provider: provider.clone(),
+        region: region.clone(),
+        instance_type: instance.instance_type.clone(),
+        launched_at: instance.launched_at.unwrap_or_else(Utc::now),
+        terminated_at: None,
+        bytes_sent: 0,
+        bytes_received: 0,
+    };
+    let store = app_handle
+        .store("ledger.json")
+        .map_err(|error| ConfigurationError::InvalidCloudProvider(error.to_string()))?;
+    store.set(
+        LedgerEntry::store_key(&instance.id),
+        serde_json::to_value(&entry).unwrap_or_default(),
+    );
+    let _ = store.save();
 
     Ok(instance)
 }
@@ -227,9 +255,24 @@ pub async fn terminate_instance(
     instance_id: String,
     region: String,
     provider: String,
+    app_handle: AppHandle,
 ) -> Result<String> {
     let cloud_provider = create_cloud_provider(&provider).await?;
     commands::terminate::terminate_instance(&*cloud_provider, &region, &instance_id).await?;
+
+    // Mark the ledger entry as terminated.
+    let store = app_handle
+        .store("ledger.json")
+        .map_err(|error| ConfigurationError::InvalidCloudProvider(error.to_string()))?;
+    let key = LedgerEntry::store_key(&instance_id);
+    if let Some(mut entry_value) = store.get(&key) {
+        if let Some(obj) = entry_value.as_object_mut() {
+            obj.insert("terminatedAt".to_string(), json!(Utc::now().to_rfc3339()));
+            store.set(key, entry_value);
+            let _ = store.save();
+        }
+    }
+
     Ok(format!("Instance {} terminated successfully.", instance_id))
 }
 
@@ -381,11 +424,48 @@ pub async fn subscribe_to_vpn_status(app_handle: AppHandle) -> Result<()> {
     let status = fetch_vpn_status().await?;
     match status.instance {
         Some(connected_instance) => {
+            let instance_id = connected_instance.instance_id.clone();
             metrics_stream::start(
                 byocvpn_daemon::constants::metrics_socket_path(),
                 connected_instance,
                 move |vpn_status| {
                     let _ = app_handle.emit("vpn-status", &vpn_status);
+
+                    // Throttle ledger writes to once per 60 seconds.
+                    // last_write is a thread-local so we don't need shared state.
+                    use std::cell::Cell;
+                    thread_local! {
+                        static LAST_WRITE: Cell<Option<Instant>> = const { Cell::new(None) };
+                    }
+                    let should_write = LAST_WRITE.with(|last| {
+                        let now = Instant::now();
+                        let write = last.get().map_or(true, |t| t.elapsed().as_secs() >= 60);
+                        if write {
+                            last.set(Some(now));
+                        }
+                        write
+                    });
+
+                    if should_write {
+                        if let Some(ref metrics) = vpn_status.metrics {
+                            let store = match app_handle.store("ledger.json") {
+                                Ok(s) => s,
+                                Err(_) => return,
+                            };
+                            let key = LedgerEntry::store_key(&instance_id);
+                            if let Some(mut entry_value) = store.get(&key) {
+                                if let Some(obj) = entry_value.as_object_mut() {
+                                    obj.insert("bytesSent".to_string(), json!(metrics.bytes_sent));
+                                    obj.insert(
+                                        "bytesReceived".to_string(),
+                                        json!(metrics.bytes_received),
+                                    );
+                                    store.set(key, entry_value);
+                                    let _ = store.save();
+                                }
+                            }
+                        }
+                    }
                 },
             )
             .await
@@ -395,6 +475,38 @@ pub async fn subscribe_to_vpn_status(app_handle: AppHandle) -> Result<()> {
         )
         .into()),
     }
+}
+
+#[tauri::command]
+pub async fn get_instance_pricing(provider: String, instance_type: String) -> Result<PricingInfo> {
+    let pricing = match provider.as_str() {
+        "aws" => aws_pricing::get_pricing(&instance_type),
+        "azure" => azure_pricing::get_pricing(&instance_type),
+        "gcp" => gcp_pricing::get_pricing(&instance_type),
+        "oracle" => oracle_pricing::get_pricing(&instance_type),
+        _ => None,
+    };
+    pricing.ok_or_else(|| {
+        ConfigurationError::InvalidCloudProvider(format!(
+            "No pricing data for {}/{}",
+            provider, instance_type
+        ))
+        .into()
+    })
+}
+
+#[tauri::command]
+pub async fn get_ledger(app_handle: AppHandle) -> Result<Vec<Value>> {
+    let store = app_handle
+        .store("ledger.json")
+        .map_err(|error| ConfigurationError::InvalidCloudProvider(error.to_string()))?;
+    let entries: Vec<Value> = store
+        .keys()
+        .into_iter()
+        .filter(|key| key.starts_with("ledger/"))
+        .filter_map(|key| store.get(&key))
+        .collect();
+    Ok(entries)
 }
 
 #[tauri::command]

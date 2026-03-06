@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Page } from "../App";
+import { Page } from "../types/pages";
 import { useDaemonInstaller } from "../hooks/useDaemonInstaller";
 import { useProfile } from "../hooks";
 

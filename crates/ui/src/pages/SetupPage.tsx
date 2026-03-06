@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Page } from "../App";
+import { Page } from "../types/pages";
 import { useCredentials } from "../hooks";
 
 type CloudProvider = "aws" | "gcp" | "azure" | null;
@@ -47,7 +47,7 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
       const success = await saveCredentials(
         selectedProvider,
         credentials.accessKeyId,
-        credentials.secretAccessKey
+        credentials.secretAccessKey,
       );
 
       if (success) {

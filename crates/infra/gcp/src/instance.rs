@@ -2,6 +2,7 @@ use byocvpn_core::{
     cloud_provider::{InstanceInfo, SpawnInstanceParams},
     error::{ComputeProvisioningError, Result},
 };
+use chrono::Utc;
 use serde_json::json;
 use tokio::time::{Duration, sleep};
 use uuid::Uuid;
@@ -108,6 +109,8 @@ pub async fn spawn_instance(
         public_ip_v4,
         public_ip_v6,
         provider: "gcp".to_string(),
+        instance_type: MACHINE_TYPE.to_string(),
+        launched_at: Some(Utc::now()),
     })
 }
 
@@ -264,6 +267,19 @@ fn parse_instance_info(
     let public_ip_v4 = extract_public_ip_v4(instance);
     let public_ip_v6 = extract_public_ip_v6(instance);
     let id = format!("{}/{}", zone, name);
+
+    // machineType is a full URL like .../machineTypes/e2-micro — extract the last segment.
+    let instance_type = instance["machineType"]
+        .as_str()
+        .and_then(|s| s.split('/').last())
+        .unwrap_or(MACHINE_TYPE)
+        .to_string();
+
+    let launched_at = instance["creationTimestamp"]
+        .as_str()
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&chrono::Utc));
+
     Some(InstanceInfo {
         id,
         name: Some(name),
@@ -272,6 +288,8 @@ fn parse_instance_info(
         public_ip_v4,
         public_ip_v6,
         provider: "gcp".to_string(),
+        instance_type,
+        launched_at,
     })
 }
 

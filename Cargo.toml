@@ -30,6 +30,7 @@ rsa = { version = "0.9", features = ["sha2", "pem"] }
 sha2 = "0.10"
 uuid = { version = "1", features = ["v4"] }
 hex = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
 
 
 [profile.dev]

@@ -27,7 +27,7 @@ export function ConnectedView({
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-900 text-white overflow-hidden">
+    <div className="flex flex-col h-full bg-gray-900 text-white overflow-hidden">
       {/* Header */}
       <div className="bg-gray-800 p-6 border-b border-gray-700">
         <div className="flex items-center justify-between">

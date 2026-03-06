@@ -18,3 +18,4 @@ uuid = { workspace = true }
 google-cloud-auth = "1.6"
 # HTTP types used by google-cloud-auth's CredentialsProvider trait
 http = "1"
+chrono = { workspace = true }

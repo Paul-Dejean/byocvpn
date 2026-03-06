@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useProfile } from "../hooks";
 import { useDaemonInstaller } from "../hooks/useDaemonInstaller";
-import { Page } from "../App";
+import { Page } from "../types/pages";
 
 export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
   const [isVisible, setIsVisible] = useState(false);

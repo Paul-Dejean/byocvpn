@@ -9,6 +9,7 @@ use byocvpn_core::{
     cloud_provider::InstanceInfo,
     error::{ComputeProvisioningError, NetworkProvisioningError, Result},
 };
+use chrono::{DateTime, Utc};
 use tokio::time::Duration;
 
 use crate::{cloud_init, config, network};
@@ -127,6 +128,8 @@ pub(super) async fn spawn_instance(
         public_ip_v6,
         region: region.to_string(),
         provider: "aws".to_string(),
+        instance_type: "t2.micro".to_string(),
+        launched_at: Some(Utc::now()),
     })
 }
 
@@ -183,6 +186,17 @@ pub(super) async fn list_instances_in_region(
             let public_ip_v4 = i.public_ip_address().map(|ip| ip.to_string())?;
             let public_ip_v6 = i.ipv6_address().map(|ip| ip.to_string())?;
 
+            let instance_type = i
+                .instance_type()
+                .map(|t| t.as_str().to_string())
+                .unwrap_or_default();
+
+            let launched_at = i.launch_time().and_then(|t| {
+                DateTime::parse_from_rfc3339(&t.to_string())
+                    .ok()
+                    .map(|dt| dt.with_timezone(&Utc))
+            });
+
             Some(InstanceInfo {
                 id,
                 name,
@@ -191,6 +205,8 @@ pub(super) async fn list_instances_in_region(
                 public_ip_v6,
                 region: region.to_string(),
                 provider: "aws".to_string(),
+                instance_type,
+                launched_at,
             })
         })
         .collect();

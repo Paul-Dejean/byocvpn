@@ -21,3 +21,4 @@ tun-rs = { version = "2.7.3", features = ["async_tokio"] }
 dirs = "6.0.0"
 rand = { workspace = true }
 handlebars = { workspace = true }
+chrono = { version = "0.4", features = ["serde"] }

@@ -3,6 +3,7 @@ use byocvpn_core::{
     cloud_provider::{InstanceInfo, SpawnInstanceParams},
     error::{ComputeProvisioningError, Result},
 };
+use chrono::Utc;
 use serde_json::{Value, json};
 use tokio::time::{Duration, sleep};
 
@@ -85,6 +86,8 @@ pub async fn spawn_instance(
         get_public_ips(client, &instance_ocid, compartment_ocid).await;
     info.public_ip_v4 = public_ip_v4;
     info.public_ip_v6 = public_ip_v6;
+    info.instance_type = INSTANCE_SHAPE.to_string();
+    info.launched_at = Some(Utc::now());
     Ok(info)
 }
 
@@ -315,5 +318,10 @@ fn build_instance_info(instance: &Value, region: &str) -> Result<InstanceInfo> {
         public_ip_v6,
         region: region.to_string(),
         provider: "oracle".to_string(),
+        instance_type: instance["shape"].as_str().unwrap_or_default().to_string(),
+        launched_at: instance["timeCreated"]
+            .as_str()
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+            .map(|dt| dt.with_timezone(&chrono::Utc)),
     })
 }

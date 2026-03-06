@@ -8,16 +8,12 @@ import {
   LandingPage,
   SettingsPage,
   DaemonSetupPage,
+  PricingPage,
 } from "./pages";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
-
-export enum Page {
-  LANDING = "LANDING",
-  DAEMON_SETUP = "DAEMON_SETUP",
-  SETUP = "SETUP",
-  VPN = "VPN",
-  SETTINGS = "SETTINGS",
-}
+import { Navbar } from "./components/common/Navbar";
+import { Page } from "./types/pages";
+export { Page };
 function App() {
   const [page, setPage] = useState(Page.LANDING);
 
@@ -50,11 +46,21 @@ function App() {
         {page === Page.LANDING && <LandingPage setPage={setPage} />}
         {page === Page.DAEMON_SETUP && <DaemonSetupPage setPage={setPage} />}
         {page === Page.SETUP && <SetupPage setPage={setPage} />}
-        {page === Page.VPN && (
-          <VpnPage onNavigateToSettings={() => setPage(Page.SETTINGS)} />
-        )}
         {page === Page.SETTINGS && (
           <SettingsPage onNavigateBack={() => setPage(Page.VPN)} />
+        )}
+
+        {/* Main app shell: sidebar navbar + page content */}
+        {(page === Page.VPN || page === Page.PRICING) && (
+          <div className="flex h-screen">
+            <Navbar currentPage={page} onNavigate={setPage} />
+            <div className="flex-1 min-w-0 overflow-hidden">
+              {page === Page.VPN && (
+                <VpnPage onNavigateToSettings={() => setPage(Page.SETTINGS)} />
+              )}
+              {page === Page.PRICING && <PricingPage />}
+            </div>
+          </div>
         )}
       </ErrorBoundary>
     </main>

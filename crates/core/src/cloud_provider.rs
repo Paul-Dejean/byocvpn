@@ -4,6 +4,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -79,4 +80,20 @@ pub struct InstanceInfo {
     pub public_ip_v4: String,
     pub public_ip_v6: String,
     pub provider: String,
+    pub instance_type: String,
+    pub launched_at: Option<DateTime<Utc>>,
+}
+
+/// Pricing information for a specific instance type on a cloud provider.
+///
+/// All rates are in USD. Updated: 2026-03-03.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PricingInfo {
+    /// VM compute cost per hour.
+    pub hourly_rate: f64,
+    /// Public IP address cost per hour (charged separately by all providers since 2024).
+    pub ip_hourly_rate: f64,
+    /// Outbound data transfer cost per GB.
+    pub egress_rate_per_gb: f64,
 }

@@ -4,6 +4,7 @@ mod commands;
 pub fn run() {
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
             commands::get_credentials,
             commands::save_credentials,
@@ -17,6 +18,8 @@ pub fn run() {
             commands::disconnect,
             commands::get_vpn_status,
             commands::subscribe_to_vpn_status,
+            commands::get_instance_pricing,
+            commands::get_ledger,
             commands::is_daemon_installed,
             commands::install_daemon,
         ]);
