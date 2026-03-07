@@ -159,3 +159,20 @@ async fn delete_route(destination: &str, interface: &str) -> Result<()> {
         }
     }
 }
+
+/// Re-adds the direct host route for the VPN server endpoint via the current
+/// default gateway. Called by the route monitor task when the gateway changes.
+pub async fn update_server_host_route(server_ip: &str) {
+    let server_route = format!("{}/32", server_ip);
+
+    // Remove stale host route (ignore errors — may not exist)
+    if let Err(e) = delete_route(&server_route, "default").await {
+        eprintln!("[RouteMonitor] Failed to delete old host route: {}", e);
+    }
+    // Re-add via whatever the current default gateway is now
+    if let Err(e) = add_route(&server_route, "default").await {
+        eprintln!("[RouteMonitor] Failed to re-add host route: {}", e);
+    } else {
+        println!("[RouteMonitor] Host route for {} refreshed.", server_ip);
+    }
+}

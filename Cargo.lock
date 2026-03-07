@@ -1061,6 +1061,7 @@ dependencies = [
  "boringtun",
  "byocvpn_core",
  "dirs",
+ "futures",
  "ipnet",
  "net-route",
  "once_cell",

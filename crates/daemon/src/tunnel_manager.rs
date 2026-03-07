@@ -15,6 +15,8 @@ pub struct TunnelHandle {
     pub metrics: Arc<RwLock<TunnelMetrics>>,
     pub metrics_task: JoinHandle<()>,
     pub metrics_shutdown: watch::Sender<()>,
+    pub route_monitor_task: JoinHandle<()>,
+    pub route_monitor_shutdown: watch::Sender<()>,
     #[cfg(target_os = "macos")]
     pub domain_name_system_override_guard: Option<DomainNameSystemOverrideGuard>,
 

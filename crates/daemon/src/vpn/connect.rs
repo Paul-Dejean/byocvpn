@@ -9,12 +9,17 @@ use byocvpn_core::{
     ipc::{IpcSocket, IpcStream},
     tunnel::{ConnectedInstance, Tunnel, TunnelMetrics},
 };
+use futures::StreamExt;
+use net_route::Handle as RouteHandle;
 use tokio::{net::UdpSocket, sync::watch};
 use tun_rs::DeviceBuilder;
 
 use crate::{
     constants,
-    routing::{dns_macos::DomainNameSystemOverrideGuard, routes::add_vpn_routes},
+    routing::{
+        dns_macos::DomainNameSystemOverrideGuard,
+        routes::{add_vpn_routes, update_server_host_route},
+    },
     tunnel_manager::{TUNNEL_MANAGER, TunnelHandle},
     vpn::config::parse_wireguard_config,
 };
@@ -259,6 +264,33 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
     println!("Adding VPN routes...");
     add_vpn_routes(&iface_name, &wg_config.endpoint.ip().to_string()).await?;
 
+    // Spawn route monitor — watches for gateway changes and refreshes the
+    // direct host route to the VPN server so the tunnel survives network switches.
+    let route_monitor_server_ip = wg_config.endpoint.ip().to_string();
+    let (route_monitor_shutdown_tx, mut route_monitor_shutdown_rx) = watch::channel(());
+    let route_monitor_task = tokio::spawn(async move {
+        let route_handle = match RouteHandle::new() {
+            Ok(h) => h,
+            Err(e) => {
+                eprintln!("[RouteMonitor] Failed to create route handle: {}", e);
+                return;
+            }
+        };
+        let stream = route_handle.route_listen_stream();
+        futures::pin_mut!(stream);
+        loop {
+            tokio::select! {
+                Some(_event) = StreamExt::next(&mut stream) => {
+                    update_server_host_route(&route_monitor_server_ip).await;
+                }
+                _ = route_monitor_shutdown_rx.changed() => {
+                    println!("[RouteMonitor] Stopping.");
+                    break;
+                }
+            }
+        }
+    });
+
     println!("Configuring DNS...");
     #[cfg(target_os = "macos")]
     let optional_domain_name_system_override_guard: Option<DomainNameSystemOverrideGuard> = {
@@ -294,6 +326,8 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
         metrics,
         metrics_task,
         metrics_shutdown: metrics_shutdown_tx,
+        route_monitor_task,
+        route_monitor_shutdown: route_monitor_shutdown_tx,
         #[cfg(target_os = "macos")]
         domain_name_system_override_guard: optional_domain_name_system_override_guard,
         instance: Some(ConnectedInstance {

@@ -55,6 +55,10 @@ pub async fn disconnect_vpn() -> Result<()> {
         let _ = handle.metrics_shutdown.send(());
         println!("[VPN Disconnect] Metrics broadcaster stopped.");
 
+        // Stop route monitor
+        let _ = handle.route_monitor_shutdown.send(());
+        println!("[VPN Disconnect] Route monitor stopped.");
+
         // Wait for the tunnel task to complete
         println!("[VPN Disconnect] Waiting for tunnel task to complete...");
         match handle.task.await {
@@ -62,8 +66,9 @@ pub async fn disconnect_vpn() -> Result<()> {
             Err(e) => eprintln!("[VPN Disconnect] Error: Tunnel task failed: {:?}", e),
         }
 
-        // Wait for metrics task
+        // Wait for metrics and route monitor tasks
         let _ = handle.metrics_task.await;
+        let _ = handle.route_monitor_task.await;
     } else {
         println!("[VPN Disconnect] No active tunnel found.");
     }
