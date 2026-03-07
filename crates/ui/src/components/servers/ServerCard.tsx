@@ -1,4 +1,4 @@
-import { Instance, RegionGroup } from "../../types";
+import { Instance, RegionGroup, SpawnJobState } from "../../types";
 
 interface ProviderBadgeProps {
   provider: string;
@@ -44,6 +44,8 @@ interface ServerCardProps {
   instance: Instance;
   isSelected: boolean;
   groupedRegions: RegionGroup[];
+  /** Live spawn job state for this instance (only present while deploying). */
+  spawnJob?: SpawnJobState;
   onSelect: (instance: Instance) => void;
 }
 
@@ -57,6 +59,7 @@ export function ServerCard({
   instance,
   isSelected,
   groupedRegions,
+  spawnJob,
   onSelect,
 }: ServerCardProps) {
   const getRegionFlag = (regionName?: string): string => {
@@ -68,13 +71,18 @@ export function ServerCard({
 
   const isSpawning = instance.state === "spawning";
 
+  // Show the label of whichever step is currently running.
+  const runningStep = spawnJob?.steps.find((s) => s.status === "running");
+  const stepLabel = runningStep?.label ?? (isSpawning ? "Starting…" : null);
+
   return (
     <button
-      onClick={() => !isSpawning && onSelect(instance)}
-      disabled={isSpawning}
+      onClick={() => onSelect(instance)}
       className={`w-full text-left p-3 rounded-lg transition-all ${
         isSpawning
-          ? "bg-gray-800 text-gray-400 cursor-wait opacity-75"
+          ? isSelected
+            ? "bg-blue-700/60 text-white shadow-lg"
+            : "bg-gray-800 text-gray-300 hover:bg-gray-750"
           : isSelected
             ? "bg-blue-600 text-white shadow-lg"
             : "bg-gray-700 hover:bg-gray-600 text-gray-200"
@@ -97,17 +105,17 @@ export function ServerCard({
               isSpawning
                 ? "bg-blue-900/50 text-blue-300 flex items-center gap-1"
                 : instance.state === "running"
-                  ? "bg-green-900/50 text-green-300"
+                  ? "bg-orange-900/50 text-orange-300"
                   : "bg-gray-900/50 text-gray-400"
             }`}
           >
             {isSpawning && <MiniSpinner />}
-            {instance.state}
+            {isSpawning ? "deploying" : instance.state}
           </span>
         </div>
       </div>
       <p className="text-xs font-mono opacity-75 truncate">
-        {isSpawning ? "Creating server instance..." : instance.publicIpV4}
+        {isSpawning ? (stepLabel ?? "Starting…") : instance.publicIpV4}
       </p>
     </button>
   );

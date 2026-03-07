@@ -5,7 +5,7 @@ use aws_sdk_ec2::Client as Ec2Client;
 use aws_sdk_ssm::Client as SsmClient;
 use byocvpn_core::{
     cloud_provider::{
-        CloudProvider, CloudProviderName, InstanceInfo, SpawnInstanceParams,
+        CloudProvider, CloudProviderName, InstanceInfo, SpawnInstanceParams, SpawnStep,
         TerminateInstanceParams,
     },
     commands::setup::Region,
@@ -64,6 +64,36 @@ impl CloudProvider for AwsProvider {
     fn get_provider_name(&self) -> CloudProviderName {
         CloudProviderName::Aws
     }
+
+    fn spawn_steps(&self, _region: &str) -> Vec<SpawnStep> {
+        vec![
+            SpawnStep {
+                id: "setup_vpc".into(),
+                label: "Creating VPC".into(),
+            },
+            SpawnStep {
+                id: "setup_igw".into(),
+                label: "Creating internet gateway".into(),
+            },
+            SpawnStep {
+                id: "region_subnets".into(),
+                label: "Creating subnets".into(),
+            },
+            SpawnStep {
+                id: "region_security_group".into(),
+                label: "Configuring security group".into(),
+            },
+            SpawnStep {
+                id: "launch".into(),
+                label: "Launching EC2 instance".into(),
+            },
+            SpawnStep {
+                id: "wireguard_ready".into(),
+                label: "Waiting for WireGuard to start".into(),
+            },
+        ]
+    }
+
     async fn verify_permissions(&self) -> Result<Value> {
         let ec2_client = self.create_ec2_client(None).await;
         let ssm_client = self.create_ssm_client(None).await;
@@ -243,61 +273,108 @@ impl CloudProvider for AwsProvider {
     }
 
     async fn enable_region(&self, region: &str) -> Result<()> {
-        let ec2_client = self.create_ec2_client(Some(region.to_string())).await;
-        let vpc_id = network::get_vpc_by_name(&ec2_client, "byocvpn-vpc")
-            .await?
-            .ok_or(NetworkProvisioningError::VpcNotFound {
-                vpc_name: "byocvpn-vpc".to_string(),
-            })?;
-
-        let vpc_ipv6_cidr = network::get_vpc_ipv6_block(&ec2_client, &vpc_id).await?;
-
-        let azs = network::list_availability_zones(&ec2_client).await?;
-
-        let subnets = network::get_subnets_in_vpc(&ec2_client, &vpc_id).await?;
-
-        for (i, az) in azs.iter().enumerate() {
-            let subnet_name = format!("byocvpn-subnet-{az}");
-
-            // Check if this subnet already exists
-            let already_exists = subnets.iter().any(|subnet| {
-                subnet
-                    .tags()
-                    .iter()
-                    .any(|tag| tag.key() == Some("Name") && tag.value() == Some(&subnet_name))
-            });
-
-            if already_exists {
-                println!("Subnet {subnet_name} already exists, skipping.");
-                continue;
-            }
-            let cidr = format!("10.0.{}.0/24", i); // safely spaced /20s
-            let ipv6_cidr = network::carve_ipv6_subnet(&vpc_ipv6_cidr, i as u8)?;
-
-            let subnet_id =
-                network::create_subnet(&ec2_client, &vpc_id, &cidr, &ipv6_cidr, az, &subnet_name)
-                    .await?;
-
-            network::enable_auto_ip_assign(&ec2_client, &subnet_id).await?;
-        }
-
-        let existing_sg =
-            network::get_security_group_by_name(&ec2_client, "byocvpn-security-group").await?;
-        if existing_sg.is_some() {
-            println!("Security group already exists, skipping creation.");
-        } else {
-            let new_group_id = network::create_security_group(
-                &ec2_client,
-                &vpc_id,
-                "byocvpn-security-group",
-                "BYOC VPN server",
-            )
-            .await?;
-            println!("Created new security group: {}", new_group_id);
-        }
-
-        println!("AWS setup completed successfully.");
+        self.run_spawn_step("region_subnets", region).await?;
+        self.run_spawn_step("region_security_group", region).await?;
         Ok(())
+    }
+
+    async fn run_spawn_step(&self, step_id: &str, region: &str) -> Result<()> {
+        match step_id {
+            "setup_vpc" => {
+                let ec2 = self.create_ec2_client(None).await;
+                if network::get_vpc_by_name(&ec2, "byocvpn-vpc")
+                    .await?
+                    .is_none()
+                {
+                    network::create_vpc(&ec2, "10.0.0.0/16", "byocvpn-vpc").await?;
+                }
+                Ok(())
+            }
+            "setup_igw" => {
+                let ec2 = self.create_ec2_client(None).await;
+                let vpc_id = network::get_vpc_by_name(&ec2, "byocvpn-vpc").await?.ok_or(
+                    NetworkProvisioningError::VpcNotFound {
+                        vpc_name: "byocvpn-vpc".to_string(),
+                    },
+                )?;
+                // Look for an IGW already attached to our VPC (idempotent).
+                let resp = ec2
+                    .describe_internet_gateways()
+                    .filters(
+                        aws_sdk_ec2::types::Filter::builder()
+                            .name("attachment.vpc-id")
+                            .values(&vpc_id)
+                            .build(),
+                    )
+                    .send()
+                    .await
+                    .map_err(
+                        |e| NetworkProvisioningError::InternetGatewayOperationFailed {
+                            reason: e.to_string(),
+                        },
+                    )?;
+                let igw_id = if let Some(igw) = resp.internet_gateways().first() {
+                    igw.internet_gateway_id().unwrap_or_default().to_string()
+                } else {
+                    network::create_and_attach_igw(&ec2, &vpc_id).await?
+                };
+                let rt_id = network::find_main_route_table(&ec2, &vpc_id).await?;
+                network::tag_resource_with_name(&ec2, &rt_id, "byocvpn-main-route-table").await?;
+                network::tag_resource_with_name(&ec2, &igw_id, "byocvpn-igw").await?;
+                network::add_igw_routes_to_table(&ec2, &rt_id, &igw_id).await?;
+                Ok(())
+            }
+            "region_subnets" => {
+                let ec2 = self.create_ec2_client(Some(region.to_string())).await;
+                let vpc_id = network::get_vpc_by_name(&ec2, "byocvpn-vpc").await?.ok_or(
+                    NetworkProvisioningError::VpcNotFound {
+                        vpc_name: "byocvpn-vpc".to_string(),
+                    },
+                )?;
+                let vpc_ipv6_cidr = network::get_vpc_ipv6_block(&ec2, &vpc_id).await?;
+                let azs = network::list_availability_zones(&ec2).await?;
+                let subnets = network::get_subnets_in_vpc(&ec2, &vpc_id).await?;
+                for (i, az) in azs.iter().enumerate() {
+                    let subnet_name = format!("byocvpn-subnet-{az}");
+                    let already_exists = subnets.iter().any(|s| {
+                        s.tags()
+                            .iter()
+                            .any(|t| t.key() == Some("Name") && t.value() == Some(&subnet_name))
+                    });
+                    if already_exists {
+                        continue;
+                    }
+                    let cidr = format!("10.0.{}.0/24", i);
+                    let ipv6_cidr = network::carve_ipv6_subnet(&vpc_ipv6_cidr, i as u8)?;
+                    let subnet_id =
+                        network::create_subnet(&ec2, &vpc_id, &cidr, &ipv6_cidr, az, &subnet_name)
+                            .await?;
+                    network::enable_auto_ip_assign(&ec2, &subnet_id).await?;
+                }
+                Ok(())
+            }
+            "region_security_group" => {
+                let ec2 = self.create_ec2_client(Some(region.to_string())).await;
+                let vpc_id = network::get_vpc_by_name(&ec2, "byocvpn-vpc").await?.ok_or(
+                    NetworkProvisioningError::VpcNotFound {
+                        vpc_name: "byocvpn-vpc".to_string(),
+                    },
+                )?;
+                let existing =
+                    network::get_security_group_by_name(&ec2, "byocvpn-security-group").await?;
+                if existing.is_none() {
+                    network::create_security_group(
+                        &ec2,
+                        &vpc_id,
+                        "byocvpn-security-group",
+                        "BYOC VPN server",
+                    )
+                    .await?;
+                }
+                Ok(())
+            }
+            _ => Ok(()),
+        }
     }
 
     async fn spawn_instance(&self, params: &SpawnInstanceParams) -> Result<InstanceInfo> {

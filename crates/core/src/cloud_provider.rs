@@ -34,6 +34,14 @@ pub trait CloudProvider: Send + Sync {
     async fn list_instances(&self, region: Option<&str>) -> Result<Vec<InstanceInfo>>;
     async fn get_regions(&self) -> Result<Vec<Region>>;
     fn get_provider_name(&self) -> CloudProviderName;
+    /// Returns the ordered list of deployment steps for this provider and
+    /// region. Called synchronously before any cloud API requests so the UI
+    /// can render the full step list immediately when spawn begins.
+    fn spawn_steps(&self, region: &str) -> Vec<SpawnStep>;
+    /// Executes a single named sub-step of the deployment pipeline.
+    /// All step ids from [`spawn_steps`] that are not reserved
+    /// (`launch`, `wireguard_ready`) are dispatched here.
+    async fn run_spawn_step(&self, step_id: &str, region: &str) -> Result<()>;
 }
 
 #[derive(Debug)]
@@ -70,7 +78,7 @@ impl Display for CloudProviderName {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InstanceInfo {
     pub id: String,
@@ -96,4 +104,57 @@ pub struct PricingInfo {
     pub ip_hourly_rate: f64,
     /// Outbound data transfer cost per GB.
     pub egress_rate_per_gb: f64,
+}
+
+/// A single step in the instance deployment pipeline.
+///
+/// Providers return these via [`CloudProvider::spawn_steps`] so the UI can
+/// render the full list before any cloud API calls begin.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpawnStep {
+    /// Machine-readable identifier the orchestrator uses to match events to steps.
+    pub id: String,
+    /// Human-readable label shown in the deployment progress UI.
+    pub label: String,
+}
+
+/// Returned immediately by the `spawn_instance` Tauri command so the UI can
+/// render the step list while the background task runs the deployment.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpawnJob {
+    pub job_id: String,
+    pub steps: Vec<SpawnStep>,
+    pub region: String,
+    pub provider: String,
+}
+
+/// Step execution state, carried in [`SpawnProgressEvent`].
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum SpawnStepStatus {
+    Pending,
+    Running,
+    Completed,
+    Failed,
+}
+
+/// Emitted on the `"spawn-progress"` Tauri event after each step transition.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpawnProgressEvent {
+    pub job_id: String,
+    pub step_id: String,
+    pub status: SpawnStepStatus,
+    pub error: Option<String>,
+}
+
+/// Emitted on the `"spawn-complete"` Tauri event once the instance is fully
+/// ready and the WireGuard config has been written to disk.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpawnCompleteEvent {
+    pub job_id: String,
+    pub instance: InstanceInfo,
 }

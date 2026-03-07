@@ -1,5 +1,5 @@
 #!/bin/bash
-dnf install -y wireguard-tools iptables-services
+dnf install -y wireguard-tools iptables-services socat
 
 cat>/etc/wireguard/wg0.conf<<'EOF'
 {{{wg_config}}}
@@ -11,3 +11,12 @@ sysctl -p
 
 systemctl start wg-quick@wg0
 systemctl enable wg-quick@wg0
+
+# Start the WireGuard health endpoint on TCP 51820.
+# Each connection receives the output of `systemctl is-active wg-quick@wg0`
+# (either "active" or "inactive"/"failed"), letting the client know when
+# WireGuard is truly up before it tries to connect.
+echo "[byocvpn] Starting health endpoint on TCP 51820..."
+systemd-run --unit=byocvpn-health --remain-after-exit \
+  socat TCP-LISTEN:51820,reuseaddr,fork \
+  EXEC:"systemctl is-active wg-quick@wg0"

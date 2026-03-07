@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use byocvpn_core::{
     cloud_provider::{
-        CloudProvider, CloudProviderName, InstanceInfo, SpawnInstanceParams,
+        CloudProvider, CloudProviderName, InstanceInfo, SpawnInstanceParams, SpawnStep,
         TerminateInstanceParams,
     },
     commands::setup::Region,
@@ -36,6 +36,39 @@ impl GcpProvider {
 impl CloudProvider for GcpProvider {
     fn get_provider_name(&self) -> CloudProviderName {
         CloudProviderName::Gcp
+    }
+
+    fn spawn_steps(&self, _region: &str) -> Vec<SpawnStep> {
+        vec![
+            SpawnStep { id: "setup_api".into(), label: "Enabling Compute Engine API".into() },
+            SpawnStep { id: "setup_vpc".into(), label: "Creating VPC network".into() },
+            SpawnStep { id: "setup_firewall".into(), label: "Creating firewall rules".into() },
+            SpawnStep { id: "region_subnet".into(), label: "Creating regional subnet".into() },
+            SpawnStep { id: "launch".into(), label: "Launching Compute Engine instance".into() },
+            SpawnStep { id: "wireguard_ready".into(), label: "Waiting for WireGuard to start".into() },
+        ]
+    }
+
+    async fn run_spawn_step(&self, step_id: &str, region: &str) -> Result<()> {
+        match step_id {
+            "setup_api" => {
+                network::ensure_compute_api_enabled(&self.client).await?;
+                Ok(())
+            }
+            "setup_vpc" => {
+                network::get_or_create_vpc(&self.client).await?;
+                Ok(())
+            }
+            "setup_firewall" => {
+                network::get_or_create_firewall(&self.client).await?;
+                Ok(())
+            }
+            "region_subnet" => {
+                network::get_or_create_subnet(&self.client, region).await?;
+                Ok(())
+            }
+            _ => Ok(()),
+        }
     }
 
     async fn verify_permissions(&self) -> Result<Value> {

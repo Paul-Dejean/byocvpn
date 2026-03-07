@@ -5,17 +5,21 @@ exec > >(tee /dev/console /var/log/byocvpn-setup.log) 2>&1
 set -xe
 
 apt-get update -y
-apt-get install -y wireguard iptables
+apt-get install -y wireguard iptables socat
 
 # Detect the default network interface (enp0s3 on OCI ARM, ens3 on older shapes).
 DEFAULT_IFACE=$(ip route show default | awk '/default/ {print $5; exit}')
 echo "[byocvpn] Default interface: $DEFAULT_IFACE"
 
-# Open WireGuard port in the OS-level iptables firewall before starting wg-quick.
+# Open WireGuard port (UDP) and health endpoint (TCP) in the OS-level iptables
+# firewall before starting wg-quick. OCI instances have a default-deny host
+# firewall that the other providers do not have.
 iptables  -I INPUT   -p udp --dport 51820 -j ACCEPT
+iptables  -I INPUT   -p tcp --dport 51820 -j ACCEPT
 iptables  -I FORWARD -j ACCEPT
 iptables  -t nat -A POSTROUTING -o "$DEFAULT_IFACE" -j MASQUERADE
 ip6tables -I INPUT   -p udp --dport 51820 -j ACCEPT
+ip6tables -I INPUT   -p tcp --dport 51820 -j ACCEPT
 ip6tables -I FORWARD -j ACCEPT
 ip6tables -t nat -A POSTROUTING -o "$DEFAULT_IFACE" -j MASQUERADE
 
@@ -40,3 +44,12 @@ echo "[byocvpn] wg-quick status:"
 systemctl status wg-quick@wg0 --no-pager || true
 echo "[byocvpn] WireGuard interface:"
 wg show || true
+
+# Start the WireGuard health endpoint on TCP 51820.
+# Each connection receives the output of `systemctl is-active wg-quick@wg0`
+# (either "active" or "inactive"/"failed"), letting the client know when
+# WireGuard is truly up before it tries to connect.
+echo "[byocvpn] Starting health endpoint on TCP 51820..."
+systemd-run --unit=byocvpn-health --remain-after-exit \
+  socat TCP-LISTEN:51820,reuseaddr,fork \
+  EXEC:"systemctl is-active wg-quick@wg0"

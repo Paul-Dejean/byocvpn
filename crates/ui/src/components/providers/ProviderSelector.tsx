@@ -100,7 +100,7 @@ export function ProviderSelector({
       </div>
 
       {/* Provider Cards */}
-      <div className="flex-1 p-6 flex flex-col gap-4 justify-center max-w-lg mx-auto w-full">
+      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4 max-w-lg mx-auto w-full">
         {providers.map((provider) => (
           <button
             key={provider.id}

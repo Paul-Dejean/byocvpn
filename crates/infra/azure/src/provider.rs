@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use byocvpn_core::{
     cloud_provider::{
-        CloudProvider, CloudProviderName, InstanceInfo, SpawnInstanceParams,
+        CloudProvider, CloudProviderName, InstanceInfo, SpawnInstanceParams, SpawnStep,
         TerminateInstanceParams,
     },
     commands::setup::Region,
@@ -9,11 +9,7 @@ use byocvpn_core::{
 };
 use serde_json::Value;
 
-use crate::{
-    auth::create_credential,
-    client::AzureClient,
-    instance, network,
-};
+use crate::{auth::create_credential, client::AzureClient, instance, network};
 
 /// Configuration required to create an `AzureProvider`.
 pub struct AzureProviderConfig {
@@ -37,11 +33,8 @@ pub struct AzureProvider {
 
 impl AzureProvider {
     pub fn new(config: AzureProviderConfig) -> Result<Self> {
-        let credential = create_credential(
-            &config.tenant_id,
-            &config.client_id,
-            &config.client_secret,
-        )?;
+        let credential =
+            create_credential(&config.tenant_id, &config.client_id, &config.client_secret)?;
         let client = AzureClient::new(credential, config.subscription_id);
         Ok(Self { client })
     }
@@ -51,6 +44,45 @@ impl AzureProvider {
 impl CloudProvider for AzureProvider {
     fn get_provider_name(&self) -> CloudProviderName {
         CloudProviderName::Azure
+    }
+
+    fn spawn_steps(&self, _region: &str) -> Vec<SpawnStep> {
+        vec![
+            SpawnStep {
+                id: "region_resource_group".into(),
+                label: "Creating resource group".into(),
+            },
+            SpawnStep {
+                id: "region_vnet".into(),
+                label: "Creating VNet and subnet".into(),
+            },
+            SpawnStep {
+                id: "launch".into(),
+                label: "Launching virtual machine".into(),
+            },
+            SpawnStep {
+                id: "wireguard_ready".into(),
+                label: "Waiting for WireGuard to start".into(),
+            },
+        ]
+    }
+
+    async fn run_spawn_step(&self, step_id: &str, region: &str) -> Result<()> {
+        match step_id {
+            "region_resource_group" => {
+                network::ensure_resource_group(&self.client, region).await?;
+                Ok(())
+            }
+            "region_vnet" => {
+                network::ensure_vnet_and_subnet(&self.client, region)
+                    .await
+                    .map_err(|e| NetworkProvisioningError::SubnetCreationFailed {
+                        reason: e.to_string(),
+                    })?;
+                Ok(())
+            }
+            _ => Ok(()),
+        }
     }
 
     async fn verify_permissions(&self) -> Result<Value> {

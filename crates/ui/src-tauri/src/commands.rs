@@ -3,8 +3,12 @@ use std::{str::FromStr, time::Instant};
 use byocvpn_aws::{AwsProvider, AwsProviderConfig, pricing as aws_pricing};
 use byocvpn_azure::{AzureProvider, AzureProviderConfig, pricing as azure_pricing};
 use byocvpn_core::{
-    cloud_provider::{CloudProvider, CloudProviderName, InstanceInfo, PricingInfo},
-    commands, credentials,
+    cloud_provider::{
+        CloudProvider, CloudProviderName, InstanceInfo, PricingInfo, SpawnCompleteEvent, SpawnJob,
+        SpawnProgressEvent, SpawnStepStatus,
+    },
+    commands, connectivity, credentials,
+    crypto::generate_keypair,
     daemon_client::{DaemonClient, DaemonCommand},
     error::{ConfigurationError, Result},
     ledger::LedgerEntry,
@@ -219,35 +223,152 @@ pub async fn spawn_instance(
     region: String,
     provider: String,
     app_handle: AppHandle,
-) -> Result<InstanceInfo> {
+) -> Result<SpawnJob> {
     let cloud_provider = create_cloud_provider(&provider).await?;
 
-    commands::setup::setup(&*cloud_provider).await?;
-    commands::setup::enable_region(&*cloud_provider, &region).await?;
+    // Generate WireGuard keypairs upfront so they can be moved into the task.
+    let (client_private_key, client_public_key) = generate_keypair();
+    let (server_private_key, server_public_key) = generate_keypair();
 
-    let instance = commands::spawn::spawn_instance(&*cloud_provider, &region).await?;
-
-    // Write a new ledger entry for cost tracking.
-    let entry = LedgerEntry {
-        instance_id: instance.id.clone(),
-        provider: provider.clone(),
+    let steps = cloud_provider.spawn_steps(&region);
+    let job_id = format!("{}-{}", provider, Utc::now().timestamp_millis());
+    let job = SpawnJob {
+        job_id: job_id.clone(),
+        steps,
         region: region.clone(),
-        instance_type: instance.instance_type.clone(),
-        launched_at: instance.launched_at.unwrap_or_else(Utc::now),
-        terminated_at: None,
-        bytes_sent: 0,
-        bytes_received: 0,
+        provider: provider.clone(),
     };
-    let store = app_handle
-        .store("ledger.json")
-        .map_err(|error| ConfigurationError::InvalidCloudProvider(error.to_string()))?;
-    store.set(
-        LedgerEntry::store_key(&instance.id),
-        serde_json::to_value(&entry).unwrap_or_default(),
-    );
-    let _ = store.save();
 
-    Ok(instance)
+    // Clone steps for the background task; `job` is returned to the caller.
+    let steps_for_task = job.steps.clone();
+
+    // Spawn background task so this command returns the SpawnJob immediately.
+    // Progress is reported via three Tauri events:
+    //   "spawn-progress" — SpawnProgressEvent on each step transition
+    //   "spawn-complete" — SpawnCompleteEvent when the instance is fully ready
+    //   "spawn-failed"   — { jobId, error } if any step fails
+    tauri::async_runtime::spawn(async move {
+        // Inline helper: emit a spawn-progress event for one step.
+        // All borrows are short-lived and never cross an .await boundary.
+        let emit_step = |step_id: &str, status: SpawnStepStatus, error: Option<String>| {
+            let _ = app_handle.emit(
+                "spawn-progress",
+                SpawnProgressEvent {
+                    job_id: job_id.clone(),
+                    step_id: step_id.to_string(),
+                    status,
+                    error,
+                },
+            );
+        };
+
+        // Macro that marks a step failed, emits spawn-failed, and returns.
+        macro_rules! fail {
+            ($step_id:expr, $err:expr) => {{
+                let msg = $err.to_string();
+                emit_step($step_id, SpawnStepStatus::Failed, Some(msg.clone()));
+                let _ = app_handle.emit("spawn-failed", json!({ "jobId": &job_id, "error": msg }));
+                return;
+            }};
+        }
+
+        // ── Execute deployment steps ──────────────────────────────────────
+        // Reserved ids ("launch", "wireguard_ready") are handled inline;
+        // everything else is dispatched to run_spawn_step.
+        let mut spawned_instance: Option<InstanceInfo> = None;
+
+        for step in &steps_for_task {
+            match step.id.as_str() {
+                "launch" => {
+                    emit_step("launch", SpawnStepStatus::Running, None);
+                    match commands::spawn::launch_instance(
+                        &*cloud_provider,
+                        &region,
+                        &server_private_key,
+                        &client_public_key,
+                    )
+                    .await
+                    {
+                        Ok(i) => {
+                            emit_step("launch", SpawnStepStatus::Completed, None);
+                            spawned_instance = Some(i);
+                        }
+                        Err(e) => {
+                            fail!("launch", e);
+                        }
+                    }
+                }
+                "wireguard_ready" => {
+                    let instance_ip = spawned_instance
+                        .as_ref()
+                        .expect("launch step must precede wireguard_ready")
+                        .public_ip_v4
+                        .clone();
+                    emit_step("wireguard_ready", SpawnStepStatus::Running, None);
+                    if let Err(e) = connectivity::wait_until_ready(&instance_ip).await {
+                        fail!("wireguard_ready", e);
+                    }
+                    emit_step("wireguard_ready", SpawnStepStatus::Completed, None);
+                }
+                step_id_raw => {
+                    let step_id = step_id_raw.to_string();
+                    emit_step(&step_id, SpawnStepStatus::Running, None);
+                    if let Err(e) = cloud_provider.run_spawn_step(&step_id, &region).await {
+                        fail!(step_id.as_str(), e);
+                    }
+                    emit_step(&step_id, SpawnStepStatus::Completed, None);
+                }
+            }
+        }
+
+        let instance = spawned_instance.expect("launch step must have run");
+
+        // ── write_config (silent — not a visible step) ────────────────────
+        let provider_name = cloud_provider.get_provider_name();
+        if let Err(e) = commands::spawn::write_wireguard_config(
+            &provider_name,
+            &region,
+            &instance,
+            &client_private_key,
+            &server_public_key,
+        )
+        .await
+        {
+            let msg = e.to_string();
+            let _ = app_handle.emit("spawn-failed", json!({ "jobId": &job_id, "error": msg }));
+            return;
+        }
+
+        // ── ledger entry ──────────────────────────────────────────────────
+        let entry = LedgerEntry {
+            instance_id: instance.id.clone(),
+            provider: provider.clone(),
+            region: region.clone(),
+            instance_type: instance.instance_type.clone(),
+            launched_at: instance.launched_at.unwrap_or_else(Utc::now),
+            terminated_at: None,
+            bytes_sent: 0,
+            bytes_received: 0,
+        };
+        if let Ok(store) = app_handle.store("ledger.json") {
+            store.set(
+                LedgerEntry::store_key(&instance.id),
+                serde_json::to_value(&entry).unwrap_or_default(),
+            );
+            let _ = store.save();
+        }
+
+        // ── completion ────────────────────────────────────────────────────
+        let _ = app_handle.emit(
+            "spawn-complete",
+            SpawnCompleteEvent {
+                job_id: job_id.clone(),
+                instance,
+            },
+        );
+    });
+
+    Ok(job)
 }
 
 #[tauri::command]

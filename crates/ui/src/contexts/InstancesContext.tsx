@@ -1,5 +1,5 @@
 import { createContext, useContext, ReactNode } from "react";
-import { Instance } from "../types";
+import { Instance, SpawnJobState } from "../types";
 import { useInstances } from "../hooks/useInstances";
 import { useRegionsContext } from "./RegionsContext";
 
@@ -10,7 +10,7 @@ interface InstancesContextValue {
   instances: Instance[];
   isLoading: boolean;
   isSpawning: boolean;
-  isTerminating: boolean;
+  terminatingInstanceId: string | null;
   error: string | null;
   spawnInstance: (regionName: string, provider: string) => Promise<Instance>;
   terminateInstance: (
@@ -20,6 +20,8 @@ interface InstancesContextValue {
   ) => Promise<void>;
   clearError: () => void;
   refetch: () => Promise<void>;
+  /** Returns live step state for a spawning placeholder instance id. */
+  getSpawnJobForInstance: (instanceId: string) => SpawnJobState | undefined;
 }
 
 const InstancesContext = createContext<InstancesContextValue | null>(null);

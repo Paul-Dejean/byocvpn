@@ -296,7 +296,7 @@ fn build_instance_info(instance: &Value, region: &str) -> Result<InstanceInfo> {
     let state = instance["lifecycleState"]
         .as_str()
         .unwrap_or("UNKNOWN")
-        .to_string();
+        .to_lowercase();
 
     // The public IPs are not embedded directly in the instance response; they come via the VNIC.
     // We store empty strings here and fetch them properly in spawn_instance after polling.

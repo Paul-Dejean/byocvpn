@@ -5,7 +5,7 @@ exec > >(tee /dev/console /var/log/byocvpn-setup.log) 2>&1
 set -xe
 
 apt-get update -y
-apt-get install -y wireguard iptables
+apt-get install -y wireguard iptables socat
 
 # Detect the default network interface (eth0 / ens3 / ens4 depending on image).
 DEFAULT_IFACE=$(ip route show default | awk '/default/ {print $5; exit}')
@@ -54,3 +54,12 @@ echo "[byocvpn] wg-quick status:"
 systemctl status wg-quick@wg0 --no-pager || true
 echo "[byocvpn] WireGuard interface:"
 wg show || true
+
+# Start the WireGuard health endpoint on TCP 51820.
+# Each connection receives the output of `systemctl is-active wg-quick@wg0`
+# (either "active" or "inactive"/"failed"), letting the client know when
+# WireGuard is truly up before it tries to connect.
+echo "[byocvpn] Starting health endpoint on TCP 51820..."
+systemd-run --unit=byocvpn-health --remain-after-exit \
+  socat TCP-LISTEN:51820,reuseaddr,fork \
+  EXEC:"systemctl is-active wg-quick@wg0"

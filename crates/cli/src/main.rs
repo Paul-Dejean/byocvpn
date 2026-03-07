@@ -2,7 +2,9 @@ use byocvpn_aws::{AwsProvider, AwsProviderConfig};
 use byocvpn_core::{
     cloud_provider::CloudProvider,
     commands,
+    connectivity::wait_until_ready,
     credentials::get_credentials,
+    crypto::generate_keypair,
     error::{ConfigurationError, Result},
 };
 use byocvpn_daemon::daemon_client::UnixDaemonClient;
@@ -77,7 +79,31 @@ async fn main() -> Result<()> {
     match cli.command {
         Commands::Spawn { region } => {
             let provider = create_cloud_provider("aws").await?;
-            let instance = commands::spawn::spawn_instance(&*provider, region.as_str()).await?;
+            commands::setup::setup(&*provider).await?;
+            commands::setup::enable_region(&*provider, &region).await?;
+
+            let (client_private_key, client_public_key) = generate_keypair();
+            let (server_private_key, server_public_key) = generate_keypair();
+
+            let instance = commands::spawn::launch_instance(
+                &*provider,
+                region.as_str(),
+                &server_private_key,
+                &client_public_key,
+            )
+            .await?;
+
+            wait_until_ready(&instance.public_ip_v4).await?;
+
+            let provider_name = provider.get_provider_name();
+            commands::spawn::write_wireguard_config(
+                &provider_name,
+                region.as_str(),
+                &instance,
+                &client_private_key,
+                &server_public_key,
+            )
+            .await?;
 
             println!(
                 "Instance ID: {}\nPublic IPv4: {}\nPublic IPv6: {}",

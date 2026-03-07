@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use byocvpn_core::{
     cloud_provider::{
-        CloudProvider, CloudProviderName, InstanceInfo, SpawnInstanceParams,
+        CloudProvider, CloudProviderName, InstanceInfo, SpawnInstanceParams, SpawnStep,
         TerminateInstanceParams,
     },
     commands::setup::Region,
@@ -58,33 +58,147 @@ impl CloudProvider for OracleProvider {
         CloudProviderName::Oracle
     }
 
+    fn spawn_steps(&self, _region: &str) -> Vec<SpawnStep> {
+        vec![
+            SpawnStep { id: "setup_vcn".into(), label: "Creating home VCN".into() },
+            SpawnStep { id: "setup_igw".into(), label: "Creating internet gateway".into() },
+            SpawnStep { id: "region_subscribe".into(), label: "Subscribing to region \u{2014} this may take several minutes".into() },
+            SpawnStep { id: "region_vcn".into(), label: "Creating regional VCN".into() },
+            SpawnStep { id: "region_igw".into(), label: "Creating regional internet gateway".into() },
+            SpawnStep { id: "region_security_list".into(), label: "Creating security list".into() },
+            SpawnStep { id: "region_subnet".into(), label: "Creating subnet".into() },
+            SpawnStep { id: "launch".into(), label: "Launching Ampere A1 instance".into() },
+            SpawnStep { id: "wireguard_ready".into(), label: "Waiting for WireGuard to start".into() },
+        ]
+    }
+
+    async fn run_spawn_step(&self, step_id: &str, region: &str) -> Result<()> {
+        match step_id {
+            "setup_vcn" => {
+                let client = self.make_client(None);
+                let compartment = self.compartment_ocid();
+                if network::get_vcn_by_name(&client, compartment).await?.is_none() {
+                    network::create_vcn(&client, compartment).await?;
+                }
+                Ok(())
+            }
+            "setup_igw" => {
+                let client = self.make_client(None);
+                let compartment = self.compartment_ocid();
+                let (vcn_id, route_table_id, ipv6_prefix) =
+                    network::get_vcn_by_name(&client, compartment)
+                        .await?
+                        .ok_or(NetworkProvisioningError::VpcNotFound {
+                            vpc_name: "byocvpn-vcn".to_string(),
+                        })?;
+                let igw_id =
+                    network::get_or_create_internet_gateway(&client, compartment, &vcn_id).await?;
+                network::add_default_route_to_table(
+                    &client,
+                    &route_table_id,
+                    &igw_id,
+                    &ipv6_prefix,
+                )
+                .await?;
+                Ok(())
+            }
+            "region_subscribe" => {
+                let home_client = self.make_client(None);
+                network::ensure_region_subscribed(&home_client, self.compartment_ocid(), region)
+                    .await
+            }
+            "region_vcn" => {
+                let client = self.make_client(Some(region));
+                let compartment = self.compartment_ocid();
+                if network::get_vcn_by_name(&client, compartment).await?.is_none() {
+                    network::create_vcn(&client, compartment).await?;
+                }
+                Ok(())
+            }
+            "region_igw" => {
+                let client = self.make_client(Some(region));
+                let compartment = self.compartment_ocid();
+                let (vcn_id, route_table_id, ipv6_prefix) =
+                    network::get_vcn_by_name(&client, compartment)
+                        .await?
+                        .ok_or(NetworkProvisioningError::VpcNotFound {
+                            vpc_name: "byocvpn-vcn".to_string(),
+                        })?;
+                let igw_id =
+                    network::get_or_create_internet_gateway(&client, compartment, &vcn_id).await?;
+                network::add_default_route_to_table(
+                    &client,
+                    &route_table_id,
+                    &igw_id,
+                    &ipv6_prefix,
+                )
+                .await?;
+                Ok(())
+            }
+            "region_security_list" => {
+                let client = self.make_client(Some(region));
+                let compartment = self.compartment_ocid();
+                let (vcn_id, _, ipv6_prefix) =
+                    network::get_vcn_by_name(&client, compartment)
+                        .await?
+                        .ok_or(NetworkProvisioningError::VpcNotFound {
+                            vpc_name: "byocvpn-vcn".to_string(),
+                        })?;
+                network::get_or_create_security_list(
+                    &client,
+                    compartment,
+                    &vcn_id,
+                    &ipv6_prefix,
+                )
+                .await?;
+                Ok(())
+            }
+            "region_subnet" => {
+                let client = self.make_client(Some(region));
+                let compartment = self.compartment_ocid();
+                let (vcn_id, route_table_id, ipv6_prefix) =
+                    network::get_vcn_by_name(&client, compartment)
+                        .await?
+                        .ok_or(NetworkProvisioningError::VpcNotFound {
+                            vpc_name: "byocvpn-vcn".to_string(),
+                        })?;
+                let security_list_id = network::get_or_create_security_list(
+                    &client,
+                    compartment,
+                    &vcn_id,
+                    &ipv6_prefix,
+                )
+                .await?;
+                let subnet_id =
+                    match network::get_subnet_by_name(&client, compartment, &vcn_id).await? {
+                        Some((existing_id, _)) => existing_id,
+                        None => {
+                            network::create_subnet(
+                                &client,
+                                compartment,
+                                &vcn_id,
+                                &security_list_id,
+                                &route_table_id,
+                                &ipv6_prefix,
+                            )
+                            .await?
+                        }
+                    };
+                network::ensure_subnet_security_list(&client, &subnet_id, &security_list_id)
+                    .await?;
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+
     async fn verify_permissions(&self) -> Result<Value> {
         Ok(serde_json::json!({ "status": "not_implemented" }))
     }
 
     async fn setup(&self) -> Result<()> {
-        let client = self.make_client(None);
-        let compartment_ocid = self.compartment_ocid();
-
-        let (vcn_id, route_table_id, _ipv6_prefix) =
-            match network::get_vcn_by_name(&client, compartment_ocid).await? {
-                Some(existing) => {
-                    println!("Existing VCN found in home region, skipping VCN creation.");
-                    existing
-                }
-                None => {
-                    let ids = network::create_vcn(&client, compartment_ocid).await?;
-                    println!("VCN created in home region.");
-                    ids
-                }
-            };
-
-        // Always idempotently ensure the IGW and route exist.
-        let igw_id =
-            network::get_or_create_internet_gateway(&client, compartment_ocid, &vcn_id).await?;
-        network::add_default_route_to_table(&client, &route_table_id, &igw_id, &_ipv6_prefix)
-            .await?;
-        println!("OCI setup completed (VCN + IGW + route) in home region.");
+        self.run_spawn_step("setup_vcn", "").await?;
+        self.run_spawn_step("setup_igw", "").await?;
         Ok(())
     }
 

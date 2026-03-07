@@ -1,4 +1,4 @@
-import { Instance, RegionGroup } from "../../types";
+import { Instance, RegionGroup, SpawnJobState } from "../../types";
 import { ServerCard } from "./ServerCard";
 
 /**
@@ -13,6 +13,8 @@ interface ServerListProps {
   groupedRegions: RegionGroup[];
   /** Whether the list is loading */
   isLoading: boolean;
+  /** Returns the live spawn job for a given instance id (if deploying). */
+  getSpawnJobForInstance: (instanceId: string) => SpawnJobState | undefined;
   /** Callback when an instance is selected */
   onSelectInstance: (instance: Instance) => void;
   /** Callback when add new server button is clicked */
@@ -27,6 +29,7 @@ export function ServerList({
   selectedInstance,
   groupedRegions,
   isLoading,
+  getSpawnJobForInstance,
   onSelectInstance,
   onAddNewServer,
 }: ServerListProps) {
@@ -53,6 +56,7 @@ export function ServerList({
                 instance={instance}
                 isSelected={selectedInstance?.id === instance.id}
                 groupedRegions={groupedRegions}
+                spawnJob={getSpawnJobForInstance(instance.id)}
                 onSelect={onSelectInstance}
               />
             ))}

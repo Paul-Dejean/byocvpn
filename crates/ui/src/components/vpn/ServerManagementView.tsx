@@ -1,6 +1,6 @@
 import { Instance } from "../../types";
 import { SettingsButton } from "../settings/SettingsButton";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ServerList } from "../servers/ServerList";
 import { RegionSelector } from "../regions/RegionSelector";
 import { ServerDetails } from "../servers/ServerDetails";
@@ -32,8 +32,9 @@ export function ServerManagementView({
   const {
     instances,
     isLoading: instancesLoading,
-    isTerminating,
+    terminatingInstanceId,
     terminateInstance,
+    getSpawnJobForInstance,
   } = useInstancesContext();
 
   const {
@@ -43,6 +44,28 @@ export function ServerManagementView({
   } = useVpnConnectionContext();
 
   const isLoading = regionsLoading || instancesLoading;
+
+  // Keep selectedInstance in sync with the live instances array so that
+  // state/IP updates (and the placeholder → real instance transition on
+  // spawn-complete) are reflected automatically.
+  useEffect(() => {
+    if (!selectedInstance) return;
+    const live = instances.find((i) => i.id === selectedInstance.id);
+    if (live) {
+      // Same ID — update in case state or IP changed.
+      if (live !== selectedInstance) setSelectedInstance(live);
+    } else if (selectedInstance.state === "spawning") {
+      // The placeholder was replaced by the real instance (different ID).
+      // Find it by matching region + provider with a non-spawning state.
+      const replacement = instances.find(
+        (i) =>
+          i.region === selectedInstance.region &&
+          i.provider === selectedInstance.provider &&
+          i.state !== "spawning",
+      );
+      if (replacement) setSelectedInstance(replacement);
+    }
+  }, [instances]);
 
   const handleSelectInstance = (instance: Instance) => {
     setSelectedInstance(instance);
@@ -85,6 +108,10 @@ export function ServerManagementView({
         <RegionSelector
           provider={selectedProvider}
           onClose={() => setCreationStep("idle")}
+          onSpawned={(instance) => {
+            setSelectedInstance(instance);
+            setCreationStep("idle");
+          }}
         />
       ) : (
         <>
@@ -111,6 +138,7 @@ export function ServerManagementView({
               selectedInstance={selectedInstance}
               groupedRegions={groupedRegions}
               isLoading={isLoading}
+              getSpawnJobForInstance={getSpawnJobForInstance}
               onSelectInstance={handleSelectInstance}
               onAddNewServer={() => setCreationStep("selecting-provider")}
             />
@@ -121,8 +149,9 @@ export function ServerManagementView({
                 instance={selectedInstance}
                 groupedRegions={groupedRegions}
                 isConnecting={isConnecting}
-                isTerminating={isTerminating}
+                isTerminating={terminatingInstanceId === selectedInstance?.id}
                 vpnError={vpnError}
+                spawnJob={getSpawnJobForInstance(selectedInstance.id)}
                 onConnect={onConnect}
                 onTerminate={onTerminate}
               />

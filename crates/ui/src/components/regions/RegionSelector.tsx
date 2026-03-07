@@ -12,13 +12,21 @@ interface SimpleRegionGroup {
   regions: SimpleRegion[];
 }
 
+import { Instance } from "../../types";
+
 interface RegionSelectorProps {
   /** The cloud provider to fetch regions for (e.g. "aws" or "oracle") */
   provider: string;
   onClose: () => void;
+  /** Called with the placeholder instance as soon as deployment is queued. */
+  onSpawned?: (instance: Instance) => void;
 }
 
-export function RegionSelector({ provider, onClose }: RegionSelectorProps) {
+export function RegionSelector({
+  provider,
+  onClose,
+  onSpawned,
+}: RegionSelectorProps) {
   const [selectedRegion, setSelectedRegion] = useState<SimpleRegion | null>(
     null,
   );
@@ -61,10 +69,11 @@ export function RegionSelector({ provider, onClose }: RegionSelectorProps) {
     return region?.flag ?? "🌍";
   };
 
-  const handleDeploy = () => {
+  const handleDeploy = async () => {
     if (selectedRegion) {
-      spawnInstance(selectedRegion.name, provider);
-      onClose(); // Close immediately to show placeholder card
+      const placeholder = await spawnInstance(selectedRegion.name, provider);
+      onSpawned?.(placeholder);
+      onClose();
     }
   };
 

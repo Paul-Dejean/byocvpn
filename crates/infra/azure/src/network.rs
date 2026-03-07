@@ -224,19 +224,34 @@ pub async fn ensure_nsg(client: &AzureClient, location: &str) -> Result<String> 
         "location": location,
         "tags": { "byocvpn": "true" },
         "properties": {
-            "securityRules": [{
-                "name": "AllowWireGuard",
-                "properties": {
-                    "priority": 1000,
-                    "protocol": "UDP",
-                    "access": "Allow",
-                    "direction": "Inbound",
-                    "sourceAddressPrefix": "*",
-                    "sourcePortRange": "*",
-                    "destinationAddressPrefix": "*",
-                    "destinationPortRange": "51820"
+            "securityRules": [
+                {
+                    "name": "AllowWireGuard",
+                    "properties": {
+                        "priority": 1000,
+                        "protocol": "UDP",
+                        "access": "Allow",
+                        "direction": "Inbound",
+                        "sourceAddressPrefix": "*",
+                        "sourcePortRange": "*",
+                        "destinationAddressPrefix": "*",
+                        "destinationPortRange": "51820"
+                    }
+                },
+                {
+                    "name": "AllowHealthEndpoint",
+                    "properties": {
+                        "priority": 1001,
+                        "protocol": "TCP",
+                        "access": "Allow",
+                        "direction": "Inbound",
+                        "sourceAddressPrefix": "*",
+                        "sourcePortRange": "*",
+                        "destinationAddressPrefix": "*",
+                        "destinationPortRange": "51820"
+                    }
                 }
-            }]
+            ]
         }
     });
 

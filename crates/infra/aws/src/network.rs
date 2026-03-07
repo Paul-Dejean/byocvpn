@@ -56,7 +56,30 @@ pub(super) async fn create_security_group(
             },
         )?;
 
-    println!("Added SSH ingress rule to security group");
+    println!("Added WireGuard UDP ingress rule to security group");
+
+    // Allow TCP 51820 for the WireGuard health endpoint (socat listener).
+    ec2_client
+        .authorize_security_group_ingress()
+        .group_id(&group_id)
+        .ip_permissions(
+            IpPermission::builder()
+                .ip_protocol("tcp")
+                .from_port(51820)
+                .to_port(51820)
+                .ip_ranges(IpRange::builder().cidr_ip("0.0.0.0/0").build())
+                .ipv6_ranges(Ipv6Range::builder().cidr_ipv6("::/0").build())
+                .build(),
+        )
+        .send()
+        .await
+        .map_err(
+            |error| NetworkProvisioningError::SecurityGroupRuleConfigurationFailed {
+                reason: error.to_string(),
+            },
+        )?;
+
+    println!("Added health endpoint TCP ingress rule to security group");
 
     Ok(group_id)
 }

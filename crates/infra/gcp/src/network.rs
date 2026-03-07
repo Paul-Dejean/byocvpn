@@ -8,6 +8,8 @@ const VPC_NAME: &str = "byocvpn-vpc";
 const SUBNET_NAME: &str = "byocvpn-subnet";
 const FIREWALL_WIREGUARD_IPV4_NAME: &str = "byocvpn-wireguard-ipv4";
 const FIREWALL_WIREGUARD_IPV6_NAME: &str = "byocvpn-wireguard-ipv6";
+const FIREWALL_HEALTH_IPV4_NAME: &str = "byocvpn-health-ipv4";
+const FIREWALL_HEALTH_IPV6_NAME: &str = "byocvpn-health-ipv6";
 const FIREWALL_TAG: &str = "byocvpn";
 
 // ---------------------------------------------------------------------------
@@ -177,6 +179,58 @@ pub async fn get_or_create_firewall(client: &GcpClient) -> Result<()> {
             "GCP firewall rule '{}' created.",
             FIREWALL_WIREGUARD_IPV6_NAME
         );
+    }
+
+    // Health endpoint IPv4 rule (TCP 51820).
+    let health_ipv4_url = format!(
+        "{}/global/firewalls/{}",
+        client.compute_base_url(),
+        FIREWALL_HEALTH_IPV4_NAME
+    );
+    if client.get(&health_ipv4_url).await.is_err() {
+        let body = json!({
+            "name": FIREWALL_HEALTH_IPV4_NAME,
+            "network": vpc_url,
+            "description": "Allow health endpoint TCP 51820 inbound (IPv4) for byocvpn",
+            "direction": "INGRESS",
+            "priority": 1000,
+            "targetTags": [FIREWALL_TAG],
+            "allowed": [{ "IPProtocol": "tcp", "ports": ["51820"] }],
+            "sourceRanges": ["0.0.0.0/0"],
+        });
+        let operation = client.post(&create_url, &body).await.map_err(|error| {
+            NetworkProvisioningError::SecurityGroupCreationFailed {
+                reason: error.to_string(),
+            }
+        })?;
+        wait_for_operation_response(client, &operation).await?;
+        println!("GCP firewall rule '{}' created.", FIREWALL_HEALTH_IPV4_NAME);
+    }
+
+    // Health endpoint IPv6 rule (TCP 51820).
+    let health_ipv6_url = format!(
+        "{}/global/firewalls/{}",
+        client.compute_base_url(),
+        FIREWALL_HEALTH_IPV6_NAME
+    );
+    if client.get(&health_ipv6_url).await.is_err() {
+        let body = json!({
+            "name": FIREWALL_HEALTH_IPV6_NAME,
+            "network": vpc_url,
+            "description": "Allow health endpoint TCP 51820 inbound (IPv6) for byocvpn",
+            "direction": "INGRESS",
+            "priority": 1000,
+            "targetTags": [FIREWALL_TAG],
+            "allowed": [{ "IPProtocol": "tcp", "ports": ["51820"] }],
+            "sourceRanges": ["::/0"],
+        });
+        let operation = client.post(&create_url, &body).await.map_err(|error| {
+            NetworkProvisioningError::SecurityGroupCreationFailed {
+                reason: error.to_string(),
+            }
+        })?;
+        wait_for_operation_response(client, &operation).await?;
+        println!("GCP firewall rule '{}' created.", FIREWALL_HEALTH_IPV6_NAME);
     }
 
     Ok(())

@@ -325,13 +325,23 @@ pub async fn get_or_create_security_list(
     let response = client.get(&url).await?;
 
     // OCI rejects ::/0 rules on VCNs that were created without isIpv6Enabled.
-    let mut ingress_rules = vec![json!({
-        "protocol": "17",
-        "source": "0.0.0.0/0",
-        "sourceType": "CIDR_BLOCK",
-        "isStateless": false,
-        "udpOptions": { "destinationPortRange": { "min": 51820, "max": 51820 } }
-    })];
+    let mut ingress_rules = vec![
+        json!({
+            "protocol": "17",
+            "source": "0.0.0.0/0",
+            "sourceType": "CIDR_BLOCK",
+            "isStateless": false,
+            "udpOptions": { "destinationPortRange": { "min": 51820, "max": 51820 } }
+        }),
+        // Health endpoint (socat TCP listener, same port as WireGuard UDP).
+        json!({
+            "protocol": "6",
+            "source": "0.0.0.0/0",
+            "sourceType": "CIDR_BLOCK",
+            "isStateless": false,
+            "tcpOptions": { "destinationPortRange": { "min": 51820, "max": 51820 } }
+        }),
+    ];
     let mut egress_rules = vec![json!({
         "protocol": "all",
         "destination": "0.0.0.0/0",
@@ -345,6 +355,14 @@ pub async fn get_or_create_security_list(
             "sourceType": "CIDR_BLOCK",
             "isStateless": false,
             "udpOptions": { "destinationPortRange": { "min": 51820, "max": 51820 } }
+        }));
+        // Health endpoint IPv6.
+        ingress_rules.push(json!({
+            "protocol": "6",
+            "source": "::/0",
+            "sourceType": "CIDR_BLOCK",
+            "isStateless": false,
+            "tcpOptions": { "destinationPortRange": { "min": 51820, "max": 51820 } }
         }));
         egress_rules.push(json!({
             "protocol": "all",
