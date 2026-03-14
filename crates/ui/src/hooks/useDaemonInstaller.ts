@@ -29,7 +29,6 @@ export const useDaemonInstaller = () => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
 
-      // User cancelled the password prompt — don't show an error
       if (errorMessage.includes("User cancelled")) {
         return false;
       }

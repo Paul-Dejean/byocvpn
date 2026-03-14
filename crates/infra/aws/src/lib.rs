@@ -1,9 +1,11 @@
-mod cloud_init;
-mod config;
-
 mod aws_error;
+mod config;
+pub mod credentials;
 mod instance;
 mod network;
 pub mod pricing;
 mod provider;
+mod startup_script;
+mod state;
+pub use credentials::AwsCredentials;
 pub use provider::{AwsProvider, AwsProviderConfig};

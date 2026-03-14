@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use async_trait::async_trait;
 use byocvpn_core::{
     cloud_provider::{
@@ -10,22 +12,20 @@ use byocvpn_core::{
 use serde_json::Value;
 
 use crate::{auth::OciCredentials, client::OciClient, instance, network};
+use log::*;
 
-/// Configuration required to create an `OracleProvider`.
 pub struct OracleProviderConfig {
-    /// OCI tenancy OCID.
     pub tenancy_ocid: String,
-    /// OCI user OCID.
+
     pub user_ocid: String,
-    /// RSA key fingerprint as shown in the OCI console.
+
     pub fingerprint: String,
-    /// PEM-encoded RSA private key (PKCS#8).
+
     pub private_key_pem: String,
-    /// Home region identifier (e.g. `us-ashburn-1`).
+
     pub region: String,
 }
 
-/// Oracle Cloud Infrastructure implementation of `CloudProvider`.
 pub struct OracleProvider {
     config: OracleProviderConfig,
 }
@@ -46,9 +46,55 @@ impl OracleProvider {
         OciClient::new(credentials)
     }
 
-    /// The tenancy OCID doubles as the root compartment OCID in OCI.
-    fn compartment_ocid(&self) -> &str {
+    fn get_compartment_ocid(&self) -> &str {
         &self.config.tenancy_ocid
+    }
+}
+
+pub enum OracleSpawnStepId {
+    SetupVcn,
+    SetupIgw,
+    RegionSubscribe,
+    RegionVcn,
+    RegionIgw,
+    RegionSecurityList,
+    RegionSubnet,
+    Launch,
+    WireguardReady,
+}
+
+impl OracleSpawnStepId {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::SetupVcn => "setup_vcn",
+            Self::SetupIgw => "setup_igw",
+            Self::RegionSubscribe => "region_subscribe",
+            Self::RegionVcn => "region_vcn",
+            Self::RegionIgw => "region_igw",
+            Self::RegionSecurityList => "region_security_list",
+            Self::RegionSubnet => "region_subnet",
+            Self::Launch => "launch",
+            Self::WireguardReady => "wireguard_ready",
+        }
+    }
+}
+
+impl FromStr for OracleSpawnStepId {
+    type Err = ();
+
+    fn from_str(s: &str) -> std::result::Result<Self, ()> {
+        match s {
+            "setup_vcn" => Ok(Self::SetupVcn),
+            "setup_igw" => Ok(Self::SetupIgw),
+            "region_subscribe" => Ok(Self::RegionSubscribe),
+            "region_vcn" => Ok(Self::RegionVcn),
+            "region_igw" => Ok(Self::RegionIgw),
+            "region_security_list" => Ok(Self::RegionSecurityList),
+            "region_subnet" => Ok(Self::RegionSubnet),
+            "launch" => Ok(Self::Launch),
+            "wireguard_ready" => Ok(Self::WireguardReady),
+            _ => Err(()),
+        }
     }
 }
 
@@ -60,31 +106,64 @@ impl CloudProvider for OracleProvider {
 
     fn spawn_steps(&self, _region: &str) -> Vec<SpawnStep> {
         vec![
-            SpawnStep { id: "setup_vcn".into(), label: "Creating home VCN".into() },
-            SpawnStep { id: "setup_igw".into(), label: "Creating internet gateway".into() },
-            SpawnStep { id: "region_subscribe".into(), label: "Subscribing to region \u{2014} this may take several minutes".into() },
-            SpawnStep { id: "region_vcn".into(), label: "Creating regional VCN".into() },
-            SpawnStep { id: "region_igw".into(), label: "Creating regional internet gateway".into() },
-            SpawnStep { id: "region_security_list".into(), label: "Creating security list".into() },
-            SpawnStep { id: "region_subnet".into(), label: "Creating subnet".into() },
-            SpawnStep { id: "launch".into(), label: "Launching Ampere A1 instance".into() },
-            SpawnStep { id: "wireguard_ready".into(), label: "Waiting for WireGuard to start".into() },
+            SpawnStep {
+                id: OracleSpawnStepId::SetupVcn.as_str().into(),
+                label: "Creating home VCN".into(),
+            },
+            SpawnStep {
+                id: OracleSpawnStepId::SetupIgw.as_str().into(),
+                label: "Creating internet gateway".into(),
+            },
+            SpawnStep {
+                id: OracleSpawnStepId::RegionSubscribe.as_str().into(),
+                label: "Subscribing to region \u{2014} this may take several minutes".into(),
+            },
+            SpawnStep {
+                id: OracleSpawnStepId::RegionVcn.as_str().into(),
+                label: "Creating regional VCN".into(),
+            },
+            SpawnStep {
+                id: OracleSpawnStepId::RegionIgw.as_str().into(),
+                label: "Creating regional internet gateway".into(),
+            },
+            SpawnStep {
+                id: OracleSpawnStepId::RegionSecurityList.as_str().into(),
+                label: "Creating security list".into(),
+            },
+            SpawnStep {
+                id: OracleSpawnStepId::RegionSubnet.as_str().into(),
+                label: "Creating subnet".into(),
+            },
+            SpawnStep {
+                id: OracleSpawnStepId::Launch.as_str().into(),
+                label: "Launching Ampere A1 instance".into(),
+            },
+            SpawnStep {
+                id: OracleSpawnStepId::WireguardReady.as_str().into(),
+                label: "Waiting for WireGuard to start".into(),
+            },
         ]
     }
 
     async fn run_spawn_step(&self, step_id: &str, region: &str) -> Result<()> {
-        match step_id {
-            "setup_vcn" => {
+        let Ok(step) = step_id.parse::<OracleSpawnStepId>() else {
+            return Ok(());
+        };
+        match step {
+            OracleSpawnStepId::SetupVcn => {
                 let client = self.make_client(None);
-                let compartment = self.compartment_ocid();
-                if network::get_vcn_by_name(&client, compartment).await?.is_none() {
+                let compartment = self.get_compartment_ocid();
+                if network::get_vcn_by_name(&client, compartment)
+                    .await?
+                    .is_none()
+                {
                     network::create_vcn(&client, compartment).await?;
                 }
                 Ok(())
             }
-            "setup_igw" => {
+            OracleSpawnStepId::SetupIgw => {
                 let client = self.make_client(None);
-                let compartment = self.compartment_ocid();
+                let compartment = self.get_compartment_ocid();
                 let (vcn_id, route_table_id, ipv6_prefix) =
                     network::get_vcn_by_name(&client, compartment)
                         .await?
@@ -102,22 +181,25 @@ impl CloudProvider for OracleProvider {
                 .await?;
                 Ok(())
             }
-            "region_subscribe" => {
+            OracleSpawnStepId::RegionSubscribe => {
                 let home_client = self.make_client(None);
-                network::ensure_region_subscribed(&home_client, self.compartment_ocid(), region)
+                network::ensure_region_subscribed(&home_client, self.get_compartment_ocid(), region)
                     .await
             }
-            "region_vcn" => {
+            OracleSpawnStepId::RegionVcn => {
                 let client = self.make_client(Some(region));
-                let compartment = self.compartment_ocid();
-                if network::get_vcn_by_name(&client, compartment).await?.is_none() {
+                let compartment = self.get_compartment_ocid();
+                if network::get_vcn_by_name(&client, compartment)
+                    .await?
+                    .is_none()
+                {
                     network::create_vcn(&client, compartment).await?;
                 }
                 Ok(())
             }
-            "region_igw" => {
+            OracleSpawnStepId::RegionIgw => {
                 let client = self.make_client(Some(region));
-                let compartment = self.compartment_ocid();
+                let compartment = self.get_compartment_ocid();
                 let (vcn_id, route_table_id, ipv6_prefix) =
                     network::get_vcn_by_name(&client, compartment)
                         .await?
@@ -135,27 +217,21 @@ impl CloudProvider for OracleProvider {
                 .await?;
                 Ok(())
             }
-            "region_security_list" => {
+            OracleSpawnStepId::RegionSecurityList => {
                 let client = self.make_client(Some(region));
-                let compartment = self.compartment_ocid();
-                let (vcn_id, _, ipv6_prefix) =
-                    network::get_vcn_by_name(&client, compartment)
-                        .await?
-                        .ok_or(NetworkProvisioningError::VpcNotFound {
-                            vpc_name: "byocvpn-vcn".to_string(),
-                        })?;
-                network::get_or_create_security_list(
-                    &client,
-                    compartment,
-                    &vcn_id,
-                    &ipv6_prefix,
-                )
-                .await?;
+                let compartment = self.get_compartment_ocid();
+                let (vcn_id, _, ipv6_prefix) = network::get_vcn_by_name(&client, compartment)
+                    .await?
+                    .ok_or(NetworkProvisioningError::VpcNotFound {
+                        vpc_name: "byocvpn-vcn".to_string(),
+                    })?;
+                network::get_or_create_security_list(&client, compartment, &vcn_id, &ipv6_prefix)
+                    .await?;
                 Ok(())
             }
-            "region_subnet" => {
+            OracleSpawnStepId::RegionSubnet => {
                 let client = self.make_client(Some(region));
-                let compartment = self.compartment_ocid();
+                let compartment = self.get_compartment_ocid();
                 let (vcn_id, route_table_id, ipv6_prefix) =
                     network::get_vcn_by_name(&client, compartment)
                         .await?
@@ -197,52 +273,44 @@ impl CloudProvider for OracleProvider {
     }
 
     async fn setup(&self) -> Result<()> {
-        self.run_spawn_step("setup_vcn", "").await?;
-        self.run_spawn_step("setup_igw", "").await?;
+        self.run_spawn_step(OracleSpawnStepId::SetupVcn.as_str(), "")
+            .await?;
+        self.run_spawn_step(OracleSpawnStepId::SetupIgw.as_str(), "")
+            .await?;
         Ok(())
     }
 
     async fn enable_region(&self, region: &str) -> Result<()> {
-        let compartment_ocid = self.compartment_ocid();
+        let compartment_ocid = self.get_compartment_ocid();
 
-        // Subscribe to the region if not already subscribed. This is a no-op for
-        // regions the tenancy already has access to, and blocks until READY for
-        // newly subscribed ones (typically 2–5 minutes).
         let home_client = self.make_client(None);
         network::ensure_region_subscribed(&home_client, compartment_ocid, region).await?;
 
         let client = self.make_client(Some(region));
 
-        // Ensure a VCN exists in this region (OCI VCNs are region-scoped).
-        // If the existing VCN has no IPv6 and cannot be upgraded in-place (OCI
-        // returns 404 in some regions for addIpv6VcnCidr), we tear it down and
-        // recreate it with isIpv6Enabled: true.  This is safe here because
-        // enable_region always runs before any instances are spawned.
         let (vcn_id, route_table_id, ipv6_prefix) = {
             let (existing_vcn_id, existing_rt_id, raw_prefix) =
                 match network::get_vcn_by_name(&client, compartment_ocid).await? {
                     Some(existing) => {
-                        println!("Existing VCN found in {}, skipping VCN creation.", region);
+                        info!("Existing VCN found in {}, skipping VCN creation.", region);
                         existing
                     }
                     None => {
-                        println!("No VCN in {}, creating...", region);
+                        info!("No VCN in {}, creating...", region);
                         let ids = network::create_vcn(&client, compartment_ocid).await?;
-                        println!("VCN created in {}.", region);
+                        info!("VCN created in {}.", region);
                         ids
                     }
                 };
 
             if raw_prefix.is_empty() {
-                // Try to add an Oracle-provided IPv6 prefix to the existing VCN.
                 let upgraded =
                     network::ensure_vcn_ipv6(&client, &existing_vcn_id, &raw_prefix).await;
                 if !upgraded.is_empty() {
-                    println!("IPv6 CIDR added to VCN in {}: {}", region, upgraded);
+                    info!("IPv6 CIDR added to VCN in {}: {}", region, upgraded);
                     (existing_vcn_id, existing_rt_id, upgraded)
                 } else {
-                    // In-place upgrade failed — recreate the VCN with IPv6 from the start.
-                    println!(
+                    info!(
                         "IPv6 upgrade failed for VCN in {}. Tearing down and recreating with IPv6...",
                         region
                     );
@@ -254,7 +322,7 @@ impl CloudProvider for OracleProvider {
                     )
                     .await?;
                     let ids = network::create_vcn(&client, compartment_ocid).await?;
-                    println!("VCN recreated with IPv6 in {}.", region);
+                    info!("VCN recreated with IPv6 in {}.", region);
                     ids
                 }
             } else {
@@ -262,14 +330,11 @@ impl CloudProvider for OracleProvider {
             }
         };
 
-        // Always ensure the IGW and default route exist — these are idempotent and
-        // must run even when the VCN already existed (e.g. created in a previous
-        // attempt that failed before the route was added).
         let igw_id =
             network::get_or_create_internet_gateway(&client, compartment_ocid, &vcn_id).await?;
         network::add_default_route_to_table(&client, &route_table_id, &igw_id, &ipv6_prefix)
             .await?;
-        println!("IGW + default route ensured in {}.", region);
+        info!("IGW + default route ensured in {}.", region);
 
         let security_list_id =
             network::get_or_create_security_list(&client, compartment_ocid, &vcn_id, &ipv6_prefix)
@@ -278,7 +343,7 @@ impl CloudProvider for OracleProvider {
         let subnet_id =
             match network::get_subnet_by_name(&client, compartment_ocid, &vcn_id).await? {
                 Some((existing_id, _)) => {
-                    println!(
+                    info!(
                         "Subnet already exists in {}, ensuring security list.",
                         region
                     );
@@ -294,22 +359,20 @@ impl CloudProvider for OracleProvider {
                         &ipv6_prefix,
                     )
                     .await?;
-                    println!("Created subnet in {}", region);
+                    info!("Created subnet in {}", region);
                     id
                 }
             };
 
-        // Always attach our security list — fixes subnets from earlier partial runs
-        // that were created before the security list rules were configured.
         network::ensure_subnet_security_list(&client, &subnet_id, &security_list_id).await?;
-        println!("Security list attached to subnet in {}.", region);
+        info!("Security list attached to subnet in {}.", region);
 
         Ok(())
     }
 
     async fn spawn_instance(&self, params: &SpawnInstanceParams) -> Result<InstanceInfo> {
         let client = self.make_client(Some(params.region));
-        let compartment_ocid = self.compartment_ocid();
+        let compartment_ocid = self.get_compartment_ocid();
 
         let (vcn_id, _, _) = network::get_vcn_by_name(&client, compartment_ocid)
             .await?
@@ -344,22 +407,22 @@ impl CloudProvider for OracleProvider {
     async fn list_instances(&self, region: Option<&str>) -> Result<Vec<InstanceInfo>> {
         if let Some(region_name) = region {
             let client = self.make_client(Some(region_name));
-            return instance::list_instances(&client, self.compartment_ocid(), region_name).await;
+            return instance::list_instances(&client, self.get_compartment_ocid(), region_name)
+                .await;
         }
 
-        // Use subscribed regions only — querying unsubscribed regions returns 401.
         let client = self.make_client(None);
-        let region_list = network::list_regions(&client, self.compartment_ocid()).await?;
+        let region_list = network::list_regions(&client, self.get_compartment_ocid()).await?;
         let regions: Vec<Region> = region_list
             .into_iter()
             .map(|(name, country)| Region { name, country })
             .collect();
         let results = futures::future::join_all(regions.iter().map(|r| async move {
             let client = self.make_client(Some(&r.name));
-            match instance::list_instances(&client, self.compartment_ocid(), &r.name).await {
+            match instance::list_instances(&client, self.get_compartment_ocid(), &r.name).await {
                 Ok(instances) => instances,
                 Err(e) => {
-                    eprintln!("Skipping OCI region {}: {}", r.name, e);
+                    error!("Skipping OCI region {}: {}", r.name, e);
                     vec![]
                 }
             }

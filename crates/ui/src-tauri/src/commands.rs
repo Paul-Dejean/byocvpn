@@ -1,214 +1,97 @@
-use std::{str::FromStr, time::Instant};
+use std::{collections::HashSet, str::FromStr};
 
-use byocvpn_aws::{AwsProvider, AwsProviderConfig, pricing as aws_pricing};
-use byocvpn_azure::{AzureProvider, AzureProviderConfig, pricing as azure_pricing};
+use byocvpn_aws::{AwsCredentials, AwsProvider, pricing as aws_pricing};
+use byocvpn_azure::{AzureProvider, credentials::AzureCredentials, pricing as azure_pricing};
 use byocvpn_core::{
     cloud_provider::{
         CloudProvider, CloudProviderName, InstanceInfo, PricingInfo, SpawnCompleteEvent, SpawnJob,
-        SpawnProgressEvent, SpawnStepStatus,
+        SpawnProgressEvent,
     },
-    commands, connectivity, credentials,
+    commands,
+    credentials::CredentialStore,
     crypto::generate_keypair,
-    daemon_client::{DaemonClient, DaemonCommand},
-    error::{ConfigurationError, Result},
+    daemon_client,
+    error::{ConfigurationError, Error, Result},
     ledger::LedgerEntry,
     metrics_stream,
     tunnel::VpnStatus,
 };
 use byocvpn_daemon::daemon_client::UnixDaemonClient;
-use byocvpn_gcp::{GcpProvider, GcpProviderConfig, pricing as gcp_pricing};
-use byocvpn_oracle::pricing as oracle_pricing;
+use byocvpn_gcp::{GcpProvider, credentials::GcpCredentials, pricing as gcp_pricing};
+use byocvpn_oracle::{credentials::OracleCredentials, pricing as oracle_pricing};
 use chrono::Utc;
+use log::*;
 use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter};
-use tauri_plugin_store::StoreExt;
+
+use crate::ledger_store::LedgerStore;
 
 async fn create_cloud_provider(cloud_provider_name: &str) -> Result<Box<dyn CloudProvider>> {
-    match cloud_provider_name {
-        "aws" => {
-            let credentials = credentials::get_credentials().await?;
-            let config = AwsProviderConfig {
-                access_key_id: Some(credentials.access_key.clone()),
-                secret_access_key: Some(credentials.secret_access_key.clone()),
-            };
-            let cloud_provider = AwsProvider::new(config).await;
-            Ok(Box::new(cloud_provider) as Box<dyn CloudProvider>)
+    let store = CredentialStore::load().await?;
+    let provider: Box<dyn CloudProvider> = match cloud_provider_name {
+        "aws" => Box::new(AwsProvider::new(AwsCredentials::from_store(&store)?.into()).await),
+        "oracle" => Box::new(byocvpn_oracle::OracleProvider::new(
+            OracleCredentials::from_store(&store)?.into(),
+        )),
+        "gcp" => Box::new(GcpProvider::new(
+            GcpCredentials::from_store(&store)?.into(),
+        )?),
+        "azure" => Box::new(AzureProvider::new(
+            AzureCredentials::from_store(&store)?.into(),
+        )?),
+        _ => {
+            return Err(ConfigurationError::UnknownProviderName {
+                name: cloud_provider_name.to_string(),
+            }
+            .into());
         }
-        "oracle" => {
-            let oracle_credentials = credentials::get_oracle_credentials().await?;
-            let config = byocvpn_oracle::OracleProviderConfig {
-                tenancy_ocid: oracle_credentials.tenancy_ocid,
-                user_ocid: oracle_credentials.user_ocid,
-                fingerprint: oracle_credentials.fingerprint,
-                private_key_pem: oracle_credentials.private_key_pem,
-                region: oracle_credentials.region,
-            };
-            Ok(Box::new(byocvpn_oracle::OracleProvider::new(config)) as Box<dyn CloudProvider>)
-        }
-        "gcp" => {
-            let gcp_credentials = credentials::get_gcp_credentials().await?;
-            let config = GcpProviderConfig {
-                service_account_json: gcp_credentials.service_account_json,
-            };
-            Ok(Box::new(GcpProvider::new(config)?) as Box<dyn CloudProvider>)
-        }
-        "azure" => {
-            let azure_credentials = credentials::get_azure_credentials().await?;
-            let config = AzureProviderConfig {
-                subscription_id: azure_credentials.subscription_id,
-                tenant_id: azure_credentials.tenant_id,
-                client_id: azure_credentials.client_id,
-                client_secret: azure_credentials.client_secret,
-            };
-            let provider = AzureProvider::new(config)?;
-            Ok(Box::new(provider) as Box<dyn CloudProvider>)
-        }
-        _ => Err(ConfigurationError::InvalidCloudProvider(cloud_provider_name.to_string()).into()),
-    }
+    };
+    Ok(provider)
 }
 
 #[tauri::command]
 pub async fn get_credentials(provider: String) -> Result<Value> {
-    match provider.as_str() {
-        "aws" => match credentials::get_credentials().await {
-            Ok(creds) => Ok(json!({
-                "accessKeyId": creds.access_key,
-                "secretAccessKey": creds.secret_access_key,
-            })),
-            Err(_) => Ok(json!(null)),
-        },
-        "oracle" => match credentials::get_oracle_credentials().await {
-            Ok(creds) => Ok(json!({
-                "tenancyOcid": creds.tenancy_ocid,
-                "userOcid": creds.user_ocid,
-                "fingerprint": creds.fingerprint,
-                "privateKeyPem": creds.private_key_pem,
-                "region": creds.region,
-            })),
-            Err(_) => Ok(json!(null)),
-        },
-        "gcp" => match credentials::get_gcp_credentials().await {
-            Ok(creds) => Ok(json!({
-                "projectId": creds.project_id,
-                "serviceAccountJson": creds.service_account_json,
-            })),
-            Err(_) => Ok(json!(null)),
-        },
-        "azure" => match credentials::get_azure_credentials().await {
-            Ok(creds) => Ok(json!({
-                "subscriptionId": creds.subscription_id,
-                "tenantId": creds.tenant_id,
-                "clientId": creds.client_id,
-                "clientSecret": creds.client_secret,
-            })),
-            Err(_) => Ok(json!(null)),
-        },
-        _ => Err(ConfigurationError::InvalidCloudProvider(provider).into()),
+    let store = match CredentialStore::load().await {
+        Ok(store) => store,
+        Err(_) => return Ok(Value::Null),
+    };
+    fn serialize_or_null<T: serde::Serialize>(result: Result<T>) -> Value {
+        result
+            .ok()
+            .and_then(|value| serde_json::to_value(value).ok())
+            .unwrap_or(Value::Null)
     }
+    Ok(match provider.as_str() {
+        "aws" => serialize_or_null(AwsCredentials::from_store(&store)),
+        "oracle" => serialize_or_null(OracleCredentials::from_store(&store)),
+        "gcp" => serialize_or_null(GcpCredentials::from_store(&store)),
+        "azure" => serialize_or_null(AzureCredentials::from_store(&store)),
+        _ => return Err(ConfigurationError::UnknownProviderName { name: provider }.into()),
+    })
 }
 
 #[tauri::command]
 pub async fn save_credentials(provider: String, creds: Value) -> Result<()> {
-    match provider.as_str() {
-        "aws" => {
-            let access_key_id = creds["accessKeyId"]
-                .as_str()
-                .ok_or_else(|| {
-                    ConfigurationError::InvalidCloudProvider("missing accessKeyId".into())
-                })?
-                .to_string();
-            let secret_access_key = creds["secretAccessKey"]
-                .as_str()
-                .ok_or_else(|| {
-                    ConfigurationError::InvalidCloudProvider("missing secretAccessKey".into())
-                })?
-                .to_string();
-            let cloud_provider = CloudProviderName::from_str(&provider)
-                .map_err(|_| ConfigurationError::InvalidCloudProvider(provider.clone()))?;
-            credentials::save_credentials(&cloud_provider, &access_key_id, &secret_access_key).await
-        }
-        "oracle" => {
-            let tenancy_ocid = creds["tenancyOcid"]
-                .as_str()
-                .ok_or_else(|| {
-                    ConfigurationError::InvalidCloudProvider("missing tenancyOcid".into())
-                })?
-                .to_string();
-            let user_ocid = creds["userOcid"]
-                .as_str()
-                .ok_or_else(|| ConfigurationError::InvalidCloudProvider("missing userOcid".into()))?
-                .to_string();
-            let fingerprint = creds["fingerprint"]
-                .as_str()
-                .ok_or_else(|| {
-                    ConfigurationError::InvalidCloudProvider("missing fingerprint".into())
-                })?
-                .to_string();
-            let private_key_pem = creds["privateKeyPem"]
-                .as_str()
-                .ok_or_else(|| {
-                    ConfigurationError::InvalidCloudProvider("missing privateKeyPem".into())
-                })?
-                .to_string();
-            let region = creds["region"]
-                .as_str()
-                .ok_or_else(|| ConfigurationError::InvalidCloudProvider("missing region".into()))?
-                .to_string();
-            credentials::save_oracle_credentials(
-                &tenancy_ocid,
-                &user_ocid,
-                &fingerprint,
-                &private_key_pem,
-                &region,
-            )
-            .await
-        }
-        "gcp" => {
-            let project_id = creds["projectId"]
-                .as_str()
-                .ok_or_else(|| {
-                    ConfigurationError::InvalidCloudProvider("missing projectId".into())
-                })?
-                .to_string();
-            let service_account_json = creds["serviceAccountJson"]
-                .as_str()
-                .ok_or_else(|| {
-                    ConfigurationError::InvalidCloudProvider("missing serviceAccountJson".into())
-                })?
-                .to_string();
-            credentials::save_gcp_credentials(&project_id, &service_account_json).await
-        }
-        "azure" => {
-            let subscription_id = creds["subscriptionId"]
-                .as_str()
-                .ok_or_else(|| {
-                    ConfigurationError::InvalidCloudProvider("missing subscriptionId".into())
-                })?
-                .to_string();
-            let tenant_id = creds["tenantId"]
-                .as_str()
-                .ok_or_else(|| ConfigurationError::InvalidCloudProvider("missing tenantId".into()))?
-                .to_string();
-            let client_id = creds["clientId"]
-                .as_str()
-                .ok_or_else(|| ConfigurationError::InvalidCloudProvider("missing clientId".into()))?
-                .to_string();
-            let client_secret = creds["clientSecret"]
-                .as_str()
-                .ok_or_else(|| {
-                    ConfigurationError::InvalidCloudProvider("missing clientSecret".into())
-                })?
-                .to_string();
-            credentials::save_azure_credentials(
-                &subscription_id,
-                &tenant_id,
-                &client_id,
-                &client_secret,
-            )
-            .await
-        }
-        _ => Err(ConfigurationError::InvalidCloudProvider(provider).into()),
+    fn deserialize<T: serde::de::DeserializeOwned>(value: Value) -> Result<T> {
+        serde_json::from_value(value).map_err(|error| {
+            ConfigurationError::MissingField {
+                field: error.to_string(),
+            }
+            .into()
+        })
     }
+
+    let mut store = CredentialStore::load().await?;
+
+    match provider.as_str() {
+        "aws" => deserialize::<AwsCredentials>(creds)?.write_to_store(&mut store),
+        "oracle" => deserialize::<OracleCredentials>(creds)?.write_to_store(&mut store),
+        "gcp" => deserialize::<GcpCredentials>(creds)?.write_to_store(&mut store),
+        "azure" => deserialize::<AzureCredentials>(creds)?.write_to_store(&mut store),
+        _ => return Err(ConfigurationError::UnknownProviderName { name: provider }.into()),
+    }
+
+    store.save()
 }
 
 #[tauri::command]
@@ -224,148 +107,88 @@ pub async fn spawn_instance(
     provider: String,
     app_handle: AppHandle,
 ) -> Result<SpawnJob> {
+    let provider_name = CloudProviderName::from_str(&provider)?;
     let cloud_provider = create_cloud_provider(&provider).await?;
 
-    // Generate WireGuard keypairs upfront so they can be moved into the task.
     let (client_private_key, client_public_key) = generate_keypair();
     let (server_private_key, server_public_key) = generate_keypair();
 
-    let steps = cloud_provider.spawn_steps(&region);
-    let job_id = format!("{}-{}", provider, Utc::now().timestamp_millis());
     let job = SpawnJob {
-        job_id: job_id.clone(),
-        steps,
+        job_id: format!("{}-{}", provider, Utc::now().timestamp_millis()),
+        steps: cloud_provider.spawn_steps(&region),
         region: region.clone(),
-        provider: provider.clone(),
+        provider: provider_name,
     };
 
-    // Clone steps for the background task; `job` is returned to the caller.
-    let steps_for_task = job.steps.clone();
+    let job_id = job.job_id.clone();
+    let steps = job.steps.clone();
 
-    // Spawn background task so this command returns the SpawnJob immediately.
-    // Progress is reported via three Tauri events:
-    //   "spawn-progress" — SpawnProgressEvent on each step transition
-    //   "spawn-complete" — SpawnCompleteEvent when the instance is fully ready
-    //   "spawn-failed"   — { jobId, error } if any step fails
     tauri::async_runtime::spawn(async move {
-        // Inline helper: emit a spawn-progress event for one step.
-        // All borrows are short-lived and never cross an .await boundary.
-        let emit_step = |step_id: &str, status: SpawnStepStatus, error: Option<String>| {
-            let _ = app_handle.emit(
-                "spawn-progress",
-                SpawnProgressEvent {
-                    job_id: job_id.clone(),
-                    step_id: step_id.to_string(),
-                    status,
-                    error,
-                },
-            );
-        };
-
-        // Macro that marks a step failed, emits spawn-failed, and returns.
-        macro_rules! fail {
-            ($step_id:expr, $err:expr) => {{
-                let msg = $err.to_string();
-                emit_step($step_id, SpawnStepStatus::Failed, Some(msg.clone()));
-                let _ = app_handle.emit("spawn-failed", json!({ "jobId": &job_id, "error": msg }));
-                return;
-            }};
-        }
-
-        // ── Execute deployment steps ──────────────────────────────────────
-        // Reserved ids ("launch", "wireguard_ready") are handled inline;
-        // everything else is dispatched to run_spawn_step.
-        let mut spawned_instance: Option<InstanceInfo> = None;
-
-        for step in &steps_for_task {
-            match step.id.as_str() {
-                "launch" => {
-                    emit_step("launch", SpawnStepStatus::Running, None);
-                    match commands::spawn::launch_instance(
-                        &*cloud_provider,
-                        &region,
-                        &server_private_key,
-                        &client_public_key,
-                    )
-                    .await
-                    {
-                        Ok(i) => {
-                            emit_step("launch", SpawnStepStatus::Completed, None);
-                            spawned_instance = Some(i);
-                        }
-                        Err(e) => {
-                            fail!("launch", e);
-                        }
-                    }
-                }
-                "wireguard_ready" => {
-                    let instance_ip = spawned_instance
-                        .as_ref()
-                        .expect("launch step must precede wireguard_ready")
-                        .public_ip_v4
-                        .clone();
-                    emit_step("wireguard_ready", SpawnStepStatus::Running, None);
-                    if let Err(e) = connectivity::wait_until_ready(&instance_ip).await {
-                        fail!("wireguard_ready", e);
-                    }
-                    emit_step("wireguard_ready", SpawnStepStatus::Completed, None);
-                }
-                step_id_raw => {
-                    let step_id = step_id_raw.to_string();
-                    emit_step(&step_id, SpawnStepStatus::Running, None);
-                    if let Err(e) = cloud_provider.run_spawn_step(&step_id, &region).await {
-                        fail!(step_id.as_str(), e);
-                    }
-                    emit_step(&step_id, SpawnStepStatus::Completed, None);
-                }
-            }
-        }
-
-        let instance = spawned_instance.expect("launch step must have run");
-
-        // ── write_config (silent — not a visible step) ────────────────────
-        let provider_name = cloud_provider.get_provider_name();
-        if let Err(e) = commands::spawn::write_wireguard_config(
-            &provider_name,
+        let job_id_for_progress = job_id.clone();
+        let progress_handle = app_handle.clone();
+        let result = commands::spawn::run_spawn_steps(
+            &*cloud_provider,
+            &steps,
             &region,
-            &instance,
-            &client_private_key,
-            &server_public_key,
+            &server_private_key,
+            &client_public_key,
+            move |step_id, status, error| {
+                let _ = progress_handle.emit(
+                    "spawn-progress",
+                    SpawnProgressEvent {
+                        job_id: job_id_for_progress.clone(),
+                        step_id: step_id.to_string(),
+                        status,
+                        error,
+                    },
+                );
+            },
         )
         .await
-        {
-            let msg = e.to_string();
-            let _ = app_handle.emit("spawn-failed", json!({ "jobId": &job_id, "error": msg }));
-            return;
-        }
+        .and_then(|instance| {
+            let entry = LedgerEntry {
+                instance_id: instance.id.clone(),
+                provider: provider.clone(),
+                region: region.clone(),
+                instance_type: instance.instance_type.clone(),
+                launched_at: instance.launched_at.unwrap_or_else(Utc::now),
+                terminated_at: None,
+                bytes_sent: 0,
+                bytes_received: 0,
+            };
+            Ok((instance, entry))
+        });
 
-        // ── ledger entry ──────────────────────────────────────────────────
-        let entry = LedgerEntry {
-            instance_id: instance.id.clone(),
-            provider: provider.clone(),
-            region: region.clone(),
-            instance_type: instance.instance_type.clone(),
-            launched_at: instance.launched_at.unwrap_or_else(Utc::now),
-            terminated_at: None,
-            bytes_sent: 0,
-            bytes_received: 0,
-        };
-        if let Ok(store) = app_handle.store("ledger.json") {
-            store.set(
-                LedgerEntry::store_key(&instance.id),
-                serde_json::to_value(&entry).unwrap_or_default(),
-            );
-            let _ = store.save();
+        match result {
+            Ok((instance, entry)) => {
+                let provider_name = cloud_provider.get_provider_name();
+                if let Err(error) = commands::spawn::write_wireguard_config(
+                    &provider_name,
+                    &region,
+                    &instance,
+                    &client_private_key,
+                    &server_public_key,
+                )
+                .await
+                {
+                    let _ = app_handle.emit(
+                        "spawn-failed",
+                        json!({ "jobId": &job_id, "error": error.to_string() }),
+                    );
+                    return;
+                }
+                if let Some(ledger) = LedgerStore::open(&app_handle) {
+                    ledger.set_entry(&entry);
+                }
+                let _ = app_handle.emit("spawn-complete", SpawnCompleteEvent { job_id, instance });
+            }
+            Err(error) => {
+                let _ = app_handle.emit(
+                    "spawn-failed",
+                    json!({ "jobId": &job_id, "error": error.to_string() }),
+                );
+            }
         }
-
-        // ── completion ────────────────────────────────────────────────────
-        let _ = app_handle.emit(
-            "spawn-complete",
-            SpawnCompleteEvent {
-                job_id: job_id.clone(),
-                instance,
-            },
-        );
     });
 
     Ok(job)
@@ -381,38 +204,60 @@ pub async fn terminate_instance(
     let cloud_provider = create_cloud_provider(&provider).await?;
     commands::terminate::terminate_instance(&*cloud_provider, &region, &instance_id).await?;
 
-    // Mark the ledger entry as terminated.
-    let store = app_handle
-        .store("ledger.json")
-        .map_err(|error| ConfigurationError::InvalidCloudProvider(error.to_string()))?;
-    let key = LedgerEntry::store_key(&instance_id);
-    if let Some(mut entry_value) = store.get(&key) {
-        if let Some(obj) = entry_value.as_object_mut() {
-            obj.insert("terminatedAt".to_string(), json!(Utc::now().to_rfc3339()));
-            store.set(key, entry_value);
-            let _ = store.save();
-        }
+    if let Some(ledger) = LedgerStore::open(&app_handle) {
+        ledger.mark_terminated(&instance_id);
     }
 
     Ok(format!("Instance {} terminated successfully.", instance_id))
 }
 
 #[tauri::command]
-pub async fn list_instances(region: Option<String>) -> Result<Vec<InstanceInfo>> {
-    let mut all_instances: Vec<InstanceInfo> = Vec::new();
+pub async fn list_instances(
+    region: Option<String>,
+    app_handle: AppHandle,
+) -> Result<Vec<InstanceInfo>> {
+    let region_ref = region.as_deref();
 
-    for provider_name in &["aws", "oracle", "gcp", "azure"] {
+    async fn list_provider_instances(
+        provider_name: &'static str,
+        region: Option<&str>,
+    ) -> Option<Vec<InstanceInfo>> {
         match create_cloud_provider(provider_name).await {
-            Ok(provider) => {
-                match commands::list::list_instances(&*provider, region.as_deref()).await {
-                    Ok(instances) => all_instances.extend(instances),
-                    Err(error) => {
-                        eprintln!("Failed to list {} instances: {}", provider_name, error)
-                    }
+            Ok(provider) => match commands::list::list_instances(&*provider, region).await {
+                Ok(instances) => Some(instances),
+                Err(e) => {
+                    error!("Failed to list {} instances: {}", provider_name, e);
+                    None
                 }
-            }
-            Err(_) => {} // Provider not configured; skip silently.
+            },
+            Err(_) => None,
         }
+    }
+
+    let (r_aws, r_oracle, r_gcp, r_azure) = tokio::join!(
+        list_provider_instances("aws", region_ref),
+        list_provider_instances("oracle", region_ref),
+        list_provider_instances("gcp", region_ref),
+        list_provider_instances("azure", region_ref),
+    );
+
+    let mut all_instances: Vec<InstanceInfo> = Vec::new();
+    let mut queried_providers: Vec<&str> = Vec::new();
+    for (name, result) in [
+        ("aws", r_aws),
+        ("oracle", r_oracle),
+        ("gcp", r_gcp),
+        ("azure", r_azure),
+    ] {
+        if let Some(instances) = result {
+            queried_providers.push(name);
+            all_instances.extend(instances);
+        }
+    }
+
+    if let Some(ledger) = LedgerStore::open(&app_handle) {
+        let running_ids: HashSet<&str> = all_instances.iter().map(|i| i.id.as_str()).collect();
+        ledger.reconcile_terminated(&running_ids, &queried_providers);
     }
 
     Ok(all_instances)
@@ -420,21 +265,14 @@ pub async fn list_instances(region: Option<String>) -> Result<Vec<InstanceInfo>>
 
 #[tauri::command]
 pub async fn has_profile() -> Result<bool> {
-    // Try to get credentials - if they exist and are valid, return true
-    match credentials::get_credentials().await {
-        Ok(credentials) => {
-            // Check if credentials are not empty
-            if !credentials.access_key.is_empty() && !credentials.secret_access_key.is_empty() {
-                Ok(true)
-            } else {
-                Ok(false)
-            }
-        }
-        Err(_) => {
-            // Credentials file doesn't exist or can't be read
-            Ok(false)
-        }
-    }
+    let store = match CredentialStore::load().await {
+        Ok(store) => store,
+        Err(_) => return Ok(false),
+    };
+    Ok(AwsCredentials::from_store(&store).is_ok()
+        || OracleCredentials::from_store(&store).is_ok()
+        || GcpCredentials::from_store(&store).is_ok()
+        || AzureCredentials::from_store(&store).is_ok())
 }
 
 #[tauri::command]
@@ -455,22 +293,7 @@ pub async fn get_regions(provider: String) -> Result<Vec<Value>> {
 }
 
 async fn fetch_vpn_status() -> Result<VpnStatus> {
-    let daemon_client = UnixDaemonClient;
-
-    if !daemon_client.is_daemon_running().await {
-        return Ok(VpnStatus {
-            connected: false,
-            instance: None,
-            metrics: None,
-        });
-    }
-
-    let response = daemon_client.send_command(DaemonCommand::Status).await?;
-
-    serde_json::from_str(&response).map_err(|error| {
-        ConfigurationError::InvalidCloudProvider(format!("Failed to parse status: {}", error))
-            .into()
-    })
+    commands::status::fetch_vpn_status(&UnixDaemonClient).await
 }
 
 #[tauri::command]
@@ -504,7 +327,7 @@ pub async fn connect(
         )
         .await
         {
-            eprintln!("Failed to start metrics stream: {}", error);
+            error!("Failed to start metrics stream: {}", error);
         }
     }
 
@@ -543,59 +366,31 @@ pub async fn get_vpn_status() -> Result<VpnStatus> {
 #[tauri::command]
 pub async fn subscribe_to_vpn_status(app_handle: AppHandle) -> Result<()> {
     let status = fetch_vpn_status().await?;
-    match status.instance {
-        Some(connected_instance) => {
-            let instance_id = connected_instance.instance_id.clone();
-            metrics_stream::start(
-                byocvpn_daemon::constants::metrics_socket_path(),
-                connected_instance,
-                move |vpn_status| {
-                    let _ = app_handle.emit("vpn-status", &vpn_status);
-
-                    // Throttle ledger writes to once per 60 seconds.
-                    // last_write is a thread-local so we don't need shared state.
-                    use std::cell::Cell;
-                    thread_local! {
-                        static LAST_WRITE: Cell<Option<Instant>> = const { Cell::new(None) };
-                    }
-                    let should_write = LAST_WRITE.with(|last| {
-                        let now = Instant::now();
-                        let write = last.get().map_or(true, |t| t.elapsed().as_secs() >= 60);
-                        if write {
-                            last.set(Some(now));
-                        }
-                        write
-                    });
-
-                    if should_write {
-                        if let Some(ref metrics) = vpn_status.metrics {
-                            let store = match app_handle.store("ledger.json") {
-                                Ok(s) => s,
-                                Err(_) => return,
-                            };
-                            let key = LedgerEntry::store_key(&instance_id);
-                            if let Some(mut entry_value) = store.get(&key) {
-                                if let Some(obj) = entry_value.as_object_mut() {
-                                    obj.insert("bytesSent".to_string(), json!(metrics.bytes_sent));
-                                    obj.insert(
-                                        "bytesReceived".to_string(),
-                                        json!(metrics.bytes_received),
-                                    );
-                                    store.set(key, entry_value);
-                                    let _ = store.save();
-                                }
-                            }
-                        }
-                    }
-                },
-            )
-            .await
+    let connected_instance = status.instance.ok_or_else(|| -> Error {
+        ConfigurationError::InvalidValue {
+            field: "vpn_status".to_string(),
+            reason: "not connected to VPN".to_string(),
         }
-        None => Err(ConfigurationError::InvalidCloudProvider(
-            "Cannot subscribe to VPN status: not connected to VPN".to_string(),
-        )
-        .into()),
-    }
+        .into()
+    })?;
+
+    let instance_id = connected_instance.instance_id.clone();
+    let emit_handle = app_handle.clone();
+    let ledger_handle = app_handle;
+
+    commands::subscribe::start_metrics_subscription(
+        byocvpn_daemon::constants::metrics_socket_path(),
+        connected_instance,
+        move |vpn_status| {
+            let _ = emit_handle.emit("vpn-status", &vpn_status);
+        },
+        move |bytes_sent, bytes_received| {
+            if let Some(ledger) = LedgerStore::open(&ledger_handle) {
+                ledger.update_metrics(&instance_id, bytes_sent, bytes_received);
+            }
+        },
+    )
+    .await
 }
 
 #[tauri::command]
@@ -608,148 +403,30 @@ pub async fn get_instance_pricing(provider: String, instance_type: String) -> Re
         _ => None,
     };
     pricing.ok_or_else(|| {
-        ConfigurationError::InvalidCloudProvider(format!(
-            "No pricing data for {}/{}",
-            provider, instance_type
-        ))
+        ConfigurationError::MissingField {
+            field: format!("pricing/{}/{}", provider, instance_type),
+        }
         .into()
     })
 }
 
 #[tauri::command]
 pub async fn get_ledger(app_handle: AppHandle) -> Result<Vec<Value>> {
-    let store = app_handle
-        .store("ledger.json")
-        .map_err(|error| ConfigurationError::InvalidCloudProvider(error.to_string()))?;
-    let entries: Vec<Value> = store
-        .keys()
-        .into_iter()
-        .filter(|key| key.starts_with("ledger/"))
-        .filter_map(|key| store.get(&key))
-        .collect();
-    Ok(entries)
+    let ledger = LedgerStore::open(&app_handle).ok_or_else(|| -> Error {
+        ConfigurationError::InvalidFile {
+            reason: "failed to open ledger store".to_string(),
+        }
+        .into()
+    })?;
+    Ok(ledger.all_entries())
 }
 
 #[tauri::command]
 pub async fn is_daemon_installed() -> Result<bool> {
-    let installed_binary_name = if cfg!(debug_assertions) {
-        "byocvpn-daemon-dev"
-    } else {
-        "byocvpn-daemon"
-    };
-    let label = if cfg!(debug_assertions) {
-        "com.byocvpn.daemon.dev"
-    } else {
-        "com.byocvpn.daemon"
-    };
-    Ok(std::path::Path::new(&format!(
-        "/Library/PrivilegedHelperTools/{}",
-        installed_binary_name
-    ))
-    .exists()
-        && std::path::Path::new(&format!("/Library/LaunchDaemons/{}.plist", label)).exists())
+    Ok(daemon_client::is_daemon_installed())
 }
 
 #[tauri::command]
 pub async fn install_daemon() -> Result<()> {
-    // In debug mode install the dev daemon; in release install the production daemon.
-    let is_dev = cfg!(debug_assertions);
-
-    let installed_binary_name = if is_dev {
-        "byocvpn-daemon-dev"
-    } else {
-        "byocvpn-daemon"
-    };
-    let plist_name = if is_dev {
-        "com.byocvpn.daemon.dev.plist"
-    } else {
-        "com.byocvpn.daemon.plist"
-    };
-    let label = if is_dev {
-        "com.byocvpn.daemon.dev"
-    } else {
-        "com.byocvpn.daemon"
-    };
-    let build_dir = if is_dev { "debug" } else { "release" };
-
-    let current_executable_path = std::env::current_exe()
-        .map_err(|error| ConfigurationError::InvalidCloudProvider(error.to_string()))?;
-
-    let workspace_root = current_executable_path
-        .ancestors()
-        .find(|path| path.join("Cargo.toml").exists());
-
-    let exe_dir = current_executable_path.parent().ok_or_else(|| {
-        ConfigurationError::InvalidCloudProvider("Could not determine exe directory".to_string())
-    })?;
-
-    // Look for the daemon binary: bundled Resources/ first, then alongside exe, then workspace target/
-    let daemon_binary_path = [
-        exe_dir
-            .parent()
-            .map(|p| p.join("Resources").join("byocvpn-daemon"))
-            .unwrap_or_default(),
-        exe_dir.join(installed_binary_name),
-        exe_dir.join("byocvpn_daemon"),
-        workspace_root
-            .map(|root| root.join("target").join(build_dir).join("byocvpn_daemon"))
-            .unwrap_or_default(),
-    ]
-    .into_iter()
-    .find(|path| path.exists())
-    .ok_or_else(|| {
-        ConfigurationError::InvalidCloudProvider(format!(
-            "Daemon binary not found in target/{}/",
-            build_dir
-        ))
-    })?;
-
-    let daemon_plist_path = [
-        exe_dir
-            .parent()
-            .map(|p| p.join("Resources").join(plist_name))
-            .unwrap_or_default(),
-        workspace_root
-            .map(|root| root.join("scripts").join(plist_name))
-            .unwrap_or_default(),
-    ]
-    .into_iter()
-    .find(|path| path.exists())
-    .ok_or_else(|| ConfigurationError::InvalidCloudProvider(format!("{} not found", plist_name)))?;
-
-    let script = format!(
-        r#"do shell script "
-            launchctl unload '/Library/LaunchDaemons/{label}.plist' 2>/dev/null; \
-            cp '{}' '/Library/PrivilegedHelperTools/{installed_binary_name}' && \
-            chmod 544 '/Library/PrivilegedHelperTools/{installed_binary_name}' && \
-            chown root:wheel '/Library/PrivilegedHelperTools/{installed_binary_name}' && \
-            cp '{}' '/Library/LaunchDaemons/{label}.plist' && \
-            chmod 644 '/Library/LaunchDaemons/{label}.plist' && \
-            chown root:wheel '/Library/LaunchDaemons/{label}.plist' && \
-            launchctl load '/Library/LaunchDaemons/{label}.plist'
-        " with administrator privileges"#,
-        daemon_binary_path.display(),
-        daemon_plist_path.display(),
-        label = label,
-        installed_binary_name = installed_binary_name,
-    );
-
-    let output = std::process::Command::new("osascript")
-        .arg("-e")
-        .arg(&script)
-        .output()
-        .map_err(|error| ConfigurationError::InvalidCloudProvider(error.to_string()))?;
-
-    if output.status.success() {
-        Ok(())
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        let detail = if !stderr.is_empty() { stderr } else { stdout };
-        Err(ConfigurationError::InvalidCloudProvider(format!(
-            "osascript failed: {}",
-            detail.trim()
-        ))
-        .into())
-    }
+    daemon_client::install_daemon()
 }

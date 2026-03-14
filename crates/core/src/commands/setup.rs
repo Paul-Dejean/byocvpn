@@ -17,8 +17,5 @@ pub struct Region {
 }
 
 pub async fn get_regions(provider: &dyn CloudProvider) -> Result<Vec<Region>> {
-    // This is a placeholder implementation.
-    // Replace with actual logic to fetch regions from the cloud provider.
     provider.get_regions().await
-    //
 }

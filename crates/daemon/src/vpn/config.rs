@@ -15,93 +15,60 @@ pub struct WireguardConfig {
 }
 
 pub async fn parse_wireguard_config(config_path: &str) -> Result<WireguardConfig> {
-    // Parse config file
-    //verify file exists
+    fn require_section<'a>(config: &'a Ini, name: &str) -> Result<&'a ini::Properties> {
+        config.section(Some(name)).ok_or_else(|| {
+            ConfigurationError::MissingField { field: format!("[{}] section", name) }.into()
+        })
+    }
 
-    let config = Ini::load_from_file(config_path).map_err(|e| ConfigurationError::InvalidFile {
-        reason: format!("Failed to read config file: {}", e),
+    fn require_field<'a>(section: &'a ini::Properties, field: &str) -> Result<&'a str> {
+        section
+            .get(field)
+            .ok_or_else(|| ConfigurationError::MissingField { field: field.to_string() }.into())
+    }
+
+    fn decode_base64(value: &str, field: &str) -> Result<Vec<u8>> {
+        general_purpose::STANDARD.decode(value).map_err(|error| {
+            ConfigurationError::InvalidFile { reason: format!("Invalid {}: {}", field, error) }
+                .into()
+        })
+    }
+
+    fn parse_value<T: std::str::FromStr>(value: &str, field: &str) -> Result<T>
+    where
+        T::Err: std::fmt::Display,
+    {
+        value.parse().map_err(|error| {
+            ConfigurationError::InvalidFile { reason: format!("Invalid {}: {}", field, error) }
+                .into()
+        })
+    }
+
+    let config = Ini::load_from_file(config_path).map_err(|error| ConfigurationError::InvalidFile {
+        reason: format!("Failed to read config file: {}", error),
     })?;
 
-    let interface = config
-        .section(Some("Interface"))
-        .ok_or(ConfigurationError::MissingField {
-            field: "[Interface] section".to_string(),
-        })?;
-    let peer = config
-        .section(Some("Peer"))
-        .ok_or(ConfigurationError::MissingField {
-            field: "[Peer] section".to_string(),
-        })?;
+    let interface = require_section(&config, "Interface")?;
+    let peer = require_section(&config, "Peer")?;
 
-    // Parse private key
-    let private_key_str = interface
-        .get("PrivateKey")
-        .ok_or(ConfigurationError::MissingField {
-            field: "PrivateKey".to_string(),
-        })?;
-    let private_key = general_purpose::STANDARD
-        .decode(private_key_str)
-        .map_err(|e| ConfigurationError::InvalidFile {
-            reason: format!("Invalid PrivateKey: {}", e),
-        })?;
+    let private_key = decode_base64(require_field(interface, "PrivateKey")?, "PrivateKey")?;
+    let public_key = decode_base64(require_field(peer, "PublicKey")?, "PublicKey")?;
+    let endpoint: SocketAddr = parse_value(require_field(peer, "Endpoint")?, "Endpoint")?;
 
-    // Parse addresses
-    let addresses_str = interface
-        .get("Address")
-        .ok_or(ConfigurationError::MissingField {
-            field: "Address".to_string(),
-        })?;
-    let addresses: Result<Vec<IpNet>> = addresses_str
+    let addresses = require_field(interface, "Address")?
         .split(',')
-        .map(|s| {
-            s.trim().parse::<IpNet>().map_err(|e| {
-                ConfigurationError::InvalidFile {
-                    reason: format!("Invalid address: {}", e),
-                }
-                .into()
-            })
-        })
-        .collect();
-    let addresses = addresses?;
-
-    // Parse public key
-    let public_key_str = peer
-        .get("PublicKey")
-        .ok_or(ConfigurationError::MissingField {
-            field: "PublicKey".to_string(),
-        })?;
-    let public_key = general_purpose::STANDARD
-        .decode(public_key_str)
-        .map_err(|e| ConfigurationError::InvalidFile {
-            reason: format!("Invalid PublicKey: {}", e),
-        })?;
-
-    // Parse endpoint
-    let endpoint_str = peer
-        .get("Endpoint")
-        .ok_or(ConfigurationError::MissingField {
-            field: "Endpoint".to_string(),
-        })?;
-    let endpoint: SocketAddr =
-        endpoint_str
-            .parse()
-            .map_err(|e| ConfigurationError::InvalidFile {
-                reason: format!("Invalid Endpoint: {}", e),
-            })?;
+        .map(|address| parse_value::<IpNet>(address.trim(), "Address"))
+        .collect::<Result<Vec<_>>>()?;
 
     let ipv4 = addresses
         .iter()
         .find(|ip| ip.addr().is_ipv4())
-        .ok_or(ConfigurationError::MissingField {
-            field: "IPv4 address".to_string(),
-        })?
+        .ok_or(ConfigurationError::MissingField { field: "IPv4 address".to_string() })?
         .clone();
     let ipv6 = addresses
         .iter()
         .find(|ip| ip.addr().is_ipv6())
-        .ok_or(ConfigurationError::MissingField {
-            field: "IPv6 address".to_string(),
-        })?
+        .ok_or(ConfigurationError::MissingField { field: "IPv6 address".to_string() })?
         .clone();
 
     #[cfg(target_os = "macos")]
@@ -109,14 +76,7 @@ pub async fn parse_wireguard_config(config_path: &str) -> Result<WireguardConfig
     #[cfg(not(target_os = "macos"))]
     let dns_servers = Vec::new();
 
-    Ok(WireguardConfig {
-        private_key,
-        public_key,
-        endpoint,
-        ipv4,
-        ipv6,
-        dns_servers,
-    })
+    Ok(WireguardConfig { private_key, public_key, endpoint, ipv4, ipv6, dns_servers })
 }
 
 fn parse_domain_name_system_servers_from_interface_section(

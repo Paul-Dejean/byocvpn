@@ -44,7 +44,7 @@ interface ServerCardProps {
   instance: Instance;
   isSelected: boolean;
   groupedRegions: RegionGroup[];
-  /** Live spawn job state for this instance (only present while deploying). */
+
   spawnJob?: SpawnJobState;
   onSelect: (instance: Instance) => void;
 }
@@ -71,7 +71,6 @@ export function ServerCard({
 
   const isSpawning = instance.state === "spawning";
 
-  // Show the label of whichever step is currently running.
   const runningStep = spawnJob?.steps.find((s) => s.status === "running");
   const stepLabel = runningStep?.label ?? (isSpawning ? "Starting…" : null);
 
@@ -106,7 +105,15 @@ export function ServerCard({
                 ? "bg-blue-900/50 text-blue-300 flex items-center gap-1"
                 : instance.state === "running"
                   ? "bg-orange-900/50 text-orange-300"
-                  : "bg-gray-900/50 text-gray-400"
+                  : instance.state === "creating"
+                    ? "bg-yellow-900/50 text-yellow-300"
+                    : instance.state === "stopping" ||
+                        instance.state === "deleting"
+                      ? "bg-red-900/50 text-red-300"
+                      : instance.state === "stopped" ||
+                          instance.state === "deleted"
+                        ? "bg-gray-700/50 text-gray-500"
+                        : "bg-gray-900/50 text-gray-400"
             }`}
           >
             {isSpawning && <MiniSpinner />}

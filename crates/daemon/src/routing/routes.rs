@@ -3,9 +3,10 @@ use ipnet::IpNet;
 use net_route::{Handle, Route};
 
 use crate::routing::interface::get_ifindex;
+use log::*;
 
 pub async fn add_vpn_routes(iface_name: &str, server_ip: &str) -> Result<()> {
-    println!(
+    info!(
         "Adding VPN routes for server {} via interface {}",
         server_ip, iface_name
     );
@@ -21,20 +22,19 @@ pub async fn add_vpn_routes(iface_name: &str, server_ip: &str) -> Result<()> {
 
     for (destination, interface) in routes.iter() {
         if let Err(e) = add_route(destination, interface).await {
-            eprintln!(
+            error!(
                 "Warning: Failed to add route {} via {}: {}",
                 destination, interface, e
             );
-            // Continue with other routes even if one fails
         }
     }
 
-    println!("Finished adding VPN routes");
+    info!("Finished adding VPN routes");
     Ok(())
 }
 
 pub async fn remove_vpn_routes(iface_name: &str, server_ip: &str) {
-    println!(
+    info!(
         "Removing VPN routes for server {} via interface {}",
         server_ip, iface_name
     );
@@ -50,18 +50,18 @@ pub async fn remove_vpn_routes(iface_name: &str, server_ip: &str) {
 
     for (destination, interface) in routes.iter() {
         if let Err(e) = delete_route(destination, interface).await {
-            eprintln!(
+            error!(
                 "Warning: Failed to remove route {} via {}: {}",
                 destination, interface, e
             );
         }
     }
 
-    println!("Finished removing VPN routes");
+    info!("Finished removing VPN routes");
 }
 
 async fn add_route(destination: &str, interface: &str) -> Result<()> {
-    println!("Adding route: {} via {}", destination, interface);
+    info!("Adding route: {} via {}", destination, interface);
 
     let subnet: IpNet = destination
         .parse()
@@ -70,15 +70,21 @@ async fn add_route(destination: &str, interface: &str) -> Result<()> {
             reason: format!("Invalid subnet {}: {}", destination, e),
         })?;
 
-    let handle = Handle::new()?;
+    let handle = Handle::new().map_err(|error| ConfigurationError::RouteConfiguration {
+        reason: format!("failed to create route handle: {}", error),
+    })?;
     let ifindex = get_ifindex(interface).await?;
 
-    println!("Interface index: {}", ifindex);
+    info!("Interface index: {}", ifindex);
 
-    // Build the route
     let route = if interface == "default" {
-        // Set the default route
-        let default_route = handle.default_route().await?.ok_or_else(|| {
+        let default_route = handle
+            .default_route()
+            .await
+            .map_err(|error| ConfigurationError::RouteConfiguration {
+                reason: format!("failed to query default route: {}", error),
+            })?
+            .ok_or_else(|| {
             ConfigurationError::RouteConfiguration {
                 reason: "No default route found".to_string(),
             }
@@ -94,15 +100,15 @@ async fn add_route(destination: &str, interface: &str) -> Result<()> {
         Route::new(subnet.addr(), subnet.prefix_len()).with_ifindex(ifindex)
     };
 
-    println!("Route configuration: {:?}", route);
+    info!("Route configuration: {:?}", route);
 
     match handle.add(&route).await {
         Ok(_) => {
-            println!("Added route: {} via {}", destination, interface);
+            info!("Added route: {} via {}", destination, interface);
             Ok(())
         }
         Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
-            println!(
+            info!(
                 "Route already exists: {} via {} (skipping)",
                 destination, interface
             );
@@ -113,7 +119,7 @@ async fn add_route(destination: &str, interface: &str) -> Result<()> {
                 "Failed to add route {} via {}: {}",
                 destination, interface, e
             );
-            eprintln!("{}", err_msg);
+            error!("{}", err_msg);
             Err(ConfigurationError::RouteConfiguration { reason: err_msg }.into())
         }
     }
@@ -128,19 +134,19 @@ async fn delete_route(destination: &str, interface: &str) -> Result<()> {
             })?;
 
     let ifindex = get_ifindex(interface).await?;
-    let handle = Handle::new()?;
+    let handle = Handle::new().map_err(|error| ConfigurationError::RouteConfiguration {
+        reason: format!("failed to create route handle: {}", error),
+    })?;
 
-    // Build the route
     let route = Route::new(subnet.addr(), subnet.prefix_len()).with_ifindex(ifindex);
 
-    // Delete the route
     match handle.delete(&route).await {
         Ok(_) => {
-            println!("Deleted route: {} dev {}", destination, interface);
+            info!("Deleted route: {} dev {}", destination, interface);
             Ok(())
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            println!(
+            info!(
                 "Route not found: {} dev {} (already removed)",
                 destination, interface
             );
@@ -151,7 +157,7 @@ async fn delete_route(destination: &str, interface: &str) -> Result<()> {
                 "Failed to delete route {} dev {}: {}",
                 destination, interface, e
             );
-            eprintln!("{}", err_msg);
+            error!("{}", err_msg);
             Err(ConfigurationError::RouteConfiguration {
                 reason: format!("Invalid subnet {}: {}", destination, e),
             }
@@ -160,19 +166,16 @@ async fn delete_route(destination: &str, interface: &str) -> Result<()> {
     }
 }
 
-/// Re-adds the direct host route for the VPN server endpoint via the current
-/// default gateway. Called by the route monitor task when the gateway changes.
 pub async fn update_server_host_route(server_ip: &str) {
     let server_route = format!("{}/32", server_ip);
 
-    // Remove stale host route (ignore errors — may not exist)
     if let Err(e) = delete_route(&server_route, "default").await {
-        eprintln!("[RouteMonitor] Failed to delete old host route: {}", e);
+        error!("[RouteMonitor] Failed to delete old host route: {}", e);
     }
-    // Re-add via whatever the current default gateway is now
+
     if let Err(e) = add_route(&server_route, "default").await {
-        eprintln!("[RouteMonitor] Failed to re-add host route: {}", e);
+        error!("[RouteMonitor] Failed to re-add host route: {}", e);
     } else {
-        println!("[RouteMonitor] Host route for {} refreshed.", server_ip);
+        info!("[RouteMonitor] Host route for {} refreshed.", server_ip);
     }
 }

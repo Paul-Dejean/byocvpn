@@ -20,7 +20,7 @@ export function SettingsPage({ onNavigateBack }: SettingsPageProps) {
     const existing = await loadCredentials("aws");
     if (existing) {
       setAccessKey((existing as { accessKeyId: string }).accessKeyId);
-      // secret key is never pre-filled — user must re-enter to change it
+
     }
     setIsEditing(true);
   };
@@ -50,7 +50,7 @@ export function SettingsPage({ onNavigateBack }: SettingsPageProps) {
 
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white">
-      {/* Header */}
+      {}
       <div className="bg-gray-800 p-6 border-b border-gray-700 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -88,19 +88,19 @@ export function SettingsPage({ onNavigateBack }: SettingsPageProps) {
         </div>
       </div>
 
-      {/* Settings Content */}
+      {}
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-2xl mx-auto">
-          {/* Manage Profiles Section */}
+          {}
           <div className="bg-gray-800 rounded-lg p-6">
             <h2 className="text-xl font-semibold mb-6 text-blue-400">
               Manage Profiles
             </h2>
 
-            {/* AWS Profile Row */}
+            {}
             <div className="bg-gray-700 rounded-lg p-6">
               {!isEditing ? (
-                /* Profile Display Mode */
+
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-orange-600 rounded-lg flex items-center justify-center">
@@ -143,7 +143,7 @@ export function SettingsPage({ onNavigateBack }: SettingsPageProps) {
                   </button>
                 </div>
               ) : (
-                /* Profile Edit Mode */
+
                 <div className="space-y-6">
                   <div className="flex items-center gap-4 mb-6">
                     <div className="w-12 h-12 bg-orange-600 rounded-lg flex items-center justify-center">
@@ -196,14 +196,14 @@ export function SettingsPage({ onNavigateBack }: SettingsPageProps) {
                       />
                     </div>
 
-                    {/* Error Display */}
+                    {}
                     {error && (
                       <div className="p-3 bg-red-900 border border-red-700 rounded-lg">
                         <p className="text-red-300 text-sm">{error}</p>
                       </div>
                     )}
 
-                    {/* Success Display */}
+                    {}
                     {successMessage && (
                       <div className="p-3 bg-green-900 border border-green-700 rounded-lg">
                         <p className="text-green-300 text-sm">

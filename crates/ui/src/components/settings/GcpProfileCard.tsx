@@ -1,11 +1,8 @@
 import { useRef, useState } from "react";
 import { useCredentials, GcpCredentials } from "../../hooks";
 
-/**
- * Props for the GcpProfileCard component
- */
 interface GcpProfileCardProps {
-  /** Optional callback invoked after credentials are saved successfully */
+
   onSaveSuccess?: () => void;
 }
 
@@ -15,10 +12,6 @@ const GcpIcon = () => (
   </div>
 );
 
-/**
- * Settings card for managing GCP service-account credentials.
- * Supports pasting the JSON key directly or loading it from a .json file.
- */
 export function GcpProfileCard({ onSaveSuccess }: GcpProfileCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [projectId, setProjectId] = useState("");
@@ -79,14 +72,14 @@ export function GcpProfileCard({ onSaveSuccess }: GcpProfileCardProps) {
       const content = loadEvent.target?.result;
       if (typeof content === "string") {
         setServiceAccountJson(content);
-        // Auto-fill project_id from the JSON if present.
+
         try {
           const parsed = JSON.parse(content);
           if (parsed.project_id && !projectId) {
             setProjectId(parsed.project_id);
           }
         } catch {
-          // Not valid JSON yet — user may still be editing.
+
         }
       }
     };

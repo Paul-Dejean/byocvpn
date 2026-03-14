@@ -1,18 +1,11 @@
 import { useRef, useState } from "react";
 import { useCredentials, OracleCredentials } from "../../hooks";
 
-/**
- * Props for the OracleProfileCard component
- */
 interface OracleProfileCardProps {
-  /** Optional callback invoked after credentials are saved successfully */
+
   onSaveSuccess?: () => void;
 }
 
-/**
- * Settings card for managing Oracle Cloud Infrastructure API credentials.
- * Supports pasting the private key PEM directly or loading it from a .pem file.
- */
 export function OracleProfileCard({ onSaveSuccess }: OracleProfileCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [tenancyOcid, setTenancyOcid] = useState("");
@@ -92,7 +85,7 @@ export function OracleProfileCard({ onSaveSuccess }: OracleProfileCardProps) {
       }
     };
     reader.readAsText(file);
-    // Reset so the same file can be re-selected if needed
+
     event.target.value = "";
   };
 

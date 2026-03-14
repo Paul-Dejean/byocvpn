@@ -1,29 +1,23 @@
 import { Instance, RegionGroup, SpawnJobState } from "../../types";
 import { ServerCard } from "./ServerCard";
 
-/**
- * Props for the ServerList component
- */
 interface ServerListProps {
-  /** List of server instances to display */
+
   instances: Instance[];
-  /** Currently selected instance */
+
   selectedInstance: Instance | null;
-  /** Grouped regions for flag lookup */
+
   groupedRegions: RegionGroup[];
-  /** Whether the list is loading */
+
   isLoading: boolean;
-  /** Returns the live spawn job for a given instance id (if deploying). */
+
   getSpawnJobForInstance: (instanceId: string) => SpawnJobState | undefined;
-  /** Callback when an instance is selected */
+
   onSelectInstance: (instance: Instance) => void;
-  /** Callback when add new server button is clicked */
+
   onAddNewServer: () => void;
 }
 
-/**
- * Displays a list of server instances with an add button
- */
 export function ServerList({
   instances,
   selectedInstance,
@@ -49,7 +43,7 @@ export function ServerList({
           </div>
         ) : (
           <div className="space-y-2">
-            {/* Existing server instances */}
+            {}
             {instances.map((instance) => (
               <ServerCard
                 key={instance.id}
@@ -64,7 +58,7 @@ export function ServerList({
         )}
       </div>
 
-      {/* Add Server Button - Fixed at bottom */}
+      {}
       <div className="p-4 border-t border-gray-700">
         <button
           onClick={onAddNewServer}

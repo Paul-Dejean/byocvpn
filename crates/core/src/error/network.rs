@@ -29,6 +29,28 @@ pub enum NetworkProvisioningError {
     #[error("network query failed: {reason}")]
     NetworkQueryFailed { reason: String },
 
+    /// The OS boot image required to launch an instance was not found.
+    /// Used by GCP (Ubuntu 22.04 LTS) and Oracle (Ubuntu 22.04 ARM).
+    #[error("base image not found: {image}")]
+    BaseImageNotFound { image: String },
+
+    /// A cloud async operation (LRO) completed but reported an error.
+    /// Used by GCP compute ops and Service Usage ops.
+    #[error("cloud operation failed: {reason}")]
+    CloudOperationFailed { reason: String },
+
+    /// A cloud async operation (LRO) did not complete within the polling window.
+    /// Used by GCP, Azure, Oracle.
+    #[error("cloud operation timed out: {operation}")]
+    CloudOperationTimedOut { operation: String },
+
+    /// A provider-specific setup prerequisite failed.
+    /// Used by: GCP (Compute Engine API enablement),
+    ///          Azure (resource provider namespace registration),
+    ///          Oracle (region subscription).
+    #[error("provider setup failed at '{step}': {reason}")]
+    ProviderSetupFailed { step: String, reason: String },
+
     #[error("subnet configuration failed: {reason}")]
     SubnetConfigurationFailed { reason: String },
 

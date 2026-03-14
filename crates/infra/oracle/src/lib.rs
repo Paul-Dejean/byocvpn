@@ -1,9 +1,11 @@
 mod auth;
+pub mod credentials;
 mod client;
-mod cloud_init;
 mod instance;
 mod network;
-mod provider;
 pub mod pricing;
+mod provider;
+mod startup_script;
+mod state;
 
 pub use provider::{OracleProvider, OracleProviderConfig};

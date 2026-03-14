@@ -50,7 +50,7 @@ function App() {
           <SettingsPage onNavigateBack={() => setPage(Page.VPN)} />
         )}
 
-        {/* Main app shell: sidebar navbar + page content */}
+        {}
         {(page === Page.VPN || page === Page.PRICING) && (
           <div className="flex h-screen">
             <Navbar currentPage={page} onNavigate={setPage} />

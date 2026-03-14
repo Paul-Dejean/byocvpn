@@ -28,13 +28,13 @@ export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
 
   return (
     <div className="relative bg-[url('/landing-page-bg.png')] bg-cover bg-center h-screen flex items-center justify-center overflow-hidden">
-      {/* Overlay gradient */}
+      {}
       <div className="absolute inset-0 bg-gradient-to-br from-black/50 to-transparent"></div>
 
-      {/* Content container */}
+      {}
       <div className="container relative z-10 px-4 md:px-0">
         <div className="flex flex-col items-center max-w-3xl mx-auto">
-          {/* Logo or icon could go here */}
+          {}
           <div className="w-16 h-16 rounded-full bg-blue-500/20 backdrop-blur-sm flex items-center justify-center mb-8 border border-blue-400/30">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -52,7 +52,7 @@ export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
             </svg>
           </div>
 
-          {/* Text content with fade-in animation */}
+          {}
           <div
             className={`flex flex-col text-center transition-opacity duration-1000 ease-in-out ${isVisible ? "opacity-100" : "opacity-0"}`}
           >
@@ -71,7 +71,7 @@ export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
               infrastructure, your rules.
             </p>
 
-            {/* CTA buttons */}
+            {}
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
                 className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-all duration-300 transform hover:scale-105 font-medium flex items-center justify-center shadow-lg shadow-blue-600/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
@@ -104,7 +104,7 @@ export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
             </div>
           </div>
 
-          {/* Feature highlights */}
+          {}
           <div
             className={`flex flex-wrap justify-center gap-6 mt-16 transition-all duration-1000 delay-500 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
           >

@@ -23,10 +23,12 @@ export function CredentialsModal({
       return;
     }
 
-    const success = await saveCredentials("aws", accessKey, secretKey);
+    const success = await saveCredentials("aws", {
+      accessKeyId: accessKey,
+      secretAccessKey: secretKey,
+    });
 
     if (success) {
-      // Clear form and close modal
       setAccessKey("");
       setSecretKey("");
       onClose();
@@ -98,14 +100,14 @@ export function CredentialsModal({
             />
           </div>
 
-          {/* Error Display */}
+          {}
           {error && (
             <div className="p-3 bg-red-900 border border-red-700 rounded-lg">
               <p className="text-red-300 text-sm">{error}</p>
             </div>
           )}
 
-          {/* Success Display */}
+          {}
           {successMessage && (
             <div className="p-3 bg-green-900 border border-green-700 rounded-lg">
               <p className="text-green-300 text-sm">{successMessage}</p>

@@ -1,11 +1,11 @@
-use byocvpn_core::error::{ConfigurationError, Result};
+use byocvpn_core::error::{NetworkProvisioningError, Result};
 use reqwest::{Client as HttpClient, Response, StatusCode};
 use serde::Serialize;
-use serde_json::Value;
+use serde_json::{Value, from_str, to_vec};
 
 use crate::auth::{OciCredentials, build_authorization_header};
+use log::*;
 
-/// Thin HTTP client that automatically signs every request with OCI credentials.
 pub struct OciClient {
     http_client: HttpClient,
     pub credentials: OciCredentials,
@@ -19,26 +19,24 @@ impl OciClient {
         }
     }
 
-    /// Returns the base URL for the OCI Core Services (Networking + Compute) API.
-    pub fn core_base_url(&self) -> String {
+    pub fn build_core_base_url(&self) -> String {
         format!("https://iaas.{}.oraclecloud.com", self.credentials.region)
     }
 
-    /// Returns the base URL for the OCI Identity API.
-    pub fn identity_base_url(&self) -> String {
+    pub fn build_identity_base_url(&self) -> String {
         format!(
             "https://identity.{}.oraclecloud.com",
             self.credentials.region
         )
     }
 
-    fn rfc7231_date() -> String {
+    fn format_rfc7231_date() -> String {
         use std::time::{SystemTime, UNIX_EPOCH};
         let secs = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        // Build a simple RFC 7231 date from epoch (good enough for signing; OCI accepts ~5 min skew)
+
         let days_of_week = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
         let months = [
             "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -50,9 +48,9 @@ impl OciClient {
         remaining /= 60;
         let hours = remaining % 24;
         remaining /= 24;
-        // Days since epoch → weekday (0=Thu for Unix epoch Jan 1 1970)
+
         let weekday = ((remaining + 4) % 7) as usize;
-        // Approximate year/month/day
+
         let mut year = 1970u64;
         let mut day_of_year = remaining;
         loop {
@@ -83,18 +81,19 @@ impl OciClient {
         )
     }
 
-    /// Perform a signed GET request to `url` and return the parsed JSON.
     pub async fn get(&self, url: &str) -> Result<Value> {
-        eprintln!("[OCI] GET {}", url);
-        let parsed = reqwest::Url::parse(url).map_err(|e| {
-            ConfigurationError::InvalidCloudProvider(format!("Invalid URL {}: {}", url, e))
+        debug!("[OCI] GET {}", url);
+        let parsed = reqwest::Url::parse(url).map_err(|error| {
+            NetworkProvisioningError::NetworkQueryFailed {
+                reason: format!("Invalid URL {}: {}", url, error),
+            }
         })?;
         let host = parsed.host_str().unwrap_or_default().to_string();
         let path = match parsed.query() {
             Some(query) => format!("{}?{}", parsed.path(), query),
             None => parsed.path().to_string(),
         };
-        let date = Self::rfc7231_date();
+        let date = Self::format_rfc7231_date();
 
         let (authorization, _) =
             build_authorization_header("GET", &host, &path, &date, None, &self.credentials)?;
@@ -106,28 +105,29 @@ impl OciClient {
             .header("authorization", &authorization)
             .send()
             .await
-            .map_err(|e| {
-                ConfigurationError::InvalidCloudProvider(format!("OCI GET {} failed: {}", url, e))
+            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+                reason: format!("OCI GET {} failed: {}", url, error),
             })?;
 
         parse_response("GET", url, response).await
     }
 
-    /// Perform a signed POST request with a JSON body.
     pub async fn post<B: Serialize>(&self, url: &str, body: &B) -> Result<Value> {
-        eprintln!("[OCI] POST {}", url);
-        let body_bytes = serde_json::to_vec(body).map_err(|e| {
-            ConfigurationError::InvalidCloudProvider(format!("Failed to serialize body: {}", e))
+        debug!("[OCI] POST {}", url);
+        let body_bytes = to_vec(body).map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+            reason: format!("Failed to serialize body: {}", error),
         })?;
-        let parsed = reqwest::Url::parse(url).map_err(|e| {
-            ConfigurationError::InvalidCloudProvider(format!("Invalid URL {}: {}", url, e))
+        let parsed = reqwest::Url::parse(url).map_err(|error| {
+            NetworkProvisioningError::NetworkQueryFailed {
+                reason: format!("Invalid URL {}: {}", url, error),
+            }
         })?;
         let host = parsed.host_str().unwrap_or_default().to_string();
         let path = match parsed.query() {
             Some(query) => format!("{}?{}", parsed.path(), query),
             None => parsed.path().to_string(),
         };
-        let date = Self::rfc7231_date();
+        let date = Self::format_rfc7231_date();
 
         let (authorization, content_sha256) = build_authorization_header(
             "POST",
@@ -149,28 +149,29 @@ impl OciClient {
             .body(body_bytes)
             .send()
             .await
-            .map_err(|e| {
-                ConfigurationError::InvalidCloudProvider(format!("OCI POST {} failed: {}", url, e))
+            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+                reason: format!("OCI POST {} failed: {}", url, error),
             })?;
 
         parse_response("POST", url, response).await
     }
 
-    /// Perform a signed PUT request with a JSON body.
     pub async fn put<B: Serialize>(&self, url: &str, body: &B) -> Result<Value> {
-        eprintln!("[OCI] PUT {}", url);
-        let body_bytes = serde_json::to_vec(body).map_err(|e| {
-            ConfigurationError::InvalidCloudProvider(format!("Failed to serialize body: {}", e))
+        debug!("[OCI] PUT {}", url);
+        let body_bytes = to_vec(body).map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+            reason: format!("Failed to serialize body: {}", error),
         })?;
-        let parsed = reqwest::Url::parse(url).map_err(|e| {
-            ConfigurationError::InvalidCloudProvider(format!("Invalid URL {}: {}", url, e))
+        let parsed = reqwest::Url::parse(url).map_err(|error| {
+            NetworkProvisioningError::NetworkQueryFailed {
+                reason: format!("Invalid URL {}: {}", url, error),
+            }
         })?;
         let host = parsed.host_str().unwrap_or_default().to_string();
         let path = match parsed.query() {
             Some(query) => format!("{}?{}", parsed.path(), query),
             None => parsed.path().to_string(),
         };
-        let date = Self::rfc7231_date();
+        let date = Self::format_rfc7231_date();
 
         let (authorization, content_sha256) = build_authorization_header(
             "PUT",
@@ -192,25 +193,26 @@ impl OciClient {
             .body(body_bytes)
             .send()
             .await
-            .map_err(|e| {
-                ConfigurationError::InvalidCloudProvider(format!("OCI PUT {} failed: {}", url, e))
+            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+                reason: format!("OCI PUT {} failed: {}", url, error),
             })?;
 
         parse_response("PUT", url, response).await
     }
 
-    /// Perform a signed DELETE request.
     pub async fn delete(&self, url: &str) -> Result<()> {
-        eprintln!("[OCI] DELETE {}", url);
-        let parsed = reqwest::Url::parse(url).map_err(|e| {
-            ConfigurationError::InvalidCloudProvider(format!("Invalid URL {}: {}", url, e))
+        debug!("[OCI] DELETE {}", url);
+        let parsed = reqwest::Url::parse(url).map_err(|error| {
+            NetworkProvisioningError::NetworkQueryFailed {
+                reason: format!("Invalid URL {}: {}", url, error),
+            }
         })?;
         let host = parsed.host_str().unwrap_or_default().to_string();
         let path = match parsed.query() {
             Some(query) => format!("{}?{}", parsed.path(), query),
             None => parsed.path().to_string(),
         };
-        let date = Self::rfc7231_date();
+        let date = Self::format_rfc7231_date();
 
         let (authorization, _) =
             build_authorization_header("DELETE", &host, &path, &date, None, &self.credentials)?;
@@ -222,8 +224,8 @@ impl OciClient {
             .header("authorization", &authorization)
             .send()
             .await
-            .map_err(|e| {
-                ConfigurationError::InvalidCloudProvider(format!("OCI DELETE failed: {}", e))
+            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+                reason: format!("OCI DELETE failed: {}", error),
             })?;
 
         let status = response.status();
@@ -231,38 +233,40 @@ impl OciClient {
             return Ok(());
         }
         let body = response.text().await.unwrap_or_default();
-        Err(ConfigurationError::InvalidCloudProvider(format!(
-            "OCI DELETE {} returned {}: {}",
-            url, status, body
-        ))
+        Err(NetworkProvisioningError::NetworkQueryFailed {
+            reason: format!("OCI DELETE {} returned {}: {}", url, status, body),
+        }
         .into())
     }
 }
 
 async fn parse_response(method: &str, url: &str, response: Response) -> Result<Value> {
     let status = response.status();
-    let body = response.text().await.map_err(|e| {
-        ConfigurationError::InvalidCloudProvider(format!("Failed to read OCI response: {}", e))
+    let body = response.text().await.map_err(|error| {
+        NetworkProvisioningError::NetworkQueryFailed {
+            reason: format!("Failed to read OCI response: {}", error),
+        }
     })?;
 
     if status.is_success() {
-        eprintln!("[OCI] {} {} → {}", method, url, status);
+        debug!("[OCI] {} {} → {}", method, url, status);
         if body.is_empty() {
             return Ok(Value::Null);
         }
-        serde_json::from_str(&body).map_err(|e| {
-            ConfigurationError::InvalidCloudProvider(format!(
-                "Failed to parse OCI JSON response: {} — body: {}",
-                e, body
-            ))
+        from_str(&body).map_err(|error| {
+            NetworkProvisioningError::NetworkQueryFailed {
+                reason: format!(
+                    "Failed to parse OCI JSON response: {} — body: {}",
+                    error, body
+                ),
+            }
             .into()
         })
     } else {
-        eprintln!("[OCI] {} {} → {} — {}", method, url, status, body);
-        Err(ConfigurationError::InvalidCloudProvider(format!(
-            "OCI {} {} error {}: {}",
-            method, url, status, body
-        ))
+        error!("[OCI] {} {} → {} — {}", method, url, status, body);
+        Err(NetworkProvisioningError::NetworkQueryFailed {
+            reason: format!("OCI {} {} error {}: {}", method, url, status, body),
+        }
         .into())
     }
 }

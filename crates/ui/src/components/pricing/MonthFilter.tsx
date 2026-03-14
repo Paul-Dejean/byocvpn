@@ -1,6 +1,6 @@
 export interface SelectedMonth {
   year: number;
-  /** 1-indexed month number (1 = January … 12 = December) */
+
   month: number;
 }
 
@@ -19,21 +19,15 @@ const MONTH_NAMES = [
   "Dec",
 ];
 
-/**
- * Props for the MonthFilter component
- */
 interface MonthFilterProps {
-  /** All months that have data (plus the current month) */
+
   availableMonths: SelectedMonth[];
-  /** The currently selected month */
+
   selectedMonth: SelectedMonth;
-  /** Callback when the user picks a different month */
+
   onSelectMonth: (month: SelectedMonth) => void;
 }
 
-/**
- * Pill-style month selector shown at the top of the Pricing page.
- */
 export function MonthFilter({
   availableMonths,
   selectedMonth,

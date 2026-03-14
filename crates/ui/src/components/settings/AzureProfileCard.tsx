@@ -1,11 +1,8 @@
 import { useState } from "react";
 import { useCredentials, AzureCredentials } from "../../hooks";
 
-/**
- * Props for the AzureProfileCard component
- */
 interface AzureProfileCardProps {
-  /** Optional callback invoked after credentials are saved successfully */
+
   onSaveSuccess?: () => void;
 }
 
@@ -15,10 +12,6 @@ const AzureIcon = () => (
   </div>
 );
 
-/**
- * Settings card for managing Azure service-principal credentials.
- * Requires a Subscription ID, Tenant ID, Client ID, and Client Secret.
- */
 export function AzureProfileCard({ onSaveSuccess }: AzureProfileCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [subscriptionId, setSubscriptionId] = useState("");

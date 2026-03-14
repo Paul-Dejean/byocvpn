@@ -24,10 +24,12 @@ tauri-plugin-store = "2"
 chrono = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-tauri-plugin-devtools = "2.0.0"
 byocvpn_core = { path = "../../core" }
 byocvpn_aws = { path = "../../infra/aws" }
 byocvpn_oracle = { path = "../../infra/oracle" }
 byocvpn_gcp = { path = "../../infra/gcp" }
 byocvpn_azure = { path = "../../infra/azure" }
 byocvpn_daemon = { path = "../../daemon" }
+tokio = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }

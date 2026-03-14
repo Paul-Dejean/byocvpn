@@ -24,19 +24,13 @@ function providerBadgeClass(provider: string): string {
   }
 }
 
-/**
- * Props for the PricingAccordion component
- */
 interface PricingAccordionProps {
-  /** The cloud provider identifier (e.g. "aws", "azure") */
+
   provider: string;
-  /** Enriched ledger entries for this provider in the selected month */
+
   entries: LedgerEntryWithCost[];
 }
 
-/**
- * Collapsible accordion showing a provider's total cost and per-instance breakdown.
- */
 export function PricingAccordion({ provider, entries }: PricingAccordionProps) {
   const [isOpen, setIsOpen] = useState(true);
   const totalCost = entries.reduce(
@@ -46,7 +40,7 @@ export function PricingAccordion({ provider, entries }: PricingAccordionProps) {
 
   return (
     <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-      {/* Accordion Header */}
+      {}
       <button
         onClick={() => setIsOpen((prev) => !prev)}
         className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-700/50 transition-colors text-left"
@@ -87,7 +81,7 @@ export function PricingAccordion({ provider, entries }: PricingAccordionProps) {
         </div>
       </button>
 
-      {/* Accordion Body */}
+      {}
       {isOpen && (
         <div className="border-t border-gray-700 overflow-x-auto">
           <table className="w-full min-w-[640px]">

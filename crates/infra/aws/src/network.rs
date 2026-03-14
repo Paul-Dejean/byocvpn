@@ -8,6 +8,7 @@ use aws_sdk_ec2::{
     },
 };
 use byocvpn_core::error::{NetworkProvisioningError, Result};
+use log::*;
 
 pub(super) async fn create_security_group(
     ec2_client: &Ec2Client,
@@ -17,7 +18,7 @@ pub(super) async fn create_security_group(
 ) -> Result<String> {
     let create_resp = ec2_client
         .create_security_group()
-        .vpc_id(vpc_id) // Replace with your VPC ID
+        .vpc_id(vpc_id)
         .group_name(group_name)
         .description(description)
         .send()
@@ -33,9 +34,8 @@ pub(super) async fn create_security_group(
         .ok_or(NetworkProvisioningError::MissingSecurityGroupIdentifier)?
         .to_string();
 
-    println!("Created security group with ID: {}", group_id);
+    info!("Created security group with ID: {}", group_id);
 
-    // 2. Authorize SSH ingress from anywhere (0.0.0.0/0)
     ec2_client
         .authorize_security_group_ingress()
         .group_id(&group_id)
@@ -48,20 +48,6 @@ pub(super) async fn create_security_group(
                 .ipv6_ranges(Ipv6Range::builder().cidr_ipv6("::/0").build())
                 .build(),
         )
-        .send()
-        .await
-        .map_err(
-            |error| NetworkProvisioningError::SecurityGroupRuleConfigurationFailed {
-                reason: error.to_string(),
-            },
-        )?;
-
-    println!("Added WireGuard UDP ingress rule to security group");
-
-    // Allow TCP 51820 for the WireGuard health endpoint (socat listener).
-    ec2_client
-        .authorize_security_group_ingress()
-        .group_id(&group_id)
         .ip_permissions(
             IpPermission::builder()
                 .ip_protocol("tcp")
@@ -78,8 +64,6 @@ pub(super) async fn create_security_group(
                 reason: error.to_string(),
             },
         )?;
-
-    println!("Added health endpoint TCP ingress rule to security group");
 
     Ok(group_id)
 }
@@ -105,8 +89,8 @@ pub(super) async fn get_security_group_by_name(
     let group_id = resp
         .security_groups()
         .first()
-        .and_then(|sg| sg.group_id())
-        .map(|s| s.to_string());
+        .and_then(|security_group| security_group.group_id())
+        .map(|group_id| group_id.to_string());
 
     Ok(group_id)
 }
@@ -137,15 +121,12 @@ pub(super) async fn create_vpc(
         .and_then(|vpc| vpc.vpc_id())
         .ok_or_else(|| NetworkProvisioningError::MissingVpcIdentifier)?;
 
-    println!("Created VPC: {}", vpc_id);
+    info!("Created VPC: {}", vpc_id);
     Ok(vpc_id.to_string())
 }
 
 pub(super) async fn get_vpc_by_name(ec2_client: &Ec2Client, name: &str) -> Result<Option<String>> {
-    let filter = Filter::builder()
-        .name("tag:Name") // Tag-based filter
-        .values(name)
-        .build();
+    let filter = Filter::builder().name("tag:Name").values(name).build();
 
     let resp = ec2_client
         .describe_vpcs()
@@ -160,7 +141,7 @@ pub(super) async fn get_vpc_by_name(ec2_client: &Ec2Client, name: &str) -> Resul
         .vpcs()
         .first()
         .and_then(|vpc| vpc.vpc_id())
-        .map(|id| id.to_string());
+        .map(|vpc_id| vpc_id.to_string());
 
     Ok(vpc_id)
 }
@@ -170,7 +151,7 @@ pub(super) async fn create_subnet(
     vpc_id: &str,
     cidr_block: &str,
     ipv6_cidr_block: &str,
-    az: &str,
+    availability_zone: &str,
     name: &str,
 ) -> Result<String> {
     let tag_spec = TagSpecification::builder()
@@ -183,7 +164,7 @@ pub(super) async fn create_subnet(
         .vpc_id(vpc_id)
         .cidr_block(cidr_block)
         .ipv6_cidr_block(ipv6_cidr_block)
-        .availability_zone(az)
+        .availability_zone(availability_zone)
         .tag_specifications(tag_spec)
         .send()
         .await
@@ -196,7 +177,7 @@ pub(super) async fn create_subnet(
         .and_then(|subnet| subnet.subnet_id())
         .ok_or_else(|| NetworkProvisioningError::MissingSubnetIdentifier)?;
 
-    println!("Created Subnet: {}", subnet_id);
+    info!("Created Subnet: {}", subnet_id);
     Ok(subnet_id.to_string())
 }
 
@@ -209,14 +190,14 @@ pub(super) async fn list_availability_zones(ec2_client: &Ec2Client) -> Result<Ve
             reason: error.to_string(),
         })?;
 
-    let azs = resp
+    let availability_zones = resp
         .availability_zones()
         .iter()
-        .filter_map(|az| az.zone_name())
-        .map(|az| az.to_string())
+        .filter_map(|availability_zone| availability_zone.zone_name())
+        .map(|availability_zone| availability_zone.to_string())
         .collect();
 
-    Ok(azs)
+    Ok(availability_zones)
 }
 
 pub(super) async fn get_vpc_ipv6_block(ec2_client: &Ec2Client, vpc_id: &str) -> Result<String> {
@@ -253,7 +234,6 @@ pub(super) fn carve_ipv6_subnet(base_cidr: &str, index: u8) -> Result<String> {
         })?
         .octets();
 
-    // Increment the 8 bits after the /56 (byte 7)
     bytes[7] = index;
 
     let subnet = Ipv6Addr::from(bytes);
@@ -286,7 +266,7 @@ pub(super) async fn create_and_attach_igw(ec2: &Ec2Client, vpc_id: &str) -> Resu
             },
         )?;
 
-    println!("🌐 Internet Gateway {igw_id} attached to VPC {vpc_id}");
+    info!("🌐 Internet Gateway {igw_id} attached to VPC {vpc_id}");
     Ok(igw_id.to_string())
 }
 
@@ -295,7 +275,6 @@ pub(super) async fn add_igw_routes_to_table(
     route_table_id: &str,
     igw_id: &str,
 ) -> Result<()> {
-    // IPv4 default route
     let _ = ec2
         .create_route()
         .route_table_id(route_table_id)
@@ -304,7 +283,6 @@ pub(super) async fn add_igw_routes_to_table(
         .send()
         .await;
 
-    // IPv6 default route
     let _ = ec2
         .create_route()
         .route_table_id(route_table_id)
@@ -313,7 +291,7 @@ pub(super) async fn add_igw_routes_to_table(
         .send()
         .await;
 
-    println!("✅ Added default routes to route table: {}", route_table_id);
+    info!("✅ Added default routes to route table: {}", route_table_id);
     Ok(())
 }
 
@@ -360,12 +338,13 @@ pub(super) async fn find_main_route_table(ec2: &Ec2Client, vpc_id: &str) -> Resu
     let rt_id = resp
         .route_tables()
         .iter()
-        .find(|rt| {
-            rt.associations()
+        .find(|route_table| {
+            route_table
+                .associations()
                 .iter()
                 .any(|assoc| assoc.main().unwrap_or(false))
         })
-        .and_then(|rt| rt.route_table_id())
+        .and_then(|route_table| route_table.route_table_id())
         .ok_or_else(|| NetworkProvisioningError::MissingMainRouteTable {
             vpc_id: vpc_id.to_string(),
         })?;

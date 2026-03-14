@@ -53,7 +53,7 @@ export const useVpnConnection = () => {
       const status = await invoke<VpnStatus>("get_vpn_status");
       setVpnStatus(status);
       if (status.connected) {
-        invoke("start_metrics_stream").catch((error) =>
+        invoke("subscribe_to_vpn_status").catch((error) =>
           console.error("Failed to resume metrics stream:", error),
         );
       }

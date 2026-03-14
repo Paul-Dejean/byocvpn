@@ -1,12 +1,6 @@
 import { Page } from "../../types/pages";
-
-/**
- * Props for the Navbar component
- */
 interface NavbarProps {
-  /** The currently active page */
   currentPage: Page;
-  /** Callback to navigate to a different page */
   onNavigate: (page: Page) => void;
 }
 
@@ -33,9 +27,6 @@ function NavItem({ icon, label, isActive, onClick }: NavItemProps) {
   );
 }
 
-/**
- * Vertical left navbar shown when the user is in the main app (VPN or Pricing).
- */
 export function Navbar({ currentPage, onNavigate }: NavbarProps) {
   return (
     <nav className="flex flex-col items-center pt-4 pb-4 gap-2 w-14 bg-gray-800 border-r border-gray-700 flex-shrink-0">

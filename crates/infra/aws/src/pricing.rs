@@ -1,14 +1,7 @@
-/// AWS instance pricing.
-///
-/// Rates are for on-demand Linux instances in us-east-1 (USD).
-/// IP pricing applies globally since February 2024.
-/// Updated: 2026-03-03.
 use byocvpn_core::cloud_provider::PricingInfo;
 
-/// $0.005/hr per public IPv4 address (AWS global, since Feb 2024).
 const IPV4_HOURLY_RATE: f64 = 0.005;
 
-/// $0.09/GB outbound data transfer (first 10 TB/month, us-east-1).
 const EGRESS_RATE_PER_GB: f64 = 0.09;
 
 const INSTANCE_PRICES: &[(&str, f64)] = &[
@@ -22,7 +15,6 @@ const INSTANCE_PRICES: &[(&str, f64)] = &[
     ("t3a.small", 0.0188),
 ];
 
-/// Return pricing for `instance_type`, or `None` if unknown.
 pub fn get_pricing(instance_type: &str) -> Option<PricingInfo> {
     INSTANCE_PRICES
         .iter()

@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, path::Path};
+use std::{collections::VecDeque, net::SocketAddr, path::Path};
 
 use boringtun::{
     noise::Tunn,
@@ -10,6 +10,7 @@ use byocvpn_core::{
     tunnel::{ConnectedInstance, Tunnel, TunnelMetrics},
 };
 use futures::StreamExt;
+use log::*;
 use net_route::Handle as RouteHandle;
 use tokio::{net::UdpSocket, sync::watch};
 use tun_rs::DeviceBuilder;
@@ -25,13 +26,10 @@ use crate::{
 };
 
 pub async fn connect_vpn(config_path: String) -> Result<()> {
-    println!("Daemon received connect: {}", &config_path);
+    info!("Daemon received connect: {}", &config_path);
 
-    // Parse config file
     let wg_config = parse_wireguard_config(&config_path).await?;
 
-    // Extract instance_id from config filename
-    // Expected format: /path/to/{instance_id}.conf
     let instance_id = Path::new(&config_path)
         .file_stem()
         .and_then(|s| s.to_str())
@@ -41,7 +39,6 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
             reason: "unable to extract instance ID".to_string(),
         })?;
 
-    // Extract IP addresses from endpoint
     let endpoint_ip = wg_config.endpoint.ip().to_string();
     let (public_ip_v4, public_ip_v6) = if wg_config.endpoint.is_ipv4() {
         (Some(endpoint_ip), None)
@@ -49,7 +46,6 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
         (None, Some(endpoint_ip))
     };
 
-    // Create TUN device
     let tun = DeviceBuilder::new()
         .name("utun4")
         .ipv4(wg_config.ipv4.addr(), wg_config.ipv4.prefix_len(), None)
@@ -66,16 +62,15 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
             reason: format!("Failed to get TUN name: {}", e),
         })?;
 
-    println!("Created TUN device: {}", iface_name);
+    info!("Created TUN device: {}", iface_name);
 
-    // Check if tunnel is already running
     let is_tunnel_running = TUNNEL_MANAGER
         .lock()
         .map_err(|_| SystemError::MutexPoisoned("TUNNEL_MANAGER".to_string()))?
         .as_ref()
         .map_or(false, |handle| !handle.task.is_finished());
 
-    println!("Previous Tunnel running: {}", is_tunnel_running);
+    info!("Previous Tunnel running: {}", is_tunnel_running);
     if is_tunnel_running {
         return Err(ConfigurationError::TunnelConfiguration {
             reason: "Tunnel already running".to_string(),
@@ -83,9 +78,8 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
         .into());
     }
 
-    println!("Creating Tunnel");
+    info!("Creating Tunnel");
 
-    // Convert keys
     let private_key_bytes: [u8; 32] =
         wg_config.private_key.as_slice().try_into().map_err(|_| {
             ConfigurationError::InvalidValue {
@@ -103,8 +97,8 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
     let tunn = Tunn::new(
         StaticSecret::from(private_key_bytes),
         PublicKey::from(public_key_bytes),
-        None,     // preshared key
-        Some(25), // keepalive
+        None,
+        Some(25),
         0,
         None,
     )
@@ -112,23 +106,33 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
         reason: format!("Failed to create tunnel: {:?}", e),
     })?;
 
-    println!("Created Tunn device");
+    info!("Created Tunn device");
 
-    // Create UDP socket
     let local: SocketAddr = "0.0.0.0:0"
         .parse()
         .map_err(|e| ConfigurationError::ParseError {
             reason: format!("Failed to parse local socket address: {}", e),
             value: "0.0.0.0".to_string(),
         })?;
-    let udp = UdpSocket::bind(local).await?;
-    println!(
+    let udp = UdpSocket::bind(local)
+        .await
+        .map_err(|error| SystemError::TunnelIoFailed {
+            reason: format!("failed to bind UDP socket: {}", error),
+        })?;
+    info!(
         "{:?} UDP socket bound to {}",
         wg_config.endpoint,
-        udp.local_addr()?
+        udp.local_addr()
+            .map_err(|error| SystemError::TunnelIoFailed {
+                reason: format!("failed to get UDP local address: {}", error),
+            })?
     );
-    udp.connect(wg_config.endpoint).await?;
-    println!("UDP socket connected to {}", wg_config.endpoint);
+    udp.connect(wg_config.endpoint)
+        .await
+        .map_err(|error| SystemError::TunnelIoFailed {
+            reason: format!("failed to connect UDP socket: {}", error),
+        })?;
+    info!("UDP socket connected to {}", wg_config.endpoint);
 
     let (shutdown_tx, shutdown_rx) = watch::channel(());
 
@@ -137,11 +141,10 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
 
     let task = tokio::spawn(async move {
         if let Err(e) = tunnel.run().await {
-            eprintln!("Tunnel exited: {e}");
+            error!("Tunnel exited: {e}");
         }
     });
 
-    // Create metrics streaming task
     let metrics_socket_path = constants::metrics_socket_path();
     let metrics_clone = metrics.clone();
     let (metrics_shutdown_tx, mut metrics_shutdown_rx) = watch::channel(());
@@ -149,14 +152,14 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
     let metrics_task = tokio::spawn(async move {
         let listener = match IpcSocket::bind(metrics_socket_path.clone()).await {
             Ok(l) => {
-                println!(
+                info!(
                     "[Metrics] Created metrics socket at {}",
                     metrics_socket_path.to_string_lossy()
                 );
                 l
             }
             Err(e) => {
-                eprintln!("[Metrics] Failed to create metrics socket: {}", e);
+                error!("[Metrics] Failed to create metrics socket: {}", e);
                 return;
             }
         };
@@ -166,16 +169,14 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
         let mut last_time = tokio::time::Instant::now();
         let mut connected_stream: Option<IpcStream> = None;
 
-        // Moving average buffers (10 samples = 10 seconds)
-        use std::collections::VecDeque;
         let mut upload_history: VecDeque<u64> = VecDeque::with_capacity(10);
         let mut download_history: VecDeque<u64> = VecDeque::with_capacity(10);
 
         loop {
             tokio::select! {
-                // Accept new connections (only keep one active)
+
                 Ok(stream) = listener.accept() => {
-                    println!("[Metrics] Client connected to metrics stream");
+                    info!("[Metrics] Client connected to metrics stream");
                     connected_stream = Some(stream);
                 }
 
@@ -185,7 +186,6 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
                         let now = tokio::time::Instant::now();
                         let elapsed = now.duration_since(last_time).as_secs_f64();
 
-                        // Calculate instantaneous rates (bytes per second)
                         let upload_rate_instant = if elapsed > 0.0 {
                             ((current_metrics.bytes_sent - last_metrics.bytes_sent) as f64 / elapsed) as u64
                         } else {
@@ -198,11 +198,9 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
                             0
                         };
 
-                        // Add to history
                         upload_history.push_back(upload_rate_instant);
                         download_history.push_back(download_rate_instant);
 
-                        // Keep only last 10 samples
                         if upload_history.len() > 10 {
                             upload_history.pop_front();
                         }
@@ -210,7 +208,6 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
                             download_history.pop_front();
                         }
 
-                        // Calculate moving average
                         let upload_rate = if !upload_history.is_empty() {
                             upload_history.iter().sum::<u64>() / upload_history.len() as u64
                         } else {
@@ -232,11 +229,10 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
                             download_rate,
                         };
 
-                        // Write metrics as JSON to the stream
                         if let Ok(json) = serde_json::to_string(&metrics) {
                             if stream.write_all(json.as_bytes()).await.is_err()
                                 || stream.write_all(b"\n").await.is_err() {
-                                println!("[Metrics] Client disconnected");
+                                info!("[Metrics] Client disconnected");
                                 connected_stream = None;
                             }
                         }
@@ -247,32 +243,29 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
                 }
 
                 _ = metrics_shutdown_rx.changed() => {
-                    println!("[Metrics] Stopping metrics streamer");
+                    info!("[Metrics] Stopping metrics streamer");
                     break;
                 }
             }
         }
     });
 
-    println!("Tunnel task spawned");
+    info!("Tunnel task spawned");
 
     let mut manager = TUNNEL_MANAGER
         .lock()
         .map_err(|_| SystemError::MutexPoisoned("TUNNEL_MANAGER".to_string()))?;
 
-    // Add VPN routes
-    println!("Adding VPN routes...");
+    info!("Adding VPN routes...");
     add_vpn_routes(&iface_name, &wg_config.endpoint.ip().to_string()).await?;
 
-    // Spawn route monitor — watches for gateway changes and refreshes the
-    // direct host route to the VPN server so the tunnel survives network switches.
     let route_monitor_server_ip = wg_config.endpoint.ip().to_string();
     let (route_monitor_shutdown_tx, mut route_monitor_shutdown_rx) = watch::channel(());
     let route_monitor_task = tokio::spawn(async move {
         let route_handle = match RouteHandle::new() {
             Ok(h) => h,
             Err(e) => {
-                eprintln!("[RouteMonitor] Failed to create route handle: {}", e);
+                error!("[RouteMonitor] Failed to create route handle: {}", e);
                 return;
             }
         };
@@ -284,26 +277,24 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
                     update_server_host_route(&route_monitor_server_ip).await;
                 }
                 _ = route_monitor_shutdown_rx.changed() => {
-                    println!("[RouteMonitor] Stopping.");
+                    info!("[RouteMonitor] Stopping.");
                     break;
                 }
             }
         }
     });
 
-    println!("Configuring DNS...");
+    info!("Configuring DNS...");
     #[cfg(target_os = "macos")]
     let optional_domain_name_system_override_guard: Option<DomainNameSystemOverrideGuard> = {
         let domain_name_system_servers = wg_config.dns_servers;
 
-        println!(
+        info!(
             "Parsed DNS servers from config: {:?}",
             domain_name_system_servers
         );
         if domain_name_system_servers.is_empty() {
-            eprintln!(
-                "No DNS servers found in [Interface] DNS = ...; leaving system DNS unchanged."
-            );
+            error!("No DNS servers found in [Interface] DNS = ...; leaving system DNS unchanged.");
             None
         } else {
             let as_refs: Vec<&str> = domain_name_system_servers
@@ -313,7 +304,7 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
             match DomainNameSystemOverrideGuard::apply_to_all_services(&as_refs) {
                 Ok(guard) => Some(guard),
                 Err(error) => {
-                    eprintln!("Failed to apply DNS servers to macOS services: {error}");
+                    error!("Failed to apply DNS servers to macOS services: {error}");
                     None
                 }
             }
@@ -337,6 +328,6 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
         }),
     });
 
-    println!("VPN setup complete.");
+    info!("VPN setup complete.");
     Ok(())
 }

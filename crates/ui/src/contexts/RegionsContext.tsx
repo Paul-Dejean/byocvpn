@@ -2,9 +2,6 @@ import { createContext, useContext, ReactNode } from "react";
 import { AwsRegion, RegionGroup } from "../types";
 import { useRegions } from "../hooks/useRegions";
 
-/**
- * Context value for regions management
- */
 interface RegionsContextValue {
   regions: AwsRegion[];
   groupedRegions: RegionGroup[];
@@ -16,16 +13,10 @@ interface RegionsContextValue {
 
 const RegionsContext = createContext<RegionsContextValue | null>(null);
 
-/**
- * Props for RegionsProvider
- */
 interface RegionsProviderProps {
   children: ReactNode;
 }
 
-/**
- * Provider component that manages regions state globally
- */
 export function RegionsProvider({ children }: RegionsProviderProps) {
   const regionsState = useRegions();
 
@@ -36,10 +27,6 @@ export function RegionsProvider({ children }: RegionsProviderProps) {
   );
 }
 
-/**
- * Hook to access regions context
- * @throws Error if used outside RegionsProvider
- */
 export function useRegionsContext() {
   const context = useContext(RegionsContext);
   if (!context) {

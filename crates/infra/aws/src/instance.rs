@@ -6,13 +6,15 @@ use aws_sdk_ec2::{
 use aws_sdk_ssm::Client as SsmClient;
 use base64::{Engine, engine::general_purpose};
 use byocvpn_core::{
-    cloud_provider::InstanceInfo,
+    cloud_provider::{CloudProviderName, InstanceInfo, InstanceState},
     error::{ComputeProvisioningError, NetworkProvisioningError, Result},
 };
 use chrono::{DateTime, Utc};
+use log::*;
 use tokio::time::Duration;
 
-use crate::{cloud_init, config, network};
+use crate::{config, network, startup_script, state::Ec2InstanceState};
+
 pub(super) async fn spawn_instance(
     ec2_client: &Ec2Client,
     ssm_client: &SsmClient,
@@ -33,13 +35,13 @@ pub(super) async fn spawn_instance(
         .clone()
         .ok_or(NetworkProvisioningError::SubnetMissingIdentifier {})?;
     let user_data =
-        cloud_init::generate_wireguard_cloud_init(server_private_key, client_public_key)?;
+        startup_script::generate_server_startup_script(server_private_key, client_public_key)?;
 
-    println!("{:?}", user_data);
+    info!("{:?}", user_data);
     let encoded_user_data = general_purpose::STANDARD.encode(user_data);
 
     let ami_id = config::get_al2023_ami(&ssm_client).await?;
-    println!("AMI ID: {}", ami_id);
+    info!("AMI ID: {}", ami_id);
 
     let group_name = "byocvpn-security-group";
     let security_group_id = network::get_security_group_by_name(&ec2_client, group_name)
@@ -48,7 +50,7 @@ pub(super) async fn spawn_instance(
             group_name: group_name.to_string(),
         })?;
 
-    println!("Security group ID: {}", security_group_id);
+    info!("Security group ID: {}", security_group_id);
 
     let tags = TagSpecification::builder()
         .resource_type(ResourceType::Instance)
@@ -61,7 +63,6 @@ pub(super) async fn spawn_instance(
         .security_group_ids(security_group_id)
         .instance_type(aws_sdk_ec2::types::InstanceType::T2Micro)
         .user_data(encoded_user_data)
-        // .key_name("vpn")
         .min_count(1)
         .max_count(1)
         .tag_specifications(tags)
@@ -102,8 +103,8 @@ pub(super) async fn spawn_instance(
     let public_ip_v4 = desc
         .reservations()
         .iter()
-        .flat_map(|r| r.instances())
-        .filter_map(|i| i.public_ip_address())
+        .flat_map(|reservation| reservation.instances())
+        .filter_map(|instance| instance.public_ip_address())
         .next()
         .ok_or_else(|| ComputeProvisioningError::MissingPublicIpv4)?
         .to_string();
@@ -111,23 +112,23 @@ pub(super) async fn spawn_instance(
     let public_ip_v6 = desc
         .reservations()
         .iter()
-        .flat_map(|r| r.instances())
-        .filter_map(|i| i.ipv6_address())
+        .flat_map(|reservation| reservation.instances())
+        .filter_map(|instance| instance.ipv6_address())
         .next()
         .ok_or_else(|| ComputeProvisioningError::MissingPublicIpv6)?
         .to_string();
-    println!("Instance ID: {}", instance_id);
-    println!("Public IPv4: {}", public_ip_v4);
-    println!("Public IPv6: {}", public_ip_v6);
+    info!("Instance ID: {}", instance_id);
+    info!("Public IPv4: {}", public_ip_v4);
+    info!("Public IPv6: {}", public_ip_v6);
 
     Ok(InstanceInfo {
         id: instance_id,
         name: Some("byocvpn-server".to_string()),
-        state: "running".to_string(),
+        state: InstanceState::Running,
         public_ip_v4,
         public_ip_v6,
         region: region.to_string(),
-        provider: "aws".to_string(),
+        provider: CloudProviderName::Aws,
         instance_type: "t2.micro".to_string(),
         launched_at: Some(Utc::now()),
     })
@@ -158,43 +159,45 @@ pub(super) async fn list_instances_in_region(
         .send()
         .await
         .map_err(|error| ComputeProvisioningError::InstanceSpawnFailed {
-            region_name: "unknown".to_string(), // We don't have provider here
+            region_name: "unknown".to_string(),
             reason: error.to_string(),
         })?;
 
     let instances = resp
         .reservations()
         .iter()
-        .flat_map(|r| r.instances())
-        .filter_map(|i| {
-            let id = i.instance_id()?.to_string();
+        .flat_map(|reservation| reservation.instances())
+        .filter_map(|instance| {
+            let id = instance.instance_id()?.to_string();
 
-            let state = i
+            let raw_state = instance
                 .state()
-                .and_then(|s| s.name().map(|s| s.as_str()))?
-                .to_string();
+                .and_then(|instance_state| {
+                    instance_state.name().map(|state_name| state_name.as_str())
+                })
+                .unwrap_or("unknown");
 
-            if state != "running" {
-                return None;
-            }
-            let name = i.tags().iter().find_map(|tag| {
+            let state: InstanceState = Ec2InstanceState::from(raw_state).into();
+            let name = instance.tags().iter().find_map(|tag| {
                 tag.key()
                     .filter(|key| *key == "Name")
                     .and_then(|_| tag.value().map(ToString::to_string))
             });
 
-            let public_ip_v4 = i.public_ip_address().map(|ip| ip.to_string())?;
-            let public_ip_v6 = i.ipv6_address().map(|ip| ip.to_string())?;
+            let public_ip_v4 = instance
+                .public_ip_address()
+                .map(|address| address.to_string())?;
+            let public_ip_v6 = instance.ipv6_address().map(|address| address.to_string())?;
 
-            let instance_type = i
+            let instance_type = instance
                 .instance_type()
-                .map(|t| t.as_str().to_string())
+                .map(|type_value| type_value.as_str().to_string())
                 .unwrap_or_default();
 
-            let launched_at = i.launch_time().and_then(|t| {
-                DateTime::parse_from_rfc3339(&t.to_string())
+            let launched_at = instance.launch_time().and_then(|timestamp| {
+                DateTime::parse_from_rfc3339(&timestamp.to_string())
                     .ok()
-                    .map(|dt| dt.with_timezone(&Utc))
+                    .map(|datetime| datetime.with_timezone(&Utc))
             });
 
             Some(InstanceInfo {
@@ -204,7 +207,7 @@ pub(super) async fn list_instances_in_region(
                 public_ip_v4,
                 public_ip_v6,
                 region: region.to_string(),
-                provider: "aws".to_string(),
+                provider: CloudProviderName::Aws,
                 instance_type,
                 launched_at,
             })

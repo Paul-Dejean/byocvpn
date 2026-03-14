@@ -23,10 +23,6 @@ function computeEstimatedCost(
   );
 }
 
-/**
- * Fetches all ledger entries, resolves per-entry pricing, and computes
- * estimated costs. Returns enriched entries ready for display.
- */
 export const useLedger = () => {
   const [entries, setEntries] = useState<LedgerEntryWithCost[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -38,7 +34,6 @@ export const useLedger = () => {
     try {
       const rawEntries = await invoke<LedgerEntry[]>("get_ledger");
 
-      // Resolve pricing for each unique (provider, instanceType) pair once.
       const pricingCache = new Map<string, PricingInfo>();
       for (const entry of rawEntries) {
         const key = `${entry.provider}::${entry.instanceType}`;
@@ -50,7 +45,7 @@ export const useLedger = () => {
             });
             pricingCache.set(key, pricing);
           } catch {
-            // Unknown pricing — treat as free so the entry is still shown.
+
             pricingCache.set(key, {
               hourlyRate: 0,
               ipHourlyRate: 0,

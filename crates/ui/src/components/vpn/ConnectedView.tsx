@@ -28,7 +28,7 @@ export function ConnectedView({
 
   return (
     <div className="flex flex-col h-full bg-gray-900 text-white overflow-hidden">
-      {/* Header */}
+      {}
       <div className="bg-gray-800 p-6 border-b border-gray-700">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -43,10 +43,10 @@ export function ConnectedView({
         </div>
       </div>
 
-      {/* Main Content */}
+      {}
       <div className="flex-1 flex justify-center p-8 overflow-y-auto">
         <div className="max-w-3xl w-full space-y-6">
-          {/* Compact Server Info Bar */}
+          {}
           {connectedInstance && (
             <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
               <div className="flex items-center justify-between flex-wrap gap-4">
@@ -77,11 +77,11 @@ export function ConnectedView({
             </div>
           )}
 
-          {/* Animated Upload/Download Rates */}
+          {}
           <div className="grid grid-cols-2 gap-6">
-            {/* Upload Rate Card */}
+            {}
             <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 relative overflow-hidden">
-              {/* Animated background pulse */}
+              {}
               <div
                 className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-transparent animate-pulse"
                 style={{ animationDuration: "2s" }}
@@ -114,7 +114,7 @@ export function ConnectedView({
                 </div>
               </div>
 
-              {/* Animated bars */}
+              {}
               <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-700">
                 <div
                   className="h-full bg-green-500 transition-all duration-500 ease-out"
@@ -125,9 +125,9 @@ export function ConnectedView({
               </div>
             </div>
 
-            {/* Download Rate Card */}
+            {}
             <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 relative overflow-hidden">
-              {/* Animated background pulse */}
+              {}
               <div
                 className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent animate-pulse"
                 style={{ animationDuration: "2s", animationDelay: "0.5s" }}
@@ -160,7 +160,7 @@ export function ConnectedView({
                 </div>
               </div>
 
-              {/* Animated bars */}
+              {}
               <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-700">
                 <div
                   className="h-full bg-blue-500 transition-all duration-500 ease-out"
@@ -172,7 +172,7 @@ export function ConnectedView({
             </div>
           </div>
 
-          {/* Detailed Metrics */}
+          {}
           <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
             <h2 className="text-lg font-semibold mb-4 text-blue-400">
               Packet Statistics
@@ -180,7 +180,7 @@ export function ConnectedView({
             <MetricsDetails metrics={vpnStatus.metrics} />
           </div>
 
-          {/* Disconnect Button - update onClick handler */}
+          {}
           <button
             onClick={handleDisconnectClick}
             className="px-8 py-4 bg-red-600 hover:bg-red-700 text-white rounded-lg transition font-medium text-lg shadow-lg hover:shadow-xl"
@@ -188,7 +188,7 @@ export function ConnectedView({
             Disconnect
           </button>
 
-          {/* Info */}
+          {}
           <div className="text-center text-sm text-gray-400">
             <p>Your traffic is encrypted and routed through this VPN server</p>
           </div>

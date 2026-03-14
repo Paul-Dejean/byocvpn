@@ -3,9 +3,6 @@ import { Instance, SpawnJobState } from "../types";
 import { useInstances } from "../hooks/useInstances";
 import { useRegionsContext } from "./RegionsContext";
 
-/**
- * Context value for instances management
- */
 interface InstancesContextValue {
   instances: Instance[];
   isLoading: boolean;
@@ -20,22 +17,15 @@ interface InstancesContextValue {
   ) => Promise<void>;
   clearError: () => void;
   refetch: () => Promise<void>;
-  /** Returns live step state for a spawning placeholder instance id. */
   getSpawnJobForInstance: (instanceId: string) => SpawnJobState | undefined;
 }
 
 const InstancesContext = createContext<InstancesContextValue | null>(null);
 
-/**
- * Props for InstancesProvider
- */
 interface InstancesProviderProps {
   children: ReactNode;
 }
 
-/**
- * Provider component that manages instances state globally
- */
 export function InstancesProvider({ children }: InstancesProviderProps) {
   const { regions } = useRegionsContext();
   const instancesState = useInstances(regions);
@@ -47,10 +37,6 @@ export function InstancesProvider({ children }: InstancesProviderProps) {
   );
 }
 
-/**
- * Hook to access instances context
- * @throws Error if used outside InstancesProvider
- */
 export function useInstancesContext() {
   const context = useContext(InstancesContext);
   if (!context) {

@@ -18,10 +18,8 @@ pub(super) async fn get_sdk_config(
         None => RegionProviderChain::default_provider(),
     };
 
-    // Begin building config
     let mut config_loader = aws_config::from_env().region(region_provider);
 
-    // Optionally override credentials
     if let (Some(id), Some(secret)) = (&config.access_key_id, &config.secret_access_key) {
         let credentials = Credentials::new(id.clone(), secret.clone(), None, None, "manual");
         let provider = SharedCredentialsProvider::new(credentials);
@@ -33,10 +31,8 @@ pub(super) async fn get_sdk_config(
 }
 
 pub(super) async fn get_al2023_ami(ssm_client: &SsmClient) -> Result<String> {
-    // AL2023 x86_64 SSM parameter name
     let param_name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64";
 
-    // Fetch the parameter value (AMI ID)
     let result = ssm_client
         .get_parameter()
         .name(param_name)

@@ -1,8 +1,9 @@
 pub mod connect;
 pub mod disconnect;
 pub mod list;
-
 pub mod setup;
 pub mod spawn;
+pub mod status;
+pub mod subscribe;
 pub mod terminate;
 pub mod verify_permissions;

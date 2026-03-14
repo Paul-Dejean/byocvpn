@@ -11,14 +11,6 @@ import {
   SpawnCompleteEvent,
 } from "../types";
 
-/**
- * Hook for managing cloud instances — listing, spawning, and terminating.
- *
- * Spawn is fully async: `spawnInstance` returns as soon as the backend
- * acknowledges the job (with a `SpawnJob` describing the steps). Progress is
- * pushed back via Tauri events and reflected in per-job step state returned
- * by `getSpawnJobForInstance`.
- */
 export const useInstances = (regions: AwsRegion[]) => {
   const [instances, setInstances] = useState<Instance[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -27,20 +19,14 @@ export const useInstances = (regions: AwsRegion[]) => {
   >(null);
   const [error, setError] = useState<string | null>(null);
 
-  /** Live step states keyed by jobId. */
   const [spawnJobs, setSpawnJobs] = useState<Record<string, SpawnJobState>>({});
 
-  /**
-   * Maps a spawning placeholder instance id (e.g. "spawning-1234") to its
-   * backend jobId so we can correlate events with the right list entry.
-   */
   const tempToJob = useRef<Record<string, string>>({});
 
   useEffect(() => {
     if (regions.length > 0) fetchInstances();
   }, [regions]);
 
-  // Register spawn event listeners once on mount and clean up on unmount.
   useEffect(() => {
     const progressUnlisten = listen<SpawnProgressEvent>(
       "spawn-progress",
@@ -125,11 +111,6 @@ export const useInstances = (regions: AwsRegion[]) => {
     }
   };
 
-  /**
-   * Begin deploying a new instance.  Returns as soon as the backend has
-   * accepted the job — the actual deployment runs in the background and
-   * updates arrive via `spawn-progress` / `spawn-complete` / `spawn-failed`.
-   */
   const spawnInstance = async (
     regionName: string,
     provider: string,
@@ -146,7 +127,6 @@ export const useInstances = (regions: AwsRegion[]) => {
       provider,
     };
 
-    // Add a placeholder card immediately so the UI shows something right away.
     setInstances((prev) => [...prev, placeholder]);
 
     try {
@@ -155,10 +135,8 @@ export const useInstances = (regions: AwsRegion[]) => {
         provider,
       });
 
-      // Associate the placeholder with the backend job.
       tempToJob.current[tempId] = job.jobId;
 
-      // Initialise all steps as pending so the UI can render the full list.
       setSpawnJobs((prev) => ({
         ...prev,
         [job.jobId]: {
@@ -170,7 +148,7 @@ export const useInstances = (regions: AwsRegion[]) => {
         },
       }));
     } catch (err) {
-      // If the invoke itself failed (e.g. bad credentials), remove placeholder.
+
       setInstances((prev) => prev.filter((inst) => inst.id !== tempId));
       const message =
         err instanceof Error ? err.message : "Failed to start deployment";
@@ -204,10 +182,6 @@ export const useInstances = (regions: AwsRegion[]) => {
     }
   };
 
-  /**
-   * Returns the live spawn job state (step list + statuses) for the given
-   * instance placeholder id, or `undefined` if the instance is not spawning.
-   */
   const getSpawnJobForInstance = (
     instanceId: string,
   ): SpawnJobState | undefined => {

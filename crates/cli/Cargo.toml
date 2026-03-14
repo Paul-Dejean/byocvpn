@@ -9,3 +9,5 @@ byocvpn_aws = { path = "../infra/aws" }
 byocvpn_daemon = { path = "../daemon" }
 tokio = { workspace = true }
 clap = { version = "4.5.49", features = ["derive"] }
+log = { workspace = true }
+env_logger = { workspace = true }

@@ -8,6 +8,7 @@ use crate::{
     cloud_provider::CloudProviderName,
     error::{ConfigurationError, Result},
 };
+use log::*;
 
 #[derive(Serialize)]
 struct ClientConfigContext {
@@ -23,14 +24,12 @@ pub fn generate_client_config(
 ) -> Result<String> {
     let template_text: &str = include_str!("templates/client_config.hbs");
 
-    // 2. Build the context (the data injected into the template)
     let context = ClientConfigContext {
         client_private_key: client_private_key.to_string(),
         server_public_key: server_public_key.to_string(),
         server_ip_v4: server_ip_v4.to_string(),
     };
 
-    // 3. Render the template
     let handlebars_registry = Handlebars::new();
 
     let config = handlebars_registry
@@ -38,7 +37,7 @@ pub fn generate_client_config(
         .map_err(|error| ConfigurationError::TemplateRender {
             reason: error.to_string(),
         })?;
-    println!("{}", &config);
+    info!("{}", &config);
     Ok(config)
 }
 
@@ -56,9 +55,18 @@ pub async fn get_wireguard_config_file_path(
 async fn get_configs_path() -> Result<PathBuf> {
     let home_dir = dirs::home_dir().ok_or(ConfigurationError::HomeDirectoryNotAvailable)?;
     let byocvpn_dir = home_dir.join(".byocvpn").join("configs");
-    // Create the directory if it doesn't exist
-    if !try_exists(&byocvpn_dir).await? {
-        create_dir_all(&byocvpn_dir).await?;
+
+    if !try_exists(&byocvpn_dir)
+        .await
+        .map_err(|error| ConfigurationError::TunnelConfiguration {
+            reason: format!("failed to check configs directory: {}", error),
+        })?
+    {
+        create_dir_all(&byocvpn_dir)
+            .await
+            .map_err(|error| ConfigurationError::TunnelConfiguration {
+                reason: format!("failed to create configs directory: {}", error),
+            })?;
     }
 
     Ok(byocvpn_dir)
@@ -69,8 +77,6 @@ fn get_wireguard_config_file_name(
     region: &str,
     instance_id: &str,
 ) -> String {
-    // GCP instance IDs contain a slash (zone/name) — replace with underscore
-    // so it stays as a flat filename rather than creating a subdirectory.
     let safe_id = instance_id.replace('/', "_");
     format!("{provider_name}-{region}-{safe_id}.conf")
 }

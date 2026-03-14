@@ -10,4 +10,7 @@ pub enum SystemError {
 
     #[error("instance did not become ready within the timeout period")]
     ReadinessProbeTimedOut,
+
+    #[error("tunnel I/O failed: {reason}")]
+    TunnelIoFailed { reason: String },
 }

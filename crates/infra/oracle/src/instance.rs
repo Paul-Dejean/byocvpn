@@ -1,23 +1,23 @@
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use byocvpn_core::{
-    cloud_provider::{InstanceInfo, SpawnInstanceParams},
+    cloud_provider::{CloudProviderName, InstanceInfo, InstanceState, SpawnInstanceParams},
     error::{ComputeProvisioningError, Result},
 };
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
 use tokio::time::{Duration, sleep};
 
-use crate::{client::OciClient, cloud_init::generate_wireguard_cloud_init};
+use crate::{
+    client::OciClient, startup_script::generate_server_startup_script, state::OciLifecycleState,
+};
+use log::*;
 
-/// Shape used for new instances. `VM.Standard.A1.Flex` is part of the OCI Always Free tier.
 const INSTANCE_SHAPE: &str = "VM.Standard.A1.Flex";
 const INSTANCE_OCPUS: f32 = 1.0;
 const INSTANCE_MEMORY_GB: f32 = 6.0;
 
-/// Display name tag applied to every spawned instance.
 const INSTANCE_DISPLAY_NAME: &str = "byocvpn-server";
 
-/// Launch a new WireGuard VPN instance in `compartment_ocid`.
 pub async fn spawn_instance(
     client: &OciClient,
     compartment_ocid: &str,
@@ -28,7 +28,7 @@ pub async fn spawn_instance(
     params: &SpawnInstanceParams<'_>,
 ) -> Result<InstanceInfo> {
     let user_data =
-        generate_wireguard_cloud_init(params.server_private_key, params.client_public_key)?;
+        generate_server_startup_script(params.server_private_key, params.client_public_key)?;
     let encoded_user_data = BASE64.encode(&user_data);
 
     let mut create_vnic_details = json!({
@@ -57,15 +57,15 @@ pub async fn spawn_instance(
             "user_data": encoded_user_data,
         },
         "freeformTags": {
-            "byocvpn": "true",
+            "created-by": "byocvpn",
         },
     });
 
-    let url = format!("{}/20160918/instances", client.core_base_url());
-    let response = client.post(&url, &body).await.map_err(|e| {
+    let url = format!("{}/20160918/instances", client.build_core_base_url());
+    let response = client.post(&url, &body).await.map_err(|error| {
         ComputeProvisioningError::InstanceSpawnFailed {
             region_name: region.to_string(),
-            reason: e.to_string(),
+            reason: error.to_string(),
         }
     })?;
 
@@ -74,12 +74,8 @@ pub async fn spawn_instance(
         .ok_or(ComputeProvisioningError::MissingInstanceIdentifier)?
         .to_string();
 
-    // Poll until RUNNING (up to 3 minutes)
     wait_until_running(client, &instance_ocid, region).await?;
 
-    // Fetch base instance details, then resolve the public IP via the VNIC API.
-    // The GetInstance response never contains the public IP directly — it only
-    // appears on the attached VNIC.
     let details = get_instance_details(client, &instance_ocid).await?;
     let mut info = build_instance_info(&details, region)?;
     let (public_ip_v4, public_ip_v6) =
@@ -91,23 +87,21 @@ pub async fn spawn_instance(
     Ok(info)
 }
 
-/// Terminate (permanently delete) an instance by OCID.
 pub async fn terminate_instance(client: &OciClient, instance_ocid: &str) -> Result<()> {
     let url = format!(
         "{}/20160918/instances/{}?preserveBootVolume=false",
-        client.core_base_url(),
+        client.build_core_base_url(),
         instance_ocid
     );
-    client.delete(&url).await.map_err(|e| {
+    client.delete(&url).await.map_err(|error| {
         ComputeProvisioningError::InstanceTerminationFailed {
             instance_identifier: instance_ocid.to_string(),
-            reason: e.to_string(),
+            reason: error.to_string(),
         }
         .into()
     })
 }
 
-/// List all running byocvpn instances in `compartment_ocid`.
 pub async fn list_instances(
     client: &OciClient,
     compartment_ocid: &str,
@@ -115,16 +109,16 @@ pub async fn list_instances(
 ) -> Result<Vec<InstanceInfo>> {
     let url = format!(
         "{}/20160918/instances?compartmentId={}&lifecycleState=RUNNING",
-        client.core_base_url(),
+        client.build_core_base_url(),
         compartment_ocid
     );
     let response =
         client
             .get(&url)
             .await
-            .map_err(|e| ComputeProvisioningError::InstanceSpawnFailed {
+            .map_err(|error| ComputeProvisioningError::InstanceSpawnFailed {
                 region_name: region.to_string(),
-                reason: e.to_string(),
+                reason: error.to_string(),
             })?;
 
     let instances = response
@@ -133,12 +127,14 @@ pub async fn list_instances(
         .unwrap_or_default()
         .into_iter()
         .filter(|instance| {
-            // Only show instances tagged or named as byocvpn
             instance["displayName"]
                 .as_str()
                 .map(|name| name.contains("byocvpn"))
                 .unwrap_or(false)
-                || instance["freeformTags"]["byocvpn"].as_str().is_some()
+                || instance["freeformTags"]["created-by"]
+                    .as_str()
+                    .map(|tag_value| tag_value == "byocvpn")
+                    .unwrap_or(false)
         })
         .filter_map(|instance| build_instance_info(&instance, region).ok())
         .collect();
@@ -146,29 +142,20 @@ pub async fn list_instances(
     Ok(instances)
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/// List availability domains for the given compartment.
-///
-/// NOTE: This is an **Identity** API call (`identity.{region}.oraclecloud.com`),
-/// NOT a Core/Compute call (`iaas.{region}.oraclecloud.com`).  Using the wrong
-/// base URL returns 404 in newer OCI regions such as eu-paris-1.
 async fn get_first_availability_domain(
     client: &OciClient,
     compartment_ocid: &str,
 ) -> Result<String> {
     let url = format!(
         "{}/20160918/availabilityDomains?compartmentId={}",
-        client.identity_base_url(),
+        client.build_identity_base_url(),
         compartment_ocid
     );
     let response = client.get(&url).await?;
     response
         .as_array()
-        .and_then(|ads| ads.first())
-        .and_then(|ad| ad["name"].as_str())
+        .and_then(|availability_domains| availability_domains.first())
+        .and_then(|availability_domain| availability_domain["name"].as_str())
         .map(|name| name.to_string())
         .ok_or_else(|| {
             ComputeProvisioningError::InstanceSpawnFailed {
@@ -182,32 +169,23 @@ async fn get_first_availability_domain(
 async fn get_instance_details(client: &OciClient, instance_ocid: &str) -> Result<Value> {
     let url = format!(
         "{}/20160918/instances/{}",
-        client.core_base_url(),
+        client.build_core_base_url(),
         instance_ocid
     );
     client.get(&url).await
 }
 
-/// Maximum number of consecutive 404s tolerated while OCI propagates the new instance.
-///
-/// OCI uses eventual consistency: a freshly-created instance may not yet be
-/// queryable immediately after the POST returns.  We treat up to
-/// `MAX_NOT_FOUND_RETRIES` consecutive 404 / "not yet visible" responses as
-/// transient and keep polling.  A 404 that persists beyond that threshold is
-/// re-raised as a real error.
 const MAX_NOT_FOUND_RETRIES: u32 = 6;
 
 async fn wait_until_running(client: &OciClient, instance_ocid: &str, _region: &str) -> Result<()> {
-    // Give OCI a moment to register the instance before the first query.
     sleep(Duration::from_secs(5)).await;
 
     let mut not_found_count: u32 = 0;
 
     for _ in 0..36 {
-        // up to ~3 minutes (36 × 5s)
         match get_instance_details(client, instance_ocid).await {
             Ok(details) => {
-                not_found_count = 0; // reset on success
+                not_found_count = 0;
                 let state = details["lifecycleState"].as_str().unwrap_or("");
                 match state {
                     "RUNNING" => return Ok(()),
@@ -220,18 +198,15 @@ async fn wait_until_running(client: &OciClient, instance_ocid: &str, _region: &s
                         }
                         .into());
                     }
-                    _ => {} // PROVISIONING, STARTING, etc. — keep polling
+                    _ => {}
                 }
             }
             Err(error) => {
-                // OCI eventual consistency: the instance may not be visible
-                // for a few seconds after creation.  Allow a small number of
-                // consecutive not-found / transient errors before giving up.
                 not_found_count += 1;
                 if not_found_count > MAX_NOT_FOUND_RETRIES {
                     return Err(error);
                 }
-                eprintln!(
+                error!(
                     "Instance {} not yet visible (attempt {}/{}): {}",
                     instance_ocid, not_found_count, MAX_NOT_FOUND_RETRIES, error
                 );
@@ -245,16 +220,14 @@ async fn wait_until_running(client: &OciClient, instance_ocid: &str, _region: &s
     .into())
 }
 
-/// Fetch the primary public IPv4 of an instance via its VNIC attachment.
 async fn get_public_ips(
     client: &OciClient,
     instance_ocid: &str,
     compartment_ocid: &str,
 ) -> (String, String) {
-    // Get VNIC attachments
     let vnic_url = format!(
         "{}/20160918/vnicAttachments?compartmentId={}&instanceId={}",
-        client.core_base_url(),
+        client.build_core_base_url(),
         compartment_ocid,
         instance_ocid
     );
@@ -264,14 +237,18 @@ async fn get_public_ips(
     let vnic_ocid = vnic_attachments
         .as_array()
         .and_then(|list| list.first())
-        .and_then(|v| v["vnicId"].as_str())
+        .and_then(|attachment| attachment["vnicId"].as_str())
         .unwrap_or_default()
         .to_string();
     if vnic_ocid.is_empty() {
         return (String::new(), String::new());
     }
-    // Get VNIC details
-    let vnic_url = format!("{}/20160918/vnics/{}", client.core_base_url(), vnic_ocid);
+
+    let vnic_url = format!(
+        "{}/20160918/vnics/{}",
+        client.build_core_base_url(),
+        vnic_ocid
+    );
     let Ok(vnic) = client.get(&vnic_url).await else {
         return (String::new(), String::new());
     };
@@ -279,7 +256,7 @@ async fn get_public_ips(
     let public_ip_v6 = vnic["ipv6Addresses"]
         .as_array()
         .and_then(|list| list.first())
-        .and_then(|v| v.as_str())
+        .and_then(|address| address.as_str())
         .unwrap_or_default()
         .to_string();
     (public_ip_v4, public_ip_v6)
@@ -291,15 +268,13 @@ fn build_instance_info(instance: &Value, region: &str) -> Result<InstanceInfo> {
         .ok_or(ComputeProvisioningError::MissingInstanceIdentifier)?
         .to_string();
 
-    let name = instance["displayName"].as_str().map(|s| s.to_string());
-
-    let state = instance["lifecycleState"]
+    let name = instance["displayName"]
         .as_str()
-        .unwrap_or("UNKNOWN")
-        .to_lowercase();
+        .map(|display_name| display_name.to_string());
 
-    // The public IPs are not embedded directly in the instance response; they come via the VNIC.
-    // We store empty strings here and fetch them properly in spawn_instance after polling.
+    let state: InstanceState =
+        OciLifecycleState::from(instance["lifecycleState"].as_str().unwrap_or("UNKNOWN")).into();
+
     let public_ip_v4 = instance["primaryPublicIp"]
         .as_str()
         .unwrap_or_default()
@@ -317,11 +292,11 @@ fn build_instance_info(instance: &Value, region: &str) -> Result<InstanceInfo> {
         public_ip_v4,
         public_ip_v6,
         region: region.to_string(),
-        provider: "oracle".to_string(),
+        provider: CloudProviderName::Oracle,
         instance_type: instance["shape"].as_str().unwrap_or_default().to_string(),
         launched_at: instance["timeCreated"]
             .as_str()
-            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
-            .map(|dt| dt.with_timezone(&chrono::Utc)),
+            .and_then(|timestamp| DateTime::parse_from_rfc3339(timestamp).ok())
+            .map(|datetime| datetime.with_timezone(&Utc)),
     })
 }

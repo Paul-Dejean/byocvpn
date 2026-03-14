@@ -1,8 +1,11 @@
 mod commands;
+mod ledger_store;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let mut builder = tauri::Builder::default()
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
@@ -23,12 +26,6 @@ pub fn run() {
             commands::is_daemon_installed,
             commands::install_daemon,
         ]);
-
-    #[cfg(debug_assertions)]
-    {
-        let devtools = tauri_plugin_devtools::init();
-        builder = builder.plugin(devtools);
-    }
 
     builder
         .run(tauri::generate_context!())

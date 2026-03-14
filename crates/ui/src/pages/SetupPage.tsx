@@ -10,7 +10,7 @@ interface CredentialsForm {
 }
 
 export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
-  // Currently, only AWS is available, GCP and Azure coming soon
+
   const [selectedProvider, setSelectedProvider] = useState<CloudProvider>(null);
   const [showPolicy, setShowPolicy] = useState(false);
   const [credentials, setCredentials] = useState<CredentialsForm>({
@@ -21,7 +21,7 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
   const { isSaving, error, saveCredentials } = useCredentials();
 
   const handleProviderSelect = (provider: CloudProvider) => {
-    // Only allow AWS selection for now
+
     if (provider === "aws") {
       setSelectedProvider(provider);
       setShowPolicy(true);
@@ -52,7 +52,7 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
 
       if (success) {
         console.log("Credentials saved successfully");
-        // Navigate to VPN page after successful save
+
         setPage(Page.VPN);
       }
     } else {
@@ -60,7 +60,6 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
     }
   };
 
-  // AWS IAM Policy that needs to be applied
   const awsIamPolicy = `
  {
   "Version": "2012-10-17",
@@ -97,7 +96,7 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
           Select a Cloud Provider
         </h2>
         <div className="flex flex-wrap justify-center gap-6">
-          {/* AWS Card */}
+          {}
           <div
             className={`w-52 p-6 border rounded-lg shadow-md cursor-pointer transition-all ${
               selectedProvider === "aws"
@@ -114,11 +113,11 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
             </div>
           </div>
 
-          {/* GCP Card */}
+          {}
           <div
             className={`w-52 p-6 border rounded-lg shadow-md relative opacity-75 bg-gray-800 border-gray-700`}
           >
-            {/* Coming Soon Tag */}
+            {}
             <div className="absolute -top-2 -right-2 bg-amber-600 text-xs text-white font-bold px-2 py-1 rounded-md shadow-md">
               COMING SOON
             </div>
@@ -130,11 +129,11 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
             </div>
           </div>
 
-          {/* Azure Card */}
+          {}
           <div
             className={`w-52 p-6 border rounded-lg shadow-md relative opacity-75 bg-gray-800 border-gray-700`}
           >
-            {/* Coming Soon Tag */}
+            {}
             <div className="absolute -top-2 -right-2 bg-amber-600 text-xs text-white font-bold px-2 py-1 rounded-md shadow-md">
               COMING SOON
             </div>
@@ -218,7 +217,7 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
             </div>
           </div>
 
-          {/* Error Display */}
+          {}
           {error && (
             <div className="mt-4 p-3 bg-red-900 border border-red-700 rounded-lg">
               <p className="text-red-300 text-sm">{error}</p>
@@ -248,4 +247,3 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
     </div>
   );
 }
-// This component is designed to guide users through the initial setup of their Rust environment.

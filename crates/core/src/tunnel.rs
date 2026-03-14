@@ -9,7 +9,8 @@ use tokio::{
 };
 use tun_rs::AsyncDevice;
 
-use crate::error::Result;
+use crate::error::{Result, SystemError};
+use log::*;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -67,17 +68,17 @@ impl Tunnel {
         let mut udp_buf = [0u8; 1500];
         let mut out_buf = [0u8; 1500];
         let mut last_keepalive = Instant::now();
-        println!("[Tunnel] Starting tunnel...");
+        info!("[Tunnel] Starting tunnel...");
 
         loop {
             tokio::select! {
                 _ = self.shutdown_rx.changed() => {
-                    println!("[Tunnel] Shutdown requested.");
+                    info!("[Tunnel] Shutdown requested.");
                     break;
                 }
 
                 Ok(n) = self.tun.recv(&mut tun_buf) => {
-                    // println!("[TUN] Read {} bytes", n);
+
                     match self.wg.encapsulate(&tun_buf[..n], &mut out_buf) {
                         TunnResult::WriteToNetwork(packet) => {
                             if let Ok(sent) = self.udp.send(packet).await {
@@ -88,7 +89,7 @@ impl Tunnel {
                         },
                         TunnResult::Done => {},
                         TunnResult::Err(e) => {
-                            eprintln!("encapsulate error: {:?}", e);
+                            error!("encapsulate error: {:?}", e);
                         },
                         _ => {}
                     }
@@ -103,30 +104,27 @@ impl Tunnel {
 
                     match self.wg.decapsulate(Some(src.ip()), &udp_buf[..n], &mut out_buf) {
                         TunnResult::WriteToTunnelV4(packet, _src_ip) => {
-
-                            self.tun.send(packet).await?;
+                            self.tun.send(packet).await.map_err(|error| SystemError::TunnelIoFailed { reason: error.to_string() })?;
                         },
                         TunnResult::WriteToTunnelV6(packet, _src_ip) => {
-
-                            self.tun.send(packet).await?;
+                            self.tun.send(packet).await.map_err(|error| SystemError::TunnelIoFailed { reason: error.to_string() })?;
                         },
                         TunnResult::WriteToNetwork(packet) => {
-
-                            self.udp.send(packet).await?;
+                            self.udp.send(packet).await.map_err(|error| SystemError::TunnelIoFailed { reason: error.to_string() })?;
                         },
                         TunnResult::Done => {},
                         TunnResult::Err(e) => {
-                            eprintln!("decapsulate error: {:?}", e);
+                            error!("decapsulate error: {:?}", e);
                         },
                     }
                 }
 
                 _ = tokio::time::sleep(Duration::from_secs(15)) => {
                     if last_keepalive.elapsed() >= Duration::from_secs(15) {
-                        // Use empty packet to trigger a keepalive, if needed
+
                         match self.wg.encapsulate(&[], &mut out_buf) {
                             TunnResult::WriteToNetwork(packet) => {
-                                self.udp.send(packet).await?;
+                                self.udp.send(packet).await.map_err(|error| SystemError::TunnelIoFailed { reason: error.to_string() })?;
                                 last_keepalive = Instant::now();
                             },
                             _ => {}
@@ -136,7 +134,7 @@ impl Tunnel {
             }
         }
 
-        println!("[Tunnel] Clean shutdown.");
+        info!("[Tunnel] Clean shutdown.");
         Ok(())
     }
 }

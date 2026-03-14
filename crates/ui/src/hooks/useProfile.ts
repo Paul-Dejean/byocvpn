@@ -19,7 +19,7 @@ export const useProfile = () => {
       setError(errorMessage);
       toast.error(errorMessage);
       console.error("Failed to check profile:", error);
-      return false; // Default to no profile on error
+      return false;
     } finally {
       setIsChecking(false);
     }

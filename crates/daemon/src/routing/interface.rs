@@ -2,14 +2,17 @@ use byocvpn_core::error::{ConfigurationError, Result};
 use net_route::Handle;
 
 pub async fn get_ifindex(interface: &str) -> Result<u32> {
-    let handle = Handle::new()?;
+    let handle = Handle::new().map_err(|error| ConfigurationError::RouteConfiguration {
+        reason: format!("failed to create route handle: {}", error),
+    })?;
 
     if interface == "default" {
-        // Get the default route
-        let default_route =
-            handle
-                .default_route()
-                .await?
+        let default_route = handle
+            .default_route()
+            .await
+            .map_err(|error| ConfigurationError::RouteConfiguration {
+                reason: format!("failed to query default route: {}", error),
+            })?
                 .ok_or(ConfigurationError::RouteConfiguration {
                     reason: "No default route found".to_string(),
                 })?;

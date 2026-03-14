@@ -4,23 +4,22 @@ use byocvpn_core::error::{Result, SystemError};
 use ini::Ini;
 
 use crate::{routing::routes::remove_vpn_routes, tunnel_manager::TUNNEL_MANAGER};
+use log::*;
 
 pub async fn disconnect_vpn() -> Result<()> {
-    println!("[VPN Disconnect] Disconnecting VPN tunnel...");
+    info!("[VPN Disconnect] Disconnecting VPN tunnel...");
 
-    // Check if config file exists to get endpoint info for route cleanup
     if let Ok(config) = Ini::load_from_file("wg0.conf") {
         if let Some(peer) = config.section(Some("Peer")) {
             if let Some(endpoint_str) = peer.get("Endpoint") {
                 if let Ok(endpoint) = endpoint_str.parse::<SocketAddr>() {
                     remove_vpn_routes("utun4", &endpoint.ip().to_string()).await;
-                    println!("[VPN Disconnect] Removed VPN routes.");
+                    info!("[VPN Disconnect] Removed VPN routes.");
                 }
             }
         }
     }
 
-    // Shut down the tunnel task
     let maybe_handle = {
         let mut manager_guard = TUNNEL_MANAGER
             .lock()
@@ -29,50 +28,45 @@ pub async fn disconnect_vpn() -> Result<()> {
     };
 
     if let Some(mut handle) = maybe_handle {
-        println!("[VPN Disconnect] Stopping tunnel task...");
+        info!("[VPN Disconnect] Stopping tunnel task...");
 
         #[cfg(target_os = "macos")]
         if let Some(mut domain_name_system_override_guard) =
             handle.domain_name_system_override_guard.take()
         {
             if let Err(error) = domain_name_system_override_guard.restore_now() {
-                eprintln!("[VPN Disconnect] Warning: Failed to restore DNS: {error}");
+                error!("[VPN Disconnect] Warning: Failed to restore DNS: {error}");
             } else {
-                println!("[VPN Disconnect] Restored original DNS.");
+                info!("[VPN Disconnect] Restored original DNS.");
             }
         }
 
-        // Send the shutdown signal via the watch channel
         if handle.shutdown.send(()).is_ok() {
-            println!("[VPN Disconnect] Shutdown signal sent to tunnel task.");
+            info!("[VPN Disconnect] Shutdown signal sent to tunnel task.");
         } else {
-            eprintln!(
+            error!(
                 "[VPN Disconnect] Warning: Failed to send shutdown signal (tunnel task likely already stopped)."
             );
         }
 
-        // Stop metrics broadcaster
         let _ = handle.metrics_shutdown.send(());
-        println!("[VPN Disconnect] Metrics broadcaster stopped.");
+        info!("[VPN Disconnect] Metrics broadcaster stopped.");
 
-        // Stop route monitor
         let _ = handle.route_monitor_shutdown.send(());
-        println!("[VPN Disconnect] Route monitor stopped.");
+        info!("[VPN Disconnect] Route monitor stopped.");
 
-        // Wait for the tunnel task to complete
-        println!("[VPN Disconnect] Waiting for tunnel task to complete...");
+        info!("[VPN Disconnect] Waiting for tunnel task to complete...");
         match handle.task.await {
-            Ok(_) => println!("[VPN Disconnect] Tunnel task completed successfully."),
-            Err(e) => eprintln!("[VPN Disconnect] Error: Tunnel task failed: {:?}", e),
+            Ok(_) => info!("[VPN Disconnect] Tunnel task completed successfully."),
+            Err(e) => error!("[VPN Disconnect] Error: Tunnel task failed: {:?}", e),
         }
 
-        // Wait for metrics and route monitor tasks
         let _ = handle.metrics_task.await;
         let _ = handle.route_monitor_task.await;
     } else {
-        println!("[VPN Disconnect] No active tunnel found.");
+        info!("[VPN Disconnect] No active tunnel found.");
     }
 
-    println!("[VPN Disconnect] VPN disconnected. Daemon continues running.");
+    info!("[VPN Disconnect] VPN disconnected. Daemon continues running.");
     Ok(())
 }

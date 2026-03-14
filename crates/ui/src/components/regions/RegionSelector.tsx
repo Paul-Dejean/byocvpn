@@ -15,10 +15,10 @@ interface SimpleRegionGroup {
 import { Instance } from "../../types";
 
 interface RegionSelectorProps {
-  /** The cloud provider to fetch regions for (e.g. "aws" or "oracle") */
+
   provider: string;
   onClose: () => void;
-  /** Called with the placeholder instance as soon as deployment is queued. */
+
   onSpawned?: (instance: Instance) => void;
 }
 
@@ -33,7 +33,6 @@ export function RegionSelector({
   const [groupedRegions, setGroupedRegions] = useState<SimpleRegionGroup[]>([]);
   const [isLoadingRegions, setIsLoadingRegions] = useState(true);
 
-  // AWS regions from context are used only for flag lookups
   const { groupedRegions: awsGroupedRegions } = useRegionsContext();
   const { spawnInstance, instances } = useInstancesContext();
 
@@ -79,7 +78,7 @@ export function RegionSelector({
 
   return (
     <div className="flex flex-col h-screen bg-gray-900">
-      {/* Header with Back Button */}
+      {}
       <div className="bg-gray-800 p-6 border-b border-gray-700">
         <div className="flex items-center gap-4">
           <button
@@ -178,7 +177,7 @@ export function RegionSelector({
           </div>
         )}
 
-        {/* Deploy Button - Fixed at bottom */}
+        {}
         {selectedRegion && (
           <div className="sticky bottom-0 bg-gray-900 border-t border-gray-700 p-6">
             <div className="max-w-4xl mx-auto">

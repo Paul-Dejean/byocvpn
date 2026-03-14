@@ -34,7 +34,7 @@ export function DaemonSetupPage({ setPage }: DaemonSetupPageProps) {
       <div
         className={`relative z-10 flex flex-col items-center max-w-lg mx-auto px-6 text-center transition-opacity duration-700 ${isVisible ? "opacity-100" : "opacity-0"}`}
       >
-        {/* Icon */}
+        {}
         <div className="w-16 h-16 rounded-full bg-blue-500/20 backdrop-blur-sm flex items-center justify-center mb-8 border border-blue-400/30">
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -63,7 +63,7 @@ export function DaemonSetupPage({ setPage }: DaemonSetupPageProps) {
           again.
         </p>
 
-        {/* What it does */}
+        {}
         <div className="w-full bg-white/5 backdrop-blur-md rounded-xl p-5 mb-8 text-left border border-white/10">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
             What gets installed
@@ -96,7 +96,7 @@ export function DaemonSetupPage({ setPage }: DaemonSetupPageProps) {
           </div>
         )}
 
-        {/* Primary action */}
+        {}
         <button
           onClick={handleInstall}
           disabled={isInstalling}

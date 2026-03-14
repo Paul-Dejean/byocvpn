@@ -7,17 +7,11 @@ import {
   VpnConnectionProvider,
 } from "../contexts/VpnConnectionContext";
 
-/**
- * Props for the VpnPage component
- */
 interface VpnPageProps {
-  /** Callback to navigate to settings page */
+
   onNavigateToSettings: () => void;
 }
 
-/**
- * Main VPN page that handles routing between connected and management views
- */
 export function VpnPage({ onNavigateToSettings }: VpnPageProps) {
   return (
     <RegionsProvider>
@@ -30,9 +24,6 @@ export function VpnPage({ onNavigateToSettings }: VpnPageProps) {
   );
 }
 
-/**
- * Inner component that uses the contexts
- */
 function VpnPageContent({ onNavigateToSettings }: VpnPageProps) {
   const { vpnStatus, checkVpnStatus } = useVpnConnectionContext();
 

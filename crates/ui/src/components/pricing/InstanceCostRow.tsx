@@ -1,10 +1,7 @@
 import { LedgerEntryWithCost } from "../../types/ledger";
 
-/**
- * Props for the InstanceCostRow component
- */
 interface InstanceCostRowProps {
-  /** The enriched ledger entry to render */
+
   entry: LedgerEntryWithCost;
 }
 
@@ -24,9 +21,6 @@ function formatUptime(hours: number): string {
   return `${(hours / 24).toFixed(1)}d`;
 }
 
-/**
- * A single table row showing cost details for one VPN instance session.
- */
 export function InstanceCostRow({ entry }: InstanceCostRowProps) {
   const isActive = entry.terminatedAt === null;
 

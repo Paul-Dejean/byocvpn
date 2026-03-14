@@ -11,23 +11,18 @@ export const useRegions = () => {
 
   const groupRegionsByContinent = (regions: AwsRegion[]): RegionGroup[] => {
     const continentMap: Record<string, string> = {
-      // North America
+
       us: "North America",
       ca: "North America",
 
-      // Europe
       eu: "Europe",
 
-      // Asia Pacific
       ap: "Asia Pacific",
 
-      // South America
       sa: "South America",
 
-      // Middle East
       me: "Middle East",
 
-      // Africa
       af: "Africa",
     };
 
@@ -43,7 +38,6 @@ export const useRegions = () => {
       groups[continent].push(region);
     });
 
-    // Convert to array and sort
     return Object.entries(groups)
       .map(([continent, regions]) => ({
         continent,
@@ -72,12 +66,10 @@ export const useRegions = () => {
     }
   };
 
-  // Load regions on mount
   useEffect(() => {
     loadRegions();
   }, []);
 
-  // Group regions when they change
   useEffect(() => {
     if (regions.length > 0) {
       const grouped = groupRegionsByContinent(regions);

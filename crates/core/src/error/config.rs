@@ -26,9 +26,12 @@ pub enum ConfigurationError {
     #[error("route configuration error: {reason}")]
     RouteConfiguration { reason: String },
 
+    #[error("DNS configuration error: {reason}")]
+    DnsConfiguration { reason: String },
+
     #[error("template render error: {reason}")]
     TemplateRender { reason: String },
 
-    #[error("invalid cloud provider: {0}")]
-    InvalidCloudProvider(String),
+    #[error("unknown cloud provider name: {name}")]
+    UnknownProviderName { name: String },
 }

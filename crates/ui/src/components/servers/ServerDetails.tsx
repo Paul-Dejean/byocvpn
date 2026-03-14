@@ -5,7 +5,6 @@ import {
   SpawnStepStatus,
 } from "../../types";
 
-/** Status indicator for one deployment step row. */
 function StepIndicator({ status }: { status: SpawnStepStatus }) {
   if (status === "running") {
     return (
@@ -42,7 +41,7 @@ function StepIndicator({ status }: { status: SpawnStepStatus }) {
       </svg>
     );
   }
-  // pending
+
   return (
     <div className="w-5 h-5 rounded-full border-2 border-gray-600 flex-shrink-0" />
   );
@@ -54,7 +53,7 @@ interface ServerDetailsProps {
   isConnecting: boolean;
   isTerminating: boolean;
   vpnError: string | null;
-  /** Live spawn job state — present only while the instance is deploying. */
+
   spawnJob?: SpawnJobState;
   onConnect: (data: Instance) => void;
   onTerminate: () => void;
@@ -83,7 +82,7 @@ export function ServerDetails({
     <div className="flex-1 flex flex-col bg-gray-900">
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-2xl space-y-6">
-          {/* Instance Details Card — hidden while deploying */}
+          {}
           {!isSpawning && (
             <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
               <div className="flex items-center gap-3 mb-4">
@@ -128,7 +127,7 @@ export function ServerDetails({
             </div>
           )}
 
-          {/* Actions / deployment steps */}
+          {}
           <div className="space-y-3">
             {isSpawning ? (
               <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
@@ -220,7 +219,7 @@ export function ServerDetails({
             )}
           </div>
 
-          {/* Errors */}
+          {}
           {vpnError && (
             <div className="p-4 bg-red-900/20 border border-red-500/50 rounded-lg">
               <p className="text-red-300 text-sm">{vpnError}</p>

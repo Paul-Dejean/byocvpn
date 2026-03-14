@@ -26,7 +26,6 @@ export function ServerManagementView({
     null,
   );
 
-  // Use all hooks needed for server management
   const { groupedRegions, isLoading: regionsLoading } = useRegionsContext();
 
   const {
@@ -45,18 +44,14 @@ export function ServerManagementView({
 
   const isLoading = regionsLoading || instancesLoading;
 
-  // Keep selectedInstance in sync with the live instances array so that
-  // state/IP updates (and the placeholder → real instance transition on
-  // spawn-complete) are reflected automatically.
   useEffect(() => {
     if (!selectedInstance) return;
     const live = instances.find((i) => i.id === selectedInstance.id);
     if (live) {
-      // Same ID — update in case state or IP changed.
+
       if (live !== selectedInstance) setSelectedInstance(live);
     } else if (selectedInstance.state === "spawning") {
-      // The placeholder was replaced by the real instance (different ID).
-      // Find it by matching region + provider with a non-spawning state.
+
       const replacement = instances.find(
         (i) =>
           i.region === selectedInstance.region &&
@@ -84,7 +79,7 @@ export function ServerManagementView({
         selectedInstance.region || "",
         selectedInstance.provider || "aws",
       );
-      // Instance is automatically removed from list by the hook
+
       setSelectedInstance(null);
     } catch (error) {
       console.error("Failed to terminate server:", error);
@@ -104,7 +99,7 @@ export function ServerManagementView({
           onClose={() => setCreationStep("idle")}
         />
       ) : creationStep === "selecting-region" ? (
-        /* Full-screen Region Selector View */
+
         <RegionSelector
           provider={selectedProvider}
           onClose={() => setCreationStep("idle")}
@@ -115,7 +110,7 @@ export function ServerManagementView({
         />
       ) : (
         <>
-          {/* Header */}
+          {}
           <div className="bg-gray-800 p-6 border-b border-gray-700 flex-shrink-0">
             <div className="flex items-center justify-between">
               <div>
@@ -130,9 +125,9 @@ export function ServerManagementView({
             </div>
           </div>
 
-          {/* Two-Panel Layout */}
+          {}
           <div className="flex-1 flex min-h-0">
-            {/* Left Panel: Server List */}
+            {}
             <ServerList
               instances={instances}
               selectedInstance={selectedInstance}
@@ -143,7 +138,7 @@ export function ServerManagementView({
               onAddNewServer={() => setCreationStep("selecting-provider")}
             />
 
-            {/* Right Panel: Dynamic Content */}
+            {}
             {selectedInstance ? (
               <ServerDetails
                 instance={selectedInstance}

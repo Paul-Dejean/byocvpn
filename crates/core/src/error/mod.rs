@@ -17,12 +17,6 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum Error {
     #[error(transparent)]
-    InputOutput(#[from] std::io::Error),
-
-    #[error(transparent)]
-    Json(#[from] serde_json::Error),
-
-    #[error(transparent)]
     Network(#[from] NetworkProvisioningError),
 
     #[error(transparent)]

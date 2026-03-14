@@ -20,7 +20,6 @@ pub struct TunnelHandle {
     #[cfg(target_os = "macos")]
     pub domain_name_system_override_guard: Option<DomainNameSystemOverrideGuard>,
 
-    // Connection details
     pub instance: Option<ConnectedInstance>,
 }
 

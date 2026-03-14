@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use async_trait::async_trait;
 use byocvpn_core::{
     cloud_provider::{
@@ -7,18 +9,17 @@ use byocvpn_core::{
     commands::setup::Region,
     error::{NetworkProvisioningError, Result},
 };
+use log::*;
 use serde_json::Value;
 
-use crate::{auth::credentials_from_service_account_json, client::GcpClient, instance, network};
+use crate::{
+    auth::parse_credentials_from_service_account_json, client::GcpClient, instance, network,
+};
 
-/// Configuration required to create a `GcpProvider`.
 pub struct GcpProviderConfig {
-    /// Full service-account JSON key file contents.
-    /// The project ID is extracted from the JSON automatically.
     pub service_account_json: String,
 }
 
-/// Google Cloud Platform implementation of `CloudProvider`.
 pub struct GcpProvider {
     client: GcpClient,
 }
@@ -26,9 +27,47 @@ pub struct GcpProvider {
 impl GcpProvider {
     pub fn new(config: GcpProviderConfig) -> Result<Self> {
         let (credentials, project_id) =
-            credentials_from_service_account_json(&config.service_account_json)?;
+            parse_credentials_from_service_account_json(&config.service_account_json)?;
         let client = GcpClient::new(credentials, project_id);
         Ok(Self { client })
+    }
+}
+
+pub enum GcpSpawnStepId {
+    SetupApi,
+    SetupVpc,
+    SetupFirewall,
+    RegionSubnet,
+    Launch,
+    WireguardReady,
+}
+
+impl GcpSpawnStepId {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::SetupApi => "setup_api",
+            Self::SetupVpc => "setup_vpc",
+            Self::SetupFirewall => "setup_firewall",
+            Self::RegionSubnet => "region_subnet",
+            Self::Launch => "launch",
+            Self::WireguardReady => "wireguard_ready",
+        }
+    }
+}
+
+impl FromStr for GcpSpawnStepId {
+    type Err = ();
+
+    fn from_str(s: &str) -> std::result::Result<Self, ()> {
+        match s {
+            "setup_api" => Ok(Self::SetupApi),
+            "setup_vpc" => Ok(Self::SetupVpc),
+            "setup_firewall" => Ok(Self::SetupFirewall),
+            "region_subnet" => Ok(Self::RegionSubnet),
+            "launch" => Ok(Self::Launch),
+            "wireguard_ready" => Ok(Self::WireguardReady),
+            _ => Err(()),
+        }
     }
 }
 
@@ -40,30 +79,51 @@ impl CloudProvider for GcpProvider {
 
     fn spawn_steps(&self, _region: &str) -> Vec<SpawnStep> {
         vec![
-            SpawnStep { id: "setup_api".into(), label: "Enabling Compute Engine API".into() },
-            SpawnStep { id: "setup_vpc".into(), label: "Creating VPC network".into() },
-            SpawnStep { id: "setup_firewall".into(), label: "Creating firewall rules".into() },
-            SpawnStep { id: "region_subnet".into(), label: "Creating regional subnet".into() },
-            SpawnStep { id: "launch".into(), label: "Launching Compute Engine instance".into() },
-            SpawnStep { id: "wireguard_ready".into(), label: "Waiting for WireGuard to start".into() },
+            SpawnStep {
+                id: GcpSpawnStepId::SetupApi.as_str().into(),
+                label: "Enabling Compute Engine API".into(),
+            },
+            SpawnStep {
+                id: GcpSpawnStepId::SetupVpc.as_str().into(),
+                label: "Creating VPC network".into(),
+            },
+            SpawnStep {
+                id: GcpSpawnStepId::SetupFirewall.as_str().into(),
+                label: "Creating firewall rules".into(),
+            },
+            SpawnStep {
+                id: GcpSpawnStepId::RegionSubnet.as_str().into(),
+                label: "Creating regional subnet".into(),
+            },
+            SpawnStep {
+                id: GcpSpawnStepId::Launch.as_str().into(),
+                label: "Launching Compute Engine instance".into(),
+            },
+            SpawnStep {
+                id: GcpSpawnStepId::WireguardReady.as_str().into(),
+                label: "Waiting for WireGuard to start".into(),
+            },
         ]
     }
 
     async fn run_spawn_step(&self, step_id: &str, region: &str) -> Result<()> {
-        match step_id {
-            "setup_api" => {
+        let Ok(step) = step_id.parse::<GcpSpawnStepId>() else {
+            return Ok(());
+        };
+        match step {
+            GcpSpawnStepId::SetupApi => {
                 network::ensure_compute_api_enabled(&self.client).await?;
                 Ok(())
             }
-            "setup_vpc" => {
+            GcpSpawnStepId::SetupVpc => {
                 network::get_or_create_vpc(&self.client).await?;
                 Ok(())
             }
-            "setup_firewall" => {
+            GcpSpawnStepId::SetupFirewall => {
                 network::get_or_create_firewall(&self.client).await?;
                 Ok(())
             }
-            "region_subnet" => {
+            GcpSpawnStepId::RegionSubnet => {
                 network::get_or_create_subnet(&self.client, region).await?;
                 Ok(())
             }
@@ -75,27 +135,24 @@ impl CloudProvider for GcpProvider {
         Ok(serde_json::json!({ "status": "not_implemented" }))
     }
 
-    /// Create the global VPC and firewall rule. Safe to call multiple times (idempotent).
     async fn setup(&self) -> Result<()> {
         network::ensure_compute_api_enabled(&self.client).await?;
         network::get_or_create_vpc(&self.client).await?;
         network::get_or_create_firewall(&self.client).await?;
-        println!("GCP setup complete (VPC + firewall).");
+        info!("GCP setup complete (VPC + firewall).");
         Ok(())
     }
 
-    /// Ensure the regional subnet exists. Implicitly calls `setup` first.
     async fn enable_region(&self, region: &str) -> Result<()> {
         network::ensure_compute_api_enabled(&self.client).await?;
         network::get_or_create_vpc(&self.client).await?;
         network::get_or_create_firewall(&self.client).await?;
         network::get_or_create_subnet(&self.client, region).await?;
-        println!("GCP region {} enabled.", region);
+        info!("GCP region {} enabled.", region);
         Ok(())
     }
 
     async fn spawn_instance(&self, params: &SpawnInstanceParams) -> Result<InstanceInfo> {
-        // Ensure the region infrastructure exists before spawning.
         let subnet_self_link = network::get_or_create_subnet(&self.client, params.region)
             .await
             .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {

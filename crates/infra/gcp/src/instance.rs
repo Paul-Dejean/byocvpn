@@ -1,26 +1,23 @@
 use byocvpn_core::{
-    cloud_provider::{InstanceInfo, SpawnInstanceParams},
+    cloud_provider::{CloudProviderName, InstanceInfo, InstanceState, SpawnInstanceParams},
     error::{ComputeProvisioningError, Result},
 };
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use serde_json::json;
 use tokio::time::{Duration, sleep};
 use uuid::Uuid;
 
 use crate::{
-    client::GcpClient, cloud_init::generate_wireguard_startup_script,
-    network::primary_zone_for_region,
+    client::GcpClient, network::build_primary_zone_for_region,
+    startup_script::generate_server_startup_script, state::GcpInstanceStatus,
 };
+use log::*;
 
 const MACHINE_TYPE: &str = "e2-micro";
-const INSTANCE_LABEL: &str = "byocvpn";
+const INSTANCE_LABEL_KEY: &str = "created-by";
+const INSTANCE_LABEL_VALUE: &str = "byocvpn";
 const INSTANCE_TAG: &str = "byocvpn";
 
-// ---------------------------------------------------------------------------
-// Spawn
-// ---------------------------------------------------------------------------
-
-/// Launch a new byocvpn WireGuard VM in `region`.
 pub async fn spawn_instance(
     client: &GcpClient,
     subnet_self_link: &str,
@@ -28,11 +25,10 @@ pub async fn spawn_instance(
     region: &str,
     params: &SpawnInstanceParams<'_>,
 ) -> Result<InstanceInfo> {
-    let zone = primary_zone_for_region(region);
+    let zone = build_primary_zone_for_region(region);
     let startup_script =
-        generate_wireguard_startup_script(params.server_private_key, params.client_public_key)?;
+        generate_server_startup_script(params.server_private_key, params.client_public_key)?;
 
-    // Instance names must be lowercase letters, digits, and hyphens, max 63 chars.
     let instance_name = format!(
         "byocvpn-{}",
         Uuid::new_v4().to_string().replace('-', "")[..12].to_lowercase()
@@ -73,11 +69,15 @@ pub async fn spawn_instance(
                 { "key": "startup-script", "value": startup_script }
             ]
         },
-        "labels": { INSTANCE_LABEL: "true" },
+        "labels": { INSTANCE_LABEL_KEY: INSTANCE_LABEL_VALUE },
         "tags": { "items": [INSTANCE_TAG] },
     });
 
-    let url = format!("{}/zones/{}/instances", client.compute_base_url(), zone);
+    let url = format!(
+        "{}/zones/{}/instances",
+        client.build_compute_base_url(),
+        zone
+    );
     let operation = client.post(&url, &body).await.map_err(|error| {
         ComputeProvisioningError::InstanceSpawnFailed {
             region_name: region.to_string(),
@@ -85,7 +85,6 @@ pub async fn spawn_instance(
         }
     })?;
 
-    // Poll the zone operation until the instance exists.
     let operation_url = operation["selfLink"]
         .as_str()
         .ok_or_else(|| ComputeProvisioningError::InstanceSpawnFailed {
@@ -95,7 +94,6 @@ pub async fn spawn_instance(
         .to_string();
     wait_for_zone_operation(client, &operation_url, region).await?;
 
-    // Fetch the instance to get its public IP.
     let instance = get_instance(client, &zone, &instance_name).await?;
     let public_ip_v4 = extract_public_ip_v4(&instance);
     let public_ip_v6 = extract_public_ip_v6(&instance);
@@ -105,25 +103,20 @@ pub async fn spawn_instance(
         id,
         name: Some(instance_name),
         region: region.to_string(),
-        state: "RUNNING".to_string(),
+        state: InstanceState::Running,
         public_ip_v4,
         public_ip_v6,
-        provider: "gcp".to_string(),
+        provider: CloudProviderName::Gcp,
         instance_type: MACHINE_TYPE.to_string(),
         launched_at: Some(Utc::now()),
     })
 }
 
-// ---------------------------------------------------------------------------
-// Terminate
-// ---------------------------------------------------------------------------
-
-/// Delete a GCP instance. `instance_id` is `{zone}/{instance_name}`.
 pub async fn terminate_instance(client: &GcpClient, instance_id: &str) -> Result<()> {
     let (zone, instance_name) = parse_instance_id(instance_id)?;
     let url = format!(
         "{}/zones/{}/instances/{}",
-        client.compute_base_url(),
+        client.build_compute_base_url(),
         zone,
         instance_name
     );
@@ -136,24 +129,18 @@ pub async fn terminate_instance(client: &GcpClient, instance_id: &str) -> Result
     })
 }
 
-// ---------------------------------------------------------------------------
-// List
-// ---------------------------------------------------------------------------
-
-/// List all running byocvpn instances across all zones in `region`.
 pub async fn list_instances(client: &GcpClient, region: &str) -> Result<Vec<InstanceInfo>> {
-    // aggregatedList scoped to a region via a filter is the most efficient path.
     let url = format!(
-        "{}/aggregated/instances?filter=labels.{region_label}%3Dtrue&maxResults=500",
-        client.compute_base_url(),
-        region_label = INSTANCE_LABEL,
+        "{}/aggregated/instances?filter=labels.{label_key}%3D{label_value}&maxResults=500",
+        client.build_compute_base_url(),
+        label_key = INSTANCE_LABEL_KEY,
+        label_value = INSTANCE_LABEL_VALUE,
     );
     let response = client.get(&url).await?;
 
     let mut instances = Vec::new();
     if let Some(items) = response["items"].as_object() {
         for (zone_key, zone_data) in items {
-            // zone_key looks like "zones/us-central1-a"
             if !zone_key.starts_with(&format!("zones/{}", region)) {
                 continue;
             }
@@ -170,12 +157,12 @@ pub async fn list_instances(client: &GcpClient, region: &str) -> Result<Vec<Inst
     Ok(instances)
 }
 
-/// List all running byocvpn instances across every region/zone.
 pub async fn list_all_instances(client: &GcpClient) -> Result<Vec<InstanceInfo>> {
     let url = format!(
-        "{}/aggregated/instances?filter=labels.{region_label}%3Dtrue&maxResults=500",
-        client.compute_base_url(),
-        region_label = INSTANCE_LABEL,
+        "{}/aggregated/instances?filter=labels.{label_key}%3D{label_value}&maxResults=500",
+        client.build_compute_base_url(),
+        label_key = INSTANCE_LABEL_KEY,
+        label_value = INSTANCE_LABEL_VALUE,
     );
     let response = client.get(&url).await?;
 
@@ -183,8 +170,8 @@ pub async fn list_all_instances(client: &GcpClient) -> Result<Vec<InstanceInfo>>
     if let Some(items) = response["items"].as_object() {
         for (zone_key, zone_data) in items {
             let zone = zone_key.trim_start_matches("zones/");
-            // Derive region from zone (strip trailing -[a-z]).
-            let region = zone_to_region(zone);
+
+            let region = extract_region_from_zone(zone);
             if let Some(instance_list) = zone_data["instances"].as_array() {
                 for instance in instance_list {
                     if let Some(info) = parse_instance_info(instance, zone, &region) {
@@ -196,10 +183,6 @@ pub async fn list_all_instances(client: &GcpClient) -> Result<Vec<InstanceInfo>>
     }
     Ok(instances)
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 fn parse_instance_id(instance_id: &str) -> Result<(&str, &str)> {
     let mut parts = instance_id.splitn(2, '/');
@@ -219,7 +202,7 @@ pub async fn get_instance(
 ) -> Result<serde_json::Value> {
     let url = format!(
         "{}/zones/{}/instances/{}",
-        client.compute_base_url(),
+        client.build_compute_base_url(),
         zone,
         instance_name
     );
@@ -248,11 +231,10 @@ fn extract_public_ip_v6(instance: &serde_json::Value) -> String {
         .to_string()
 }
 
-fn zone_to_region(zone: &str) -> String {
-    // e.g. "us-central1-a" → "us-central1"
+fn extract_region_from_zone(zone: &str) -> String {
     let mut parts: Vec<&str> = zone.split('-').collect();
     if parts.len() > 2 {
-        parts.pop(); // remove trailing zone letter
+        parts.pop();
     }
     parts.join("-")
 }
@@ -263,22 +245,22 @@ fn parse_instance_info(
     region: &str,
 ) -> Option<InstanceInfo> {
     let name = instance["name"].as_str()?.to_string();
-    let status = instance["status"].as_str().unwrap_or("UNKNOWN").to_string();
+    let status: InstanceState =
+        GcpInstanceStatus::from(instance["status"].as_str().unwrap_or("UNKNOWN")).into();
     let public_ip_v4 = extract_public_ip_v4(instance);
     let public_ip_v6 = extract_public_ip_v6(instance);
     let id = format!("{}/{}", zone, name);
 
-    // machineType is a full URL like .../machineTypes/e2-micro — extract the last segment.
     let instance_type = instance["machineType"]
         .as_str()
-        .and_then(|s| s.split('/').last())
+        .and_then(|machine_type_url| machine_type_url.split('/').last())
         .unwrap_or(MACHINE_TYPE)
         .to_string();
 
     let launched_at = instance["creationTimestamp"]
         .as_str()
-        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
-        .map(|dt| dt.with_timezone(&chrono::Utc));
+        .and_then(|timestamp| DateTime::parse_from_rfc3339(timestamp).ok())
+        .map(|datetime| datetime.with_timezone(&Utc));
 
     Some(InstanceInfo {
         id,
@@ -287,7 +269,7 @@ fn parse_instance_info(
         state: status,
         public_ip_v4,
         public_ip_v6,
-        provider: "gcp".to_string(),
+        provider: CloudProviderName::Gcp,
         instance_type,
         launched_at,
     })
@@ -317,7 +299,7 @@ async fn wait_for_zone_operation(
                 return Ok(());
             }
             _ => {
-                eprintln!(
+                error!(
                     "[GCP] Waiting for instance creation (attempt {}/60)...",
                     attempt
                 );

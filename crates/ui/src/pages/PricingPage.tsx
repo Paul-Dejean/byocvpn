@@ -25,13 +25,9 @@ function formatMonthKey(month: SelectedMonth): string {
   return `${month.year}-${String(month.month).padStart(2, "0")}`;
 }
 
-/**
- * Pricing page — shows cloud expenses grouped by provider with a month filter.
- */
 export function PricingPage() {
   const { entries, isLoading, error, refetch } = useLedger();
 
-  /** All months that appear in the data, plus the current month, newest first. */
   const availableMonths = useMemo<SelectedMonth[]>(() => {
     const monthSet = new Set<string>();
     monthSet.add(formatMonthKey(getCurrentMonth()));
@@ -42,7 +38,6 @@ export function PricingPage() {
   const [selectedMonth, setSelectedMonth] =
     useState<SelectedMonth>(getCurrentMonth);
 
-  /** Entries whose launchedAt falls within the selected month. */
   const filteredEntries = useMemo(
     () =>
       entries.filter((entry) => {
@@ -52,7 +47,6 @@ export function PricingPage() {
     [entries, selectedMonth],
   );
 
-  /** Entries grouped by provider, sorted by total cost descending. */
   const groupedByProvider = useMemo(() => {
     const map = new Map<string, LedgerEntryWithCost[]>();
     filteredEntries.forEach((entry) => {
@@ -89,7 +83,7 @@ export function PricingPage() {
 
   return (
     <div className="flex flex-col h-full bg-gray-900 text-white overflow-hidden">
-      {/* Header */}
+      {}
       <div className="bg-gray-800 px-6 py-5 border-b border-gray-700 flex-shrink-0">
         <div className="flex items-start justify-between flex-wrap gap-4">
           <div>
@@ -111,7 +105,7 @@ export function PricingPage() {
           )}
         </div>
 
-        {/* Month filter */}
+        {}
         <div className="mt-4">
           <MonthFilter
             availableMonths={availableMonths}
@@ -121,7 +115,7 @@ export function PricingPage() {
         </div>
       </div>
 
-      {/* Content */}
+      {}
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
         {isLoading ? (
           <LoadingSpinner message="Loading expenses…" />

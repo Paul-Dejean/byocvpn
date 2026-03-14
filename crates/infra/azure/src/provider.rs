@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use async_trait::async_trait;
 use byocvpn_core::{
     cloud_provider::{
@@ -7,26 +9,21 @@ use byocvpn_core::{
     commands::setup::Region,
     error::{NetworkProvisioningError, Result},
 };
+use log::*;
 use serde_json::Value;
 
 use crate::{auth::create_credential, client::AzureClient, instance, network};
 
-/// Configuration required to create an `AzureProvider`.
 pub struct AzureProviderConfig {
-    /// Azure subscription ID.
     pub subscription_id: String,
-    /// Azure Entra ID tenant (directory) ID.
+
     pub tenant_id: String,
-    /// Service-principal client (application) ID.
+
     pub client_id: String,
-    /// Service-principal client secret.
+
     pub client_secret: String,
 }
 
-/// Microsoft Azure implementation of `CloudProvider`.
-///
-/// Uses a service principal (`ClientSecretCredential`) for authentication
-/// and the Azure Resource Manager REST API for all resource operations.
 pub struct AzureProvider {
     client: AzureClient,
 }
@@ -40,6 +37,38 @@ impl AzureProvider {
     }
 }
 
+pub enum AzureSpawnStepId {
+    RegionResourceGroup,
+    RegionVnet,
+    Launch,
+    WireguardReady,
+}
+
+impl AzureSpawnStepId {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::RegionResourceGroup => "region_resource_group",
+            Self::RegionVnet => "region_vnet",
+            Self::Launch => "launch",
+            Self::WireguardReady => "wireguard_ready",
+        }
+    }
+}
+
+impl FromStr for AzureSpawnStepId {
+    type Err = ();
+
+    fn from_str(s: &str) -> std::result::Result<Self, ()> {
+        match s {
+            "region_resource_group" => Ok(Self::RegionResourceGroup),
+            "region_vnet" => Ok(Self::RegionVnet),
+            "launch" => Ok(Self::Launch),
+            "wireguard_ready" => Ok(Self::WireguardReady),
+            _ => Err(()),
+        }
+    }
+}
+
 #[async_trait]
 impl CloudProvider for AzureProvider {
     fn get_provider_name(&self) -> CloudProviderName {
@@ -49,36 +78,50 @@ impl CloudProvider for AzureProvider {
     fn spawn_steps(&self, _region: &str) -> Vec<SpawnStep> {
         vec![
             SpawnStep {
-                id: "region_resource_group".into(),
+                id: AzureSpawnStepId::RegionResourceGroup.as_str().into(),
                 label: "Creating resource group".into(),
             },
             SpawnStep {
-                id: "region_vnet".into(),
+                id: AzureSpawnStepId::RegionVnet.as_str().into(),
                 label: "Creating VNet and subnet".into(),
             },
             SpawnStep {
-                id: "launch".into(),
+                id: AzureSpawnStepId::Launch.as_str().into(),
                 label: "Launching virtual machine".into(),
             },
             SpawnStep {
-                id: "wireguard_ready".into(),
+                id: AzureSpawnStepId::WireguardReady.as_str().into(),
                 label: "Waiting for WireGuard to start".into(),
             },
         ]
     }
 
     async fn run_spawn_step(&self, step_id: &str, region: &str) -> Result<()> {
-        match step_id {
-            "region_resource_group" => {
-                network::ensure_resource_group(&self.client, region).await?;
+        let Ok(step) = step_id.parse::<AzureSpawnStepId>() else {
+            return Ok(());
+        };
+        match step {
+            AzureSpawnStepId::RegionResourceGroup => {
+                if network::get_resource_group_by_location(&self.client, region)
+                    .await?
+                    .is_none()
+                {
+                    network::create_resource_group(&self.client, region).await?;
+                }
                 Ok(())
             }
-            "region_vnet" => {
-                network::ensure_vnet_and_subnet(&self.client, region)
-                    .await
-                    .map_err(|e| NetworkProvisioningError::SubnetCreationFailed {
-                        reason: e.to_string(),
-                    })?;
+            AzureSpawnStepId::RegionVnet => {
+                let nsg_id = network::ensure_nsg(&self.client, region).await?;
+                if network::get_vnet(&self.client, region).await?.is_none() {
+                    network::create_vnet(&self.client, region).await?;
+                }
+                if network::get_subnet(&self.client, region).await?.is_none() {
+                    network::create_subnet(&self.client, region, &nsg_id)
+                        .await
+                        .map_err(|e| NetworkProvisioningError::SubnetCreationFailed {
+                            reason: e.to_string(),
+                        })?;
+                }
                 Ok(())
             }
             _ => Ok(()),
@@ -89,28 +132,18 @@ impl CloudProvider for AzureProvider {
         Ok(serde_json::json!({ "status": "not_implemented" }))
     }
 
-    /// No global setup is required for Azure; all infrastructure is
-    /// provisioned per-region by `enable_region`.
     async fn setup(&self) -> Result<()> {
-        println!("[Azure] setup() — no global resources required.");
+        info!("[Azure] setup() — no global resources required.");
         Ok(())
     }
 
-    /// Ensure the regional shared infrastructure (resource group, NSG, VNet,
-    /// subnet) exists for `region`.
     async fn enable_region(&self, region: &str) -> Result<()> {
-        network::ensure_resource_group(&self.client, region).await?;
-        network::ensure_vnet_and_subnet(&self.client, region)
-            .await
-            .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {
-                reason: error.to_string(),
-            })?;
-        println!("[Azure] Region '{}' enabled.", region);
+        network::ensure_region_networking(&self.client, region).await?;
+        info!("[Azure] Region '{}' enabled.", region);
         Ok(())
     }
 
     async fn spawn_instance(&self, params: &SpawnInstanceParams) -> Result<InstanceInfo> {
-        // Ensure regional infrastructure before spawning.
         instance::spawn_instance(&self.client, params.region, params).await
     }
 

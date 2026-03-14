@@ -46,7 +46,6 @@ export function MetricsDisplay({ metrics, isConnected }: MetricsDisplayProps) {
   );
 }
 
-// Additional metrics component for details below buttons
 export function MetricsDetails({ metrics }: { metrics: VpnMetrics | null }) {
   if (!metrics) {
     return null;
@@ -54,7 +53,7 @@ export function MetricsDetails({ metrics }: { metrics: VpnMetrics | null }) {
 
   return (
     <>
-      {/* Total Data Transferred */}
+      {}
       <div className="mb-4">
         <h4 className="text-sm font-medium text-gray-300 mb-3">
           Total Data Transferred
@@ -76,7 +75,7 @@ export function MetricsDetails({ metrics }: { metrics: VpnMetrics | null }) {
         </div>
       </div>
 
-      {/* Packet Stats */}
+      {}
       <div>
         <h4 className="text-sm font-medium text-gray-300 mb-3">
           Packet Statistics

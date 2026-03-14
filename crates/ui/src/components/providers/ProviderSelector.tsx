@@ -1,12 +1,9 @@
 import React from "react";
 
-/**
- * Full-screen step for selecting a cloud provider before region selection.
- */
 interface ProviderSelectorProps {
-  /** Called when the user picks a provider */
+
   onSelectProvider: (provider: string) => void;
-  /** Called when the user presses the back button */
+
   onClose: () => void;
 }
 
@@ -67,7 +64,7 @@ export function ProviderSelector({
 }: ProviderSelectorProps) {
   return (
     <div className="flex flex-col h-screen bg-gray-900">
-      {/* Header */}
+      {}
       <div className="bg-gray-800 p-6 border-b border-gray-700">
         <div className="flex items-center gap-4">
           <button
@@ -99,7 +96,7 @@ export function ProviderSelector({
         </div>
       </div>
 
-      {/* Provider Cards */}
+      {}
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4 max-w-lg mx-auto w-full">
         {providers.map((provider) => (
           <button

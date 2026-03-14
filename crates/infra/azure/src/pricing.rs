@@ -1,15 +1,7 @@
-/// Azure VM pricing.
-///
-/// Rates are for pay-as-you-go Linux VMs in West Europe (USD).
-/// Two public IPs (pip4 + pip6) are created per instance; both are billed.
-/// Updated: 2026-03-03.
 use byocvpn_core::cloud_provider::PricingInfo;
 
-/// $0.005/hr per public IP (Standard SKU, Azure global).
-/// Two IPs are created per instance (IPv4 + IPv6), so effective rate is 2×.
 const IP_HOURLY_RATE: f64 = 0.005 * 2.0;
 
-/// $0.087/GB outbound data transfer (first 10 GB/month free, then tiered).
 const EGRESS_RATE_PER_GB: f64 = 0.087;
 
 const INSTANCE_PRICES: &[(&str, f64)] = &[
@@ -23,7 +15,6 @@ const INSTANCE_PRICES: &[(&str, f64)] = &[
     ("Standard_F2s_v2", 0.085),
 ];
 
-/// Return pricing for `instance_type`, or `None` if unknown.
 pub fn get_pricing(instance_type: &str) -> Option<PricingInfo> {
     INSTANCE_PRICES
         .iter()

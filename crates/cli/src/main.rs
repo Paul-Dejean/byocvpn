@@ -1,14 +1,15 @@
-use byocvpn_aws::{AwsProvider, AwsProviderConfig};
+use byocvpn_aws::{AwsCredentials, AwsProvider};
 use byocvpn_core::{
     cloud_provider::CloudProvider,
     commands,
     connectivity::wait_until_ready,
-    credentials::get_credentials,
+    credentials::CredentialStore,
     crypto::generate_keypair,
     error::{ConfigurationError, Result},
 };
 use byocvpn_daemon::daemon_client::UnixDaemonClient;
 use clap::{Parser, Subcommand};
+use log::*;
 #[derive(Parser)]
 #[command(name = "byocvpn")]
 #[command(about = "BYOC VPN CLI", long_about = None)]
@@ -52,21 +53,12 @@ enum Commands {
 async fn create_cloud_provider(cloud_provider_name: &str) -> Result<Box<dyn CloudProvider>> {
     match cloud_provider_name {
         "aws" => {
-            // Get stored credentials
-            let credentials = get_credentials().await?;
-
-            // Create AWS provider config
-            let config = AwsProviderConfig {
-                access_key_id: Some(credentials.access_key.clone()),
-                secret_access_key: Some(credentials.secret_access_key.clone()),
-            };
-            let cloud_provider = AwsProvider::new(config).await;
-
-            Ok(Box::new(cloud_provider))
+            let store = CredentialStore::load().await?;
+            Ok(Box::new(AwsProvider::new(AwsCredentials::from_store(&store)?.into()).await))
         }
         _ => {
             return Err(
-                ConfigurationError::InvalidCloudProvider(cloud_provider_name.to_string()).into(),
+                ConfigurationError::UnknownProviderName { name: cloud_provider_name.to_string() }.into(),
             );
         }
     }
@@ -74,6 +66,7 @@ async fn create_cloud_provider(cloud_provider_name: &str) -> Result<Box<dyn Clou
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    env_logger::init();
     let cli = Cli::parse();
 
     match cli.command {
@@ -105,7 +98,7 @@ async fn main() -> Result<()> {
             )
             .await?;
 
-            println!(
+            info!(
                 "Instance ID: {}\nPublic IPv4: {}\nPublic IPv6: {}",
                 instance.id, instance.public_ip_v4, instance.public_ip_v6
             );
@@ -114,7 +107,7 @@ async fn main() -> Result<()> {
             region,
             instance_id,
         } => {
-            println!("Connecting to VPN...");
+            info!("Connecting to VPN...");
             let provider = create_cloud_provider("aws").await?;
             let daemon_client = UnixDaemonClient;
 
@@ -125,28 +118,28 @@ async fn main() -> Result<()> {
                 instance_id.as_str(),
             )
             .await?;
-            println!("Connected to VPN");
+            info!("Connected to VPN");
         }
         Commands::Disconnect => {
-            println!("Disconnecting from VPN...");
+            info!("Disconnecting from VPN...");
             let daemon_client = UnixDaemonClient;
             commands::disconnect::disconnect(&daemon_client).await?;
-            println!("Disconnected from VPN");
+            info!("Disconnected from VPN");
         }
         Commands::Terminate {
             region,
             instance_id,
         } => {
-            println!("Terminating instance: {}", instance_id);
+            info!("Terminating instance: {}", instance_id);
             let provider = create_cloud_provider("aws").await?;
             commands::terminate::terminate_instance(&*provider, &region, &instance_id).await?;
         }
         Commands::List { region } => {
-            println!("Listing instances...");
+            info!("Listing instances...");
             let provider = create_cloud_provider("aws").await?;
             let active_instances =
                 commands::list::list_instances(&*provider, region.as_deref()).await?;
-            println!(
+            info!(
                 "{}",
                 if active_instances.len() > 1 {
                     "Active Instances:"
@@ -155,21 +148,21 @@ async fn main() -> Result<()> {
                 }
             );
             for instance in active_instances {
-                println!("{:?}", instance);
+                info!("{:?}", instance);
             }
         }
         Commands::Setup => {
-            println!("Setting up cloud provider...");
+            info!("Setting up cloud provider...");
             let provider = create_cloud_provider("aws").await?;
             commands::setup::setup(&*provider).await?;
-            println!("Cloud provider setup complete.");
+            info!("Cloud provider setup complete.");
         }
         Commands::EnableRegion { region } => {
-            println!("Enabling region: {}", region);
+            info!("Enabling region: {}", region);
             let provider = create_cloud_provider("aws").await?;
 
             commands::setup::enable_region(&*provider, &region).await?;
-            println!("Region enabled: {}", region);
+            info!("Region enabled: {}", region);
         }
     }
     Ok(())
