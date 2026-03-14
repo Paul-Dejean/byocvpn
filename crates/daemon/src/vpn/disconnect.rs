@@ -9,11 +9,18 @@ use log::*;
 pub async fn disconnect_vpn() -> Result<()> {
     info!("[VPN Disconnect] Disconnecting VPN tunnel...");
 
+    #[cfg(target_os = "macos")]
+    let tun_interface_name = "utun4";
+    #[cfg(windows)]
+    let tun_interface_name = "byocvpn";
+    #[cfg(not(any(target_os = "macos", windows)))]
+    let tun_interface_name = "tun0";
+
     if let Ok(config) = Ini::load_from_file("wg0.conf") {
         if let Some(peer) = config.section(Some("Peer")) {
             if let Some(endpoint_str) = peer.get("Endpoint") {
                 if let Ok(endpoint) = endpoint_str.parse::<SocketAddr>() {
-                    remove_vpn_routes("utun4", &endpoint.ip().to_string()).await;
+                    remove_vpn_routes(tun_interface_name, &endpoint.ip().to_string()).await;
                     info!("[VPN Disconnect] Removed VPN routes.");
                 }
             }
@@ -30,7 +37,7 @@ pub async fn disconnect_vpn() -> Result<()> {
     if let Some(mut handle) = maybe_handle {
         info!("[VPN Disconnect] Stopping tunnel task...");
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         if let Some(mut domain_name_system_override_guard) =
             handle.domain_name_system_override_guard.take()
         {

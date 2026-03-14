@@ -15,12 +15,13 @@ use net_route::Handle as RouteHandle;
 use tokio::{net::UdpSocket, sync::watch};
 use tun_rs::DeviceBuilder;
 
+#[cfg(target_os = "macos")]
+use crate::routing::dns_macos::DomainNameSystemOverrideGuard;
+#[cfg(windows)]
+use crate::routing::dns_windows::DomainNameSystemOverrideGuard;
 use crate::{
     constants,
-    routing::{
-        dns_macos::DomainNameSystemOverrideGuard,
-        routes::{add_vpn_routes, update_server_host_route},
-    },
+    routing::routes::{add_vpn_routes, update_server_host_route},
     tunnel_manager::{TUNNEL_MANAGER, TunnelHandle},
     vpn::config::parse_wireguard_config,
 };
@@ -46,8 +47,15 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
         (None, Some(endpoint_ip))
     };
 
+    #[cfg(target_os = "macos")]
+    let tun_interface_name = "utun4";
+    #[cfg(windows)]
+    let tun_interface_name = "byocvpn";
+    #[cfg(not(any(target_os = "macos", windows)))]
+    let tun_interface_name = "tun0";
+
     let tun = DeviceBuilder::new()
-        .name("utun4")
+        .name(tun_interface_name)
         .ipv4(wg_config.ipv4.addr(), wg_config.ipv4.prefix_len(), None)
         .ipv6(wg_config.ipv6.addr(), wg_config.ipv6.prefix_len())
         .mtu(1280)
@@ -285,7 +293,7 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
     });
 
     info!("Configuring DNS...");
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     let optional_domain_name_system_override_guard: Option<DomainNameSystemOverrideGuard> = {
         let domain_name_system_servers = wg_config.dns_servers;
 
@@ -304,7 +312,7 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
             match DomainNameSystemOverrideGuard::apply_to_all_services(&as_refs) {
                 Ok(guard) => Some(guard),
                 Err(error) => {
-                    error!("Failed to apply DNS servers to macOS services: {error}");
+                    error!("Failed to apply DNS servers: {error}");
                     None
                 }
             }
@@ -319,7 +327,7 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
         metrics_shutdown: metrics_shutdown_tx,
         route_monitor_task,
         route_monitor_shutdown: route_monitor_shutdown_tx,
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         domain_name_system_override_guard: optional_domain_name_system_override_guard,
         instance: Some(ConnectedInstance {
             instance_id,

@@ -71,9 +71,9 @@ pub async fn parse_wireguard_config(config_path: &str) -> Result<WireguardConfig
         .ok_or(ConfigurationError::MissingField { field: "IPv6 address".to_string() })?
         .clone();
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     let dns_servers = parse_domain_name_system_servers_from_interface_section(interface);
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(any(target_os = "macos", windows)))]
     let dns_servers = Vec::new();
 
     Ok(WireguardConfig { private_key, public_key, endpoint, ipv4, ipv6, dns_servers })

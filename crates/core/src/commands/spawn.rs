@@ -1,3 +1,4 @@
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
 use log::*;
@@ -128,18 +129,21 @@ pub async fn write_wireguard_config(
             reason: format!("failed to write config file: {}", error),
         })?;
 
+    #[cfg(unix)]
+    {
     let metadata = fs::metadata(wireguard_file_path.clone())
         .await
         .map_err(|error| ConfigurationError::TunnelConfiguration {
             reason: format!("failed to read config file metadata: {}", error),
         })?;
-    let mut perms = metadata.permissions();
-    perms.set_mode(0o600);
-    fs::set_permissions(wireguard_file_path.clone(), perms)
-        .await
-        .map_err(|error| ConfigurationError::TunnelConfiguration {
-            reason: format!("failed to set config file permissions: {}", error),
-        })?;
+        let mut perms = metadata.permissions();
+        perms.set_mode(0o600);
+        fs::set_permissions(wireguard_file_path.clone(), perms)
+            .await
+            .map_err(|error| ConfigurationError::TunnelConfiguration {
+                reason: format!("failed to set config file permissions: {}", error),
+            })?;
+    }
 
     if let Some(path_str) = wireguard_file_path.to_str() {
         info!("Client config written to {}", path_str);
