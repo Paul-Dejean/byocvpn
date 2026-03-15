@@ -15,6 +15,8 @@ use net_route::Handle as RouteHandle;
 use tokio::{net::UdpSocket, sync::watch};
 use tun_rs::DeviceBuilder;
 
+#[cfg(target_os = "linux")]
+use crate::routing::dns_linux::DomainNameSystemOverrideGuard;
 #[cfg(target_os = "macos")]
 use crate::routing::dns_macos::DomainNameSystemOverrideGuard;
 #[cfg(windows)]
@@ -293,7 +295,7 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
     });
 
     info!("Configuring DNS...");
-    #[cfg(any(target_os = "macos", windows))]
+    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     let optional_domain_name_system_override_guard: Option<DomainNameSystemOverrideGuard> = {
         let domain_name_system_servers = wg_config.dns_servers;
 
@@ -327,7 +329,7 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
         metrics_shutdown: metrics_shutdown_tx,
         route_monitor_task,
         route_monitor_shutdown: route_monitor_shutdown_tx,
-        #[cfg(any(target_os = "macos", windows))]
+        #[cfg(any(target_os = "macos", target_os = "linux", windows))]
         domain_name_system_override_guard: optional_domain_name_system_override_guard,
         instance: Some(ConnectedInstance {
             instance_id,

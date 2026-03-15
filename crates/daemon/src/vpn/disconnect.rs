@@ -37,7 +37,7 @@ pub async fn disconnect_vpn() -> Result<()> {
     if let Some(mut handle) = maybe_handle {
         info!("[VPN Disconnect] Stopping tunnel task...");
 
-        #[cfg(any(target_os = "macos", windows))]
+        #[cfg(any(target_os = "macos", target_os = "linux", windows))]
         if let Some(mut domain_name_system_override_guard) =
             handle.domain_name_system_override_guard.take()
         {

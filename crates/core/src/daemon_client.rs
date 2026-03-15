@@ -186,6 +186,75 @@ pub fn install_daemon() -> Result<()> {
     }
 }
 
+#[cfg(target_os = "linux")]
+pub fn is_daemon_installed() -> bool {
+    Path::new("/etc/systemd/system/byocvpn-daemon.service").exists()
+}
+
+#[cfg(target_os = "linux")]
+pub fn install_daemon() -> Result<()> {
+    let build_dir = if cfg!(debug_assertions) { "debug" } else { "release" };
+
+    let current_executable_path = std::env::current_exe()
+        .map_err(|error| ConfigurationError::InvalidFile { reason: error.to_string() })?;
+
+    let workspace_root = current_executable_path
+        .ancestors()
+        .find(|path| path.join("Cargo.toml").exists());
+
+    let exe_dir = current_executable_path
+        .parent()
+        .ok_or_else(|| ConfigurationError::FileNotFound {
+            path: "executable directory".to_string(),
+        })?;
+
+    let daemon_binary_path = [
+        exe_dir.join("byocvpn-daemon"),
+        exe_dir.join("byocvpn_daemon"),
+        workspace_root
+            .map(|root| root.join("target").join(build_dir).join("byocvpn_daemon"))
+            .unwrap_or_default(),
+    ]
+    .into_iter()
+    .find(|path| path.exists())
+    .ok_or_else(|| ConfigurationError::FileNotFound {
+        path: format!("target/{}/byocvpn_daemon", build_dir),
+    })?;
+
+    let systemd_unit_content = "[Unit]\nDescription=byocvpn Daemon\nAfter=network.target\n\n[Service]\nType=simple\nExecStart=/usr/local/bin/byocvpn-daemon\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n";
+
+    let daemon_binary_src = daemon_binary_path.display().to_string();
+
+    let script_content = format!(
+        "cp '{src}' /usr/local/bin/byocvpn-daemon\nchmod 755 /usr/local/bin/byocvpn-daemon\nprintf '%s' '{unit}' > /etc/systemd/system/byocvpn-daemon.service\nsystemctl daemon-reload\nsystemctl enable byocvpn-daemon\nsystemctl start byocvpn-daemon\n",
+        src = daemon_binary_src,
+        unit = systemd_unit_content.replace('\'', "'\\''"),
+    );
+
+    let temp_script = std::env::temp_dir().join("byocvpn_install.sh");
+    std::fs::write(&temp_script, &script_content)
+        .map_err(|error| ConfigurationError::InvalidFile { reason: error.to_string() })?;
+
+    let output = std::process::Command::new("pkexec")
+        .args(["bash", &temp_script.display().to_string()])
+        .output()
+        .map_err(|error| ConfigurationError::InvalidFile { reason: error.to_string() })?;
+
+    let _ = std::fs::remove_file(&temp_script);
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let detail = if !stderr.is_empty() { stderr } else { stdout };
+        Err(ConfigurationError::InvalidFile {
+            reason: format!("daemon installation failed: {}", detail.trim()),
+        }
+        .into())
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum DaemonCommand {
