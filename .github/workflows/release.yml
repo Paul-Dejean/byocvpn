@@ -17,7 +17,7 @@ jobs:
             rust_target: x86_64-unknown-linux-gnu
           - runner: macos-latest
             rust_target: aarch64-apple-darwin
-          - runner: macos-13
+          - runner: macos-latest
             rust_target: x86_64-apple-darwin
           - runner: windows-latest
             rust_target: x86_64-pc-windows-msvc
@@ -72,7 +72,7 @@ jobs:
           CARGO_TARGET_DIR=target cargo build --release -p byocvpn_daemon --manifest-path Cargo.toml
 
       - name: Create plist placeholder (non-macOS)
-        if: matrix.runner != 'macos-latest' && matrix.runner != 'macos-13'
+        if: "!startsWith(matrix.runner, 'macos')"
         run: touch scripts/com.byocvpn.daemon.plist
 
       - uses: tauri-apps/tauri-action@v0
