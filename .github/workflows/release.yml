@@ -1,0 +1,95 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            rust_target: x86_64-unknown-linux-gnu
+          - runner: macos-latest
+            rust_target: aarch64-apple-darwin
+          - runner: macos-13
+            rust_target: x86_64-apple-darwin
+          - runner: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: matrix.runner == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            . -> target
+            . -> target/tauri
+          cache-on-failure: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: crates/ui/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: crates/ui
+        run: npm ci
+
+      - name: Pre-build daemon (Windows)
+        if: matrix.runner == 'windows-latest'
+        shell: pwsh
+        run: |
+          $env:CARGO_TARGET_DIR = "target"
+          cargo build --release -p byocvpn_daemon --manifest-path Cargo.toml
+          Copy-Item "target\release\byocvpn_daemon.exe" "target\release\byocvpn_daemon"
+
+      - name: Pre-build daemon (non-Windows)
+        if: matrix.runner != 'windows-latest'
+        run: |
+          CARGO_TARGET_DIR=target cargo build --release -p byocvpn_daemon --manifest-path Cargo.toml
+
+      - name: Create plist placeholder (non-macOS)
+        if: matrix.runner != 'macos-latest' && matrix.runner != 'macos-13'
+        run: touch scripts/com.byocvpn.daemon.plist
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: crates/ui
+          tagName: ${{ github.ref_name }}
+          releaseName: ByocVPN ${{ github.ref_name }}
+          releaseDraft: true
+          prerelease: false
+          args: --target ${{ matrix.rust_target }}
