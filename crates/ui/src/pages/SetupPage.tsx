@@ -44,11 +44,7 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
     ) {
       console.log("Starting setup with:", { selectedProvider, credentials });
 
-      const success = await saveCredentials(
-        selectedProvider,
-        credentials.accessKeyId,
-        credentials.secretAccessKey,
-      );
+      const success = await saveCredentials(selectedProvider, credentials);
 
       if (success) {
         console.log("Credentials saved successfully");
