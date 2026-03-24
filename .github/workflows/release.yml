@@ -66,13 +66,16 @@ jobs:
         shell: pwsh
         run: |
           $env:CARGO_TARGET_DIR = "target"
-          cargo build --release -p byocvpn_daemon --manifest-path Cargo.toml
-          Copy-Item "target\release\byocvpn_daemon.exe" "target\release\byocvpn_daemon"
+          cargo build --locked --release -p byocvpn_daemon --manifest-path Cargo.toml --target ${{ matrix.rust_target }}
+          New-Item -ItemType Directory -Force -Path "target\release" | Out-Null
+          Copy-Item "target\${{ matrix.rust_target }}\release\byocvpn_daemon.exe" "target\release\byocvpn_daemon"
 
       - name: Pre-build daemon (non-Windows)
         if: matrix.runner != 'windows-latest'
         run: |
-          CARGO_TARGET_DIR=target cargo build --release -p byocvpn_daemon --manifest-path Cargo.toml
+          CARGO_TARGET_DIR=target cargo build --locked --release -p byocvpn_daemon --manifest-path Cargo.toml --target ${{ matrix.rust_target }}
+          mkdir -p target/release
+          cp target/${{ matrix.rust_target }}/release/byocvpn_daemon target/release/byocvpn_daemon
 
       - name: Create plist placeholder (non-macOS)
         if: "!startsWith(matrix.runner, 'macos')"
@@ -81,12 +84,6 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
