@@ -25,6 +25,7 @@ pub fn run() {
             commands::get_ledger,
             commands::is_daemon_installed,
             commands::install_daemon,
+            commands::uninstall_app,
         ]);
 
     builder

@@ -430,3 +430,8 @@ pub async fn is_daemon_installed() -> Result<bool> {
 pub async fn install_daemon() -> Result<()> {
     daemon_client::install_daemon()
 }
+
+#[tauri::command]
+pub async fn uninstall_app() -> Result<()> {
+    daemon_client::uninstall_daemon()
+}
