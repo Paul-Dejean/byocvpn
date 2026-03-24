@@ -1,5 +1,3 @@
-use std::ffi::CString;
-
 use byocvpn_core::error::{ConfigurationError, Result};
 use net_route::Handle;
 
@@ -40,9 +38,9 @@ pub async fn get_ifindex(interface: &str) -> Result<u32> {
             .map_err(|error| ConfigurationError::RouteConfiguration {
                 reason: format!("failed to query default route: {}", error),
             })?
-                .ok_or(ConfigurationError::RouteConfiguration {
-                    reason: "No default route found".to_string(),
-                })?;
+            .ok_or(ConfigurationError::RouteConfiguration {
+                reason: "No default route found".to_string(),
+            })?;
         default_route.ifindex.ok_or(
             ConfigurationError::RouteConfiguration {
                 reason: "Default route has no interface index".to_string(),
