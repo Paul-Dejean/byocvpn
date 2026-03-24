@@ -1,3 +1,6 @@
+#[cfg(any(target_os = "linux", windows))]
+use std::ffi::CString;
+
 use byocvpn_core::error::{ConfigurationError, Result};
 use net_route::Handle;
 
