@@ -8,10 +8,23 @@ fn resolve_interface_index(interface: &str) -> Option<u32> {
     net_route::ifname_to_index(interface)
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "linux")]
 fn resolve_interface_index(interface: &str) -> Option<u32> {
     let cstr = CString::new(interface).ok()?;
     let index = unsafe { libc::if_nametoindex(cstr.as_ptr()) };
+    if index == 0 { None } else { Some(index) }
+}
+
+#[cfg(windows)]
+#[link(name = "Iphlpapi")]
+unsafe extern "system" {
+    fn if_nametoindex(ifname: *const std::ffi::c_char) -> u32;
+}
+
+#[cfg(windows)]
+fn resolve_interface_index(interface: &str) -> Option<u32> {
+    let cstr = CString::new(interface).ok()?;
+    let index = unsafe { if_nametoindex(cstr.as_ptr()) };
     if index == 0 { None } else { Some(index) }
 }
 
