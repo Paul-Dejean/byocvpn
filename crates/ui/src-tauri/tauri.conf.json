@@ -31,9 +31,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": {
-      "../../../target/release/byocvpn_daemon": "byocvpn-daemon",
-      "../../../scripts/com.byocvpn.daemon.plist": "com.byocvpn.daemon.plist"
-    }
+    "resources": {}
   }
 }
