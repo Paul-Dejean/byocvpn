@@ -15,7 +15,8 @@ pub(super) async fn get_sdk_config(
 ) -> SdkConfig {
     let region_provider = match &region {
         Some(r) => RegionProviderChain::first_try(Region::new(r.clone())).or_default_provider(),
-        None => RegionProviderChain::default_provider(),
+        None => RegionProviderChain::default_provider()
+            .or_else(Region::new("us-east-1")),
     };
 
     let mut config_loader = aws_config::from_env().region(region_provider);

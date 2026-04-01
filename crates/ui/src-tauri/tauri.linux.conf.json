@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "resources": {
+      "../../../target/release/byocvpn_daemon": "byocvpn-daemon"
+    }
+  }
+}

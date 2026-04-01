@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build && CARGO_TARGET_DIR=../../target cargo build --release -p byocvpn_daemon --manifest-path ../../Cargo.toml",
+    "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -23,7 +23,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["deb", "rpm", "appimage", "msi", "dmg"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -31,9 +31,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": {
-      "../../../target/release/byocvpn_daemon": "byocvpn-daemon",
-      "../../../scripts/com.byocvpn.daemon.plist": "com.byocvpn.daemon.plist"
-    }
+    "resources": {}
   }
 }

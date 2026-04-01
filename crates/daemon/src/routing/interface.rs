@@ -1,5 +1,33 @@
+#[cfg(any(target_os = "linux", windows))]
+use std::ffi::CString;
+
 use byocvpn_core::error::{ConfigurationError, Result};
 use net_route::Handle;
+
+#[cfg(target_os = "macos")]
+fn resolve_interface_index(interface: &str) -> Option<u32> {
+    net_route::ifname_to_index(interface)
+}
+
+#[cfg(target_os = "linux")]
+fn resolve_interface_index(interface: &str) -> Option<u32> {
+    let cstr = CString::new(interface).ok()?;
+    let index = unsafe { libc::if_nametoindex(cstr.as_ptr()) };
+    if index == 0 { None } else { Some(index) }
+}
+
+#[cfg(windows)]
+#[link(name = "Iphlpapi")]
+unsafe extern "system" {
+    fn if_nametoindex(ifname: *const std::ffi::c_char) -> u32;
+}
+
+#[cfg(windows)]
+fn resolve_interface_index(interface: &str) -> Option<u32> {
+    let cstr = CString::new(interface).ok()?;
+    let index = unsafe { if_nametoindex(cstr.as_ptr()) };
+    if index == 0 { None } else { Some(index) }
+}
 
 pub async fn get_ifindex(interface: &str) -> Result<u32> {
     let handle = Handle::new().map_err(|error| ConfigurationError::RouteConfiguration {
@@ -13,9 +41,9 @@ pub async fn get_ifindex(interface: &str) -> Result<u32> {
             .map_err(|error| ConfigurationError::RouteConfiguration {
                 reason: format!("failed to query default route: {}", error),
             })?
-                .ok_or(ConfigurationError::RouteConfiguration {
-                    reason: "No default route found".to_string(),
-                })?;
+            .ok_or(ConfigurationError::RouteConfiguration {
+                reason: "No default route found".to_string(),
+            })?;
         default_route.ifindex.ok_or(
             ConfigurationError::RouteConfiguration {
                 reason: "Default route has no interface index".to_string(),
@@ -23,7 +51,7 @@ pub async fn get_ifindex(interface: &str) -> Result<u32> {
             .into(),
         )
     } else {
-        net_route::ifname_to_index(interface).ok_or(
+        resolve_interface_index(interface).ok_or(
             ConfigurationError::RouteConfiguration {
                 reason: format!("Failed to get interface index for {}", interface),
             }

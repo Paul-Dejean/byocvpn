@@ -1,0 +1,96 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            rust_target: x86_64-unknown-linux-gnu
+          - runner: ubuntu-22.04-arm
+            rust_target: aarch64-unknown-linux-gnu
+          - runner: macos-latest
+            rust_target: aarch64-apple-darwin
+          - runner: macos-latest
+            rust_target: x86_64-apple-darwin
+          - runner: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: startsWith(matrix.runner, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            xdg-utils
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            . -> target
+            . -> target/tauri
+          cache-on-failure: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: crates/ui/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: crates/ui
+        run: npm ci
+
+      - name: Pre-build daemon (Windows)
+        if: matrix.runner == 'windows-latest'
+        shell: pwsh
+        run: |
+          $env:CARGO_TARGET_DIR = "target"
+          cargo build --locked --release -p byocvpn_daemon --manifest-path Cargo.toml --target ${{ matrix.rust_target }}
+          New-Item -ItemType Directory -Force -Path "target\release" | Out-Null
+          Copy-Item "target\${{ matrix.rust_target }}\release\byocvpn_daemon.exe" "target\release\byocvpn_daemon.exe"
+
+      - name: Pre-build daemon (non-Windows)
+        if: matrix.runner != 'windows-latest'
+        run: |
+          CARGO_TARGET_DIR=target cargo build --locked --release -p byocvpn_daemon --manifest-path Cargo.toml --target ${{ matrix.rust_target }}
+          mkdir -p target/release
+          cp target/${{ matrix.rust_target }}/release/byocvpn_daemon target/release/byocvpn_daemon
+
+      - name: Create plist placeholder (non-macOS)
+        if: "!startsWith(matrix.runner, 'macos')"
+        run: touch scripts/com.byocvpn.daemon.plist
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          CARGO_TARGET_DIR: target/tauri
+        with:
+          projectPath: crates/ui
+          tagName: ${{ github.ref_name }}
+          releaseName: ByocVPN ${{ github.ref_name }}
+          releaseDraft: true
+          prerelease: false
+          args: --target ${{ matrix.rust_target }}
