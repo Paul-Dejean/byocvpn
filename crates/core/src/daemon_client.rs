@@ -188,12 +188,17 @@ pub fn install_daemon() -> Result<()> {
 
 #[cfg(target_os = "linux")]
 pub fn is_daemon_installed() -> bool {
-    Path::new("/etc/systemd/system/byocvpn-daemon.service").exists()
+    let service_name =
+        if cfg!(debug_assertions) { "byocvpn-daemon-dev" } else { "byocvpn-daemon" };
+    Path::new(&format!("/etc/systemd/system/{}.service", service_name)).exists()
 }
 
 #[cfg(target_os = "linux")]
 pub fn install_daemon() -> Result<()> {
-    let build_dir = if cfg!(debug_assertions) { "debug" } else { "release" };
+    let is_dev = cfg!(debug_assertions);
+    let service_name = if is_dev { "byocvpn-daemon-dev" } else { "byocvpn-daemon" };
+    let installed_binary_name = service_name;
+    let build_dir = if is_dev { "debug" } else { "release" };
 
     let current_executable_path = std::env::current_exe()
         .map_err(|error| ConfigurationError::InvalidFile { reason: error.to_string() })?;
@@ -209,7 +214,7 @@ pub fn install_daemon() -> Result<()> {
         })?;
 
     let daemon_binary_path = [
-        exe_dir.join("byocvpn-daemon"),
+        exe_dir.join(installed_binary_name),
         exe_dir.join("byocvpn_daemon"),
         workspace_root
             .map(|root| root.join("target").join(build_dir).join("byocvpn_daemon"))
@@ -221,14 +226,22 @@ pub fn install_daemon() -> Result<()> {
         path: format!("target/{}/byocvpn_daemon", build_dir),
     })?;
 
-    let systemd_unit_content = "[Unit]\nDescription=byocvpn Daemon\nAfter=network.target\n\n[Service]\nType=simple\nExecStart=/usr/local/bin/byocvpn-daemon\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n";
+    let installed_binary_path = format!("/usr/local/bin/{}", installed_binary_name);
+    let service_file_path = format!("/etc/systemd/system/{}.service", service_name);
+    let systemd_unit_content = format!(
+        "[Unit]\nDescription=byocvpn Daemon\nAfter=network.target\n\n[Service]\nType=simple\nExecStart={installed_binary_path}\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n",
+        installed_binary_path = installed_binary_path,
+    );
 
     let daemon_binary_src = daemon_binary_path.display().to_string();
 
     let script_content = format!(
-        "cp '{src}' /usr/local/bin/byocvpn-daemon\nchmod 755 /usr/local/bin/byocvpn-daemon\nprintf '%s' '{unit}' > /etc/systemd/system/byocvpn-daemon.service\nsystemctl daemon-reload\nsystemctl enable byocvpn-daemon\nsystemctl start byocvpn-daemon\n",
+        "cp '{src}' '{dst}'\nchmod 755 '{dst}'\nprintf '%s' '{unit}' > '{service}'\nsystemctl daemon-reload\nsystemctl enable {service_name}\nsystemctl start {service_name}\n",
         src = daemon_binary_src,
+        dst = installed_binary_path,
         unit = systemd_unit_content.replace('\'', "'\\''"),
+        service = service_file_path,
+        service_name = service_name,
     );
 
     let temp_script = std::env::temp_dir().join("byocvpn_install.sh");
@@ -332,7 +345,13 @@ pub fn uninstall_daemon() -> Result<()> {
 
 #[cfg(target_os = "linux")]
 pub fn uninstall_daemon() -> Result<()> {
-    let script_content = "systemctl stop byocvpn-daemon\nsystemctl disable byocvpn-daemon\nrm -f /etc/systemd/system/byocvpn-daemon.service\nrm -f /usr/local/bin/byocvpn-daemon\nsystemctl daemon-reload\n";
+    let service_name =
+        if cfg!(debug_assertions) { "byocvpn-daemon-dev" } else { "byocvpn-daemon" };
+    let script_content = format!(
+        "systemctl stop {service_name}\nsystemctl disable {service_name}\nrm -f /etc/systemd/system/{service_name}.service\nrm -f /usr/local/bin/{service_name}\nsystemctl daemon-reload\n",
+        service_name = service_name,
+    );
+    let script_content = script_content.as_str();
 
     let temp_script = std::env::temp_dir().join("byocvpn_uninstall.sh");
     std::fs::write(&temp_script, script_content)
