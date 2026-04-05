@@ -4,7 +4,9 @@ use byocvpn_aws::{AwsCredentials, AwsProvider, pricing as aws_pricing};
 use byocvpn_azure::{AzureProvider, credentials::AzureCredentials, pricing as azure_pricing};
 use byocvpn_core::{
     cloud_provider::{
-        CloudProvider, CloudProviderName, InstanceInfo, PricingInfo, SpawnCompleteEvent, SpawnJob,
+        CloudProvider, CloudProviderName, EnableRegionCompleteEvent, EnableRegionJob,
+        EnableRegionProgressEvent, InstanceInfo, PricingInfo, ProvisionAccountCompleteEvent,
+        ProvisionAccountJob, ProvisionAccountProgressEvent, SpawnCompleteEvent, SpawnJob,
         SpawnProgressEvent,
     },
     commands,
@@ -92,6 +94,24 @@ pub async fn save_credentials(provider: String, creds: Value) -> Result<()> {
     }
 
     store.save()
+}
+
+#[tauri::command]
+pub async fn delete_credentials(provider: String, app_handle: AppHandle) -> Result<()> {
+    let mut store = CredentialStore::load().await?;
+    let section = match provider.as_str() {
+        "aws" => "AWS",
+        "oracle" => "ORACLE",
+        "gcp" => "GCP",
+        "azure" => "AZURE",
+        _ => return Err(ConfigurationError::UnknownProviderName { name: provider }.into()),
+    };
+    store.delete_section(section);
+    store.save()?;
+    if let Some(provider_store) = crate::provider_store::ProviderStore::open(&app_handle) {
+        provider_store.clear_provisioned(&provider);
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -273,6 +293,136 @@ pub async fn has_profile() -> Result<bool> {
         || OracleCredentials::from_store(&store).is_ok()
         || GcpCredentials::from_store(&store).is_ok()
         || AzureCredentials::from_store(&store).is_ok())
+}
+
+#[tauri::command]
+pub async fn provision_account(
+    provider: String,
+    app_handle: AppHandle,
+) -> Result<ProvisionAccountJob> {
+    let provider_name = CloudProviderName::from_str(&provider)?;
+    let cloud_provider = create_cloud_provider(&provider).await?;
+
+    let job = ProvisionAccountJob {
+        job_id: format!("{}-{}", provider, Utc::now().timestamp_millis()),
+        steps: cloud_provider.provision_account_steps(),
+        provider: provider_name,
+    };
+
+    let job_id = job.job_id.clone();
+    let steps = job.steps.clone();
+
+    tauri::async_runtime::spawn(async move {
+        let job_id_for_progress = job_id.clone();
+        let progress_handle = app_handle.clone();
+
+        let result = commands::setup::run_provision_account_steps(
+            &*cloud_provider,
+            &steps,
+            move |step_id, status, error| {
+                let _ = progress_handle.emit(
+                    "provision-account-progress",
+                    ProvisionAccountProgressEvent {
+                        job_id: job_id_for_progress.clone(),
+                        step_id: step_id.to_string(),
+                        status,
+                        error,
+                    },
+                );
+            },
+        )
+        .await;
+
+        match result {
+            Ok(()) => {
+                if let Some(provider_store) = crate::provider_store::ProviderStore::open(&app_handle) {
+                    provider_store.mark_provisioned(&provider);
+                }
+                let _ = app_handle.emit(
+                    "provision-account-complete",
+                    ProvisionAccountCompleteEvent {
+                        job_id,
+                        provider: cloud_provider.get_provider_name(),
+                    },
+                );
+            }
+            Err(error) => {
+                let _ = app_handle.emit(
+                    "provision-account-failed",
+                    json!({ "jobId": &job_id, "error": error.to_string() }),
+                );
+            }
+        }
+    });
+
+    Ok(job)
+}
+
+#[tauri::command]
+pub async fn enable_region(
+    region: String,
+    provider: String,
+    app_handle: AppHandle,
+) -> Result<EnableRegionJob> {
+    let provider_name = CloudProviderName::from_str(&provider)?;
+    let cloud_provider = create_cloud_provider(&provider).await?;
+
+    let job = EnableRegionJob {
+        job_id: format!("{}-{}-{}", provider, region, Utc::now().timestamp_millis()),
+        steps: cloud_provider.enable_region_steps(&region),
+        region: region.clone(),
+        provider: provider_name,
+    };
+
+    let job_id = job.job_id.clone();
+    let steps = job.steps.clone();
+
+    tauri::async_runtime::spawn(async move {
+        let job_id_for_progress = job_id.clone();
+        let progress_handle = app_handle.clone();
+
+        let result = commands::setup::run_enable_region_steps(
+            &*cloud_provider,
+            &steps,
+            &region,
+            move |step_id, status, error| {
+                let _ = progress_handle.emit(
+                    "enable-region-progress",
+                    EnableRegionProgressEvent {
+                        job_id: job_id_for_progress.clone(),
+                        step_id: step_id.to_string(),
+                        status,
+                        error,
+                    },
+                );
+            },
+        )
+        .await;
+
+        match result {
+            Ok(()) => {
+                if let Some(provider_store) = crate::provider_store::ProviderStore::open(&app_handle) {
+                    provider_store.mark_region_enabled(&provider, &region);
+                }
+                let _ = app_handle.emit(
+                    "enable-region-complete",
+                    EnableRegionCompleteEvent {
+                        job_id,
+                        region,
+                        provider: cloud_provider.get_provider_name(),
+                    },
+                );
+            }
+            Err(error) => {
+                let _ = app_handle.emit(
+                    "enable-region-failed",
+                    json!({ "jobId": &job_id, "error": error.to_string() }),
+                );
+            }
+        }
+    });
+
+    Ok(job)
 }
 
 #[tauri::command]

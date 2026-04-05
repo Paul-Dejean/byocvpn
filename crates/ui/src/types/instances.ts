@@ -61,3 +61,47 @@ export interface SpawnJobState {
   jobId: string;
   steps: SpawnStepState[];
 }
+
+export interface ProvisionAccountJob {
+  jobId: string;
+  steps: SpawnStep[];
+  provider: string;
+}
+
+export interface ProvisionAccountProgressEvent {
+  jobId: string;
+  stepId: string;
+  status: SpawnStepStatus;
+  error?: string;
+}
+
+export interface ProvisionAccountCompleteEvent {
+  jobId: string;
+  provider: string;
+}
+
+export interface EnableRegionJob {
+  jobId: string;
+  steps: SpawnStep[];
+  region: string;
+  provider: string;
+}
+
+export interface EnableRegionProgressEvent {
+  jobId: string;
+  stepId: string;
+  status: SpawnStepStatus;
+  error?: string;
+}
+
+export interface EnableRegionCompleteEvent {
+  jobId: string;
+  region: string;
+  provider: string;
+}
+
+export interface ProvisionJobState {
+  jobId: string;
+  provider: string;
+  steps: SpawnStepState[];
+}

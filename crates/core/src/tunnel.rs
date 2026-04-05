@@ -77,21 +77,28 @@ impl Tunnel {
                     break;
                 }
 
-                Ok(n) = self.tun.recv(&mut tun_buf) => {
-
-                    match self.wg.encapsulate(&tun_buf[..n], &mut out_buf) {
-                        TunnResult::WriteToNetwork(packet) => {
-                            if let Ok(sent) = self.udp.send(packet).await {
-                                let mut metrics = self.metrics.write().await;
-                                metrics.bytes_sent += sent as u64;
-                                metrics.packets_sent += 1;
+                result = self.tun.recv(&mut tun_buf) => {
+                    match result {
+                        Ok(n) => {
+                            match self.wg.encapsulate(&tun_buf[..n], &mut out_buf) {
+                                TunnResult::WriteToNetwork(packet) => {
+                                    if let Ok(sent) = self.udp.send(packet).await {
+                                        let mut metrics = self.metrics.write().await;
+                                        metrics.bytes_sent += sent as u64;
+                                        metrics.packets_sent += 1;
+                                    }
+                                },
+                                TunnResult::Done => {},
+                                TunnResult::Err(e) => {
+                                    error!("encapsulate error: {:?}", e);
+                                },
+                                _ => {}
                             }
-                        },
-                        TunnResult::Done => {},
-                        TunnResult::Err(e) => {
-                            error!("encapsulate error: {:?}", e);
-                        },
-                        _ => {}
+                        }
+                        Err(e) => {
+                            error!("[Tunnel] TUN device read failed: {}", e);
+                            return Err(SystemError::TunnelIoFailed { reason: e.to_string() }.into());
+                        }
                     }
                 }
 

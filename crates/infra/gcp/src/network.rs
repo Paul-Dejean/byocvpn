@@ -7,7 +7,8 @@ use log::*;
 
 const VPC_NAME: &str = "byocvpn-vpc";
 const SUBNET_NAME: &str = "byocvpn-subnet";
-const FIREWALL_NAME: &str = "byocvpn-wireguard";
+const FIREWALL_NAME_IPV4: &str = "byocvpn-wireguard-ipv4";
+const FIREWALL_NAME_IPV6: &str = "byocvpn-wireguard-ipv6";
 const FIREWALL_TAG: &str = "byocvpn";
 
 async fn wait_for_operation(client: &GcpClient, operation_url: &str) -> Result<()> {
@@ -98,19 +99,18 @@ pub async fn get_or_create_firewall(client: &GcpClient) -> Result<()> {
         "https://www.googleapis.com/compute/v1/projects/{}/global/networks/{}",
         client.project_id, VPC_NAME
     );
+    let create_url = format!("{}/global/firewalls", client.build_compute_base_url());
 
-    let firewall_url = format!(
+    let ipv4_firewall_url = format!(
         "{}/global/firewalls/{}",
         client.build_compute_base_url(),
-        FIREWALL_NAME
+        FIREWALL_NAME_IPV4
     );
-
-    if client.get(&firewall_url).await.is_err() {
-        let create_url = format!("{}/global/firewalls", client.build_compute_base_url());
+    if client.get(&ipv4_firewall_url).await.is_err() {
         let body = json!({
-            "name": FIREWALL_NAME,
+            "name": FIREWALL_NAME_IPV4,
             "network": vpc_url,
-            "description": "Allow WireGuard UDP and health TCP on 51820 (IPv4+IPv6) for byocvpn",
+            "description": "Allow WireGuard UDP and health TCP on 51820 (IPv4) for byocvpn",
             "direction": "INGRESS",
             "priority": 1000,
             "targetTags": [FIREWALL_TAG],
@@ -118,7 +118,7 @@ pub async fn get_or_create_firewall(client: &GcpClient) -> Result<()> {
                 { "IPProtocol": "udp", "ports": ["51820"] },
                 { "IPProtocol": "tcp", "ports": ["51820"] }
             ],
-            "sourceRanges": ["0.0.0.0/0", "::/0"],
+            "sourceRanges": ["0.0.0.0/0"],
         });
         let operation = client.post(&create_url, &body).await.map_err(|error| {
             NetworkProvisioningError::SecurityGroupCreationFailed {
@@ -126,7 +126,35 @@ pub async fn get_or_create_firewall(client: &GcpClient) -> Result<()> {
             }
         })?;
         wait_for_operation_response(client, &operation).await?;
-        info!("GCP firewall rule '{}' created.", FIREWALL_NAME);
+        info!("GCP firewall rule '{}' created.", FIREWALL_NAME_IPV4);
+    }
+
+    let ipv6_firewall_url = format!(
+        "{}/global/firewalls/{}",
+        client.build_compute_base_url(),
+        FIREWALL_NAME_IPV6
+    );
+    if client.get(&ipv6_firewall_url).await.is_err() {
+        let body = json!({
+            "name": FIREWALL_NAME_IPV6,
+            "network": vpc_url,
+            "description": "Allow WireGuard UDP and health TCP on 51820 (IPv6) for byocvpn",
+            "direction": "INGRESS",
+            "priority": 1000,
+            "targetTags": [FIREWALL_TAG],
+            "allowed": [
+                { "IPProtocol": "udp", "ports": ["51820"] },
+                { "IPProtocol": "tcp", "ports": ["51820"] }
+            ],
+            "sourceRanges": ["::/0"],
+        });
+        let operation = client.post(&create_url, &body).await.map_err(|error| {
+            NetworkProvisioningError::SecurityGroupCreationFailed {
+                reason: error.to_string(),
+            }
+        })?;
+        wait_for_operation_response(client, &operation).await?;
+        info!("GCP firewall rule '{}' created.", FIREWALL_NAME_IPV6);
     }
 
     Ok(())

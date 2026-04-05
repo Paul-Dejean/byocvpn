@@ -280,6 +280,52 @@ impl CloudProvider for OracleProvider {
         Ok(())
     }
 
+    fn provision_account_steps(&self) -> Vec<SpawnStep> {
+        vec![
+            SpawnStep {
+                id: OracleSpawnStepId::SetupVcn.as_str().into(),
+                label: "Creating home VCN".into(),
+            },
+            SpawnStep {
+                id: OracleSpawnStepId::SetupIgw.as_str().into(),
+                label: "Creating internet gateway".into(),
+            },
+        ]
+    }
+
+    async fn run_provision_account_step(&self, step_id: &str) -> Result<()> {
+        self.run_spawn_step(step_id, "").await
+    }
+
+    fn enable_region_steps(&self, _region: &str) -> Vec<SpawnStep> {
+        vec![
+            SpawnStep {
+                id: OracleSpawnStepId::RegionSubscribe.as_str().into(),
+                label: "Subscribing to region \u{2014} this may take several minutes".into(),
+            },
+            SpawnStep {
+                id: OracleSpawnStepId::RegionVcn.as_str().into(),
+                label: "Creating regional VCN".into(),
+            },
+            SpawnStep {
+                id: OracleSpawnStepId::RegionIgw.as_str().into(),
+                label: "Creating regional internet gateway".into(),
+            },
+            SpawnStep {
+                id: OracleSpawnStepId::RegionSecurityList.as_str().into(),
+                label: "Creating security list".into(),
+            },
+            SpawnStep {
+                id: OracleSpawnStepId::RegionSubnet.as_str().into(),
+                label: "Creating subnet".into(),
+            },
+        ]
+    }
+
+    async fn run_enable_region_step(&self, step_id: &str, region: &str) -> Result<()> {
+        self.run_spawn_step(step_id, region).await
+    }
+
     async fn enable_region(&self, region: &str) -> Result<()> {
         let compartment_ocid = self.get_compartment_ocid();
 

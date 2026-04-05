@@ -143,6 +143,31 @@ impl CloudProvider for AzureProvider {
         Ok(())
     }
 
+    fn provision_account_steps(&self) -> Vec<SpawnStep> {
+        vec![]
+    }
+
+    async fn run_provision_account_step(&self, _step_id: &str) -> Result<()> {
+        Ok(())
+    }
+
+    fn enable_region_steps(&self, _region: &str) -> Vec<SpawnStep> {
+        vec![
+            SpawnStep {
+                id: AzureSpawnStepId::RegionResourceGroup.as_str().into(),
+                label: "Creating resource group".into(),
+            },
+            SpawnStep {
+                id: AzureSpawnStepId::RegionVnet.as_str().into(),
+                label: "Creating VNet and subnet".into(),
+            },
+        ]
+    }
+
+    async fn run_enable_region_step(&self, step_id: &str, region: &str) -> Result<()> {
+        self.run_spawn_step(step_id, region).await
+    }
+
     async fn spawn_instance(&self, params: &SpawnInstanceParams) -> Result<InstanceInfo> {
         instance::spawn_instance(&self.client, params.region, params).await
     }

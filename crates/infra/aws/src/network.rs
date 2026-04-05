@@ -10,6 +10,8 @@ use aws_sdk_ec2::{
 use byocvpn_core::error::{NetworkProvisioningError, Result};
 use log::*;
 
+use crate::aws_error::sdk_error_message;
+
 pub(super) async fn create_security_group(
     ec2_client: &Ec2Client,
     vpc_id: &str,
@@ -25,7 +27,7 @@ pub(super) async fn create_security_group(
         .await
         .map_err(
             |error| NetworkProvisioningError::SecurityGroupCreationFailed {
-                reason: error.to_string(),
+                reason: sdk_error_message(&error),
             },
         )?;
 
@@ -61,7 +63,7 @@ pub(super) async fn create_security_group(
         .await
         .map_err(
             |error| NetworkProvisioningError::SecurityGroupRuleConfigurationFailed {
-                reason: error.to_string(),
+                reason: sdk_error_message(&error),
             },
         )?;
 
@@ -83,7 +85,7 @@ pub(super) async fn get_security_group_by_name(
         .send()
         .await
         .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-            reason: error.to_string(),
+            reason: sdk_error_message(&error),
         })?;
 
     let group_id = resp
@@ -113,7 +115,7 @@ pub(super) async fn create_vpc(
         .send()
         .await
         .map_err(|error| NetworkProvisioningError::VpcCreationFailed {
-            reason: error.to_string(),
+            reason: sdk_error_message(&error),
         })?;
 
     let vpc_id = resp
@@ -134,7 +136,7 @@ pub(super) async fn get_vpc_by_name(ec2_client: &Ec2Client, name: &str) -> Resul
         .send()
         .await
         .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-            reason: error.to_string(),
+            reason: sdk_error_message(&error),
         })?;
 
     let vpc_id = resp
@@ -169,7 +171,7 @@ pub(super) async fn create_subnet(
         .send()
         .await
         .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {
-            reason: error.to_string(),
+            reason: sdk_error_message(&error),
         })?;
 
     let subnet_id = resp
@@ -187,7 +189,7 @@ pub(super) async fn list_availability_zones(ec2_client: &Ec2Client) -> Result<Ve
         .send()
         .await
         .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-            reason: error.to_string(),
+            reason: sdk_error_message(&error),
         })?;
 
     let availability_zones = resp
@@ -247,7 +249,7 @@ pub(super) async fn create_and_attach_igw(ec2: &Ec2Client, vpc_id: &str) -> Resu
         .await
         .map_err(
             |error| NetworkProvisioningError::InternetGatewayOperationFailed {
-                reason: error.to_string(),
+                reason: sdk_error_message(&error),
             },
         )?;
     let igw_id = igw
@@ -262,7 +264,7 @@ pub(super) async fn create_and_attach_igw(ec2: &Ec2Client, vpc_id: &str) -> Resu
         .await
         .map_err(
             |error| NetworkProvisioningError::InternetGatewayOperationFailed {
-                reason: error.to_string(),
+                reason: sdk_error_message(&error),
             },
         )?;
 
@@ -303,7 +305,7 @@ pub(super) async fn enable_auto_ip_assign(ec2: &Ec2Client, subnet_id: &str) -> R
         .await
         .map_err(
             |error| NetworkProvisioningError::SubnetConfigurationFailed {
-                reason: error.to_string(),
+                reason: sdk_error_message(&error),
             },
         )?;
 
@@ -314,7 +316,7 @@ pub(super) async fn enable_auto_ip_assign(ec2: &Ec2Client, subnet_id: &str) -> R
         .await
         .map_err(
             |error| NetworkProvisioningError::SubnetConfigurationFailed {
-                reason: error.to_string(),
+                reason: sdk_error_message(&error),
             },
         )?;
 
@@ -331,7 +333,7 @@ pub(super) async fn find_main_route_table(ec2: &Ec2Client, vpc_id: &str) -> Resu
         .await
         .map_err(
             |error| NetworkProvisioningError::RouteTableOperationFailed {
-                reason: error.to_string(),
+                reason: sdk_error_message(&error),
             },
         )?;
 
@@ -364,7 +366,7 @@ pub async fn get_subnets_in_vpc(ec2_client: &Ec2Client, vpc_id: &str) -> Result<
         .send()
         .await
         .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-            reason: error.to_string(),
+            reason: sdk_error_message(&error),
         })?;
 
     Ok(resp.subnets().to_vec())
@@ -384,7 +386,7 @@ pub async fn tag_resource_with_name(
         .send()
         .await
         .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-            reason: error.to_string(),
+            reason: sdk_error_message(&error),
         })?;
 
     Ok(())

@@ -152,6 +152,38 @@ impl CloudProvider for GcpProvider {
         Ok(())
     }
 
+    fn provision_account_steps(&self) -> Vec<SpawnStep> {
+        vec![
+            SpawnStep {
+                id: GcpSpawnStepId::SetupApi.as_str().into(),
+                label: "Enabling Compute Engine API".into(),
+            },
+            SpawnStep {
+                id: GcpSpawnStepId::SetupVpc.as_str().into(),
+                label: "Creating VPC network".into(),
+            },
+            SpawnStep {
+                id: GcpSpawnStepId::SetupFirewall.as_str().into(),
+                label: "Creating firewall rules".into(),
+            },
+        ]
+    }
+
+    async fn run_provision_account_step(&self, step_id: &str) -> Result<()> {
+        self.run_spawn_step(step_id, "").await
+    }
+
+    fn enable_region_steps(&self, _region: &str) -> Vec<SpawnStep> {
+        vec![SpawnStep {
+            id: GcpSpawnStepId::RegionSubnet.as_str().into(),
+            label: "Creating regional subnet".into(),
+        }]
+    }
+
+    async fn run_enable_region_step(&self, step_id: &str, region: &str) -> Result<()> {
+        self.run_spawn_step(step_id, region).await
+    }
+
     async fn spawn_instance(&self, params: &SpawnInstanceParams) -> Result<InstanceInfo> {
         let subnet_self_link = network::get_or_create_subnet(&self.client, params.region)
             .await

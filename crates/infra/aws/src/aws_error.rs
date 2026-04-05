@@ -1,6 +1,22 @@
 use aws_sdk_ssm::error::{ProvideErrorMetadata, SdkError};
 use byocvpn_core::error::Error;
 
+pub fn sdk_error_message<E>(error: &SdkError<E>) -> String
+where
+    E: ProvideErrorMetadata,
+{
+    match error {
+        SdkError::ServiceError(service_error) => {
+            let code = service_error.err().code().unwrap_or("UnknownError");
+            let message = service_error.err().message().unwrap_or("no message");
+            format!("{}: {}", code, message)
+        }
+        SdkError::TimeoutError(_) => "request timed out".to_string(),
+        SdkError::DispatchFailure(error) => format!("dispatch failure: {:?}", error),
+        other => format!("{}", other),
+    }
+}
+
 pub fn map_aws_error<E>(operation_name: &'static str, sdk_error: SdkError<E>) -> Error
 where
     E: std::error::Error + Send + Sync + 'static + ProvideErrorMetadata,

@@ -78,6 +78,22 @@ export const useCredentials = () => {
     }
   };
 
+  const deleteCredentials = async (
+    provider: "aws" | "oracle" | "gcp" | "azure",
+  ): Promise<boolean> => {
+    try {
+      await invoke("delete_credentials", { provider });
+      toast.success("Credentials deleted successfully!");
+      return true;
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to delete credentials";
+      toast.error(message);
+      console.error("Failed to delete credentials:", err);
+      return false;
+    }
+  };
+
   const clearError = () => setError(null);
   const clearSuccessMessage = () => setSuccessMessage(null);
 
@@ -87,6 +103,7 @@ export const useCredentials = () => {
     successMessage,
     loadCredentials,
     saveCredentials,
+    deleteCredentials,
     clearError,
     clearSuccessMessage,
   };

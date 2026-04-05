@@ -36,8 +36,13 @@ pub trait CloudProvider: Send + Sync {
     fn get_provider_name(&self) -> CloudProviderName;
 
     fn spawn_steps(&self, region: &str) -> Vec<SpawnStep>;
-
     async fn run_spawn_step(&self, step_id: &str, region: &str) -> Result<()>;
+
+    fn provision_account_steps(&self) -> Vec<SpawnStep>;
+    async fn run_provision_account_step(&self, step_id: &str) -> Result<()>;
+
+    fn enable_region_steps(&self, region: &str) -> Vec<SpawnStep>;
+    async fn run_enable_region_step(&self, step_id: &str, region: &str) -> Result<()>;
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -151,4 +156,54 @@ pub struct SpawnProgressEvent {
 pub struct SpawnCompleteEvent {
     pub job_id: String,
     pub instance: InstanceInfo,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProvisionAccountJob {
+    pub job_id: String,
+    pub steps: Vec<SpawnStep>,
+    pub provider: CloudProviderName,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProvisionAccountProgressEvent {
+    pub job_id: String,
+    pub step_id: String,
+    pub status: SpawnStepStatus,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProvisionAccountCompleteEvent {
+    pub job_id: String,
+    pub provider: CloudProviderName,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnableRegionJob {
+    pub job_id: String,
+    pub steps: Vec<SpawnStep>,
+    pub region: String,
+    pub provider: CloudProviderName,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnableRegionProgressEvent {
+    pub job_id: String,
+    pub step_id: String,
+    pub status: SpawnStepStatus,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnableRegionCompleteEvent {
+    pub job_id: String,
+    pub region: String,
+    pub provider: CloudProviderName,
 }

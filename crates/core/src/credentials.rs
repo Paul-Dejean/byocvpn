@@ -74,4 +74,7 @@ impl CredentialStore {
             })
     }
 
+    pub fn delete_section(&mut self, section: &str) {
+        self.ini.delete(Some(section));
+    }
 }

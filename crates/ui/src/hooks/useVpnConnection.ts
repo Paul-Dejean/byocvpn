@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import toast from "react-hot-toast";
 import { Instance } from "../types";
 
@@ -43,8 +44,13 @@ export const useVpnConnection = () => {
       setVpnStatus(event.payload);
     });
 
+    const unlistenFocusPromise = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+      if (focused) checkVpnStatus();
+    });
+
     return () => {
       unlistenPromise.then((unlisten) => unlisten());
+      unlistenFocusPromise.then((unlisten) => unlisten());
     };
   }, []);
 
