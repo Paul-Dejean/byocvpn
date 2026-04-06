@@ -77,6 +77,11 @@ jobs:
           mkdir -p target/release
           cp target/${{ matrix.rust_target }}/release/byocvpn_daemon target/release/byocvpn_daemon
 
+      - name: Verify daemon binary exists (Windows)
+        if: matrix.runner == 'windows-latest'
+        shell: pwsh
+        run: Get-Item "target\release\byocvpn_daemon.exe"
+
       - name: Create plist placeholder (non-macOS)
         if: "!startsWith(matrix.runner, 'macos')"
         run: touch scripts/com.byocvpn.daemon.plist
@@ -93,7 +98,7 @@ jobs:
           releaseName: ByocVPN ${{ github.ref_name }}
           releaseDraft: true
           prerelease: false
-          args: --target ${{ matrix.rust_target }}
+          args: --target ${{ matrix.rust_target }} --verbose
 
       - name: Install alien
         if: startsWith(matrix.runner, 'ubuntu')
