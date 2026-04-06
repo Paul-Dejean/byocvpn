@@ -4,7 +4,7 @@
     <DirectoryRef Id="INSTALLDIR">
       <Component Id="ByocVPNDaemonService" Guid="D4E5F6A7-B8C9-4012-ABCD-EF5678901234">
         <File Id="ByocVPNDaemonBinary"
-              Source="../../../target/release/byocvpn_daemon.exe"
+              Source="../../byocvpn_daemon.exe"
               Name="byocvpn-daemon.exe"
               KeyPath="yes" />
         <ServiceInstall

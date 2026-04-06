@@ -69,6 +69,8 @@ jobs:
           cargo build --locked --release -p byocvpn_daemon --manifest-path Cargo.toml --target ${{ matrix.rust_target }}
           New-Item -ItemType Directory -Force -Path "target\release" | Out-Null
           Copy-Item "target\${{ matrix.rust_target }}\release\byocvpn_daemon.exe" "target\release\byocvpn_daemon.exe"
+          New-Item -ItemType Directory -Force -Path "target\tauri\${{ matrix.rust_target }}\release" | Out-Null
+          Copy-Item "target\${{ matrix.rust_target }}\release\byocvpn_daemon.exe" "target\tauri\${{ matrix.rust_target }}\release\byocvpn_daemon.exe"
 
       - name: Pre-build daemon (non-Windows)
         if: matrix.runner != 'windows-latest'
