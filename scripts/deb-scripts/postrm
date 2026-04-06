@@ -1,0 +1,13 @@
+#!/bin/bash
+set -e
+
+systemctl daemon-reload || true
+
+if [ "$1" = "purge" ]; then
+    for user_home in /home/*/; do
+        rm -rf "$user_home/.byocvpn"
+    done
+    rm -rf /root/.byocvpn
+fi
+
+exit 0

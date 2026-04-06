@@ -1,0 +1,8 @@
+#!/bin/bash
+set -e
+
+systemctl daemon-reload
+systemctl enable byocvpn-daemon
+systemctl start byocvpn-daemon
+
+exit 0

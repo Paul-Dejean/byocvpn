@@ -1,5 +1,6 @@
 {
   "bundle": {
+    "targets": ["msi"],
     "windows": {
       "wix": {
         "fragmentPaths": ["wix/service.wxs"],

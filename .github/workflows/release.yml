@@ -95,6 +95,40 @@ jobs:
           prerelease: false
           args: --target ${{ matrix.rust_target }}
 
+      - name: Install alien
+        if: startsWith(matrix.runner, 'ubuntu')
+        run: sudo apt-get install -y alien
+
+      - name: Package and upload Linux release bundle
+        if: startsWith(matrix.runner, 'ubuntu')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(python3 -c 'import sys,json; print(json.load(open("crates/ui/src-tauri/tauri.conf.json"))["version"])')
+          case "${{ matrix.rust_target }}" in
+            x86_64-unknown-linux-gnu)   ARCH="x64" ;;
+            aarch64-unknown-linux-gnu)  ARCH="arm64" ;;
+          esac
+
+          DEB=$(find target/tauri -name "*.deb" | head -1)
+          dpkg-deb --raw-extract "$DEB" deb_repack
+          cp scripts/deb-scripts/postinst deb_repack/DEBIAN/postinst
+          cp scripts/deb-scripts/prerm    deb_repack/DEBIAN/prerm
+          cp scripts/deb-scripts/postrm   deb_repack/DEBIAN/postrm
+          chmod 755 deb_repack/DEBIAN/postinst deb_repack/DEBIAN/prerm deb_repack/DEBIAN/postrm
+          dpkg-deb --build deb_repack "$DEB"
+
+          sudo alien --to-rpm --scripts "$DEB"
+          RPM=$(find . -maxdepth 1 -name "*.rpm" | head -1)
+
+          BUNDLE_DIR="ByocVPN-Linux-${ARCH}-v${VERSION}"
+          mkdir "$BUNDLE_DIR"
+          cp "$DEB" "$BUNDLE_DIR/ByocVPN-Installer.deb"
+          cp "$RPM" "$BUNDLE_DIR/ByocVPN-Installer.rpm"
+          zip -r "$BUNDLE_DIR.zip" "$BUNDLE_DIR"
+
+          gh release upload "${{ github.ref_name }}" "$BUNDLE_DIR.zip" --clobber
+
       - name: Package and upload Windows release bundle
         if: matrix.runner == 'windows-latest'
         shell: pwsh
