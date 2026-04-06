@@ -1,3 +1,4 @@
+#[cfg(not(feature = "external-daemon"))]
 use std::path::Path;
 
 use async_trait::async_trait;
@@ -5,35 +6,73 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{ConfigurationError, Result};
 
-#[cfg(target_os = "macos")]
+#[cfg(feature = "external-daemon")]
 pub fn is_daemon_installed() -> bool {
-    let binary_name = if cfg!(debug_assertions) { "byocvpn-daemon-dev" } else { "byocvpn-daemon" };
-    let label = if cfg!(debug_assertions) { "com.byocvpn.daemon.dev" } else { "com.byocvpn.daemon" };
+    true
+}
+
+#[cfg(feature = "external-daemon")]
+pub fn install_daemon() -> Result<()> {
+    Ok(())
+}
+
+#[cfg(feature = "external-daemon")]
+pub fn uninstall_daemon() -> Result<()> {
+    remove_user_data()
+}
+
+#[cfg(all(target_os = "macos", not(feature = "external-daemon")))]
+pub fn is_daemon_installed() -> bool {
+    let binary_name = if cfg!(debug_assertions) {
+        "byocvpn-daemon-dev"
+    } else {
+        "byocvpn-daemon"
+    };
+    let label = if cfg!(debug_assertions) {
+        "com.byocvpn.daemon.dev"
+    } else {
+        "com.byocvpn.daemon"
+    };
     Path::new(&format!("/Library/PrivilegedHelperTools/{}", binary_name)).exists()
         && Path::new(&format!("/Library/LaunchDaemons/{}.plist", label)).exists()
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", not(feature = "external-daemon")))]
 pub fn install_daemon() -> Result<()> {
     let is_dev = cfg!(debug_assertions);
 
-    let installed_binary_name = if is_dev { "byocvpn-daemon-dev" } else { "byocvpn-daemon" };
-    let plist_name = if is_dev { "com.byocvpn.daemon.dev.plist" } else { "com.byocvpn.daemon.plist" };
-    let label = if is_dev { "com.byocvpn.daemon.dev" } else { "com.byocvpn.daemon" };
+    let installed_binary_name = if is_dev {
+        "byocvpn-daemon-dev"
+    } else {
+        "byocvpn-daemon"
+    };
+    let plist_name = if is_dev {
+        "com.byocvpn.daemon.dev.plist"
+    } else {
+        "com.byocvpn.daemon.plist"
+    };
+    let label = if is_dev {
+        "com.byocvpn.daemon.dev"
+    } else {
+        "com.byocvpn.daemon"
+    };
     let build_dir = if is_dev { "debug" } else { "release" };
 
-    let current_executable_path = std::env::current_exe()
-        .map_err(|error| ConfigurationError::InvalidFile { reason: error.to_string() })?;
+    let current_executable_path =
+        std::env::current_exe().map_err(|error| ConfigurationError::InvalidFile {
+            reason: error.to_string(),
+        })?;
 
     let workspace_root = current_executable_path
         .ancestors()
         .find(|path| path.join("Cargo.toml").exists());
 
-    let exe_dir = current_executable_path
-        .parent()
-        .ok_or_else(|| ConfigurationError::FileNotFound {
-            path: "executable directory".to_string(),
-        })?;
+    let exe_dir =
+        current_executable_path
+            .parent()
+            .ok_or_else(|| ConfigurationError::FileNotFound {
+                path: "executable directory".to_string(),
+            })?;
 
     let daemon_binary_path = [
         exe_dir
@@ -63,7 +102,9 @@ pub fn install_daemon() -> Result<()> {
     ]
     .into_iter()
     .find(|path| path.exists())
-    .ok_or_else(|| ConfigurationError::FileNotFound { path: plist_name.to_string() })?;
+    .ok_or_else(|| ConfigurationError::FileNotFound {
+        path: plist_name.to_string(),
+    })?;
 
     let script = format!(
         r#"do shell script "
@@ -86,7 +127,9 @@ pub fn install_daemon() -> Result<()> {
         .arg("-e")
         .arg(&script)
         .output()
-        .map_err(|error| ConfigurationError::InvalidFile { reason: error.to_string() })?;
+        .map_err(|error| ConfigurationError::InvalidFile {
+            reason: error.to_string(),
+        })?;
 
     if output.status.success() {
         Ok(())
@@ -101,40 +144,54 @@ pub fn install_daemon() -> Result<()> {
     }
 }
 
-#[cfg(windows)]
+#[cfg(all(windows, not(feature = "external-daemon")))]
 pub fn is_daemon_installed() -> bool {
-    let service_name =
-        if cfg!(debug_assertions) { "byocvpn-daemon-dev" } else { "byocvpn-daemon" };
+    let service_name = if cfg!(debug_assertions) {
+        "byocvpn-daemon-dev"
+    } else {
+        "byocvpn-daemon"
+    };
     matches!(
         std::process::Command::new("sc").args(["query", service_name]).output(),
         Ok(output) if output.status.success()
     )
 }
 
-#[cfg(windows)]
+#[cfg(all(windows, not(feature = "external-daemon")))]
 pub fn install_daemon() -> Result<()> {
     let is_dev = cfg!(debug_assertions);
-    let service_name = if is_dev { "byocvpn-daemon-dev" } else { "byocvpn-daemon" };
+    let service_name = if is_dev {
+        "byocvpn-daemon-dev"
+    } else {
+        "byocvpn-daemon"
+    };
     let build_dir = if is_dev { "debug" } else { "release" };
 
-    let current_executable_path = std::env::current_exe()
-        .map_err(|error| ConfigurationError::InvalidFile { reason: error.to_string() })?;
+    let current_executable_path =
+        std::env::current_exe().map_err(|error| ConfigurationError::InvalidFile {
+            reason: error.to_string(),
+        })?;
 
     let workspace_root = current_executable_path
         .ancestors()
         .find(|path| path.join("Cargo.toml").exists());
 
-    let exe_dir = current_executable_path
-        .parent()
-        .ok_or_else(|| ConfigurationError::FileNotFound {
-            path: "executable directory".to_string(),
-        })?;
+    let exe_dir =
+        current_executable_path
+            .parent()
+            .ok_or_else(|| ConfigurationError::FileNotFound {
+                path: "executable directory".to_string(),
+            })?;
 
     let daemon_binary_path = [
         exe_dir.join("byocvpn_daemon.exe"),
         exe_dir.join("byocvpn-daemon.exe"),
         workspace_root
-            .map(|root| root.join("target").join(build_dir).join("byocvpn_daemon.exe"))
+            .map(|root| {
+                root.join("target")
+                    .join(build_dir)
+                    .join("byocvpn_daemon.exe")
+            })
             .unwrap_or_default(),
     ]
     .into_iter()
@@ -156,8 +213,11 @@ pub fn install_daemon() -> Result<()> {
     );
 
     let temp_script = std::env::temp_dir().join("byocvpn_install.ps1");
-    std::fs::write(&temp_script, &script_content)
-        .map_err(|error| ConfigurationError::InvalidFile { reason: error.to_string() })?;
+    std::fs::write(&temp_script, &script_content).map_err(|error| {
+        ConfigurationError::InvalidFile {
+            reason: error.to_string(),
+        }
+    })?;
 
     let output = std::process::Command::new("powershell")
         .args([
@@ -186,32 +246,42 @@ pub fn install_daemon() -> Result<()> {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(feature = "external-daemon")))]
 pub fn is_daemon_installed() -> bool {
-    let service_name =
-        if cfg!(debug_assertions) { "byocvpn-daemon-dev" } else { "byocvpn-daemon" };
+    let service_name = if cfg!(debug_assertions) {
+        "byocvpn-daemon-dev"
+    } else {
+        "byocvpn-daemon"
+    };
     Path::new(&format!("/etc/systemd/system/{}.service", service_name)).exists()
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(feature = "external-daemon")))]
 pub fn install_daemon() -> Result<()> {
     let is_dev = cfg!(debug_assertions);
-    let service_name = if is_dev { "byocvpn-daemon-dev" } else { "byocvpn-daemon" };
+    let service_name = if is_dev {
+        "byocvpn-daemon-dev"
+    } else {
+        "byocvpn-daemon"
+    };
     let installed_binary_name = service_name;
     let build_dir = if is_dev { "debug" } else { "release" };
 
-    let current_executable_path = std::env::current_exe()
-        .map_err(|error| ConfigurationError::InvalidFile { reason: error.to_string() })?;
+    let current_executable_path =
+        std::env::current_exe().map_err(|error| ConfigurationError::InvalidFile {
+            reason: error.to_string(),
+        })?;
 
     let workspace_root = current_executable_path
         .ancestors()
         .find(|path| path.join("Cargo.toml").exists());
 
-    let exe_dir = current_executable_path
-        .parent()
-        .ok_or_else(|| ConfigurationError::FileNotFound {
-            path: "executable directory".to_string(),
-        })?;
+    let exe_dir =
+        current_executable_path
+            .parent()
+            .ok_or_else(|| ConfigurationError::FileNotFound {
+                path: "executable directory".to_string(),
+            })?;
 
     let daemon_binary_path = [
         exe_dir.join(installed_binary_name),
@@ -245,13 +315,18 @@ pub fn install_daemon() -> Result<()> {
     );
 
     let temp_script = std::env::temp_dir().join("byocvpn_install.sh");
-    std::fs::write(&temp_script, &script_content)
-        .map_err(|error| ConfigurationError::InvalidFile { reason: error.to_string() })?;
+    std::fs::write(&temp_script, &script_content).map_err(|error| {
+        ConfigurationError::InvalidFile {
+            reason: error.to_string(),
+        }
+    })?;
 
     let output = std::process::Command::new("pkexec")
         .args(["bash", &temp_script.display().to_string()])
         .output()
-        .map_err(|error| ConfigurationError::InvalidFile { reason: error.to_string() })?;
+        .map_err(|error| ConfigurationError::InvalidFile {
+            reason: error.to_string(),
+        })?;
 
     let _ = std::fs::remove_file(&temp_script);
 
@@ -268,10 +343,18 @@ pub fn install_daemon() -> Result<()> {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", not(feature = "external-daemon")))]
 pub fn uninstall_daemon() -> Result<()> {
-    let binary_name = if cfg!(debug_assertions) { "byocvpn-daemon-dev" } else { "byocvpn-daemon" };
-    let label = if cfg!(debug_assertions) { "com.byocvpn.daemon.dev" } else { "com.byocvpn.daemon" };
+    let binary_name = if cfg!(debug_assertions) {
+        "byocvpn-daemon-dev"
+    } else {
+        "byocvpn-daemon"
+    };
+    let label = if cfg!(debug_assertions) {
+        "com.byocvpn.daemon.dev"
+    } else {
+        "com.byocvpn.daemon"
+    };
 
     let script = format!(
         r#"do shell script "
@@ -287,7 +370,9 @@ pub fn uninstall_daemon() -> Result<()> {
         .arg("-e")
         .arg(&script)
         .output()
-        .map_err(|error| ConfigurationError::InvalidFile { reason: error.to_string() })?;
+        .map_err(|error| ConfigurationError::InvalidFile {
+            reason: error.to_string(),
+        })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -302,10 +387,13 @@ pub fn uninstall_daemon() -> Result<()> {
     remove_user_data()
 }
 
-#[cfg(windows)]
+#[cfg(all(windows, not(feature = "external-daemon")))]
 pub fn uninstall_daemon() -> Result<()> {
-    let service_name =
-        if cfg!(debug_assertions) { "byocvpn-daemon-dev" } else { "byocvpn-daemon" };
+    let service_name = if cfg!(debug_assertions) {
+        "byocvpn-daemon-dev"
+    } else {
+        "byocvpn-daemon"
+    };
 
     let script_content = format!(
         "sc.exe stop {service_name}\r\nsc.exe delete {service_name}\r\nRemove-Item -Force -ErrorAction SilentlyContinue 'C:\\Program Files\\byocvpn\\byocvpn-daemon.exe'\r\n",
@@ -313,8 +401,11 @@ pub fn uninstall_daemon() -> Result<()> {
     );
 
     let temp_script = std::env::temp_dir().join("byocvpn_uninstall.ps1");
-    std::fs::write(&temp_script, &script_content)
-        .map_err(|error| ConfigurationError::InvalidFile { reason: error.to_string() })?;
+    std::fs::write(&temp_script, &script_content).map_err(|error| {
+        ConfigurationError::InvalidFile {
+            reason: error.to_string(),
+        }
+    })?;
 
     let output = std::process::Command::new("powershell")
         .args([
@@ -343,10 +434,13 @@ pub fn uninstall_daemon() -> Result<()> {
     remove_user_data()
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(feature = "external-daemon")))]
 pub fn uninstall_daemon() -> Result<()> {
-    let service_name =
-        if cfg!(debug_assertions) { "byocvpn-daemon-dev" } else { "byocvpn-daemon" };
+    let service_name = if cfg!(debug_assertions) {
+        "byocvpn-daemon-dev"
+    } else {
+        "byocvpn-daemon"
+    };
     let script_content = format!(
         "systemctl stop {service_name}\nsystemctl disable {service_name}\nrm -f /etc/systemd/system/{service_name}.service\nrm -f /usr/local/bin/{service_name}\nsystemctl daemon-reload\n",
         service_name = service_name,
@@ -354,13 +448,18 @@ pub fn uninstall_daemon() -> Result<()> {
     let script_content = script_content.as_str();
 
     let temp_script = std::env::temp_dir().join("byocvpn_uninstall.sh");
-    std::fs::write(&temp_script, script_content)
-        .map_err(|error| ConfigurationError::InvalidFile { reason: error.to_string() })?;
+    std::fs::write(&temp_script, script_content).map_err(|error| {
+        ConfigurationError::InvalidFile {
+            reason: error.to_string(),
+        }
+    })?;
 
     let output = std::process::Command::new("pkexec")
         .args(["bash", &temp_script.display().to_string()])
         .output()
-        .map_err(|error| ConfigurationError::InvalidFile { reason: error.to_string() })?;
+        .map_err(|error| ConfigurationError::InvalidFile {
+            reason: error.to_string(),
+        })?;
 
     let _ = std::fs::remove_file(&temp_script);
 
@@ -378,12 +477,12 @@ pub fn uninstall_daemon() -> Result<()> {
 }
 
 fn remove_user_data() -> Result<()> {
-    let home_dir = dirs::home_dir()
-        .ok_or_else(|| ConfigurationError::HomeDirectoryNotAvailable)?;
+    let home_dir = dirs::home_dir().ok_or_else(|| ConfigurationError::HomeDirectoryNotAvailable)?;
     let byocvpn_dir = home_dir.join(".byocvpn");
     if byocvpn_dir.exists() {
-        std::fs::remove_dir_all(&byocvpn_dir)
-            .map_err(|error| ConfigurationError::InvalidFile { reason: error.to_string() })?;
+        std::fs::remove_dir_all(&byocvpn_dir).map_err(|error| ConfigurationError::InvalidFile {
+            reason: error.to_string(),
+        })?;
     }
     Ok(())
 }

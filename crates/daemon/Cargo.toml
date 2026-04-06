@@ -3,6 +3,9 @@ name = "byocvpn_daemon"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+external-daemon = []
+
 [dependencies]
 async-trait = { workspace = true }
 byocvpn_core = { path = "../core" }

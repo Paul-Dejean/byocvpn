@@ -33,7 +33,17 @@ impl DaemonClient for UnixDaemonClient {
                 reason: "daemon closed connection without response".to_string(),
             }
         })?;
-        Ok(response)
+
+        if let Some(data) = response.strip_prefix("ok:") {
+            Ok(data.to_string())
+        } else if let Some(error) = response.strip_prefix("err:") {
+            Err(DaemonError::CommandFailed { command: error.to_string() }.into())
+        } else {
+            Err(DaemonError::InvalidResponse {
+                reason: format!("missing ok:/err: prefix: {}", response),
+            }
+            .into())
+        }
     }
 
     async fn is_daemon_running(&self) -> bool {

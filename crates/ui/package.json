@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "cross-env CARGO_TARGET_DIR=../../../target/tauri tauri"
+    "tauri": "cross-env CARGO_TARGET_DIR=../../../target/tauri tauri",
+    "tauri:dev": "cargo build -p byocvpn_daemon --manifest-path ../../Cargo.toml && cross-env CARGO_TARGET_DIR=../../../target/tauri tauri dev",
+    "tauri:dev:external-daemon": "cross-env CARGO_TARGET_DIR=../../../target/tauri tauri dev -- --features external-daemon",
+    "tauri:build": "cross-env CARGO_TARGET_DIR=../../../target/tauri tauri build"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.10",

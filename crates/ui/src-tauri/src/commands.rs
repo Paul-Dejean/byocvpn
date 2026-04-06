@@ -335,7 +335,9 @@ pub async fn provision_account(
 
         match result {
             Ok(()) => {
-                if let Some(provider_store) = crate::provider_store::ProviderStore::open(&app_handle) {
+                if let Some(provider_store) =
+                    crate::provider_store::ProviderStore::open(&app_handle)
+                {
                     provider_store.mark_provisioned(&provider);
                 }
                 let _ = app_handle.emit(
@@ -401,7 +403,9 @@ pub async fn enable_region(
 
         match result {
             Ok(()) => {
-                if let Some(provider_store) = crate::provider_store::ProviderStore::open(&app_handle) {
+                if let Some(provider_store) =
+                    crate::provider_store::ProviderStore::open(&app_handle)
+                {
                     provider_store.mark_region_enabled(&provider, &region);
                 }
                 let _ = app_handle.emit(

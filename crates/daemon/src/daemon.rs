@@ -37,14 +37,13 @@ pub async fn run_daemon() -> Result<()> {
                     info!("Daemon received connect: {config_path}");
                     match connect_vpn(config_path).await {
                         Ok(_) => {
-                            if stream.send_message("Connected!").await.is_err() {
+                            if stream.send_message("ok:connected").await.is_err() {
                                 error!("Failed to send response to client");
                             }
                         }
                         Err(e) => {
-                            let error_msg = format!("Connect error: {}", e);
-                            error!("{}", error_msg);
-                            if stream.send_message(&error_msg).await.is_err() {
+                            error!("Connect error: {}", e);
+                            if stream.send_message(&format!("err:{}", e)).await.is_err() {
                                 error!("Failed to send error response to client");
                             }
                         }
@@ -52,14 +51,13 @@ pub async fn run_daemon() -> Result<()> {
                 }
                 Ok(DaemonCommand::Disconnect) => match disconnect_vpn().await {
                     Ok(_) => {
-                        if stream.send_message("Disconnected.").await.is_err() {
+                        if stream.send_message("ok:disconnected").await.is_err() {
                             error!("Failed to send response to client");
                         }
                     }
                     Err(e) => {
-                        let error_msg = format!("Disconnect error: {}", e);
-                        error!("{}", error_msg);
-                        if stream.send_message(&error_msg).await.is_err() {
+                        error!("Disconnect error: {}", e);
+                        if stream.send_message(&format!("err:{}", e)).await.is_err() {
                             error!("Failed to send error response to client");
                         }
                     }
@@ -67,22 +65,20 @@ pub async fn run_daemon() -> Result<()> {
                 Ok(DaemonCommand::Status) => match get_vpn_status().await {
                     Ok(status) => match serde_json::to_string(&status) {
                         Ok(json) => {
-                            if stream.send_message(&json).await.is_err() {
+                            if stream.send_message(&format!("ok:{}", json)).await.is_err() {
                                 error!("Failed to send status response to client");
                             }
                         }
                         Err(e) => {
-                            let error_msg = format!("Status serialization error: {}", e);
-                            error!("{}", error_msg);
-                            if stream.send_message(&error_msg).await.is_err() {
+                            error!("Status serialization error: {}", e);
+                            if stream.send_message(&format!("err:{}", e)).await.is_err() {
                                 error!("Failed to send error response to client");
                             }
                         }
                     },
                     Err(e) => {
-                        let error_msg = format!("Status error: {}", e);
-                        error!("{}", error_msg);
-                        if stream.send_message(&error_msg).await.is_err() {
+                        error!("Status error: {}", e);
+                        if stream.send_message(&format!("err:{}", e)).await.is_err() {
                             error!("Failed to send error response to client");
                         }
                     }
@@ -90,30 +86,28 @@ pub async fn run_daemon() -> Result<()> {
                 Ok(DaemonCommand::Stats) => {
                     let stats = get_current_metrics().await;
                     match serde_json::to_string(&stats) {
-                        Ok(response) => {
-                            if stream.send_message(&response).await.is_err() {
+                        Ok(json) => {
+                            if stream.send_message(&format!("ok:{}", json)).await.is_err() {
                                 error!("Failed to send stats response to client");
                             }
                         }
                         Err(e) => {
-                            let error_msg = format!("Stats serialization error: {}", e);
-                            error!("{}", error_msg);
-                            if stream.send_message("null").await.is_err() {
+                            error!("Stats serialization error: {}", e);
+                            if stream.send_message(&format!("err:{}", e)).await.is_err() {
                                 error!("Failed to send error response to client");
                             }
                         }
                     }
                 }
                 Ok(DaemonCommand::HealthCheck) => {
-                    if stream.send_message("healthy").await.is_err() {
+                    if stream.send_message("ok:healthy").await.is_err() {
                         error!("Failed to send health response to client");
                     }
                 }
 
                 Err(e) => {
-                    let error_msg = format!("Invalid command: {}", e);
-                    error!("{}", error_msg);
-                    if stream.send_message(&error_msg).await.is_err() {
+                    error!("Invalid command: {}", e);
+                    if stream.send_message(&format!("err:{}", e)).await.is_err() {
                         error!("Failed to send error response to client");
                     }
                 }
