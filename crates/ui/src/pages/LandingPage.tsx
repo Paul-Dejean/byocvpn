@@ -1,18 +1,15 @@
 import { useState, useEffect } from "react";
-import { useProfile } from "../hooks";
 import { Page } from "../types/pages";
 
 export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
   const [isVisible, setIsVisible] = useState(false);
-  const { isChecking, checkProfile } = useProfile();
 
   useEffect(() => {
     setIsVisible(true);
   }, []);
 
-  const handleGetStarted = async () => {
-    const hasProfile = await checkProfile();
-    setPage(hasProfile ? Page.VPN : Page.SETUP);
+  const handleGetStarted = () => {
+    setPage(Page.VPN);
   };
 
   return (
@@ -63,32 +60,22 @@ export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
             {}
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
-                className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-all duration-300 transform hover:scale-105 font-medium flex items-center justify-center shadow-lg shadow-blue-600/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-all duration-300 transform hover:scale-105 font-medium flex items-center justify-center shadow-lg shadow-blue-600/30"
                 onClick={handleGetStarted}
-                disabled={isChecking}
               >
-                {isChecking ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                    <span>Checking...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Get Started</span>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5 ml-2"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </>
-                )}
+                <span>Get Started</span>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 ml-2"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
               </button>
             </div>
           </div>

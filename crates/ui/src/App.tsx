@@ -4,7 +4,6 @@ import { Toaster } from "react-hot-toast";
 import "./App.css";
 import {
   VpnPage,
-  SetupPage,
   LandingPage,
   SettingsPage,
   PricingPage,
@@ -43,7 +42,6 @@ function App() {
           }}
         />
         {page === Page.LANDING && <LandingPage setPage={setPage} />}
-        {page === Page.SETUP && <SetupPage setPage={setPage} />}
         {page === Page.SETTINGS && (
           <SettingsPage onNavigateBack={() => setPage(Page.VPN)} />
         )}
