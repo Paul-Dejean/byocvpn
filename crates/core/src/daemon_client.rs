@@ -41,136 +41,24 @@ pub fn install_daemon() -> Result<()> {
 
 #[cfg(all(windows, not(feature = "external-daemon")))]
 pub fn is_daemon_installed() -> bool {
-    let service_name = if cfg!(debug_assertions) {
-        "byocvpn-daemon-dev"
-    } else {
-        "byocvpn-daemon"
-    };
-    matches!(
-        std::process::Command::new("sc").args(["query", service_name]).output(),
-        Ok(output) if output.status.success()
-    )
+    #[cfg(not(debug_assertions))]
+    {
+        return true;
+    }
+    #[cfg(debug_assertions)]
+    {
+        matches!(
+            std::process::Command::new("sc")
+                .args(["query", "byocvpn-daemon-dev"])
+                .output(),
+            Ok(output) if output.status.success()
+        )
+    }
 }
 
 #[cfg(all(windows, not(feature = "external-daemon")))]
 pub fn install_daemon() -> Result<()> {
-    let is_dev = cfg!(debug_assertions);
-    let service_name = if is_dev {
-        "byocvpn-daemon-dev"
-    } else {
-        "byocvpn-daemon"
-    };
-    let build_dir = if is_dev { "debug" } else { "release" };
-
-    let current_executable_path =
-        std::env::current_exe().map_err(|error| ConfigurationError::InvalidFile {
-            reason: error.to_string(),
-        })?;
-
-    let workspace_root = current_executable_path
-        .ancestors()
-        .find(|path| path.join("Cargo.toml").exists());
-
-    let exe_dir =
-        current_executable_path
-            .parent()
-            .ok_or_else(|| ConfigurationError::FileNotFound {
-                path: "executable directory".to_string(),
-            })?;
-
-    let daemon_binary_path = [
-        workspace_root
-            .map(|root| {
-                root.join("target")
-                    .join(build_dir)
-                    .join("byocvpn_daemon.exe")
-            })
-            .unwrap_or_default(),
-        exe_dir.join("byocvpn_daemon.exe"),
-        exe_dir.join("byocvpn-daemon.exe"),
-        workspace_root
-            .map(|root| {
-                root.join("target")
-                    .join(build_dir)
-                    .join("byocvpn_daemon.exe")
-            })
-            .unwrap_or_default(),
-    ]
-    .into_iter()
-    .find(|path| path.exists())
-    .ok_or_else(|| ConfigurationError::FileNotFound {
-        path: format!("target/{}/byocvpn_daemon.exe", build_dir),
-    })?;
-
-    let install_dir = if is_dev {
-        r"C:\Program Files\byocvpn-dev"
-    } else {
-        r"C:\Program Files\byocvpn"
-    };
-    let installed_binary = format!(r"{}\byocvpn-daemon.exe", install_dir);
-    let daemon_src = daemon_binary_path.display().to_string();
-
-    let wintun_src = daemon_binary_path
-        .parent()
-        .map(|dir| dir.join("wintun.dll"))
-        .filter(|path| path.exists())
-        .map(|path| path.display().to_string())
-        .unwrap_or_default();
-    let wintun_dst = format!(r"{}\wintun.dll", install_dir);
-
-    let wintun_copy = if !wintun_src.is_empty() {
-        format!(
-            "  Copy-Item -Path '{src}' -Destination '{dst}' -Force\r\n",
-            src = wintun_src,
-            dst = wintun_dst,
-        )
-    } else {
-        String::new()
-    };
-
-    let log_file = format!(r"{}\install.log", install_dir);
-    let script_content = format!(
-        "try {{\r\n  $svc = Get-Service -Name '{service_name}' -ErrorAction SilentlyContinue\r\n  if ($svc) {{\r\n    sc.exe stop {service_name} 2>$null\r\n    Start-Sleep -Seconds 2\r\n    sc.exe delete {service_name} 2>$null\r\n    Start-Sleep -Seconds 1\r\n  }}\r\n  New-Item -ItemType Directory -Force -Path '{install_dir}'\r\n  Copy-Item -Path '{src}' -Destination '{dst}' -Force\r\n{wintun_copy}  sc.exe create {service_name} binPath= '{dst} --service' start= auto DisplayName= 'byocvpn Daemon'\r\n  sc.exe start {service_name}\r\n  'Installation succeeded' | Out-File -FilePath '{log}' -Append\r\n  Write-Host 'Installation succeeded' -ForegroundColor Green\r\n}} catch {{\r\n  $_.Exception.Message | Out-File -FilePath '{log}' -Append\r\n  Write-Host \"Error: $($_.Exception.Message)\" -ForegroundColor Red\r\n}}\r\nWrite-Host ''\r\nRead-Host 'Press Enter to close'\r\n",
-        install_dir = install_dir,
-        src = daemon_src,
-        dst = installed_binary,
-        wintun_copy = wintun_copy,
-        service_name = service_name,
-        log = log_file,
-    );
-
-    let temp_script = std::env::temp_dir().join("byocvpn_install.ps1");
-    std::fs::write(&temp_script, &script_content).map_err(|error| {
-        ConfigurationError::InvalidFile {
-            reason: error.to_string(),
-        }
-    })?;
-
-    let output = std::process::Command::new("powershell")
-        .args([
-            "-NoProfile",
-            "-Command",
-            &format!(
-                "Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File \"{}\"' -Verb RunAs -Wait",
-                temp_script.display()
-            ),
-        ])
-        .output()
-        .map_err(|error| ConfigurationError::InvalidFile { reason: error.to_string() })?;
-
-    let _ = std::fs::remove_file(&temp_script);
-
-    if output.status.success() {
-        Ok(())
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        let detail = if !stderr.is_empty() { stderr } else { stdout };
-        Err(ConfigurationError::InvalidFile {
-            reason: format!("daemon installation failed: {}", detail.trim()),
-        }
-        .into())
-    }
+    Ok(())
 }
 
 #[cfg(all(target_os = "linux", not(feature = "external-daemon")))]
@@ -277,54 +165,6 @@ pub fn uninstall_daemon() -> Result<()> {
 
 #[cfg(all(windows, not(feature = "external-daemon")))]
 pub fn uninstall_daemon() -> Result<()> {
-    let service_name = if cfg!(debug_assertions) {
-        "byocvpn-daemon-dev"
-    } else {
-        "byocvpn-daemon"
-    };
-
-    let install_dir = if cfg!(debug_assertions) {
-        r"C:\Program Files\byocvpn-dev"
-    } else {
-        r"C:\Program Files\byocvpn"
-    };
-    let script_content = format!(
-        "sc.exe stop {service_name}\r\nsc.exe delete {service_name}\r\nRemove-Item -Recurse -Force -ErrorAction SilentlyContinue '{install_dir}'\r\n",
-        service_name = service_name,
-        install_dir = install_dir,
-    );
-
-    let temp_script = std::env::temp_dir().join("byocvpn_uninstall.ps1");
-    std::fs::write(&temp_script, &script_content).map_err(|error| {
-        ConfigurationError::InvalidFile {
-            reason: error.to_string(),
-        }
-    })?;
-
-    let output = std::process::Command::new("powershell")
-        .args([
-            "-NoProfile",
-            "-Command",
-            &format!(
-                "Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File \"{}\"' -Verb RunAs -Wait",
-                temp_script.display()
-            ),
-        ])
-        .output()
-        .map_err(|error| ConfigurationError::InvalidFile { reason: error.to_string() })?;
-
-    let _ = std::fs::remove_file(&temp_script);
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        let detail = if !stderr.is_empty() { stderr } else { stdout };
-        return Err(ConfigurationError::InvalidFile {
-            reason: format!("daemon uninstall failed: {}", detail.trim()),
-        }
-        .into());
-    }
-
     remove_user_data()
 }
 

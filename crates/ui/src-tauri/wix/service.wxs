@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="ByocVPNDaemonService" Guid="D4E5F6A7-B8C9-4012-ABCD-EF5678901234">
+        <File Id="ByocVPNDaemonBinary"
+              Source="../../../target/release/byocvpn_daemon.exe"
+              Name="byocvpn-daemon.exe"
+              KeyPath="yes" />
+        <ServiceInstall
+          Id="ByocVPNDaemonInstall"
+          Name="byocvpn-daemon"
+          DisplayName="ByocVPN Daemon"
+          Description="ByocVPN background service for VPN tunnel management"
+          Type="ownProcess"
+          Start="auto"
+          Account="LocalSystem"
+          ErrorControl="ignore" />
+        <ServiceControl
+          Id="ByocVPNDaemonControl"
+          Name="byocvpn-daemon"
+          Start="install"
+          Stop="both"
+          Remove="uninstall"
+          Wait="yes" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+</Wix>
