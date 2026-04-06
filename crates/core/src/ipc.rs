@@ -48,6 +48,7 @@ impl IpcSocket {
         {
             let server = ServerOptions::new()
                 .first_pipe_instance(true)
+                .max_instances(10)
                 .create(&path)
                 .map_err(|error| DaemonError::SocketError {
                     reason: format!(
@@ -79,7 +80,7 @@ impl IpcSocket {
                 reason: format!("failed to accept named pipe connection: {}", error),
             })?;
             let next_server =
-                ServerOptions::new().create(&self.path).map_err(|error| {
+                ServerOptions::new().max_instances(10).create(&self.path).map_err(|error| {
                     DaemonError::SocketError {
                         reason: format!(
                             "failed to create next named pipe instance: {}",
