@@ -13,5 +13,4 @@ export type {
   GcpCredentials,
   AzureCredentials,
 } from "./useCredentials";
-export { useDaemonInstaller } from "./useDaemonInstaller";
 export { useLedger } from "./useLedger";
