@@ -1,27 +1,16 @@
 import { useState, useEffect } from "react";
 import { useProfile } from "../hooks";
-import { useDaemonInstaller } from "../hooks/useDaemonInstaller";
 import { Page } from "../types/pages";
 
 export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
   const [isVisible, setIsVisible] = useState(false);
-  const { isChecking: isCheckingProfile, checkProfile } = useProfile();
-  const { isChecking: isCheckingDaemon, checkDaemonInstalled } =
-    useDaemonInstaller();
+  const { isChecking, checkProfile } = useProfile();
 
   useEffect(() => {
     setIsVisible(true);
   }, []);
 
-  const isChecking = isCheckingProfile || isCheckingDaemon;
-
   const handleGetStarted = async () => {
-    const isDaemonInstalled = await checkDaemonInstalled();
-    if (!isDaemonInstalled) {
-      setPage(Page.DAEMON_SETUP);
-      return;
-    }
-
     const hasProfile = await checkProfile();
     setPage(hasProfile ? Page.VPN : Page.SETUP);
   };

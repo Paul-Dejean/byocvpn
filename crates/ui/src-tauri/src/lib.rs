@@ -27,9 +27,6 @@ pub fn run() {
             commands::subscribe_to_vpn_status,
             commands::get_instance_pricing,
             commands::get_ledger,
-            commands::is_daemon_installed,
-            commands::install_daemon,
-            commands::uninstall_app,
         ]);
 
     builder

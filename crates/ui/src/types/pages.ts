@@ -1,6 +1,5 @@
 export enum Page {
   LANDING = "LANDING",
-  DAEMON_SETUP = "DAEMON_SETUP",
   SETUP = "SETUP",
   VPN = "VPN",
   PRICING = "PRICING",
