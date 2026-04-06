@@ -1,12 +1,9 @@
 {
   "bundle": {
-    "targets": ["pkg"],
+    "targets": ["app"],
     "resources": {
       "../../../target/release/byocvpn_daemon": "byocvpn-daemon",
       "../../../scripts/com.byocvpn.daemon.plist": "com.byocvpn.daemon.plist"
-    },
-    "macOS": {
-      "scripts": "../../../scripts/pkg-scripts"
     }
   }
 }

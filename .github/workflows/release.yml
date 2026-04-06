@@ -162,7 +162,16 @@ jobs:
             --install-location / \
             ByocVPN-Uninstaller.pkg
 
-          INSTALLER_PKG=$(find target/tauri -name "*.pkg" | head -1)
+          APP=$(find target/tauri -name "*.app" | head -1)
+          pkgbuild \
+            --component "$APP" \
+            --scripts scripts/pkg-scripts \
+            --identifier com.byocvpn.app \
+            --version "$VERSION" \
+            --install-location /Applications \
+            ByocVPN-Installer.pkg
+
+          INSTALLER_PKG=ByocVPN-Installer.pkg
 
           BUNDLE_DIR="ByocVPN-macOS-${ARCH}-v${VERSION}"
           mkdir "$BUNDLE_DIR"
