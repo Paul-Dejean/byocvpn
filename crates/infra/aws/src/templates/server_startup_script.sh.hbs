@@ -1,16 +1,52 @@
 #!/bin/bash
-dnf install -y wireguard-tools iptables-services socat
+# Amazon Linux cloud-init user-data — runs as root on first boot via cloud-init.
+# Output is logged to /var/log/byocvpn-setup.log and the serial console.
+exec > >(tee /dev/console /var/log/byocvpn-setup.log) 2>&1
+set -xe
 
-cat>/etc/wireguard/wg0.conf<<'EOF'
+dnf install -y wireguard-tools iptables socat
+
+# Detect the default network interface (enX0 on Nitro, eth0 on older instances).
+DEFAULT_IFACE=$(ip route show default | awk '/default/ {print $5; exit}')
+echo "[byocvpn] Default interface: $DEFAULT_IFACE"
+
+# Write the WireGuard config with the real interface name substituted.
+sed "s/__DEFAULT_IFACE__/$DEFAULT_IFACE/g" >/etc/wireguard/wg0.conf <<'EOF'
 {{{wg_config}}}
 EOF
 
+echo "[byocvpn] WireGuard config written:"
+cat /etc/wireguard/wg0.conf
+
+# Save the IPv6 default route before enabling forwarding (enabling forwarding
+# may cause the kernel to ignore RAs, which drops the default route).
+IPV6_GW=$(ip -6 route show default 2>/dev/null | awk '/default/ {print $3; exit}')
+IPV6_GW_DEV=$(ip -6 route show default 2>/dev/null | awk '/default/ {print $5; exit}')
+echo "[byocvpn] IPv6 default gateway: $IPV6_GW dev $IPV6_GW_DEV"
+
+# Set accept_ra=2 so forwarding and RA acceptance can coexist.
+sysctl -w net.ipv6.conf.all.accept_ra=2
+sysctl -w net.ipv6.conf.default.accept_ra=2
+
 echo "net.ipv4.ip_forward=1">>/etc/sysctl.conf
 echo "net.ipv6.conf.all.forwarding=1">>/etc/sysctl.conf
+echo "net.ipv6.conf.all.accept_ra=2">>/etc/sysctl.conf
 sysctl -p
+
+# Restore the IPv6 default route if forwarding transition dropped it.
+if [ -n "$IPV6_GW" ] && ! ip -6 route show default 2>/dev/null | grep -q "default"; then
+    ip -6 route add default via "$IPV6_GW" dev "$IPV6_GW_DEV" || true
+    echo "[byocvpn] Restored IPv6 default route via $IPV6_GW dev $IPV6_GW_DEV"
+else
+    echo "[byocvpn] IPv6 default route intact."
+fi
 
 systemctl start wg-quick@wg0
 systemctl enable wg-quick@wg0
+echo "[byocvpn] wg-quick status:"
+systemctl status wg-quick@wg0 --no-pager || true
+echo "[byocvpn] WireGuard interface:"
+wg show || true
 
 # Start the WireGuard health endpoint on TCP 51820.
 # Each connection receives the output of `systemctl is-active wg-quick@wg0`
