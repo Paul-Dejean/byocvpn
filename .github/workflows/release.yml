@@ -95,3 +95,32 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: --target ${{ matrix.rust_target }}
+
+      - name: Package and upload macOS release bundle
+        if: startsWith(matrix.runner, 'macos')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(python3 -c 'import sys,json; print(json.load(open("crates/ui/src-tauri/tauri.conf.json"))["version"])')
+          case "${{ matrix.rust_target }}" in
+            aarch64-apple-darwin) ARCH="arm64" ;;
+            x86_64-apple-darwin)  ARCH="x64" ;;
+          esac
+
+          pkgbuild \
+            --nopayload \
+            --scripts scripts/uninstaller-pkg-scripts \
+            --identifier com.byocvpn.uninstaller \
+            --version "$VERSION" \
+            --install-location / \
+            ByocVPN-Uninstaller.pkg
+
+          INSTALLER_PKG=$(find target/tauri -name "*.pkg" | head -1)
+
+          BUNDLE_DIR="ByocVPN-macOS-${ARCH}-v${VERSION}"
+          mkdir "$BUNDLE_DIR"
+          cp "$INSTALLER_PKG" "$BUNDLE_DIR/ByocVPN-Installer.pkg"
+          cp ByocVPN-Uninstaller.pkg "$BUNDLE_DIR/ByocVPN-Uninstaller.pkg"
+          zip -r "$BUNDLE_DIR.zip" "$BUNDLE_DIR"
+
+          gh release upload "${{ github.ref_name }}" "$BUNDLE_DIR.zip" --clobber

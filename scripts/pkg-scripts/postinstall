@@ -1,0 +1,22 @@
+#!/bin/bash
+set -euo pipefail
+
+APP_RESOURCES="/Applications/ByocVPN.app/Contents/Resources"
+HELPER_TOOLS_DIR="/Library/PrivilegedHelperTools"
+LAUNCH_DAEMONS_DIR="/Library/LaunchDaemons"
+DAEMON_BINARY_NAME="byocvpn-daemon"
+DAEMON_LABEL="com.byocvpn.daemon"
+
+launchctl unload "$LAUNCH_DAEMONS_DIR/$DAEMON_LABEL.plist" 2>/dev/null || true
+
+install -o root -g wheel -m 544 \
+    "$APP_RESOURCES/$DAEMON_BINARY_NAME" \
+    "$HELPER_TOOLS_DIR/$DAEMON_BINARY_NAME"
+
+install -o root -g wheel -m 644 \
+    "$APP_RESOURCES/$DAEMON_LABEL.plist" \
+    "$LAUNCH_DAEMONS_DIR/$DAEMON_LABEL.plist"
+
+launchctl load "$LAUNCH_DAEMONS_DIR/$DAEMON_LABEL.plist"
+
+exit 0
