@@ -8,6 +8,10 @@ DAEMON_BINARY_NAME="byocvpn-daemon"
 DAEMON_LABEL="com.byocvpn.daemon"
 
 launchctl unload "$LAUNCH_DAEMONS_DIR/$DAEMON_LABEL.plist" 2>/dev/null || true
+sleep 1
+
+rm -f "$HELPER_TOOLS_DIR/$DAEMON_BINARY_NAME"
+rm -f "$LAUNCH_DAEMONS_DIR/$DAEMON_LABEL.plist"
 
 install -o root -g wheel -m 544 \
     "$APP_RESOURCES/$DAEMON_BINARY_NAME" \
