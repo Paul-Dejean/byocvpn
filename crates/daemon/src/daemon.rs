@@ -13,6 +13,7 @@ pub async fn run_daemon() -> Result<()> {
     env_logger::init();
     let socket_path = constants::socket_path();
 
+    #[cfg(unix)]
     if let Some(socket_dir) = socket_path.parent() {
         tokio::fs::create_dir_all(socket_dir)
             .await

@@ -465,15 +465,22 @@ impl CloudProvider for AwsProvider {
             return instance::list_instances_in_region(&ec2_client, region_name).await;
         }
         let regions = self.get_regions().await?;
-        let instances = futures::future::join_all(regions.iter().map(|region| async move {
+        let results = futures::future::join_all(regions.iter().map(|region| async move {
+            info!("Listing instances in region {}", region.name);
             let ec2_client = self.create_ec2_client(Some(region.name.clone())).await;
-            instance::list_instances_in_region(&ec2_client, &region.name).await
+            let result = instance::list_instances_in_region(&ec2_client, &region.name).await;
+            match &result {
+                Ok(instances) => info!("Region {}: found {} instances", region.name, instances.len()),
+                Err(e) => warn!("Skipping region {}: {}", region.name, e),
+            }
+            result
         }))
         .await;
-        return instances
+        return Ok(results
             .into_iter()
-            .collect::<Result<Vec<Vec<InstanceInfo>>>>()
-            .map(|lists| lists.into_iter().flatten().collect());
+            .filter_map(|r| r.ok())
+            .flatten()
+            .collect());
     }
 
     async fn get_regions(&self) -> Result<Vec<Region>> {

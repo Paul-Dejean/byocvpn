@@ -184,6 +184,13 @@ pub fn install_daemon() -> Result<()> {
             })?;
 
     let daemon_binary_path = [
+        workspace_root
+            .map(|root| {
+                root.join("target")
+                    .join(build_dir)
+                    .join("byocvpn_daemon.exe")
+            })
+            .unwrap_or_default(),
         exe_dir.join("byocvpn_daemon.exe"),
         exe_dir.join("byocvpn-daemon.exe"),
         workspace_root
@@ -200,16 +207,41 @@ pub fn install_daemon() -> Result<()> {
         path: format!("target/{}/byocvpn_daemon.exe", build_dir),
     })?;
 
-    let install_dir = r"C:\Program Files\byocvpn";
+    let install_dir = if is_dev {
+        r"C:\Program Files\byocvpn-dev"
+    } else {
+        r"C:\Program Files\byocvpn"
+    };
     let installed_binary = format!(r"{}\byocvpn-daemon.exe", install_dir);
     let daemon_src = daemon_binary_path.display().to_string();
 
+    let wintun_src = daemon_binary_path
+        .parent()
+        .map(|dir| dir.join("wintun.dll"))
+        .filter(|path| path.exists())
+        .map(|path| path.display().to_string())
+        .unwrap_or_default();
+    let wintun_dst = format!(r"{}\wintun.dll", install_dir);
+
+    let wintun_copy = if !wintun_src.is_empty() {
+        format!(
+            "  Copy-Item -Path '{src}' -Destination '{dst}' -Force\r\n",
+            src = wintun_src,
+            dst = wintun_dst,
+        )
+    } else {
+        String::new()
+    };
+
+    let log_file = format!(r"{}\install.log", install_dir);
     let script_content = format!(
-        "New-Item -ItemType Directory -Force -Path '{install_dir}'\r\nCopy-Item -Path '{src}' -Destination '{dst}' -Force\r\nsc.exe create {service_name} binPath= '{dst} --service' start= auto DisplayName= 'byocvpn Daemon'\r\nsc.exe start {service_name}\r\n",
+        "try {{\r\n  $svc = Get-Service -Name '{service_name}' -ErrorAction SilentlyContinue\r\n  if ($svc) {{\r\n    sc.exe stop {service_name} 2>$null\r\n    Start-Sleep -Seconds 2\r\n    sc.exe delete {service_name} 2>$null\r\n    Start-Sleep -Seconds 1\r\n  }}\r\n  New-Item -ItemType Directory -Force -Path '{install_dir}'\r\n  Copy-Item -Path '{src}' -Destination '{dst}' -Force\r\n{wintun_copy}  sc.exe create {service_name} binPath= '{dst} --service' start= auto DisplayName= 'byocvpn Daemon'\r\n  sc.exe start {service_name}\r\n  'Installation succeeded' | Out-File -FilePath '{log}' -Append\r\n  Write-Host 'Installation succeeded' -ForegroundColor Green\r\n}} catch {{\r\n  $_.Exception.Message | Out-File -FilePath '{log}' -Append\r\n  Write-Host \"Error: $($_.Exception.Message)\" -ForegroundColor Red\r\n}}\r\nWrite-Host ''\r\nRead-Host 'Press Enter to close'\r\n",
         install_dir = install_dir,
         src = daemon_src,
         dst = installed_binary,
+        wintun_copy = wintun_copy,
         service_name = service_name,
+        log = log_file,
     );
 
     let temp_script = std::env::temp_dir().join("byocvpn_install.ps1");
@@ -395,9 +427,15 @@ pub fn uninstall_daemon() -> Result<()> {
         "byocvpn-daemon"
     };
 
+    let install_dir = if cfg!(debug_assertions) {
+        r"C:\Program Files\byocvpn-dev"
+    } else {
+        r"C:\Program Files\byocvpn"
+    };
     let script_content = format!(
-        "sc.exe stop {service_name}\r\nsc.exe delete {service_name}\r\nRemove-Item -Force -ErrorAction SilentlyContinue 'C:\\Program Files\\byocvpn\\byocvpn-daemon.exe'\r\n",
+        "sc.exe stop {service_name}\r\nsc.exe delete {service_name}\r\nRemove-Item -Recurse -Force -ErrorAction SilentlyContinue '{install_dir}'\r\n",
         service_name = service_name,
+        install_dir = install_dir,
     );
 
     let temp_script = std::env::temp_dir().join("byocvpn_uninstall.ps1");
