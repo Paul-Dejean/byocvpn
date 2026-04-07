@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { LedgerEntryWithCost } from "../../types/ledger";
 import { InstanceCostRow } from "./InstanceCostRow";
+import { ProviderIcon } from "../providers/ProviderIcon";
 
 const PROVIDER_LABELS: Record<string, string> = {
   aws: "Amazon Web Services",
@@ -9,20 +10,6 @@ const PROVIDER_LABELS: Record<string, string> = {
   oracle: "Oracle Cloud",
 };
 
-function providerBadgeClass(provider: string): string {
-  switch (provider) {
-    case "aws":
-      return "bg-orange-900/60 text-orange-300";
-    case "azure":
-      return "bg-blue-900/60 text-blue-300";
-    case "gcp":
-      return "bg-red-900/60 text-red-300";
-    case "oracle":
-      return "bg-purple-900/60 text-purple-300";
-    default:
-      return "bg-gray-700 text-gray-300";
-  }
-}
 
 interface PricingAccordionProps {
 
@@ -38,6 +25,14 @@ export function PricingAccordion({ provider, entries }: PricingAccordionProps) {
     0,
   );
 
+  const sortedEntries = [...entries].sort((a, b) => {
+    if (a.terminatedAt === null && b.terminatedAt !== null) return -1;
+    if (a.terminatedAt !== null && b.terminatedAt === null) return 1;
+    const dateA = a.terminatedAt ?? a.launchedAt;
+    const dateB = b.terminatedAt ?? b.launchedAt;
+    return new Date(dateB).getTime() - new Date(dateA).getTime();
+  });
+
   return (
     <div className="bg-gray-800 rounded-lg overflow-hidden">
       {}
@@ -46,11 +41,7 @@ export function PricingAccordion({ provider, entries }: PricingAccordionProps) {
         className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-700/50 transition-colors text-left"
       >
         <div className="flex items-center gap-3">
-          <span
-            className={`text-xs font-bold uppercase tracking-widest px-2 py-0.5 rounded ${providerBadgeClass(provider)}`}
-          >
-            {provider}
-          </span>
+          <ProviderIcon provider={provider} className="w-6 h-6" />
           <span className="text-white font-semibold">
             {PROVIDER_LABELS[provider] ?? provider}
           </span>
@@ -97,7 +88,7 @@ export function PricingAccordion({ provider, entries }: PricingAccordionProps) {
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry) => (
+              {sortedEntries.map((entry) => (
                 <InstanceCostRow key={entry.instanceId} entry={entry} />
               ))}
             </tbody>

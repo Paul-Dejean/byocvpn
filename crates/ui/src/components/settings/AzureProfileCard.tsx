@@ -9,8 +9,8 @@ interface AzureProfileCardProps {
 }
 
 const AzureIcon = () => (
-  <div className="w-12 h-12 bg-sky-600 rounded-lg flex items-center justify-center flex-shrink-0">
-    <span className="text-white font-bold text-xs tracking-wider">AZ</span>
+  <div className="w-12 h-12 bg-white/5 rounded-lg flex items-center justify-center flex-shrink-0 p-2">
+    <img src="/cloud-providers/azure-icon.svg" alt="Azure" className="w-full h-full object-contain" />
   </div>
 );
 

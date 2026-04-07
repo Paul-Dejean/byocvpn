@@ -205,10 +205,8 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
                 {!isAwsEditing ? (
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-orange-600 rounded-lg flex items-center justify-center">
-                        <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M7.25 0C3.25 0 0 3.25 0 7.25v9.5C0 20.75 3.25 24 7.25 24h9.5c4 0 7.25-3.25 7.25-7.25v-9.5C24 3.25 20.75 0 16.75 0h-9.5zM12 6c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6 2.69-6 6-6z" />
-                        </svg>
+                      <div className="w-12 h-12 bg-white/5 rounded-lg flex items-center justify-center p-2">
+                        <img src="/cloud-providers/aws-icon.svg" alt="AWS" className="w-full h-full object-contain" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
@@ -268,10 +266,8 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
                 ) : (
                   <div className="space-y-6">
                     <div className="flex items-center gap-4 mb-6">
-                      <div className="w-12 h-12 bg-orange-600 rounded-lg flex items-center justify-center">
-                        <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M7.25 0C3.25 0 0 3.25 0 7.25v9.5C0 20.75 3.25 24 7.25 24h9.5c4 0 7.25-3.25 7.25-7.25v-9.5C24 3.25 20.75 0 16.75 0h-9.5zM12 6c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6 2.69-6 6-6z" />
-                        </svg>
+                      <div className="w-12 h-12 bg-white/5 rounded-lg flex items-center justify-center p-2">
+                        <img src="/cloud-providers/aws-icon.svg" alt="AWS" className="w-full h-full object-contain" />
                       </div>
                       <div>
                         <h3 className="font-semibold text-lg text-white">Edit AWS Profile</h3>

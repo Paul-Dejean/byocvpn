@@ -19,8 +19,8 @@ const providers: ProviderOption[] = [
     label: "Amazon Web Services",
     description: "Deploy on EC2 — available in 30+ regions worldwide",
     badge: (
-      <div className="w-14 h-14 rounded-xl bg-orange-500/20 flex items-center justify-center">
-        <span className="text-orange-400 font-black text-xl">AWS</span>
+      <div className="w-14 h-14 rounded-xl bg-white/5 flex items-center justify-center p-2">
+        <img src="/cloud-providers/aws-icon.svg" alt="AWS" className="w-full h-full object-contain" />
       </div>
     ),
   },
@@ -29,8 +29,8 @@ const providers: ProviderOption[] = [
     label: "Oracle Cloud Infrastructure",
     description: "Deploy on OCI Compute — includes an Always Free tier",
     badge: (
-      <div className="w-14 h-14 rounded-xl bg-red-700/30 flex items-center justify-center">
-        <span className="text-red-400 font-black text-xl">OCI</span>
+      <div className="w-14 h-14 rounded-xl bg-white/5 flex items-center justify-center p-2">
+        <img src="/cloud-providers/oracle-icon.svg" alt="Oracle" className="w-full h-full object-contain" />
       </div>
     ),
   },
@@ -40,8 +40,8 @@ const providers: ProviderOption[] = [
     description:
       "Deploy on GCP Compute Engine — available in 40+ regions worldwide",
     badge: (
-      <div className="w-14 h-14 rounded-xl bg-blue-600/20 flex items-center justify-center">
-        <span className="text-blue-400 font-black text-xl">GCP</span>
+      <div className="w-14 h-14 rounded-xl bg-white/5 flex items-center justify-center p-2">
+        <img src="/cloud-providers/google-cloud-icon.svg" alt="GCP" className="w-full h-full object-contain" />
       </div>
     ),
   },
@@ -50,8 +50,8 @@ const providers: ProviderOption[] = [
     label: "Microsoft Azure",
     description: "Deploy on Azure VMs — available in 60+ regions worldwide",
     badge: (
-      <div className="w-14 h-14 rounded-xl bg-sky-600/20 flex items-center justify-center">
-        <span className="text-sky-400 font-black text-xl">AZ</span>
+      <div className="w-14 h-14 rounded-xl bg-white/5 flex items-center justify-center p-2">
+        <img src="/cloud-providers/azure-icon.svg" alt="Azure" className="w-full h-full object-contain" />
       </div>
     ),
   },

@@ -28,7 +28,7 @@ export function ServerList({
   onAddNewServer,
 }: ServerListProps) {
   return (
-    <div className="w-96 border-r border-gray-700/50 flex flex-col">
+    <div className="w-80 flex-shrink-0 border-r border-gray-700/50 flex flex-col">
       <div className="px-4 pt-4 pb-2 border-b border-gray-700/50">
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Servers</h2>
       </div>

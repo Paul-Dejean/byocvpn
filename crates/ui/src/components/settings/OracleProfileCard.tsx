@@ -9,8 +9,8 @@ interface OracleProfileCardProps {
 }
 
 const OciIcon = () => (
-  <div className="w-12 h-12 bg-red-700 rounded-lg flex items-center justify-center flex-shrink-0">
-    <span className="text-white font-bold text-xs tracking-wider">OCI</span>
+  <div className="w-12 h-12 bg-white/5 rounded-lg flex items-center justify-center flex-shrink-0 p-2">
+    <img src="/cloud-providers/oracle-icon.svg" alt="Oracle" className="w-full h-full object-contain" />
   </div>
 );
 

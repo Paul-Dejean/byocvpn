@@ -1,45 +1,6 @@
 import { Instance, RegionGroup, SpawnJobState } from "../../types";
 import { getRegionInfo } from "../../types/regionInfo";
-
-interface ProviderBadgeProps {
-  provider: string;
-}
-
-function ProviderBadge({ provider }: ProviderBadgeProps) {
-  if (provider === "aws") {
-    return (
-      <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-orange-900/50 text-orange-300">
-        AWS
-      </span>
-    );
-  }
-  if (provider === "oracle") {
-    return (
-      <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-red-900/50 text-red-300">
-        OCI
-      </span>
-    );
-  }
-  if (provider === "gcp") {
-    return (
-      <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-blue-900/50 text-blue-300">
-        GCP
-      </span>
-    );
-  }
-  if (provider === "azure") {
-    return (
-      <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-sky-900/50 text-sky-300">
-        AZ
-      </span>
-    );
-  }
-  return (
-    <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-gray-700 text-gray-400">
-      ?
-    </span>
-  );
-}
+import { ProviderIcon } from "../providers/ProviderIcon";
 
 interface ServerCardProps {
   instance: Instance;
@@ -91,7 +52,7 @@ export function ServerCard({
             : "bg-gray-800 hover:bg-gray-700 text-gray-200 border-white/10"
       }`}
     >
-      <div className="flex items-center justify-between mb-2">
+      <div className={`flex items-center justify-between ${isSpawning ? "mb-2" : ""}`}>
         <div className="flex items-center gap-2">
           <span className="text-lg">{regionInfo.flag}</span>
           <div>
@@ -102,13 +63,13 @@ export function ServerCard({
           </div>
         </div>
         <div className="flex items-center gap-1.5">
-          <ProviderBadge provider={instance.provider} />
+          <ProviderIcon provider={instance.provider} className="w-6 h-6" />
           <span
             className={`px-2 py-1 rounded text-xs font-medium ${
               isSpawning
                 ? "bg-blue-900/50 text-blue-300 flex items-center gap-1"
                 : instance.state === "running"
-                  ? "bg-orange-900/50 text-orange-300"
+                  ? "bg-green-900/50 text-green-300"
                   : instance.state === "creating"
                     ? "bg-yellow-900/50 text-yellow-300"
                     : instance.state === "stopping" ||
@@ -125,9 +86,11 @@ export function ServerCard({
           </span>
         </div>
       </div>
-      <p className="text-xs font-mono opacity-75 truncate">
-        {isSpawning ? (stepLabel ?? "Starting…") : instance.publicIpV4}
-      </p>
+      {isSpawning && (
+        <p className="text-xs font-mono opacity-75 truncate">
+          {stepLabel ?? "Starting…"}
+        </p>
+      )}
     </button>
   );
 }

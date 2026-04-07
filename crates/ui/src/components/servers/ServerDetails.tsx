@@ -4,6 +4,7 @@ import {
   SpawnStepStatus,
 } from "../../types";
 import { getRegionInfo } from "../../types/regionInfo";
+import { ProviderIcon } from "../providers/ProviderIcon";
 
 function StepIndicator({ status }: { status: SpawnStepStatus }) {
   if (status === "running") {
@@ -71,7 +72,7 @@ export function ServerDetails({
   const isSpawning = instance.state === "spawning";
 
   return (
-    <div className="flex-1 flex flex-col bg-gray-900">
+    <div className="flex-1 min-w-0 flex flex-col bg-gray-900">
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-2xl space-y-6">
           {}
@@ -79,12 +80,13 @@ export function ServerDetails({
             <div className="bg-gray-800 rounded-lg p-6">
               <div className="flex items-center gap-3 mb-4">
                 <span className="text-3xl">{regionInfo.flag}</span>
-                <div>
+                <div className="flex-1">
                   <h3 className="text-lg font-semibold text-blue-400">
                     {regionInfo.city}
                   </h3>
                   <p className="text-sm text-gray-400 font-mono">{instance.region}</p>
                 </div>
+                <ProviderIcon provider={instance.provider} className="w-8 h-8" />
               </div>
               <div className="space-y-3">
                 <div>

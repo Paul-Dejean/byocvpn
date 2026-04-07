@@ -1,4 +1,5 @@
 import { Instance } from "../../types";
+import { ProviderIcon } from "../providers/ProviderIcon";
 
 interface InstanceCardProps {
   instance: Instance;
@@ -24,9 +25,12 @@ export function InstanceCard({
       }}
     >
       <div className="flex items-center justify-between mb-2">
-        <h3 className="font-semibold text-lg">
-          {instance.name || "VPN Server"}
-        </h3>
+        <div className="flex items-center gap-2">
+          <ProviderIcon provider={instance.provider} className="w-5 h-5" />
+          <h3 className="font-semibold text-lg">
+            {instance.name || "VPN Server"}
+          </h3>
+        </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-green-500 rounded-full"></div>
           <span className="text-sm text-green-400">Running</span>
