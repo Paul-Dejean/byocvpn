@@ -1,0 +1,16 @@
+#!/bin/bash
+set -euo pipefail
+
+HELPER_TOOLS_DIR="/Library/PrivilegedHelperTools"
+LAUNCH_DAEMONS_DIR="/Library/LaunchDaemons"
+DAEMON_BINARY_NAME="byocvpn-daemon"
+DAEMON_LABEL="com.byocvpn.daemon"
+APP_BUNDLE="/Applications/ByocVPN.app"
+
+launchctl unload "$LAUNCH_DAEMONS_DIR/$DAEMON_LABEL.plist" 2>/dev/null || true
+
+rm -f "$HELPER_TOOLS_DIR/$DAEMON_BINARY_NAME"
+rm -f "$LAUNCH_DAEMONS_DIR/$DAEMON_LABEL.plist"
+rm -rf "$APP_BUNDLE"
+
+exit 0

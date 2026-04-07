@@ -27,7 +27,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Linux dependencies
         if: startsWith(matrix.runner, 'ubuntu')
@@ -51,7 +51,7 @@ jobs:
             . -> target/tauri
           cache-on-failure: true
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: lts/*
           cache: npm
@@ -69,7 +69,8 @@ jobs:
           cargo build --locked --release -p byocvpn_daemon --manifest-path Cargo.toml --target ${{ matrix.rust_target }}
           New-Item -ItemType Directory -Force -Path "target\release" | Out-Null
           Copy-Item "target\${{ matrix.rust_target }}\release\byocvpn_daemon.exe" "target\release\byocvpn_daemon.exe"
-          New-Item -ItemType File -Force -Path "target\release\byocvpn_daemon" | Out-Null
+          New-Item -ItemType Directory -Force -Path "target\tauri\${{ matrix.rust_target }}\release" | Out-Null
+          Copy-Item "target\${{ matrix.rust_target }}\release\byocvpn_daemon.exe" "target\tauri\${{ matrix.rust_target }}\release\byocvpn_daemon.exe"
 
       - name: Pre-build daemon (non-Windows)
         if: matrix.runner != 'windows-latest'
@@ -77,6 +78,11 @@ jobs:
           CARGO_TARGET_DIR=target cargo build --locked --release -p byocvpn_daemon --manifest-path Cargo.toml --target ${{ matrix.rust_target }}
           mkdir -p target/release
           cp target/${{ matrix.rust_target }}/release/byocvpn_daemon target/release/byocvpn_daemon
+
+      - name: Verify daemon binary exists (Windows)
+        if: matrix.runner == 'windows-latest'
+        shell: pwsh
+        run: Get-Item "target\release\byocvpn_daemon.exe"
 
       - name: Create plist placeholder (non-macOS)
         if: "!startsWith(matrix.runner, 'macos')"
@@ -94,4 +100,90 @@ jobs:
           releaseName: ByocVPN ${{ github.ref_name }}
           releaseDraft: true
           prerelease: false
-          args: --target ${{ matrix.rust_target }}
+          args: --target ${{ matrix.rust_target }} --verbose
+
+      - name: Install alien
+        if: startsWith(matrix.runner, 'ubuntu')
+        run: sudo apt-get install -y alien
+
+      - name: Package and upload Linux release bundle
+        if: startsWith(matrix.runner, 'ubuntu')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(python3 -c 'import sys,json; print(json.load(open("crates/ui/src-tauri/tauri.conf.json"))["version"])')
+          case "${{ matrix.rust_target }}" in
+            x86_64-unknown-linux-gnu)   ARCH="x64" ;;
+            aarch64-unknown-linux-gnu)  ARCH="arm64" ;;
+          esac
+
+          DEB=$(find target/tauri -name "*.deb" | head -1)
+          dpkg-deb --raw-extract "$DEB" deb_repack
+          cp scripts/deb-scripts/postinst deb_repack/DEBIAN/postinst
+          cp scripts/deb-scripts/prerm    deb_repack/DEBIAN/prerm
+          cp scripts/deb-scripts/postrm   deb_repack/DEBIAN/postrm
+          chmod 755 deb_repack/DEBIAN/postinst deb_repack/DEBIAN/prerm deb_repack/DEBIAN/postrm
+          dpkg-deb --build deb_repack "$DEB"
+
+          sudo alien --to-rpm --scripts "$DEB"
+          RPM=$(find . -maxdepth 1 -name "*.rpm" | head -1)
+
+          BUNDLE_DIR="ByocVPN-Linux-${ARCH}-v${VERSION}"
+          mkdir "$BUNDLE_DIR"
+          cp "$DEB" "$BUNDLE_DIR/ByocVPN-Installer.deb"
+          cp "$RPM" "$BUNDLE_DIR/ByocVPN-Installer.rpm"
+          zip -r "$BUNDLE_DIR.zip" "$BUNDLE_DIR"
+
+          gh release upload "${{ github.ref_name }}" "$BUNDLE_DIR.zip" --clobber
+
+      - name: Package and upload Windows release bundle
+        if: matrix.runner == 'windows-latest'
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = (Get-Content "crates/ui/src-tauri/tauri.conf.json" | ConvertFrom-Json).version
+          $msi = Get-ChildItem -Path "target/tauri" -Recurse -Filter "*.msi" | Select-Object -First 1
+          $bundleDir = "ByocVPN-Windows-x64-v$version"
+          New-Item -ItemType Directory -Force -Path $bundleDir | Out-Null
+          Copy-Item $msi.FullName "$bundleDir\ByocVPN-Installer.msi"
+          Compress-Archive -Path $bundleDir -DestinationPath "$bundleDir.zip"
+          gh release upload "${{ github.ref_name }}" "$bundleDir.zip" --clobber
+
+      - name: Package and upload macOS release bundle
+        if: startsWith(matrix.runner, 'macos')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(python3 -c 'import sys,json; print(json.load(open("crates/ui/src-tauri/tauri.conf.json"))["version"])')
+          case "${{ matrix.rust_target }}" in
+            aarch64-apple-darwin) ARCH="arm64" ;;
+            x86_64-apple-darwin)  ARCH="x64" ;;
+          esac
+
+          pkgbuild \
+            --nopayload \
+            --scripts scripts/uninstaller-pkg-scripts \
+            --identifier com.byocvpn.uninstaller \
+            --version "$VERSION" \
+            --install-location / \
+            ByocVPN-Uninstaller.pkg
+
+          APP=$(find target/tauri -name "*.app" | head -1)
+          pkgbuild \
+            --component "$APP" \
+            --scripts scripts/pkg-scripts \
+            --identifier com.byocvpn.app \
+            --version "$VERSION" \
+            --install-location /Applications \
+            ByocVPN-Installer.pkg
+
+          INSTALLER_PKG=ByocVPN-Installer.pkg
+
+          BUNDLE_DIR="ByocVPN-macOS-${ARCH}-v${VERSION}"
+          mkdir "$BUNDLE_DIR"
+          cp "$INSTALLER_PKG" "$BUNDLE_DIR/ByocVPN-Installer.pkg"
+          cp ByocVPN-Uninstaller.pkg "$BUNDLE_DIR/ByocVPN-Uninstaller.pkg"
+          zip -r "$BUNDLE_DIR.zip" "$BUNDLE_DIR"
+
+          gh release upload "${{ github.ref_name }}" "$BUNDLE_DIR.zip" --clobber

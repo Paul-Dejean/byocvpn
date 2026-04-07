@@ -12,7 +12,6 @@ use byocvpn_core::{
     commands,
     credentials::CredentialStore,
     crypto::generate_keypair,
-    daemon_client,
     error::{ConfigurationError, Error, Result},
     ledger::LedgerEntry,
     metrics_stream,
@@ -575,17 +574,3 @@ pub async fn get_ledger(app_handle: AppHandle) -> Result<Vec<Value>> {
     Ok(ledger.all_entries())
 }
 
-#[tauri::command]
-pub async fn is_daemon_installed() -> Result<bool> {
-    Ok(daemon_client::is_daemon_installed())
-}
-
-#[tauri::command]
-pub async fn install_daemon() -> Result<()> {
-    daemon_client::install_daemon()
-}
-
-#[tauri::command]
-pub async fn uninstall_app() -> Result<()> {
-    daemon_client::uninstall_daemon()
-}

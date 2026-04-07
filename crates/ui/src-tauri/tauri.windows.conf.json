@@ -1,7 +1,11 @@
 {
   "bundle": {
-    "resources": {
-      "../../../target/release/byocvpn_daemon.exe": "byocvpn-daemon.exe"
+    "targets": ["msi"],
+    "windows": {
+      "wix": {
+        "fragmentPaths": ["wix/service.wxs"],
+        "componentRefs": ["ByocVPNDaemonService"]
+      }
     }
   }
 }

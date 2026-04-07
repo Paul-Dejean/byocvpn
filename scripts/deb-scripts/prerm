@@ -1,0 +1,12 @@
+#!/bin/bash
+set -e
+
+if systemctl is-active --quiet byocvpn-daemon; then
+    systemctl stop byocvpn-daemon
+fi
+
+if systemctl is-enabled --quiet byocvpn-daemon 2>/dev/null; then
+    systemctl disable byocvpn-daemon
+fi
+
+exit 0

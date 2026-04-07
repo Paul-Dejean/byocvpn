@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { load as loadStore } from "@tauri-apps/plugin-store";
 import toast from "react-hot-toast";
 import { useCredentials } from "../hooks/useCredentials";
@@ -27,9 +26,6 @@ export function SettingsPage({ onNavigateBack }: SettingsPageProps) {
     null,
   );
   const [isAwsConfirmingDelete, setIsAwsConfirmingDelete] = useState(false);
-  const [isUninstallConfirming, setIsUninstallConfirming] = useState(false);
-  const [isUninstalling, setIsUninstalling] = useState(false);
-  const [uninstallError, setUninstallError] = useState<string | null>(null);
 
   const [accessKey, setAccessKey] = useState("");
   const [secretKey, setSecretKey] = useState("");
@@ -141,19 +137,6 @@ export function SettingsPage({ onNavigateBack }: SettingsPageProps) {
           ? invocationError.message
           : "Failed to start provisioning";
       toast.error(message);
-    }
-  };
-
-  const handleUninstall = async () => {
-    setIsUninstalling(true);
-    setUninstallError(null);
-    try {
-      await invoke("uninstall_app");
-      await getCurrentWindow().close();
-    } catch (uninstallError) {
-      setUninstallError(String(uninstallError));
-      setIsUninstalling(false);
-      setIsUninstallConfirming(false);
     }
   };
 
@@ -467,47 +450,6 @@ export function SettingsPage({ onNavigateBack }: SettingsPageProps) {
             />
           </div>
 
-          <div className="bg-gray-800 rounded-lg p-6 mt-6 border border-red-900">
-            <h2 className="text-xl font-semibold mb-2 text-red-400">
-              Danger Zone
-            </h2>
-            <p className="text-gray-400 text-sm mb-4">
-              Removes the daemon, all credentials, and WireGuard configs. The
-              app will close automatically.
-            </p>
-
-            {uninstallError && (
-              <div className="p-3 bg-red-900 border border-red-700 rounded-lg mb-4">
-                <p className="text-red-300 text-sm">{uninstallError}</p>
-              </div>
-            )}
-
-            {!isUninstallConfirming ? (
-              <button
-                onClick={() => setIsUninstallConfirming(true)}
-                className="px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded-lg transition font-medium"
-              >
-                Uninstall App
-              </button>
-            ) : (
-              <div className="flex items-center gap-3">
-                <span className="text-gray-300 text-sm">Are you sure?</span>
-                <button
-                  onClick={() => setIsUninstallConfirming(false)}
-                  className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleUninstall}
-                  disabled={isUninstalling}
-                  className="px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded-lg transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isUninstalling ? "Uninstalling..." : "Yes, Uninstall"}
-                </button>
-              </div>
-            )}
-          </div>
         </div>
       </div>
 

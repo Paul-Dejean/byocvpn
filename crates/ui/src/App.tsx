@@ -4,10 +4,8 @@ import { Toaster } from "react-hot-toast";
 import "./App.css";
 import {
   VpnPage,
-  SetupPage,
   LandingPage,
   SettingsPage,
-  DaemonSetupPage,
   PricingPage,
 } from "./pages";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
@@ -44,8 +42,6 @@ function App() {
           }}
         />
         {page === Page.LANDING && <LandingPage setPage={setPage} />}
-        {page === Page.DAEMON_SETUP && <DaemonSetupPage setPage={setPage} />}
-        {page === Page.SETUP && <SetupPage setPage={setPage} />}
         {page === Page.SETTINGS && (
           <SettingsPage onNavigateBack={() => setPage(Page.VPN)} />
         )}

@@ -1,7 +1,19 @@
 {
   "bundle": {
-    "resources": {
-      "../../../target/release/byocvpn_daemon": "byocvpn-daemon"
+    "targets": ["deb", "rpm"],
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/lib/byocvpn/byocvpn-daemon": "../../../target/release/byocvpn_daemon",
+          "/lib/systemd/system/byocvpn-daemon.service": "../../../scripts/byocvpn-daemon.service"
+        }
+      },
+      "rpm": {
+        "files": {
+          "/usr/lib/byocvpn/byocvpn-daemon": "../../../target/release/byocvpn_daemon",
+          "/lib/systemd/system/byocvpn-daemon.service": "../../../scripts/byocvpn-daemon.service"
+        }
+      }
     }
   }
 }
