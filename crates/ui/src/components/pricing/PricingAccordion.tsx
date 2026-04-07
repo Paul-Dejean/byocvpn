@@ -39,7 +39,7 @@ export function PricingAccordion({ provider, entries }: PricingAccordionProps) {
   );
 
   return (
-    <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+    <div className="bg-gray-800 rounded-lg overflow-hidden">
       {}
       <button
         onClick={() => setIsOpen((prev) => !prev)}

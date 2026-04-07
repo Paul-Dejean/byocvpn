@@ -28,7 +28,10 @@ export function ServerList({
   onAddNewServer,
 }: ServerListProps) {
   return (
-    <div className="w-96 bg-gray-800 border-r border-gray-700 flex flex-col">
+    <div className="w-96 border-r border-gray-700/50 flex flex-col">
+      <div className="px-4 pt-4 pb-2 border-b border-gray-700/50">
+        <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Servers</h2>
+      </div>
       <div className="flex-1 overflow-y-auto p-4">
         {isLoading && (
           <div className="flex justify-center py-8">
@@ -59,7 +62,7 @@ export function ServerList({
       </div>
 
       {}
-      <div className="p-4 border-t border-gray-700">
+      <div className="p-4 border-t border-gray-700/50">
         <button
           onClick={onAddNewServer}
           className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-medium flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"

@@ -28,7 +28,13 @@ use crate::{
     vpn::config::parse_wireguard_config,
 };
 
-pub async fn connect_vpn(config_path: String) -> Result<()> {
+pub async fn connect_vpn(
+    config_path: String,
+    region: String,
+    provider: String,
+    public_ip_v4: Option<String>,
+    public_ip_v6: Option<String>,
+) -> Result<()> {
     info!("Daemon received connect: {}", &config_path);
 
     let wg_config = parse_wireguard_config(&config_path).await?;
@@ -43,10 +49,16 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
         })?;
 
     let endpoint_ip = wg_config.endpoint.ip().to_string();
-    let (public_ip_v4, public_ip_v6) = if wg_config.endpoint.is_ipv4() {
-        (Some(endpoint_ip), None)
-    } else {
-        (None, Some(endpoint_ip))
+    let (public_ip_v4, public_ip_v6) = match (public_ip_v4, public_ip_v6) {
+        (Some(v4), v6) => (Some(v4), v6),
+        (None, Some(v6)) => (None, Some(v6)),
+        (None, None) => {
+            if wg_config.endpoint.is_ipv4() {
+                (Some(endpoint_ip), None)
+            } else {
+                (None, Some(endpoint_ip))
+            }
+        }
     };
 
     #[cfg(target_os = "macos")]
@@ -335,6 +347,8 @@ pub async fn connect_vpn(config_path: String) -> Result<()> {
             instance_id,
             public_ip_v4,
             public_ip_v6,
+            region,
+            provider,
         }),
     });
 

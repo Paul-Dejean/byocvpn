@@ -121,7 +121,7 @@ pub async fn list_instances(
                 reason: error.to_string(),
             })?;
 
-    let instances = response
+    let mut instances: Vec<InstanceInfo> = response
         .as_array()
         .cloned()
         .unwrap_or_default()
@@ -138,6 +138,18 @@ pub async fn list_instances(
         })
         .filter_map(|instance| build_instance_info(&instance, region).ok())
         .collect();
+
+    let ip_results = futures::future::join_all(
+        instances
+            .iter()
+            .map(|instance| get_public_ips(client, &instance.id, compartment_ocid)),
+    )
+    .await;
+
+    for (instance, (public_ip_v4, public_ip_v6)) in instances.iter_mut().zip(ip_results) {
+        instance.public_ip_v4 = public_ip_v4;
+        instance.public_ip_v6 = public_ip_v6;
+    }
 
     Ok(instances)
 }

@@ -116,6 +116,8 @@ async fn main() -> Result<()> {
                 &daemon_client,
                 region.as_str(),
                 instance_id.as_str(),
+                None,
+                None,
             )
             .await?;
             info!("Connected to VPN");

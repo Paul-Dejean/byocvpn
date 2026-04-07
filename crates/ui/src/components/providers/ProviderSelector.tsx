@@ -1,9 +1,8 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { useCredentials } from "../../hooks/useCredentials";
 
 interface ProviderSelectorProps {
-
   onSelectProvider: (provider: string) => void;
-
   onClose: () => void;
 }
 
@@ -62,10 +61,28 @@ export function ProviderSelector({
   onSelectProvider,
   onClose,
 }: ProviderSelectorProps) {
+  const [configuredProviders, setConfiguredProviders] = useState<ProviderOption[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { loadCredentials } = useCredentials();
+
+  useEffect(() => {
+    const loadConfiguredProviders = async () => {
+      const configured: ProviderOption[] = [];
+      for (const provider of providers) {
+        const existing = await loadCredentials(provider.id as "aws" | "oracle" | "gcp" | "azure");
+        if (existing !== null) {
+          configured.push(provider);
+        }
+      }
+      setConfiguredProviders(configured);
+      setIsLoading(false);
+    };
+    loadConfiguredProviders();
+  }, []);
+
   return (
     <div className="flex flex-col h-screen bg-gray-900">
-      {}
-      <div className="bg-gray-800 p-6 border-b border-gray-700">
+      <div className="bg-gray-800 border-b border-gray-700/50 p-6">
         <div className="flex items-center gap-4">
           <button
             onClick={onClose}
@@ -96,38 +113,43 @@ export function ProviderSelector({
         </div>
       </div>
 
-      {}
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4 max-w-lg mx-auto w-full">
-        {providers.map((provider) => (
-          <button
-            key={provider.id}
-            onClick={() => onSelectProvider(provider.id)}
-            className="w-full flex items-center gap-5 p-5 bg-gray-800 border border-gray-700 rounded-xl hover:border-blue-500 hover:bg-gray-750 transition-all text-left group"
-          >
-            {provider.badge}
-            <div className="flex-1">
-              <p className="font-semibold text-white text-lg group-hover:text-blue-300 transition-colors">
-                {provider.label}
-              </p>
-              <p className="text-sm text-gray-400 mt-0.5">
-                {provider.description}
-              </p>
-            </div>
-            <svg
-              className="w-5 h-5 text-gray-500 group-hover:text-blue-400 transition-colors flex-shrink-0"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          configuredProviders.map((provider) => (
+            <button
+              key={provider.id}
+              onClick={() => onSelectProvider(provider.id)}
+              className="w-full flex items-center gap-5 p-5 bg-gray-800 card-border rounded-xl hover:glow-accent-sm transition-all text-left group"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
-          </button>
-        ))}
+              {provider.badge}
+              <div className="flex-1">
+                <p className="font-semibold text-white text-lg group-hover:text-blue-300 transition-colors">
+                  {provider.label}
+                </p>
+                <p className="text-sm text-gray-400 mt-0.5">
+                  {provider.description}
+                </p>
+              </div>
+              <svg
+                className="w-5 h-5 text-gray-500 group-hover:text-blue-400 transition-colors flex-shrink-0"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+            </button>
+          ))
+        )}
       </div>
     </div>
   );

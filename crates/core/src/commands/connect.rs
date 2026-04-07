@@ -10,6 +10,8 @@ pub async fn connect(
     daemon_client: &dyn DaemonClient,
     region: &str,
     instance_id: &str,
+    public_ip_v4: Option<String>,
+    public_ip_v6: Option<String>,
 ) -> Result<()> {
     let provider_name = provider.get_provider_name();
     let wireguard_file_path =
@@ -19,6 +21,10 @@ pub async fn connect(
     let response = daemon_client
         .send_command(DaemonCommand::Connect {
             config_path: wireguard_file_path.to_string_lossy().to_string(),
+            region: region.to_string(),
+            provider: format!("{provider_name}").to_lowercase(),
+            public_ip_v4,
+            public_ip_v6,
         })
         .await?;
 

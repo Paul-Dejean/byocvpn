@@ -79,6 +79,8 @@ export const useVpnConnection = () => {
         instanceId: selectedInstance.id,
         region: selectedInstance.region,
         provider: selectedInstance.provider,
+        publicIpV4: selectedInstance.publicIpV4 || null,
+        publicIpV6: selectedInstance.publicIpV6 || null,
       });
 
       console.log("VPN connected:", response);

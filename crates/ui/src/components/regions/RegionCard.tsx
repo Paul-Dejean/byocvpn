@@ -12,8 +12,8 @@ export function RegionCard({ region, isSelected, onSelect }: RegionCardProps) {
       onClick={() => onSelect(region)}
       className={`p-4 rounded-lg cursor-pointer transition-all border ${
         isSelected
-          ? "bg-blue-600 border-blue-500 text-white transform scale-102 shadow-lg"
-          : "bg-gray-800 border-gray-700 hover:bg-gray-700 hover:border-gray-600 text-gray-300"
+          ? "bg-blue-600/80 glow-accent text-white transform scale-102"
+          : "bg-gray-800 card-border hover:glow-accent-sm text-gray-300"
       }`}
       style={{
         transformOrigin: "center",

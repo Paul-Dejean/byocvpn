@@ -29,6 +29,8 @@ pub struct ConnectedInstance {
     pub instance_id: String,
     pub public_ip_v4: Option<String>,
     pub public_ip_v6: Option<String>,
+    pub region: String,
+    pub provider: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

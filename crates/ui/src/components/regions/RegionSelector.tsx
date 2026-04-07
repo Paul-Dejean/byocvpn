@@ -176,7 +176,7 @@ export function RegionSelector({
 
   return (
     <div className="flex flex-col h-screen bg-gray-900">
-      <div className="bg-gray-800 p-6 border-b border-gray-700">
+      <div className="bg-gray-800 border-b border-gray-700/50 p-6">
         <div className="flex items-center gap-4">
           <button
             onClick={onClose}

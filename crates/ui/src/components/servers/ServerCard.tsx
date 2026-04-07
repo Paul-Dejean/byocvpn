@@ -1,4 +1,5 @@
 import { Instance, RegionGroup, SpawnJobState } from "../../types";
+import { getRegionInfo } from "../../types/regionInfo";
 
 interface ProviderBadgeProps {
   provider: string;
@@ -55,19 +56,22 @@ function MiniSpinner() {
   );
 }
 
+const PROVIDER_STRIPE: Record<string, string> = {
+  aws: "border-l-orange-500",
+  oracle: "border-l-red-500",
+  gcp: "border-l-blue-500",
+  azure: "border-l-sky-500",
+};
+
 export function ServerCard({
   instance,
   isSelected,
-  groupedRegions,
+  groupedRegions: _groupedRegions,
   spawnJob,
   onSelect,
 }: ServerCardProps) {
-  const getRegionFlag = (regionName?: string): string => {
-    const region = groupedRegions
-      .flatMap((g) => g.regions)
-      .find((r) => r.name === regionName) as any;
-    return region?.flag || "🌍";
-  };
+  const regionInfo = getRegionInfo(instance.provider, instance.region ?? "");
+  const stripeColor = PROVIDER_STRIPE[instance.provider] ?? "border-l-gray-600";
 
   const isSpawning = instance.state === "spawning";
 
@@ -77,24 +81,24 @@ export function ServerCard({
   return (
     <button
       onClick={() => onSelect(instance)}
-      className={`w-full text-left p-3 rounded-lg transition-all ${
+      className={`w-full text-left p-3 rounded-lg transition-all border border-l-4 ${stripeColor} ${
         isSpawning
           ? isSelected
-            ? "bg-blue-700/60 text-white shadow-lg"
-            : "bg-gray-800 text-gray-300 hover:bg-gray-750"
+            ? "bg-blue-700/60 text-white glow-accent border-blue-500/40"
+            : "bg-gray-800 text-gray-300 hover:bg-gray-750 border-white/10"
           : isSelected
-            ? "bg-blue-600 text-white shadow-lg"
-            : "bg-gray-700 hover:bg-gray-600 text-gray-200"
+            ? "bg-blue-600/80 text-white glow-accent border-blue-500/40"
+            : "bg-gray-800 hover:bg-gray-700 text-gray-200 border-white/10"
       }`}
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className="text-lg">{getRegionFlag(instance.region)}</span>
+          <span className="text-lg">{regionInfo.flag}</span>
           <div>
             <p className="font-medium text-sm">
-              {instance.name || "VPN Server"}
+              {regionInfo.city || instance.name || "VPN Server"}
             </p>
-            <p className="text-xs opacity-75">{instance.region}</p>
+            <p className="text-xs opacity-75 font-mono">{instance.region}</p>
           </div>
         </div>
         <div className="flex items-center gap-1.5">

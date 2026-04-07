@@ -1,9 +1,9 @@
 import {
   Instance,
-  RegionGroup,
   SpawnJobState,
   SpawnStepStatus,
 } from "../../types";
+import { getRegionInfo } from "../../types/regionInfo";
 
 function StepIndicator({ status }: { status: SpawnStepStatus }) {
   if (status === "running") {
@@ -49,7 +49,6 @@ function StepIndicator({ status }: { status: SpawnStepStatus }) {
 
 interface ServerDetailsProps {
   instance: Instance;
-  groupedRegions: RegionGroup[];
   isConnecting: boolean;
   isTerminating: boolean;
   vpnError: string | null;
@@ -61,7 +60,6 @@ interface ServerDetailsProps {
 
 export function ServerDetails({
   instance,
-  groupedRegions,
   isConnecting,
   isTerminating,
   vpnError,
@@ -69,13 +67,7 @@ export function ServerDetails({
   onConnect,
   onTerminate,
 }: ServerDetailsProps) {
-  const getRegionFlag = (regionName?: string): string => {
-    const region = groupedRegions
-      .flatMap((g) => g.regions)
-      .find((r) => r.name === regionName) as any;
-    return region?.flag || "🌍";
-  };
-
+  const regionInfo = getRegionInfo(instance.provider, instance.region ?? "");
   const isSpawning = instance.state === "spawning";
 
   return (
@@ -84,16 +76,14 @@ export function ServerDetails({
         <div className="max-w-2xl space-y-6">
           {}
           {!isSpawning && (
-            <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <div className="bg-gray-800 rounded-lg p-6">
               <div className="flex items-center gap-3 mb-4">
-                <span className="text-3xl">
-                  {getRegionFlag(instance.region)}
-                </span>
+                <span className="text-3xl">{regionInfo.flag}</span>
                 <div>
                   <h3 className="text-lg font-semibold text-blue-400">
-                    Server Details
+                    {regionInfo.city}
                   </h3>
-                  <p className="text-sm text-gray-400">{instance.region}</p>
+                  <p className="text-sm text-gray-400 font-mono">{instance.region}</p>
                 </div>
               </div>
               <div className="space-y-3">
@@ -130,8 +120,8 @@ export function ServerDetails({
           {}
           <div className="space-y-3">
             {isSpawning ? (
-              <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-700">
+              <div className="bg-gray-800 rounded-lg overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-700/50">
                   <p className="text-sm font-medium text-blue-400">
                     Deployment progress
                   </p>
@@ -189,7 +179,8 @@ export function ServerDetails({
                 <button
                   onClick={() => onConnect(instance)}
                   disabled={isConnecting}
-                  className="w-full px-6 py-4 bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-medium text-lg shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-6 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-all font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ boxShadow: "0 0 0 1px rgba(8,136,220,0.4), 0 0 24px rgba(8,136,220,0.35), 0 4px 12px rgba(0,0,0,0.4)" }}
                 >
                   {isConnecting ? (
                     <div className="flex items-center justify-center gap-2">

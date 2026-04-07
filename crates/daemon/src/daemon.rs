@@ -34,9 +34,9 @@ pub async fn run_daemon() -> Result<()> {
             info!("Daemon received: {line}");
             info!("process id: {}", std::process::id());
             match serde_json::from_str::<DaemonCommand>(&line) {
-                Ok(DaemonCommand::Connect { config_path }) => {
+                Ok(DaemonCommand::Connect { config_path, region, provider, public_ip_v4, public_ip_v6 }) => {
                     info!("Daemon received connect: {config_path}");
-                    match connect_vpn(config_path).await {
+                    match connect_vpn(config_path, region, provider, public_ip_v4, public_ip_v6).await {
                         Ok(_) => {
                             if stream.send_message("ok:connected").await.is_err() {
                                 error!("Failed to send response to client");

@@ -95,11 +95,11 @@ export function ProvisionAccountDrawer({
       />
 
       <div
-        className={`fixed top-0 right-0 h-full w-96 bg-gray-800 z-50 flex flex-col shadow-2xl border-l border-gray-700 transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 right-0 h-full w-96 bg-gray-800 z-50 flex flex-col shadow-2xl border-l border-gray-700/50 transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <div className="flex items-center justify-between p-6 border-b border-gray-700 flex-shrink-0">
+        <div className="flex items-center justify-between p-6 border-b border-gray-700/50 flex-shrink-0">
           <div>
             <h2 className="text-lg font-semibold text-white">
               {title ?? `Provisioning ${formatProviderLabel(provider)}`}
@@ -110,7 +110,7 @@ export function ProvisionAccountDrawer({
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg hover:bg-gray-700 transition-colors text-gray-400 hover:text-white"
+            className="p-2 rounded-lg hover:bg-gray-600/50 transition-colors text-gray-400 hover:text-white"
           >
             <svg
               className="w-5 h-5"
@@ -166,7 +166,7 @@ export function ProvisionAccountDrawer({
         </div>
 
         {(isComplete || error) && (
-          <div className="p-6 border-t border-gray-700 flex-shrink-0">
+          <div className="p-6 border-t border-gray-700/50 flex-shrink-0">
             {isComplete && (
               <div className="flex items-center gap-3 p-4 bg-green-900/50 border border-green-700 rounded-lg">
                 <svg

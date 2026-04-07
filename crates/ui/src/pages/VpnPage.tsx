@@ -2,29 +2,23 @@ import { useEffect } from "react";
 import { RegionsProvider, InstancesProvider } from "../contexts";
 import { ConnectedView } from "../components/vpn/ConnectedView";
 import { ServerManagementView } from "../components/vpn/ServerManagementView";
-import {
-  useVpnConnectionContext,
-  VpnConnectionProvider,
-} from "../contexts/VpnConnectionContext";
+import { useVpnConnectionContext } from "../contexts/VpnConnectionContext";
 
 interface VpnPageProps {
-
-  onNavigateToSettings: () => void;
+  onNavigateToAddAccount: () => void;
 }
 
-export function VpnPage({ onNavigateToSettings }: VpnPageProps) {
+export function VpnPage({ onNavigateToAddAccount }: VpnPageProps) {
   return (
     <RegionsProvider>
       <InstancesProvider>
-        <VpnConnectionProvider>
-          <VpnPageContent onNavigateToSettings={onNavigateToSettings} />
-        </VpnConnectionProvider>
+        <VpnPageContent onNavigateToAddAccount={onNavigateToAddAccount} />
       </InstancesProvider>
     </RegionsProvider>
   );
 }
 
-function VpnPageContent({ onNavigateToSettings }: VpnPageProps) {
+function VpnPageContent({ onNavigateToAddAccount }: VpnPageProps) {
   const { vpnStatus, checkVpnStatus } = useVpnConnectionContext();
 
   useEffect(() => {
@@ -32,13 +26,10 @@ function VpnPageContent({ onNavigateToSettings }: VpnPageProps) {
   }, []);
 
   if (vpnStatus.connected && vpnStatus.instance) {
-    return (
-      <ConnectedView
-        connectedInstance={vpnStatus.instance}
-        onNavigateToSettings={onNavigateToSettings}
-      />
-    );
+    return <ConnectedView connectedInstance={vpnStatus.instance} />;
   }
 
-  return <ServerManagementView onNavigateToSettings={onNavigateToSettings} />;
+  return (
+    <ServerManagementView onNavigateToAddAccount={onNavigateToAddAccount} />
+  );
 }

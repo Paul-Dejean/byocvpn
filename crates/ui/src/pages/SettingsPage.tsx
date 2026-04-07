@@ -17,14 +17,15 @@ import {
 } from "../types";
 
 interface SettingsPageProps {
-  onNavigateBack?: () => void;
+  onNavigateToAddAccount?: () => void;
 }
 
-export function SettingsPage({ onNavigateBack }: SettingsPageProps) {
+export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
   const [isAwsEditing, setIsAwsEditing] = useState(false);
-  const [awsHasCredentials, setAwsHasCredentials] = useState<boolean | null>(
-    null,
-  );
+  const [awsHasCredentials, setAwsHasCredentials] = useState<boolean | null>(null);
+  const [oracleHasCredentials, setOracleHasCredentials] = useState<boolean | null>(null);
+  const [gcpHasCredentials, setGcpHasCredentials] = useState<boolean | null>(null);
+  const [azureHasCredentials, setAzureHasCredentials] = useState<boolean | null>(null);
   const [isAwsConfirmingDelete, setIsAwsConfirmingDelete] = useState(false);
 
   const [accessKey, setAccessKey] = useState("");
@@ -44,9 +45,10 @@ export function SettingsPage({ onNavigateBack }: SettingsPageProps) {
     useCredentials();
 
   useEffect(() => {
-    loadCredentials("aws").then((existing) => {
-      setAwsHasCredentials(existing !== null);
-    });
+    loadCredentials("aws").then((existing) => setAwsHasCredentials(existing !== null));
+    loadCredentials("oracle").then((existing) => setOracleHasCredentials(existing !== null));
+    loadCredentials("gcp").then((existing) => setGcpHasCredentials(existing !== null));
+    loadCredentials("azure").then((existing) => setAzureHasCredentials(existing !== null));
   }, []);
 
   useEffect(() => {
@@ -176,6 +178,7 @@ export function SettingsPage({ onNavigateBack }: SettingsPageProps) {
     if (success) {
       setAwsHasCredentials(false);
       setIsAwsConfirmingDelete(false);
+      setIsAwsEditing(false);
       setProvisionedProviders((previous) => {
         const next = new Set(previous);
         next.delete("aws");
@@ -189,44 +192,7 @@ export function SettingsPage({ onNavigateBack }: SettingsPageProps) {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-900 text-white">
-      <div className="bg-gray-800 p-6 border-b border-gray-700 flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            {onNavigateBack && (
-              <button
-                onClick={onNavigateBack}
-                className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors"
-                title="Back to VPN"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-6 w-6 text-gray-300"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 19l-7-7 7-7"
-                  />
-                </svg>
-              </button>
-            )}
-            <div>
-              <h1 className="text-3xl font-bold mb-2 text-blue-400">
-                Settings
-              </h1>
-              <p className="text-gray-300">
-                Manage your cloud provider profiles
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
+    <div className="flex flex-col h-full bg-gray-900 text-white">
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-2xl mx-auto">
           <div className="bg-gray-800 rounded-lg p-6">
@@ -234,37 +200,34 @@ export function SettingsPage({ onNavigateBack }: SettingsPageProps) {
               Manage Profiles
             </h2>
 
-            <div className={`rounded-lg p-6 ${awsHasCredentials && !provisionedProviders.has("aws") ? "bg-gray-700 border-l-4 border-amber-500" : "bg-gray-700"}`}>
-              {!isAwsEditing ? (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-orange-600 rounded-lg flex items-center justify-center">
-                      <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M7.25 0C3.25 0 0 3.25 0 7.25v9.5C0 20.75 3.25 24 7.25 24h9.5c4 0 7.25-3.25 7.25-7.25v-9.5C24 3.25 20.75 0 16.75 0h-9.5zM12 6c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6 2.69-6 6-6z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-lg text-white">AWS Profile</h3>
-                        {awsHasCredentials && provisionedProviders.has("aws") && (
-                          <span className="text-xs px-2 py-0.5 bg-green-900 text-green-400 rounded-full border border-green-700">
-                            Provisioned
-                          </span>
-                        )}
-                        {awsHasCredentials && !provisionedProviders.has("aws") && (
-                          <span className="text-xs px-2 py-0.5 bg-amber-900 text-amber-400 rounded-full border border-amber-700">
-                            Not provisioned
-                          </span>
-                        )}
+            {awsHasCredentials === true && (
+              <div className={`rounded-lg p-6 ${!provisionedProviders.has("aws") ? "bg-gray-700 border-l-4 border-amber-500" : "bg-gray-700"}`}>
+                {!isAwsEditing ? (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-orange-600 rounded-lg flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M7.25 0C3.25 0 0 3.25 0 7.25v9.5C0 20.75 3.25 24 7.25 24h9.5c4 0 7.25-3.25 7.25-7.25v-9.5C24 3.25 20.75 0 16.75 0h-9.5zM12 6c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6 2.69-6 6-6z" />
+                        </svg>
                       </div>
-                      <p className="text-sm text-gray-400">
-                        Amazon Web Services credentials for EC2 deployment
-                      </p>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-lg text-white">AWS Profile</h3>
+                          {provisionedProviders.has("aws") ? (
+                            <span className="text-xs px-2 py-0.5 bg-green-900 text-green-400 rounded-full border border-green-700">
+                              Provisioned
+                            </span>
+                          ) : (
+                            <span className="text-xs px-2 py-0.5 bg-amber-900 text-amber-400 rounded-full border border-amber-700">
+                              Not provisioned
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-400">
+                          Amazon Web Services credentials for EC2 deployment
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  {awsHasCredentials === null ? (
-                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                  ) : awsHasCredentials ? (
                     <div className="flex items-center gap-2">
                       {isAwsConfirmingDelete ? (
                         <>
@@ -301,153 +264,137 @@ export function SettingsPage({ onNavigateBack }: SettingsPageProps) {
                         </>
                       )}
                     </div>
-                  ) : (
-                    <button onClick={handleAwsEditOpen} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-medium flex items-center gap-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      Add Provider
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  <div className="flex items-center gap-4 mb-6">
-                    <div className="w-12 h-12 bg-orange-600 rounded-lg flex items-center justify-center">
-                      <svg
-                        className="w-6 h-6 text-white"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                      >
-                        <path d="M7.25 0C3.25 0 0 3.25 0 7.25v9.5C0 20.75 3.25 24 7.25 24h9.5c4 0 7.25-3.25 7.25-7.25v-9.5C24 3.25 20.75 0 16.75 0h-9.5zM12 6c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6 2.69-6 6-6z" />
-                      </svg>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className="w-12 h-12 bg-orange-600 rounded-lg flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M7.25 0C3.25 0 0 3.25 0 7.25v9.5C0 20.75 3.25 24 7.25 24h9.5c4 0 7.25-3.25 7.25-7.25v-9.5C24 3.25 20.75 0 16.75 0h-9.5zM12 6c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6 2.69-6 6-6z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-lg text-white">Edit AWS Profile</h3>
+                        <p className="text-sm text-gray-400">Update your AWS access credentials</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-lg text-white">
-                        {awsHasCredentials ? "Edit AWS Profile" : "Add AWS Profile"}
-                      </h3>
-                      <p className="text-sm text-gray-400">
-                        {awsHasCredentials
-                          ? "Update your AWS access credentials"
-                          : "Enter your AWS access credentials"}
-                      </p>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-1">Access Key ID</label>
+                        <p className="text-xs text-gray-500 mb-2">e.g. AKIAIOSFODNN7EXAMPLE</p>
+                        <input
+                          type="text"
+                          value={accessKey}
+                          onChange={(e) => setAccessKey(e.target.value)}
+                          className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-1">Secret Access Key</label>
+                        <p className="text-xs text-gray-500 mb-2">Leave blank to keep your existing key</p>
+                        <input
+                          type="password"
+                          value={secretKey}
+                          onChange={(e) => setSecretKey(e.target.value)}
+                          className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none"
+                        />
+                      </div>
+                      {error && (
+                        <div className="p-3 bg-red-900 border border-red-700 rounded-lg">
+                          <p className="text-red-300 text-sm">{error}</p>
+                        </div>
+                      )}
+                      {successMessage && (
+                        <div className="p-3 bg-green-900 border border-green-700 rounded-lg">
+                          <p className="text-green-300 text-sm">{successMessage}</p>
+                        </div>
+                      )}
+                      <div className="flex gap-3 pt-4">
+                        <button onClick={handleAwsCancelEdit} className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition font-medium">
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleAwsSaveProfile}
+                          disabled={isSaving || !accessKey.trim()}
+                          className={`flex-1 px-4 py-2 rounded-lg transition font-medium ${isSaving || !accessKey.trim() ? "bg-gray-600 text-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 text-white"}`}
+                        >
+                          {isSaving ? (
+                            <div className="flex items-center justify-center gap-2">
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                              Saving...
+                            </div>
+                          ) : (
+                            "Save Profile"
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
+                )}
+              </div>
+            )}
 
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-1">
-                        Access Key ID
-                      </label>
-                      <p className="text-xs text-gray-500 mb-2">
-                        e.g. AKIAIOSFODNN7EXAMPLE
-                      </p>
-                      <input
-                        type="text"
-                        value={accessKey}
-                        onChange={(e) => setAccessKey(e.target.value)}
-                        className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none"
-                      />
-                    </div>
+            {oracleHasCredentials === true && (
+              <OracleProfileCard
+                onCredentialsSaved={startProvisionAccount}
+                onProvisionRequested={startProvisionAccount}
+                isProvisioned={provisionedProviders.has("oracle")}
+                onCredentialsDeleted={() => {
+                  setOracleHasCredentials(false);
+                  setProvisionedProviders((previous) => {
+                    const next = new Set(previous);
+                    next.delete("oracle");
+                    return next;
+                  });
+                }}
+              />
+            )}
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-1">
-                        Secret Access Key
-                      </label>
-                      <p className="text-xs text-gray-500 mb-2">
-                        {awsHasCredentials
-                          ? "Leave blank to keep your existing key"
-                          : "Your AWS secret access key"}
-                      </p>
-                      <input
-                        type="password"
-                        value={secretKey}
-                        onChange={(e) => setSecretKey(e.target.value)}
-                        className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none"
-                      />
-                    </div>
+            {gcpHasCredentials === true && (
+              <GcpProfileCard
+                onCredentialsSaved={startProvisionAccount}
+                onProvisionRequested={startProvisionAccount}
+                isProvisioned={provisionedProviders.has("gcp")}
+                onCredentialsDeleted={() => {
+                  setGcpHasCredentials(false);
+                  setProvisionedProviders((previous) => {
+                    const next = new Set(previous);
+                    next.delete("gcp");
+                    return next;
+                  });
+                }}
+              />
+            )}
 
-                    {error && (
-                      <div className="p-3 bg-red-900 border border-red-700 rounded-lg">
-                        <p className="text-red-300 text-sm">{error}</p>
-                      </div>
-                    )}
+            {azureHasCredentials === true && (
+              <AzureProfileCard
+                onCredentialsSaved={startProvisionAccount}
+                onProvisionRequested={startProvisionAccount}
+                isProvisioned={provisionedProviders.has("azure")}
+                onCredentialsDeleted={() => {
+                  setAzureHasCredentials(false);
+                  setProvisionedProviders((previous) => {
+                    const next = new Set(previous);
+                    next.delete("azure");
+                    return next;
+                  });
+                }}
+              />
+            )}
 
-                    {successMessage && (
-                      <div className="p-3 bg-green-900 border border-green-700 rounded-lg">
-                        <p className="text-green-300 text-sm">
-                          {successMessage}
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="flex gap-3 pt-4">
-                      <button
-                        onClick={handleAwsCancelEdit}
-                        className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition font-medium"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleAwsSaveProfile}
-                        disabled={isSaving || !accessKey.trim()}
-                        className={`flex-1 px-4 py-2 rounded-lg transition font-medium ${
-                          isSaving || !accessKey.trim()
-                            ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                            : "bg-blue-600 hover:bg-blue-700 text-white"
-                        }`}
-                      >
-                        {isSaving ? (
-                          <div className="flex items-center justify-center gap-2">
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                            Saving...
-                          </div>
-                        ) : (
-                          "Save Profile"
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <OracleProfileCard
-              onCredentialsSaved={startProvisionAccount}
-              onProvisionRequested={startProvisionAccount}
-              isProvisioned={provisionedProviders.has("oracle")}
-              onCredentialsDeleted={() =>
-                setProvisionedProviders((previous) => {
-                  const next = new Set(previous);
-                  next.delete("oracle");
-                  return next;
-                })
-              }
-            />
-            <GcpProfileCard
-              onCredentialsSaved={startProvisionAccount}
-              onProvisionRequested={startProvisionAccount}
-              isProvisioned={provisionedProviders.has("gcp")}
-              onCredentialsDeleted={() =>
-                setProvisionedProviders((previous) => {
-                  const next = new Set(previous);
-                  next.delete("gcp");
-                  return next;
-                })
-              }
-            />
-            <AzureProfileCard
-              onCredentialsSaved={startProvisionAccount}
-              onProvisionRequested={startProvisionAccount}
-              isProvisioned={provisionedProviders.has("azure")}
-              onCredentialsDeleted={() =>
-                setProvisionedProviders((previous) => {
-                  const next = new Set(previous);
-                  next.delete("azure");
-                  return next;
-                })
-              }
-            />
+            {onNavigateToAddAccount && (
+              <div className="mt-4 pt-4 border-t border-gray-600">
+                <button
+                  onClick={onNavigateToAddAccount}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-700 hover:bg-gray-600 border border-dashed border-gray-500 hover:border-gray-400 text-gray-300 hover:text-white rounded-lg transition font-medium"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add Account
+                </button>
+              </div>
+            )}
           </div>
 
         </div>

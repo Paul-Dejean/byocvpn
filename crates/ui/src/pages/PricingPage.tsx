@@ -84,14 +84,9 @@ export function PricingPage() {
   return (
     <div className="flex flex-col h-full bg-gray-900 text-white overflow-hidden">
       {}
-      <div className="bg-gray-800 px-6 py-5 border-b border-gray-700 flex-shrink-0">
-        <div className="flex items-start justify-between flex-wrap gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-yellow-400">Expenses</h1>
-            <p className="text-gray-400 text-sm mt-0.5">
-              Estimated costs from cloud providers
-            </p>
-          </div>
+      <div className="px-6 py-3 border-b border-gray-700/40 flex-shrink-0">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <span className="text-sm font-semibold text-gray-300">Expenses</span>
 
           {!isLoading && filteredEntries.length > 0 && (
             <div className="text-right">

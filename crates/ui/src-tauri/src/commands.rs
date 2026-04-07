@@ -454,6 +454,8 @@ pub async fn connect(
     instance_id: String,
     region: String,
     provider: String,
+    public_ip_v4: Option<String>,
+    public_ip_v6: Option<String>,
     app_handle: AppHandle,
 ) -> Result<String> {
     let cloud_provider = create_cloud_provider(&provider).await?;
@@ -464,6 +466,8 @@ pub async fn connect(
         &daemon_client,
         region.as_str(),
         &instance_id,
+        public_ip_v4,
+        public_ip_v6,
     )
     .await?;
 

@@ -6,7 +6,13 @@ use crate::error::Result;
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum DaemonCommand {
-    Connect { config_path: String },
+    Connect {
+        config_path: String,
+        region: String,
+        provider: String,
+        public_ip_v4: Option<String>,
+        public_ip_v6: Option<String>,
+    },
     Disconnect,
     Status,
     Stats,

@@ -3,4 +3,5 @@ export enum Page {
   VPN = "VPN",
   PRICING = "PRICING",
   SETTINGS = "SETTINGS",
+  ADD_ACCOUNT = "ADD_ACCOUNT",
 }

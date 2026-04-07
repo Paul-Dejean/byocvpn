@@ -1,1 +1,176 @@
 @import "tailwindcss";
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   FONTS
+   Self-hosted variable fonts — no CDN dependency.
+───────────────────────────────────────────────────────────────────────────── */
+
+@font-face {
+  font-family: "Outfit";
+  src: url("/fonts/outfit.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/geist-mono.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   THEME
+   Single source of truth for all design tokens.
+   Redefining Tailwind's built-in palettes means every existing utility class
+   (bg-gray-900, text-blue-400, …) automatically uses the new values.
+───────────────────────────────────────────────────────────────────────────── */
+
+@theme {
+  /* ── Blue-tinted dark grays ── */
+  --color-gray-950: #080e18;
+  --color-gray-900: #0d1525;   /* main app background — deep navy  */
+  --color-gray-800: #132030;   /* panel / header backgrounds        */
+  --color-gray-750: #172638;   /* intermediate hover state          */
+  --color-gray-700: #1c2f44;   /* card / secondary surface          */
+  --color-gray-600: #253d58;   /* input background, hover           */
+  --color-gray-500: #2f4d6e;   /* subtle border, divider            */
+  --color-gray-400: #5a7fa8;   /* muted / placeholder text          */
+  --color-gray-300: #8aafd4;   /* secondary text                    */
+  --color-gray-200: #b6cfe6;   /* labels, captions                  */
+  --color-gray-100: #deedf8;   /* near-primary body text            */
+  --color-gray-50:  #eef6fc;
+
+  /* ── Electric blue accent ── */
+  --color-blue-950: #020d1e;
+  --color-blue-900: #03162e;
+  --color-blue-800: #04306a;
+  --color-blue-700: #054d9c;
+  --color-blue-600: #0669c0;   /* primary buttons              */
+  --color-blue-500: #0888dc;
+  --color-blue-400: #20b4fa;   /* headings, title accent       */
+  --color-blue-300: #5dcfff;
+  --color-blue-200: #9ae2ff;
+  --color-blue-100: #ccf0ff;
+
+  /* ── Typography ── */
+  --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   BASE
+───────────────────────────────────────────────────────────────────────────── */
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-gray-900);
+    color: var(--color-gray-100);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* ── Typography scale ── */
+  /* Tight tracking on headings — signature of premium dark UIs (Linear, Raycast) */
+  h1, h2, h3 {
+    letter-spacing: -0.03em;
+  }
+
+  /* Wide tracking on small labels and badges */
+  .text-xs {
+    letter-spacing: 0.06em;
+  }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar        { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track  { background: var(--color-gray-800); }
+  ::-webkit-scrollbar-thumb  { background: var(--color-gray-500); border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--color-blue-600); }
+
+  /* ── Focus ring ── */
+  :focus-visible {
+    outline: 1.5px solid var(--color-blue-500);
+    outline-offset: 2px;
+  }
+
+  /* ── Input glow on focus ── */
+  input:focus,
+  textarea:focus {
+    box-shadow:
+      0 0 0 1px rgba(8, 136, 220, 0.6),
+      0 0 12px rgba(8, 136, 220, 0.12);
+  }
+
+  /* ── Primary button glow on hover ── */
+  button.bg-blue-600:hover,
+  a.bg-blue-600:hover {
+    box-shadow:
+      0 0 18px rgba(8, 136, 220, 0.4),
+      0 0 4px rgba(8, 136, 220, 0.2),
+      0 2px 8px rgba(0, 0, 0, 0.5);
+  }
+
+  /* ── Smooth border/shadow transitions on all rounded elements ── */
+  .rounded-lg,
+  .rounded-xl {
+    transition-property: border-color, box-shadow, background-color;
+    transition-duration: 150ms;
+  }
+
+  /* ── Tabular numbers — prevent layout shift on live metrics ── */
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   UTILITIES
+───────────────────────────────────────────────────────────────────────────── */
+
+/* Subtle dot-grid — apply to full-screen backgrounds */
+@utility bg-grid {
+  background-image: radial-gradient(
+    circle,
+    rgba(32, 180, 250, 0.07) 1px,
+    transparent 1px
+  );
+  background-size: 28px 28px;
+}
+
+
+/* Gradient border on cards — subtle illuminated edge effect */
+@utility card-border {
+  position: relative;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  box-shadow: inset 0 0 0 1px rgba(32, 180, 250, 0.08);
+}
+
+/* Strong glow ring — selected cards, active states */
+@utility glow-accent {
+  box-shadow:
+    0 0 0 1px rgba(8, 136, 220, 0.4),
+    0 0 20px rgba(8, 136, 220, 0.2),
+    0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* Soft glow — hover states */
+@utility glow-accent-sm {
+  box-shadow:
+    0 0 0 1px rgba(8, 136, 220, 0.2),
+    0 0 8px rgba(8, 136, 220, 0.1);
+}
+
+/* Gradient text — landing page headings */
+@utility text-gradient {
+  background: linear-gradient(135deg, #5dcfff 0%, #20b4fa 45%, #0888dc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
