@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { LedgerEntry, LedgerEntryWithCost, PricingInfo } from "../types/ledger";
 
+
 function computeUptimeHours(
   launchedAt: string,
   terminatedAt: string | null,
@@ -11,17 +12,6 @@ function computeUptimeHours(
   return Math.max(0, (end - start) / (1000 * 3600));
 }
 
-function computeEstimatedCost(
-  entry: LedgerEntry,
-  pricing: PricingInfo,
-  uptimeHours: number,
-): number {
-  const bytesSentGb = entry.bytesSent / 1024 ** 3;
-  return (
-    uptimeHours * (pricing.hourlyRate + pricing.ipHourlyRate) +
-    bytesSentGb * pricing.egressRatePerGb
-  );
-}
 
 export const useLedger = () => {
   const [entries, setEntries] = useState<LedgerEntryWithCost[]>([]);
@@ -50,6 +40,8 @@ export const useLedger = () => {
               hourlyRate: 0,
               ipHourlyRate: 0,
               egressRatePerGb: 0,
+              storageGb: 0,
+              storageRatePerGbMonth: 0,
             });
           }
         }
@@ -62,8 +54,23 @@ export const useLedger = () => {
           entry.launchedAt,
           entry.terminatedAt,
         );
-        const estimatedCost = computeEstimatedCost(entry, pricing, uptimeHours);
-        return { ...entry, estimatedCost, uptimeHours };
+        const bytesSentGb = entry.bytesSent / 1024 ** 3;
+        const computeCost = uptimeHours * pricing.hourlyRate;
+        const ipCost = uptimeHours * pricing.ipHourlyRate;
+        const egressCost = bytesSentGb * pricing.egressRatePerGb;
+        const storageCost = pricing.storageGb * pricing.storageRatePerGbMonth / 730 * uptimeHours;
+        const estimatedCost = computeCost + ipCost + egressCost + storageCost;
+        return {
+          ...entry,
+          estimatedCost,
+          uptimeHours,
+          computeCost,
+          ipCost,
+          egressCost,
+          storageCost,
+          storageGb: pricing.storageGb,
+          storageRatePerGbMonth: pricing.storageRatePerGbMonth,
+        };
       });
 
       setEntries(enriched);

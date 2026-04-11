@@ -13,9 +13,9 @@ pub fn get_pricing(instance_type: &str) -> Option<PricingInfo> {
         .find(|(name, _)| *name == instance_type)
         .map(|(_, hourly_rate)| PricingInfo {
             hourly_rate: *hourly_rate,
-
             ip_hourly_rate: 0.0,
-
             egress_rate_per_gb: 0.0,
+            storage_gb: 50.0,
+            storage_rate_per_gb_month: 0.0255,
         })
 }

@@ -114,6 +114,10 @@ pub struct PricingInfo {
     pub ip_hourly_rate: f64,
 
     pub egress_rate_per_gb: f64,
+
+    pub storage_gb: f64,
+
+    pub storage_rate_per_gb_month: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

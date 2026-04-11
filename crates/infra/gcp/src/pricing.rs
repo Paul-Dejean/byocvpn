@@ -4,6 +4,10 @@ const IPV4_HOURLY_RATE: f64 = 0.004;
 
 const EGRESS_RATE_PER_GB: f64 = 0.08;
 
+const STORAGE_GB: f64 = 10.0;
+
+const STORAGE_RATE_PER_GB_MONTH: f64 = 0.04;
+
 const INSTANCE_PRICES: &[(&str, f64)] = &[
     ("e2-micro", 0.0084),
     ("e2-small", 0.0168),
@@ -22,5 +26,7 @@ pub fn get_pricing(instance_type: &str) -> Option<PricingInfo> {
             hourly_rate: *hourly_rate,
             ip_hourly_rate: IPV4_HOURLY_RATE,
             egress_rate_per_gb: EGRESS_RATE_PER_GB,
+            storage_gb: STORAGE_GB,
+            storage_rate_per_gb_month: STORAGE_RATE_PER_GB_MONTH,
         })
 }
