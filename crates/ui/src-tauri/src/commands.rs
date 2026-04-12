@@ -568,6 +568,16 @@ pub async fn get_instance_pricing(provider: String, instance_type: String) -> Re
 }
 
 #[tauri::command]
+pub async fn save_file(path: String, content: String) -> Result<()> {
+    tokio::fs::write(&path, content).await.map_err(|error| -> Error {
+        ConfigurationError::InvalidFile {
+            reason: error.to_string(),
+        }
+        .into()
+    })
+}
+
+#[tauri::command]
 pub async fn get_ledger(app_handle: AppHandle) -> Result<Vec<Value>> {
     let ledger = LedgerStore::open(&app_handle).ok_or_else(|| -> Error {
         ConfigurationError::InvalidFile {

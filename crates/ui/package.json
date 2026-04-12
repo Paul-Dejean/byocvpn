@@ -16,6 +16,7 @@
     "@fontsource-variable/outfit": "^5.2.8",
     "@tailwindcss/vite": "^4.1.10",
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2.7.0",
     "@tauri-apps/plugin-log": "^2.8.0",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-store": "^2.4.2",

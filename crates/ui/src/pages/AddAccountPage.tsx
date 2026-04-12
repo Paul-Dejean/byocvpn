@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { save } from "@tauri-apps/plugin-dialog";
 import toast from "react-hot-toast";
 import { useCredentials } from "../hooks/useCredentials";
 import { ProvisionAccountDrawer } from "../components/settings/ProvisionAccountDrawer";
@@ -50,7 +51,7 @@ const ALL_PROVIDERS: ProviderOption[] = [
   {
     id: "gcp",
     label: "Google Cloud Platform",
-    description: "Deploy on GCP Compute Engine — available in 40+ regions worldwide",
+    description: "Deploy on Compute Engine using a service account — available in 40+ regions worldwide",
     badge: (
       <div className="w-14 h-14 rounded-xl bg-blue-600/20 flex items-center justify-center flex-shrink-0">
         <span className="text-blue-400 font-black text-xl">GCP</span>
@@ -95,19 +96,25 @@ const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
               "ec2:TerminateInstances",
               "ec2:DescribeInstances",
               "ec2:CreateVpc",
+              "ec2:DeleteVpc",
               "ec2:DescribeVpcs",
               "ec2:CreateSubnet",
+              "ec2:DeleteSubnet",
               "ec2:DescribeSubnets",
               "ec2:ModifySubnetAttribute",
               "ec2:CreateSecurityGroup",
+              "ec2:DeleteSecurityGroup",
               "ec2:DescribeSecurityGroups",
               "ec2:AuthorizeSecurityGroupIngress",
               "ec2:CreateTags",
               "ec2:DescribeAvailabilityZones",
               "ec2:CreateInternetGateway",
+              "ec2:DeleteInternetGateway",
               "ec2:AttachInternetGateway",
+              "ec2:DetachInternetGateway",
               "ec2:DescribeInternetGateways",
               "ec2:CreateRoute",
+              "ec2:DeleteRoute",
               "ec2:DescribeRouteTables",
               "ec2:DescribeRegions",
               "ssm:GetParameter",
@@ -146,25 +153,36 @@ const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
       "description: Minimum permissions required by ByocVPN",
       "stage: GA",
       "includedPermissions:",
-      "- compute.instances.create",
-      "- compute.instances.get",
-      "- compute.instances.delete",
-      "- compute.instances.list",
-      "- compute.networks.create",
-      "- compute.networks.get",
+      "- compute.disks.create",
+      "- compute.disks.delete",
       "- compute.firewalls.create",
+      "- compute.firewalls.delete",
       "- compute.firewalls.get",
-      "- compute.subnetworks.create",
-      "- compute.subnetworks.get",
-      "- compute.subnetworks.update",
-      "- compute.zoneOperations.get",
       "- compute.globalOperations.get",
       "- compute.images.get",
-      "- compute.images.list",
+      "- compute.instances.create",
+      "- compute.instances.delete",
+      "- compute.instances.get",
+      "- compute.instances.list",
+      "- compute.instances.setLabels",
+      "- compute.instances.setMetadata",
+      "- compute.instances.setTags",
+      "- compute.networks.create",
+      "- compute.networks.delete",
+      "- compute.networks.get",
+      "- compute.networks.updatePolicy",
       "- compute.regions.list",
-      "- serviceusage.services.get",
-      "- serviceusage.services.enable",
+      "- compute.subnetworks.create",
+      "- compute.subnetworks.delete",
+      "- compute.subnetworks.get",
+      "- compute.subnetworks.list",
+      "- compute.subnetworks.update",
+      "- compute.subnetworks.use",
+      "- compute.subnetworks.useExternalIp",
+      "- compute.zoneOperations.get",
       "- serviceusage.operations.get",
+      "- serviceusage.services.enable",
+      "- serviceusage.services.get",
     ].join("\n"),
   },
   azure: {
@@ -172,35 +190,49 @@ const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
     language: "json",
     content: JSON.stringify(
       {
-        Name: "ByocVPN",
-        IsCustom: true,
-        Description: "Minimum permissions required by ByocVPN",
-        Actions: [
-          "Microsoft.Compute/virtualMachines/read",
-          "Microsoft.Compute/virtualMachines/write",
-          "Microsoft.Compute/virtualMachines/delete",
-          "Microsoft.Network/networkInterfaces/read",
-          "Microsoft.Network/networkInterfaces/write",
-          "Microsoft.Network/networkInterfaces/delete",
-          "Microsoft.Network/networkSecurityGroups/read",
-          "Microsoft.Network/networkSecurityGroups/write",
-          "Microsoft.Network/publicIPAddresses/read",
-          "Microsoft.Network/publicIPAddresses/write",
-          "Microsoft.Network/publicIPAddresses/delete",
-          "Microsoft.Network/virtualNetworks/read",
-          "Microsoft.Network/virtualNetworks/write",
-          "Microsoft.Network/virtualNetworks/subnets/read",
-          "Microsoft.Network/virtualNetworks/subnets/write",
-          "Microsoft.Resources/subscriptions/locations/read",
-          "Microsoft.Resources/subscriptions/providers/read",
-          "Microsoft.Resources/subscriptions/providers/register/action",
-          "Microsoft.Resources/subscriptions/resourceGroups/read",
-          "Microsoft.Resources/subscriptions/resourceGroups/write",
-        ],
-        NotActions: [],
-        DataActions: [],
-        NotDataActions: [],
-        AssignableScopes: ["/subscriptions/YOUR_SUBSCRIPTION_ID"],
+        properties: {
+          roleName: "ByocVPN",
+          description: "Minimum permissions required by ByocVPN",
+          permissions: [
+            {
+              actions: [
+                "Microsoft.Compute/register/action",
+                "Microsoft.Compute/virtualMachines/read",
+                "Microsoft.Compute/virtualMachines/write",
+                "Microsoft.Compute/virtualMachines/delete",
+                "Microsoft.Network/register/action",
+                "Microsoft.Network/networkInterfaces/join/action",
+                "Microsoft.Network/networkInterfaces/read",
+                "Microsoft.Network/networkInterfaces/write",
+                "Microsoft.Network/networkInterfaces/delete",
+                "Microsoft.Network/networkSecurityGroups/join/action",
+                "Microsoft.Network/networkSecurityGroups/read",
+                "Microsoft.Network/networkSecurityGroups/write",
+                "Microsoft.Network/networkSecurityGroups/delete",
+                "Microsoft.Network/publicIPAddresses/join/action",
+                "Microsoft.Network/publicIPAddresses/read",
+                "Microsoft.Network/publicIPAddresses/write",
+                "Microsoft.Network/publicIPAddresses/delete",
+                "Microsoft.Network/virtualNetworks/read",
+                "Microsoft.Network/virtualNetworks/write",
+                "Microsoft.Network/virtualNetworks/delete",
+                "Microsoft.Network/virtualNetworks/subnets/join/action",
+                "Microsoft.Network/virtualNetworks/subnets/read",
+                "Microsoft.Network/virtualNetworks/subnets/write",
+                "Microsoft.Network/virtualNetworks/subnets/delete",
+                "Microsoft.Resources/subscriptions/locations/read",
+                "Microsoft.Resources/subscriptions/providers/read",
+                "Microsoft.Resources/subscriptions/resourceGroups/read",
+                "Microsoft.Resources/subscriptions/resourceGroups/write",
+                "Microsoft.Resources/subscriptions/resourceGroups/delete",
+              ],
+              notActions: [],
+              dataActions: [],
+              notDataActions: [],
+            },
+          ],
+          assignableScopes: ["/subscriptions/YOUR_SUBSCRIPTION_ID"],
+        },
       },
       null,
       2,
@@ -213,8 +245,8 @@ const PROVIDER_SETUP_INSTRUCTIONS: Record<string, { title: string; steps: SetupS
     title: "Set up AWS credentials",
     steps: [
       { number: 1, text: "Sign in to the AWS Console and navigate to IAM → Users." },
-      { number: 2, text: "Click Create user, give it a name, and proceed to permissions." },
-      { number: 3, text: "Choose Attach policies directly → Create policy. Paste the JSON policy below into the JSON editor and save it, then attach it to the user." },
+      { number: 2, text: "Click Create user and give it a name (e.g. byocvpn), then proceed to permissions." },
+      { number: 3, text: "For a quick setup, attach the AmazonEC2FullAccess and AmazonSSMReadOnlyAccess managed policies. For fine-grained access, choose Attach policies directly → Create policy, paste the JSON policy below into the JSON editor, save it, and attach it to the user." },
       { number: 4, text: "After the user is created, open it and go to the Security credentials tab." },
       { number: 5, text: "Click Create access key, select Application running outside AWS, then copy the Access Key ID and Secret Access Key." },
       { number: 6, text: "Paste both values into the form and click Connect." },
@@ -227,19 +259,18 @@ const PROVIDER_SETUP_INSTRUCTIONS: Record<string, { title: string; steps: SetupS
       { number: 2, text: "Click your profile icon → Tenancy to find your Tenancy OCID and home region (e.g. us-ashburn-1)." },
       { number: 3, text: "Click your profile icon → My profile to find your User OCID." },
       { number: 4, text: "Still in My profile, open the API keys section and click Add API key. Choose Generate API key pair, download the private key (.pem file), and copy the fingerprint shown after upload." },
-      { number: 5, text: "Go to Identity & Security → Groups, create a group named byocvpn-group, and add your user to it." },
-      { number: 6, text: "Go to Identity & Security → Policies, create a policy in the root compartment, and paste the policy statements below." },
-      { number: 7, text: "Paste your credentials and private key below, then click Connect." },
+      { number: 5, text: "If your user has administrator privileges, skip to the next step — no policies are needed. Otherwise, go to Identity & Domains → Policies, create a policy in the root compartment, and paste the policy statements below." },
+      { number: 6, text: "Paste your credentials and private key below, then click Connect." },
     ],
   },
   gcp: {
     title: "Set up Google Cloud credentials",
     steps: [
       { number: 1, text: "Sign in to the Google Cloud Console and select or create a project. Note the Project ID shown in the header." },
-      { number: 2, text: "Go to IAM & Admin → Roles → Create role. Set any title, then click Add permissions and add all permissions from the YAML file below." },
-      { number: 3, text: "Alternatively, download the YAML file and run: gcloud iam roles create byocvpnRole --project=YOUR_PROJECT_ID --file=byocvpn-gcp-role.yaml" },
-      { number: 4, text: "Go to IAM & Admin → Service Accounts → Create service account. Assign the custom role you just created." },
-      { number: 5, text: "Click the service account → Keys tab → Add key → Create new key (JSON). A file will download — upload it below." },
+      { number: 2, text: "Go to IAM & Admin → Service Accounts → Create service account and give it a name (e.g. byocvpn)." },
+      { number: 3, text: "Assign permissions to the service account. Quick setup: attach the built-in roles Compute Instance Admin (v1) and Service Usage Admin. Least-privilege setup: go to IAM & Admin → Roles → Create role, add each permission listed in the YAML below, then assign that custom role to the service account." },
+      { number: 4, text: "Open the service account, go to the Keys tab → Add key → Create new key → JSON. A key file will download automatically." },
+      { number: 5, text: "Upload the JSON key file below and click Connect." },
     ],
   },
   azure: {
@@ -248,8 +279,10 @@ const PROVIDER_SETUP_INSTRUCTIONS: Record<string, { title: string; steps: SetupS
       { number: 1, text: "Sign in to the Azure Portal and go to Microsoft Entra ID → App registrations → New registration." },
       { number: 2, text: "Register the app with any name. Note the Application (client) ID and Directory (tenant) ID shown on the overview page." },
       { number: 3, text: "In the app, go to Certificates & secrets → New client secret. Copy the secret Value immediately — it won't be shown again." },
-      { number: 4, text: "To use least-privilege permissions: go to Subscriptions → your subscription → Access control (IAM) → Add → Add custom role. Upload the JSON role definition below, replace YOUR_SUBSCRIPTION_ID, and assign it to the app. Alternatively, assign the built-in Contributor role." },
-      { number: 5, text: "Find your Subscription ID on the subscription overview page. Enter all four values in the form and click Connect." },
+      { number: 4, text: "Find your Subscription ID in the Azure Portal by searching for Subscriptions — note it down as you will need it in the next steps." },
+      { number: 5, text: "Create a role: quick setup — skip this step and use the built-in Contributor role in step 6. Least-privilege setup: download the JSON definition below, replace YOUR_SUBSCRIPTION_ID with your actual Subscription ID, then go to Subscriptions → your subscription → Access control (IAM) → Add → Add custom role → Start from JSON, upload the file and create the role." },
+      { number: 6, text: "Assign the role to your app: go to Subscriptions → your subscription → Access control (IAM) → Add → Add role assignment. Search for Contributor (quick setup) or your newly created ByocVPN role (least-privilege). Click Next, select User, group, or service principal, click Select members, search for your app registration by name, select it, then click Review + assign." },
+      { number: 7, text: "Enter your Subscription ID, Tenant ID, Client ID, and Client Secret in the form and click Connect." },
     ],
   },
 };
@@ -265,6 +298,7 @@ export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPag
   const [isProvisionComplete, setIsProvisionComplete] = useState(false);
   const [provisionError, setProvisionError] = useState<string | null>(null);
   const activeJobIdRef = useRef<string | null>(null);
+  const earlyProgressEventsRef = useRef<ProvisionAccountProgressEvent[]>([]);
 
   const { loadCredentials } = useCredentials();
 
@@ -289,7 +323,10 @@ export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPag
       ({ payload }) => {
         const { jobId, stepId, status, error: stepError } = payload;
         setActiveProvisionJob((previous) => {
-          if (!previous || previous.jobId !== jobId) return previous;
+          if (!previous || previous.jobId !== jobId) {
+            earlyProgressEventsRef.current.push(payload);
+            return previous;
+          }
           return {
             ...previous,
             steps: previous.steps.map((provisionStep) =>
@@ -331,11 +368,18 @@ export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPag
 
   const startProvisioning = async (provider: string) => {
     try {
+      earlyProgressEventsRef.current = [];
       const job = await invoke<ProvisionAccountJob>("provision_account", { provider });
-      const initialSteps: SpawnStepState[] = job.steps.map((provisionStep) => ({
-        ...provisionStep,
-        status: "pending" as const,
-      }));
+      const bufferedEvents = earlyProgressEventsRef.current.filter((event) => event.jobId === job.jobId);
+      earlyProgressEventsRef.current = [];
+      const initialSteps: SpawnStepState[] = job.steps.map((provisionStep) => {
+        const latestBufferedEvent = [...bufferedEvents].reverse().find((event) => event.stepId === provisionStep.id);
+        return {
+          ...provisionStep,
+          status: latestBufferedEvent?.status ?? ("pending" as const),
+          error: latestBufferedEvent?.error,
+        };
+      });
       activeJobIdRef.current = job.jobId;
       setActiveProvisionJob({ jobId: job.jobId, provider, steps: initialSteps });
       setIsProvisionComplete(false);
@@ -364,7 +408,8 @@ export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPag
 
   const handleCloseProvisionDrawer = () => {
     setIsProvisionDrawerOpen(false);
-    if (isProvisionComplete) {
+    const hasNoSteps = (activeProvisionJob?.steps ?? []).length === 0;
+    if (isProvisionComplete || hasNoSteps) {
       onAccountAdded();
     }
   };
@@ -866,14 +911,11 @@ function PolicyBox({ policy }: PolicyBoxProps) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDownload = () => {
-    const blob = new Blob([policy.content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = policy.filename;
-    anchor.click();
-    URL.revokeObjectURL(url);
+  const handleDownload = async () => {
+    const savePath = await save({ defaultPath: policy.filename });
+    if (savePath) {
+      await invoke("save_file", { path: savePath, content: policy.content });
+    }
   };
 
   return (

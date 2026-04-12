@@ -43,6 +43,7 @@ export function RegionSelector({
   const [activeEnableJob, setActiveEnableJob] = useState<{
     jobId: string;
     region: string;
+    country: string;
     steps: SpawnStepState[];
   } | null>(null);
   const [isEnableDrawerOpen, setIsEnableDrawerOpen] = useState(false);
@@ -135,13 +136,13 @@ export function RegionSelector({
   }, []);
 
   const handleEnableRegion = async (
-    regionName: string,
+    region: SimpleRegion,
     event: React.MouseEvent,
   ) => {
     event.stopPropagation();
     try {
       const job = await invoke<EnableRegionJob>("enable_region", {
-        region: regionName,
+        region: region.name,
         provider,
       });
       const initialSteps: SpawnStepState[] = job.steps.map((step) => ({
@@ -151,7 +152,8 @@ export function RegionSelector({
       activeEnableJobIdRef.current = job.jobId;
       setActiveEnableJob({
         jobId: job.jobId,
-        region: regionName,
+        region: region.name,
+        country: region.country,
         steps: initialSteps,
       });
       setIsEnableComplete(false);
@@ -296,7 +298,7 @@ export function RegionSelector({
                             </div>
                           ) : (
                             <button
-                              onClick={(e) => handleEnableRegion(region.name, e)}
+                              onClick={(e) => handleEnableRegion(region, e)}
                               className="ml-auto text-xs px-2.5 py-1 bg-gray-700 hover:bg-gray-600 text-gray-400 hover:text-white border border-gray-600 rounded transition flex items-center gap-1.5"
                             >
                               <svg
@@ -354,11 +356,11 @@ export function RegionSelector({
         isOpen={isEnableDrawerOpen}
         onClose={() => setIsEnableDrawerOpen(false)}
         provider={provider}
-        title={activeEnableJob ? `Enabling ${activeEnableJob.region}` : ""}
-        subtitle="Setting up regional infrastructure"
+        title={activeEnableJob ? `Enabling ${activeEnableJob.country}` : ""}
+        subtitle={activeEnableJob ? `Setting up regional infrastructure for ${activeEnableJob.region}` : undefined}
         successMessage={
           activeEnableJob
-            ? `${activeEnableJob.region} is ready for deployment`
+            ? `${activeEnableJob.country} is ready for deployment`
             : undefined
         }
         steps={activeEnableJob?.steps ?? []}

@@ -7,6 +7,7 @@ pub fn run() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
@@ -27,6 +28,7 @@ pub fn run() {
             commands::subscribe_to_vpn_status,
             commands::get_instance_pricing,
             commands::get_ledger,
+            commands::save_file,
         ]);
 
     builder
