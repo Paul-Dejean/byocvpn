@@ -22,7 +22,7 @@ pub async fn connect(
         .send_command(DaemonCommand::Connect {
             config_path: wireguard_file_path.to_string_lossy().to_string(),
             region: region.to_string(),
-            provider: format!("{provider_name}").to_lowercase(),
+            provider: provider_name.to_string(),
             public_ip_v4,
             public_ip_v6,
         })

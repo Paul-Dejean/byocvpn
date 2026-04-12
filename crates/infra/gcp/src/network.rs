@@ -10,6 +10,8 @@ const SUBNET_NAME: &str = "byocvpn-subnet";
 const FIREWALL_NAME_IPV4: &str = "byocvpn-wireguard-ipv4";
 const FIREWALL_NAME_IPV6: &str = "byocvpn-wireguard-ipv6";
 const FIREWALL_TAG: &str = "byocvpn";
+const IPV4_ALL_CIDR: &str = "0.0.0.0/0";
+const IPV6_ALL_CIDR: &str = "::/0";
 
 async fn wait_for_operation(client: &GcpClient, operation_url: &str) -> Result<()> {
     for attempt in 1..=60u32 {
@@ -118,7 +120,7 @@ pub async fn get_or_create_firewall(client: &GcpClient) -> Result<()> {
                 { "IPProtocol": "udp", "ports": ["51820"] },
                 { "IPProtocol": "tcp", "ports": ["51820"] }
             ],
-            "sourceRanges": ["0.0.0.0/0"],
+            "sourceRanges": [IPV4_ALL_CIDR],
         });
         let operation = client.post(&create_url, &body).await.map_err(|error| {
             NetworkProvisioningError::SecurityGroupCreationFailed {
@@ -146,7 +148,7 @@ pub async fn get_or_create_firewall(client: &GcpClient) -> Result<()> {
                 { "IPProtocol": "udp", "ports": ["51820"] },
                 { "IPProtocol": "tcp", "ports": ["51820"] }
             ],
-            "sourceRanges": ["::/0"],
+            "sourceRanges": [IPV6_ALL_CIDR],
         });
         let operation = client.post(&create_url, &body).await.map_err(|error| {
             NetworkProvisioningError::SecurityGroupCreationFailed {

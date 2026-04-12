@@ -1,17 +1,10 @@
-use std::{
-    fmt::{self, Display, Formatter},
-    str::FromStr,
-};
-
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use strum::{Display, EnumString};
 
-use crate::{
-    commands::setup::Region,
-    error::{ConfigurationError, Error, Result},
-};
+use crate::{commands::setup::Region, error::Result};
 
 pub struct SpawnInstanceParams<'a> {
     pub region: &'a str,
@@ -45,39 +38,15 @@ pub trait CloudProvider: Send + Sync {
     async fn run_enable_region_step(&self, step_id: &str, region: &str) -> Result<()>;
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Display, EnumString)]
 #[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase", ascii_case_insensitive)]
 pub enum CloudProviderName {
     Aws,
     Azure,
     Gcp,
+    #[strum(serialize = "oracle", serialize = "oci")]
     Oracle,
-}
-
-impl FromStr for CloudProviderName {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        match s.to_lowercase().as_str() {
-            "aws" => Ok(CloudProviderName::Aws),
-            "azure" => Ok(CloudProviderName::Azure),
-            "gcp" => Ok(CloudProviderName::Gcp),
-            "oracle" | "oci" => Ok(CloudProviderName::Oracle),
-            e => Err(ConfigurationError::UnknownProviderName { name: e.to_string() }.into()),
-        }
-    }
-}
-
-impl Display for CloudProviderName {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let value = match self {
-            CloudProviderName::Aws => "AWS",
-            CloudProviderName::Gcp => "GCP",
-            CloudProviderName::Azure => "AZURE",
-            CloudProviderName::Oracle => "ORACLE",
-        };
-        write!(f, "{}", value)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

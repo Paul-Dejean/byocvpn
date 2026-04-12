@@ -53,6 +53,15 @@ pub enum Error {
     },
 }
 
+impl From<strum::ParseError> for Error {
+    fn from(error: strum::ParseError) -> Self {
+        ConfigurationError::UnknownProviderName {
+            name: error.to_string(),
+        }
+        .into()
+    }
+}
+
 impl Serialize for Error {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where

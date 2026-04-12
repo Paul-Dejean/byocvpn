@@ -14,8 +14,11 @@ use log::*;
 use tokio::time::Duration;
 
 use crate::aws_error::sdk_error_message;
-
+use crate::constants::{SECURITY_GROUP_NAME, VPC_NAME};
 use crate::{config, network, startup_script, state::Ec2InstanceState};
+
+const SERVER_INSTANCE_NAME: &str = "byocvpn-server";
+const SERVER_INSTANCE_TYPE: &str = "t2.micro";
 
 pub(super) async fn spawn_instance(
     ec2_client: &Ec2Client,
@@ -24,10 +27,10 @@ pub(super) async fn spawn_instance(
     server_private_key: &str,
     client_public_key: &str,
 ) -> Result<InstanceInfo> {
-    let vpc_id = network::get_vpc_by_name(&ec2_client, "byocvpn-vpc")
+    let vpc_id = network::get_vpc_by_name(&ec2_client, VPC_NAME)
         .await?
         .ok_or_else(|| NetworkProvisioningError::VpcNotFound {
-            vpc_name: "byocvpn-vpc".to_string(),
+            vpc_name: VPC_NAME.to_string(),
         })?;
 
     let subnets = network::get_subnets_in_vpc(&ec2_client, &vpc_id).await?;
@@ -45,18 +48,17 @@ pub(super) async fn spawn_instance(
     let ami_id = config::get_al2023_ami(&ssm_client).await?;
     info!("AMI ID: {}", ami_id);
 
-    let group_name = "byocvpn-security-group";
-    let security_group_id = network::get_security_group_by_name(&ec2_client, group_name)
+    let security_group_id = network::get_security_group_by_name(&ec2_client, SECURITY_GROUP_NAME)
         .await?
         .ok_or_else(|| NetworkProvisioningError::SecurityGroupNotFound {
-            group_name: group_name.to_string(),
+            group_name: SECURITY_GROUP_NAME.to_string(),
         })?;
 
     info!("Security group ID: {}", security_group_id);
 
     let tags = TagSpecification::builder()
         .resource_type(ResourceType::Instance)
-        .tags(Tag::builder().key("Name").value("byocvpn-server").build())
+        .tags(Tag::builder().key("Name").value(SERVER_INSTANCE_NAME).build())
         .build();
     let resp = ec2_client
         .run_instances()
@@ -125,13 +127,13 @@ pub(super) async fn spawn_instance(
 
     Ok(InstanceInfo {
         id: instance_id,
-        name: Some("byocvpn-server".to_string()),
+        name: Some(SERVER_INSTANCE_NAME.to_string()),
         state: InstanceState::Running,
         public_ip_v4,
         public_ip_v6,
         region: region.to_string(),
         provider: CloudProviderName::Aws,
-        instance_type: "t2.micro".to_string(),
+        instance_type: SERVER_INSTANCE_TYPE.to_string(),
         launched_at: Some(Utc::now()),
     })
 }

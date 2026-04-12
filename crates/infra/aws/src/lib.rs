@@ -1,5 +1,6 @@
 mod aws_error;
 mod config;
+mod constants;
 pub mod credentials;
 mod instance;
 mod network;

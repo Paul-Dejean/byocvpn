@@ -5,12 +5,14 @@ use tokio::time::{Duration, sleep};
 use crate::client::OciClient;
 use log::*;
 
-const VCN_DISPLAY_NAME: &str = "byocvpn-vcn";
+pub(crate) const VCN_DISPLAY_NAME: &str = "byocvpn-vcn";
 const VCN_CIDR: &str = "10.0.0.0/16";
 const SUBNET_DISPLAY_NAME: &str = "byocvpn-subnet";
 const SUBNET_CIDR: &str = "10.0.0.0/24";
 const SECURITY_LIST_NAME: &str = "byocvpn-security-list";
 const INTERNET_GATEWAY_NAME: &str = "byocvpn-igw";
+const IPV4_ALL_CIDR: &str = "0.0.0.0/0";
+const IPV6_ALL_CIDR: &str = "::/0";
 
 pub async fn get_vcn_by_name(
     client: &OciClient,
@@ -246,11 +248,11 @@ pub async fn add_default_route_to_table(
 
     let already_has_default = route_rules
         .iter()
-        .any(|route_rule| route_rule["destination"].as_str() == Some("0.0.0.0/0"));
+        .any(|route_rule| route_rule["destination"].as_str() == Some(IPV4_ALL_CIDR));
     if !already_has_default {
         route_rules.push(json!({
             "networkEntityId": igw_id,
-            "destination": "0.0.0.0/0",
+            "destination": IPV4_ALL_CIDR,
             "destinationType": "CIDR_BLOCK",
         }));
     }
@@ -258,11 +260,11 @@ pub async fn add_default_route_to_table(
     if !ipv6_prefix.is_empty() {
         let already_has_default_ipv6 = route_rules
             .iter()
-            .any(|route_rule| route_rule["destination"].as_str() == Some("::/0"));
+            .any(|route_rule| route_rule["destination"].as_str() == Some(IPV6_ALL_CIDR));
         if !already_has_default_ipv6 {
             route_rules.push(json!({
                 "networkEntityId": igw_id,
-                "destination": "::/0",
+                "destination": IPV6_ALL_CIDR,
                 "destinationType": "CIDR_BLOCK",
             }));
         }
@@ -301,14 +303,14 @@ pub async fn get_or_create_security_list(
     let mut ingress_rules = vec![
         json!({
             "protocol": "17",
-            "source": "0.0.0.0/0",
+            "source": IPV4_ALL_CIDR,
             "sourceType": "CIDR_BLOCK",
             "isStateless": false,
             "udpOptions": { "destinationPortRange": { "min": 51820, "max": 51820 } }
         }),
         json!({
             "protocol": "6",
-            "source": "0.0.0.0/0",
+            "source": IPV4_ALL_CIDR,
             "sourceType": "CIDR_BLOCK",
             "isStateless": false,
             "tcpOptions": { "destinationPortRange": { "min": 51820, "max": 51820 } }
@@ -316,14 +318,14 @@ pub async fn get_or_create_security_list(
     ];
     let mut egress_rules = vec![json!({
         "protocol": "all",
-        "destination": "0.0.0.0/0",
+        "destination": IPV4_ALL_CIDR,
         "destinationType": "CIDR_BLOCK",
         "isStateless": false,
     })];
     if !ipv6_prefix.is_empty() {
         ingress_rules.push(json!({
             "protocol": "17",
-            "source": "::/0",
+            "source": IPV6_ALL_CIDR,
             "sourceType": "CIDR_BLOCK",
             "isStateless": false,
             "udpOptions": { "destinationPortRange": { "min": 51820, "max": 51820 } }
@@ -331,14 +333,14 @@ pub async fn get_or_create_security_list(
 
         ingress_rules.push(json!({
             "protocol": "6",
-            "source": "::/0",
+            "source": IPV6_ALL_CIDR,
             "sourceType": "CIDR_BLOCK",
             "isStateless": false,
             "tcpOptions": { "destinationPortRange": { "min": 51820, "max": 51820 } }
         }));
         egress_rules.push(json!({
             "protocol": "all",
-            "destination": "::/0",
+            "destination": IPV6_ALL_CIDR,
             "destinationType": "CIDR_BLOCK",
             "isStateless": false,
         }));

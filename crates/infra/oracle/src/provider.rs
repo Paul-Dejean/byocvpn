@@ -168,7 +168,7 @@ impl CloudProvider for OracleProvider {
                     network::get_vcn_by_name(&client, compartment)
                         .await?
                         .ok_or(NetworkProvisioningError::VpcNotFound {
-                            vpc_name: "byocvpn-vcn".to_string(),
+                            vpc_name: network::VCN_DISPLAY_NAME.to_string(),
                         })?;
                 let igw_id =
                     network::get_or_create_internet_gateway(&client, compartment, &vcn_id).await?;
@@ -204,7 +204,7 @@ impl CloudProvider for OracleProvider {
                     network::get_vcn_by_name(&client, compartment)
                         .await?
                         .ok_or(NetworkProvisioningError::VpcNotFound {
-                            vpc_name: "byocvpn-vcn".to_string(),
+                            vpc_name: network::VCN_DISPLAY_NAME.to_string(),
                         })?;
                 let igw_id =
                     network::get_or_create_internet_gateway(&client, compartment, &vcn_id).await?;
@@ -223,7 +223,7 @@ impl CloudProvider for OracleProvider {
                 let (vcn_id, _, ipv6_prefix) = network::get_vcn_by_name(&client, compartment)
                     .await?
                     .ok_or(NetworkProvisioningError::VpcNotFound {
-                        vpc_name: "byocvpn-vcn".to_string(),
+                        vpc_name: network::VCN_DISPLAY_NAME.to_string(),
                     })?;
                 network::get_or_create_security_list(&client, compartment, &vcn_id, &ipv6_prefix)
                     .await?;
@@ -236,7 +236,7 @@ impl CloudProvider for OracleProvider {
                     network::get_vcn_by_name(&client, compartment)
                         .await?
                         .ok_or(NetworkProvisioningError::VpcNotFound {
-                            vpc_name: "byocvpn-vcn".to_string(),
+                            vpc_name: network::VCN_DISPLAY_NAME.to_string(),
                         })?;
                 let security_list_id = network::get_or_create_security_list(
                     &client,
@@ -423,7 +423,7 @@ impl CloudProvider for OracleProvider {
         let (vcn_id, _, _) = network::get_vcn_by_name(&client, compartment_ocid)
             .await?
             .ok_or_else(|| NetworkProvisioningError::VpcNotFound {
-                vpc_name: "byocvpn-vcn".to_string(),
+                vpc_name: network::VCN_DISPLAY_NAME.to_string(),
             })?;
 
         let (subnet_ocid, subnet_has_ipv6) =

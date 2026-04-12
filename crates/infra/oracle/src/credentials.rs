@@ -3,6 +3,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::provider::OracleProviderConfig;
 
+const CREDENTIALS_SECTION: &str = "ORACLE";
+const TENANCY_OCID_FIELD: &str = "tenancy_ocid";
+const USER_OCID_FIELD: &str = "user_ocid";
+const FINGERPRINT_FIELD: &str = "fingerprint";
+const PRIVATE_KEY_PEM_FIELD: &str = "private_key_pem";
+const REGION_FIELD: &str = "region";
+
 fn normalize_pem(raw: &str) -> String {
     let normalised = raw.replace("\r\n", "\n").replace('\r', "\n");
 
@@ -38,24 +45,24 @@ pub struct OracleCredentials {
 
 impl OracleCredentials {
     pub fn from_store(store: &CredentialStore) -> Result<Self> {
-        let pem_escaped = store.require("ORACLE", "private_key_pem")?;
+        let pem_escaped = store.require(CREDENTIALS_SECTION, PRIVATE_KEY_PEM_FIELD)?;
         Ok(Self {
-            tenancy_ocid: store.require("ORACLE", "tenancy_ocid")?,
-            user_ocid: store.require("ORACLE", "user_ocid")?,
-            fingerprint: store.require("ORACLE", "fingerprint")?,
+            tenancy_ocid: store.require(CREDENTIALS_SECTION, TENANCY_OCID_FIELD)?,
+            user_ocid: store.require(CREDENTIALS_SECTION, USER_OCID_FIELD)?,
+            fingerprint: store.require(CREDENTIALS_SECTION, FINGERPRINT_FIELD)?,
             private_key_pem: normalize_pem(&pem_escaped.replace("\\n", "\n")),
-            region: store.require("ORACLE", "region")?,
+            region: store.require(CREDENTIALS_SECTION, REGION_FIELD)?,
         })
     }
 
     pub fn write_to_store(&self, store: &mut CredentialStore) {
         let cleaned_pem = normalize_pem(&self.private_key_pem);
         let pem_single_line = cleaned_pem.replace('\n', "\\n");
-        store.set("ORACLE", "tenancy_ocid", &self.tenancy_ocid);
-        store.set("ORACLE", "user_ocid", &self.user_ocid);
-        store.set("ORACLE", "fingerprint", &self.fingerprint);
-        store.set("ORACLE", "private_key_pem", &pem_single_line);
-        store.set("ORACLE", "region", &self.region);
+        store.set(CREDENTIALS_SECTION, TENANCY_OCID_FIELD, &self.tenancy_ocid);
+        store.set(CREDENTIALS_SECTION, USER_OCID_FIELD, &self.user_ocid);
+        store.set(CREDENTIALS_SECTION, FINGERPRINT_FIELD, &self.fingerprint);
+        store.set(CREDENTIALS_SECTION, PRIVATE_KEY_PEM_FIELD, &pem_single_line);
+        store.set(CREDENTIALS_SECTION, REGION_FIELD, &self.region);
     }
 }
 

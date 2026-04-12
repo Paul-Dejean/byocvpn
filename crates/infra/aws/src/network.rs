@@ -11,6 +11,7 @@ use byocvpn_core::error::{NetworkProvisioningError, Result};
 use log::*;
 
 use crate::aws_error::sdk_error_message;
+use crate::constants::{IPV4_ALL_CIDR, IPV6_ALL_CIDR};
 
 pub(super) async fn create_security_group(
     ec2_client: &Ec2Client,
@@ -46,8 +47,8 @@ pub(super) async fn create_security_group(
                 .ip_protocol("udp")
                 .from_port(51820)
                 .to_port(51820)
-                .ip_ranges(IpRange::builder().cidr_ip("0.0.0.0/0").build())
-                .ipv6_ranges(Ipv6Range::builder().cidr_ipv6("::/0").build())
+                .ip_ranges(IpRange::builder().cidr_ip(IPV4_ALL_CIDR).build())
+                .ipv6_ranges(Ipv6Range::builder().cidr_ipv6(IPV6_ALL_CIDR).build())
                 .build(),
         )
         .ip_permissions(
@@ -55,8 +56,8 @@ pub(super) async fn create_security_group(
                 .ip_protocol("tcp")
                 .from_port(51820)
                 .to_port(51820)
-                .ip_ranges(IpRange::builder().cidr_ip("0.0.0.0/0").build())
-                .ipv6_ranges(Ipv6Range::builder().cidr_ipv6("::/0").build())
+                .ip_ranges(IpRange::builder().cidr_ip(IPV4_ALL_CIDR).build())
+                .ipv6_ranges(Ipv6Range::builder().cidr_ipv6(IPV6_ALL_CIDR).build())
                 .build(),
         )
         .send()
@@ -280,7 +281,7 @@ pub(super) async fn add_igw_routes_to_table(
     let _ = ec2
         .create_route()
         .route_table_id(route_table_id)
-        .destination_cidr_block("0.0.0.0/0")
+        .destination_cidr_block(IPV4_ALL_CIDR)
         .gateway_id(igw_id)
         .send()
         .await;
@@ -288,7 +289,7 @@ pub(super) async fn add_igw_routes_to_table(
     let _ = ec2
         .create_route()
         .route_table_id(route_table_id)
-        .destination_ipv6_cidr_block("::/0")
+        .destination_ipv6_cidr_block(IPV6_ALL_CIDR)
         .gateway_id(igw_id)
         .send()
         .await;
