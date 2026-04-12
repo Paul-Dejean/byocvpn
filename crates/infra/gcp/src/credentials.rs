@@ -28,7 +28,7 @@ impl GcpCredentials {
         // Compact the JSON to strip any literal newlines that would break INI parsing
         let compact = serde_json::from_str::<serde_json::Value>(&self.service_account_json)
             .ok()
-            .and_then(|v| serde_json::to_string(&v).ok())
+            .and_then(|value| serde_json::to_string(&value).ok())
             .unwrap_or_else(|| self.service_account_json.clone());
         store.set(CREDENTIALS_SECTION, PROJECT_ID_FIELD, &self.project_id);
         store.set(CREDENTIALS_SECTION, SERVICE_ACCOUNT_JSON_FIELD, &compact);

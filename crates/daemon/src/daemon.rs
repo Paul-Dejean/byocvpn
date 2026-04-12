@@ -42,9 +42,9 @@ pub async fn run_daemon() -> Result<()> {
                                 error!("Failed to send response to client");
                             }
                         }
-                        Err(e) => {
-                            error!("Connect error: {}", e);
-                            if stream.send_message(&format!("err:{}", e)).await.is_err() {
+                        Err(error) => {
+                            error!("Connect error: {}", error);
+                            if stream.send_message(&format!("err:{}", error)).await.is_err() {
                                 error!("Failed to send error response to client");
                             }
                         }
@@ -56,9 +56,9 @@ pub async fn run_daemon() -> Result<()> {
                             error!("Failed to send response to client");
                         }
                     }
-                    Err(e) => {
-                        error!("Disconnect error: {}", e);
-                        if stream.send_message(&format!("err:{}", e)).await.is_err() {
+                    Err(error) => {
+                        error!("Disconnect error: {}", error);
+                        if stream.send_message(&format!("err:{}", error)).await.is_err() {
                             error!("Failed to send error response to client");
                         }
                     }
@@ -70,16 +70,16 @@ pub async fn run_daemon() -> Result<()> {
                                 error!("Failed to send status response to client");
                             }
                         }
-                        Err(e) => {
-                            error!("Status serialization error: {}", e);
-                            if stream.send_message(&format!("err:{}", e)).await.is_err() {
+                        Err(error) => {
+                            error!("Status serialization error: {}", error);
+                            if stream.send_message(&format!("err:{}", error)).await.is_err() {
                                 error!("Failed to send error response to client");
                             }
                         }
                     },
-                    Err(e) => {
-                        error!("Status error: {}", e);
-                        if stream.send_message(&format!("err:{}", e)).await.is_err() {
+                    Err(error) => {
+                        error!("Status error: {}", error);
+                        if stream.send_message(&format!("err:{}", error)).await.is_err() {
                             error!("Failed to send error response to client");
                         }
                     }
@@ -92,9 +92,9 @@ pub async fn run_daemon() -> Result<()> {
                                 error!("Failed to send stats response to client");
                             }
                         }
-                        Err(e) => {
-                            error!("Stats serialization error: {}", e);
-                            if stream.send_message(&format!("err:{}", e)).await.is_err() {
+                        Err(error) => {
+                            error!("Stats serialization error: {}", error);
+                            if stream.send_message(&format!("err:{}", error)).await.is_err() {
                                 error!("Failed to send error response to client");
                             }
                         }
@@ -106,9 +106,9 @@ pub async fn run_daemon() -> Result<()> {
                     }
                 }
 
-                Err(e) => {
-                    error!("Invalid command: {}", e);
-                    if stream.send_message(&format!("err:{}", e)).await.is_err() {
+                Err(error) => {
+                    error!("Invalid command: {}", error);
+                    if stream.send_message(&format!("err:{}", error)).await.is_err() {
                         error!("Failed to send error response to client");
                     }
                 }

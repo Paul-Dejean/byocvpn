@@ -20,6 +20,6 @@ pub enum DaemonCommand {
 }
 #[async_trait]
 pub trait DaemonClient: Send + Sync {
-    async fn send_command(&self, cmd: DaemonCommand) -> Result<String>;
+    async fn send_command(&self, command: DaemonCommand) -> Result<String>;
     async fn is_daemon_running(&self) -> bool;
 }

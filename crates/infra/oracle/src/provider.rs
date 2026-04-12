@@ -463,12 +463,12 @@ impl CloudProvider for OracleProvider {
             .into_iter()
             .map(|(name, country)| Region { name, country })
             .collect();
-        let results = futures::future::join_all(regions.iter().map(|r| async move {
-            let client = self.make_client(Some(&r.name));
-            match instance::list_instances(&client, self.get_compartment_ocid(), &r.name).await {
+        let results = futures::future::join_all(regions.iter().map(|region| async move {
+            let client = self.make_client(Some(&region.name));
+            match instance::list_instances(&client, self.get_compartment_ocid(), &region.name).await {
                 Ok(instances) => instances,
-                Err(e) => {
-                    error!("Skipping OCI region {}: {}", r.name, e);
+                Err(error) => {
+                    error!("Skipping OCI region {}: {}", region.name, error);
                     vec![]
                 }
             }

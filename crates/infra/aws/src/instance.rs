@@ -60,7 +60,7 @@ pub(super) async fn spawn_instance(
         .resource_type(ResourceType::Instance)
         .tags(Tag::builder().key("Name").value(SERVER_INSTANCE_NAME).build())
         .build();
-    let resp = ec2_client
+    let response = ec2_client
         .run_instances()
         .subnet_id(subnet_id)
         .image_id(ami_id)
@@ -76,7 +76,7 @@ pub(super) async fn spawn_instance(
             region_name: region.to_string(),
             reason: sdk_error_message(&error)
         })?;
-    let instance = resp
+    let instance = response
         .instances()
         .first()
         .ok_or_else(|| ComputeProvisioningError::NoInstanceInResponse)?;
@@ -158,7 +158,7 @@ pub(super) async fn list_instances_in_region(
     ec2_client: &Ec2Client,
     region: &str,
 ) -> Result<Vec<InstanceInfo>> {
-    let resp = ec2_client
+    let response = ec2_client
         .describe_instances()
         .send()
         .await
@@ -167,7 +167,7 @@ pub(super) async fn list_instances_in_region(
             reason:sdk_error_message(&error)
         })?;
 
-    let instances = resp
+    let instances = response
         .reservations()
         .iter()
         .flat_map(|reservation| reservation.instances())

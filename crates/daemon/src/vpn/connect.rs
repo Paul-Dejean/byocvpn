@@ -74,14 +74,14 @@ pub async fn connect_vpn(
         .ipv6(wg_config.ipv6.addr(), wg_config.ipv6.prefix_len())
         .mtu(1280)
         .build_async()
-        .map_err(|e| ConfigurationError::TunnelConfiguration {
-            reason: format!("Failed to create TUN device: {}", e),
+        .map_err(|error| ConfigurationError::TunnelConfiguration {
+            reason: format!("Failed to create TUN device: {}", error),
         })?;
 
     let iface_name = tun
         .name()
-        .map_err(|e| ConfigurationError::TunnelConfiguration {
-            reason: format!("Failed to get TUN name: {}", e),
+        .map_err(|error| ConfigurationError::TunnelConfiguration {
+            reason: format!("Failed to get TUN name: {}", error),
         })?;
 
     info!("Created TUN device: {}", iface_name);
@@ -124,16 +124,16 @@ pub async fn connect_vpn(
         0,
         None,
     )
-    .map_err(|e| ConfigurationError::TunnelConfiguration {
-        reason: format!("Failed to create tunnel: {:?}", e),
+    .map_err(|error| ConfigurationError::TunnelConfiguration {
+        reason: format!("Failed to create tunnel: {:?}", error),
     })?;
 
     info!("Created Tunn device");
 
     let local: SocketAddr = "0.0.0.0:0"
         .parse()
-        .map_err(|e| ConfigurationError::ParseError {
-            reason: format!("Failed to parse local socket address: {}", e),
+        .map_err(|error| ConfigurationError::ParseError {
+            reason: format!("Failed to parse local socket address: {}", error),
             value: "0.0.0.0".to_string(),
         })?;
     let udp = UdpSocket::bind(local)
@@ -162,8 +162,8 @@ pub async fn connect_vpn(
     let metrics = tunnel.metrics.clone();
 
     let task = tokio::spawn(async move {
-        if let Err(e) = tunnel.run().await {
-            error!("Tunnel exited: {e}");
+        if let Err(error) = tunnel.run().await {
+            error!("Tunnel exited: {error}");
         }
     });
 
@@ -180,8 +180,8 @@ pub async fn connect_vpn(
                 );
                 l
             }
-            Err(e) => {
-                error!("[Metrics] Failed to create metrics socket: {}", e);
+            Err(error) => {
+                error!("[Metrics] Failed to create metrics socket: {}", error);
                 return;
             }
         };
@@ -286,8 +286,8 @@ pub async fn connect_vpn(
     let route_monitor_task = tokio::spawn(async move {
         let route_handle = match RouteHandle::new() {
             Ok(h) => h,
-            Err(e) => {
-                error!("[RouteMonitor] Failed to create route handle: {}", e);
+            Err(error) => {
+                error!("[RouteMonitor] Failed to create route handle: {}", error);
                 return;
             }
         };
@@ -321,7 +321,7 @@ pub async fn connect_vpn(
         } else {
             let as_refs: Vec<&str> = domain_name_system_servers
                 .iter()
-                .map(|s| s.as_str())
+                .map(|string| string.as_str())
                 .collect();
             match DomainNameSystemOverrideGuard::apply_to_all_services(&as_refs) {
                 Ok(guard) => Some(guard),

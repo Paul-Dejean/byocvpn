@@ -13,7 +13,7 @@ pub struct UnixDaemonClient;
 
 #[async_trait]
 impl DaemonClient for UnixDaemonClient {
-    async fn send_command(&self, cmd: DaemonCommand) -> Result<String> {
+    async fn send_command(&self, command: DaemonCommand) -> Result<String> {
         if !self.is_daemon_running().await {
             return Err(DaemonError::NotRunning.into());
         }
@@ -23,10 +23,10 @@ impl DaemonClient for UnixDaemonClient {
         let mut stream = IpcStream::connect(&socket_path).await?;
         info!("Connected to daemon at {}", socket_path.to_string_lossy());
 
-        let msg = serde_json::to_string(&cmd).map_err(|error| DaemonError::SocketError {
+        let serialized_command = serde_json::to_string(&command).map_err(|error| DaemonError::SocketError {
             reason: format!("failed to serialize command: {}", error),
         })?;
-        stream.send_message(&msg).await?;
+        stream.send_message(&serialized_command).await?;
 
         let response = stream.read_message().await?.ok_or_else(|| {
             DaemonError::ConnectionFailed {
@@ -51,13 +51,13 @@ impl DaemonClient for UnixDaemonClient {
 
         match IpcStream::connect(&socket_path).await {
             Ok(mut stream) => {
-                let health_cmd = DaemonCommand::HealthCheck;
-                let msg = match serde_json::to_string(&health_cmd) {
-                    Ok(m) => m,
+                let health_command = DaemonCommand::HealthCheck;
+                let health_message = match serde_json::to_string(&health_command) {
+                    Ok(serialized) => serialized,
                     Err(_) => return false,
                 };
 
-                if stream.send_message(&msg).await.is_err() {
+                if stream.send_message(&health_message).await.is_err() {
                     return false;
                 }
 
@@ -72,8 +72,8 @@ impl DaemonClient for UnixDaemonClient {
                     }
                 }
             }
-            Err(e) => {
-                info!("Daemon connection error: {:?}", e);
+            Err(error) => {
+                info!("Daemon connection error: {:?}", error);
                 false
             }
         }

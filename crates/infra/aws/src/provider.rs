@@ -286,9 +286,9 @@ impl CloudProvider for AwsProvider {
             ssm_get_parameter,
         };
 
-        let value = serde_json::to_value(&permissions).map_err(|e| {
+        let value = serde_json::to_value(&permissions).map_err(|error| {
             NetworkProvisioningError::NetworkQueryFailed {
-                reason: e.to_string(),
+                reason: error.to_string(),
             }
         })?;
         Ok(value)
@@ -362,7 +362,7 @@ impl CloudProvider for AwsProvider {
                     },
                 )?;
 
-                let resp = ec2
+                let response = ec2
                     .describe_internet_gateways()
                     .filters(
                         aws_sdk_ec2::types::Filter::builder()
@@ -373,19 +373,19 @@ impl CloudProvider for AwsProvider {
                     .send()
                     .await
                     .map_err(
-                        |e| NetworkProvisioningError::InternetGatewayOperationFailed {
-                            reason: e.to_string(),
+                        |error| NetworkProvisioningError::InternetGatewayOperationFailed {
+                            reason: error.to_string(),
                         },
                     )?;
-                let igw_id = if let Some(igw) = resp.internet_gateways().first() {
+                let igw_id = if let Some(igw) = response.internet_gateways().first() {
                     igw.internet_gateway_id().unwrap_or_default().to_string()
                 } else {
                     network::create_and_attach_igw(&ec2, &vpc_id).await?
                 };
-                let rt_id = network::find_main_route_table(&ec2, &vpc_id).await?;
-                network::tag_resource_with_name(&ec2, &rt_id, MAIN_ROUTE_TABLE_NAME).await?;
+                let route_table_id = network::find_main_route_table(&ec2, &vpc_id).await?;
+                network::tag_resource_with_name(&ec2, &route_table_id, MAIN_ROUTE_TABLE_NAME).await?;
                 network::tag_resource_with_name(&ec2, &igw_id, INTERNET_GATEWAY_NAME).await?;
-                network::add_igw_routes_to_table(&ec2, &rt_id, &igw_id).await?;
+                network::add_igw_routes_to_table(&ec2, &route_table_id, &igw_id).await?;
                 Ok(())
             }
             AwsSpawnStepId::RegionSubnets => {
@@ -478,14 +478,14 @@ impl CloudProvider for AwsProvider {
             let result = instance::list_instances_in_region(&ec2_client, &region.name).await;
             match &result {
                 Ok(instances) => info!("Region {}: found {} instances", region.name, instances.len()),
-                Err(e) => warn!("Skipping region {}: {}", region.name, e),
+                Err(error) => warn!("Skipping region {}: {}", region.name, error),
             }
             result
         }))
         .await;
         return Ok(results
             .into_iter()
-            .filter_map(|r| r.ok())
+            .filter_map(|result| result.ok())
             .flatten()
             .collect());
     }

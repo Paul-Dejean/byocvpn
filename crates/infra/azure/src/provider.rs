@@ -118,8 +118,8 @@ impl CloudProvider for AzureProvider {
                 if network::get_subnet(&self.client, region).await?.is_none() {
                     network::create_subnet(&self.client, region, &nsg_id)
                         .await
-                        .map_err(|e| NetworkProvisioningError::SubnetCreationFailed {
-                            reason: e.to_string(),
+                        .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {
+                            reason: error.to_string(),
                         })?;
                 }
                 Ok(())

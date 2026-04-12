@@ -74,7 +74,7 @@ impl DomainNameSystemOverrideGuard {
 
             match original_option {
                 Some(list) if !list.is_empty() => {
-                    let as_slices: Vec<&str> = list.iter().map(|s| s.as_str()).collect();
+                    let as_slices: Vec<&str> = list.iter().map(|string| string.as_str()).collect();
                     info!("Setting DNS servers to: {:?}", as_slices);
                     set_domain_name_system_servers_for_service(
                         network_service_name,
@@ -107,10 +107,10 @@ impl Drop for DomainNameSystemOverrideGuard {
 
 #[cfg(target_os = "macos")]
 fn list_all_enabled_network_services() -> Result<Vec<String>> {
-    let mut cmd = Command::new("networksetup");
-    cmd.arg("-listallnetworkservices");
-    info!("Executing command: {:?}", cmd);
-    let output = cmd.output().map_err(|error| ConfigurationError::DnsConfiguration {
+    let mut command = Command::new("networksetup");
+    command.arg("-listallnetworkservices");
+    info!("Executing command: {:?}", command);
+    let output = command.output().map_err(|error| ConfigurationError::DnsConfiguration {
         reason: format!("failed to run networksetup: {}", error),
     })?;
     if !output.status.success() {
@@ -144,10 +144,10 @@ fn list_all_enabled_network_services() -> Result<Vec<String>> {
 fn get_domain_name_system_servers_for_service(
     network_service_name: &str,
 ) -> io::Result<Option<Vec<String>>> {
-    let mut cmd = Command::new("networksetup");
-    cmd.arg("-getdnsservers").arg(network_service_name);
-    info!("Executing command: {:?}", cmd);
-    let output = cmd.output()?;
+    let mut command = Command::new("networksetup");
+    command.arg("-getdnsservers").arg(network_service_name);
+    info!("Executing command: {:?}", command);
+    let output = command.output()?;
 
     if !output.status.success() {
         return Err(io::Error::new(
@@ -167,9 +167,9 @@ fn get_domain_name_system_servers_for_service(
 
     let mut servers = Vec::new();
     for line in text.lines() {
-        let t = line.trim();
-        if !t.is_empty() {
-            servers.push(t.to_string());
+        let trimmed = line.trim();
+        if !trimmed.is_empty() {
+            servers.push(trimmed.to_string());
         }
     }
     Ok(Some(servers))
@@ -180,22 +180,22 @@ fn set_domain_name_system_servers_for_service(
     network_service_name: &str,
     desired_option: Option<&[&str]>,
 ) -> io::Result<()> {
-    let mut cmd = Command::new("networksetup");
-    cmd.arg("-setdnsservers").arg(network_service_name);
+    let mut command = Command::new("networksetup");
+    command.arg("-setdnsservers").arg(network_service_name);
 
     match desired_option {
         Some(list) if !list.is_empty() => {
             for server in list {
-                cmd.arg(*server);
+                command.arg(*server);
             }
         }
         _ => {
-            cmd.arg("Empty");
+            command.arg("Empty");
         }
     }
 
-    info!("Executing command: {:?}", cmd);
-    let output = cmd.output()?;
+    info!("Executing command: {:?}", command);
+    let output = command.output()?;
 
     if !output.status.success() {
         return Err(io::Error::new(

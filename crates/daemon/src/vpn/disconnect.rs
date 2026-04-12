@@ -65,7 +65,7 @@ pub async fn disconnect_vpn() -> Result<()> {
         info!("[VPN Disconnect] Waiting for tunnel task to complete...");
         match handle.task.await {
             Ok(_) => info!("[VPN Disconnect] Tunnel task completed successfully."),
-            Err(e) => error!("[VPN Disconnect] Error: Tunnel task failed: {:?}", e),
+            Err(error) => error!("[VPN Disconnect] Error: Tunnel task failed: {:?}", error),
         }
 
         let _ = handle.metrics_task.await;

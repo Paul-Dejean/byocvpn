@@ -91,15 +91,15 @@ impl Tunnel {
                                     }
                                 },
                                 TunnResult::Done => {},
-                                TunnResult::Err(e) => {
-                                    error!("encapsulate error: {:?}", e);
+                                TunnResult::Err(error) => {
+                                    error!("encapsulate error: {:?}", error);
                                 },
                                 _ => {}
                             }
                         }
-                        Err(e) => {
-                            error!("[Tunnel] TUN device read failed: {}", e);
-                            return Err(SystemError::TunnelIoFailed { reason: e.to_string() }.into());
+                        Err(error) => {
+                            error!("[Tunnel] TUN device read failed: {}", error);
+                            return Err(SystemError::TunnelIoFailed { reason: error.to_string() }.into());
                         }
                     }
                 }
@@ -122,8 +122,8 @@ impl Tunnel {
                             self.udp.send(packet).await.map_err(|error| SystemError::TunnelIoFailed { reason: error.to_string() })?;
                         },
                         TunnResult::Done => {},
-                        TunnResult::Err(e) => {
-                            error!("decapsulate error: {:?}", e);
+                        TunnResult::Err(error) => {
+                            error!("decapsulate error: {:?}", error);
                         },
                     }
                 }

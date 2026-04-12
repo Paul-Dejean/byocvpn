@@ -21,10 +21,10 @@ pub async fn add_vpn_routes(iface_name: &str, server_ip: &str) -> Result<()> {
     ];
 
     for (destination, interface) in routes.iter() {
-        if let Err(e) = add_route(destination, interface).await {
+        if let Err(error) = add_route(destination, interface).await {
             error!(
                 "Warning: Failed to add route {} via {}: {}",
-                destination, interface, e
+                destination, interface, error
             );
         }
     }
@@ -49,10 +49,10 @@ pub async fn remove_vpn_routes(iface_name: &str, server_ip: &str) {
     ];
 
     for (destination, interface) in routes.iter() {
-        if let Err(e) = delete_route(destination, interface).await {
+        if let Err(error) = delete_route(destination, interface).await {
             error!(
                 "Warning: Failed to remove route {} via {}: {}",
-                destination, interface, e
+                destination, interface, error
             );
         }
     }
@@ -65,9 +65,9 @@ async fn add_route(destination: &str, interface: &str) -> Result<()> {
 
     let subnet: IpNet = destination
         .parse()
-        .map_err(|e| ConfigurationError::ParseError {
+        .map_err(|error| ConfigurationError::ParseError {
             value: "destination".to_string(),
-            reason: format!("Invalid subnet {}: {}", destination, e),
+            reason: format!("Invalid subnet {}: {}", destination, error),
         })?;
 
     let handle = Handle::new().map_err(|error| ConfigurationError::RouteConfiguration {
@@ -107,20 +107,20 @@ async fn add_route(destination: &str, interface: &str) -> Result<()> {
             info!("Added route: {} via {}", destination, interface);
             Ok(())
         }
-        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
             info!(
                 "Route already exists: {} via {} (skipping)",
                 destination, interface
             );
             Ok(())
         }
-        Err(e) => {
-            let err_msg = format!(
+        Err(error) => {
+            let error_message = format!(
                 "Failed to add route {} via {}: {}",
-                destination, interface, e
+                destination, interface, error
             );
-            error!("{}", err_msg);
-            Err(ConfigurationError::RouteConfiguration { reason: err_msg }.into())
+            error!("{}", error_message);
+            Err(ConfigurationError::RouteConfiguration { reason: error_message }.into())
         }
     }
 }
@@ -129,8 +129,8 @@ async fn delete_route(destination: &str, interface: &str) -> Result<()> {
     let subnet: IpNet =
         destination
             .parse()
-            .map_err(|e| ConfigurationError::RouteConfiguration {
-                reason: format!("Invalid subnet {}: {}", destination, e),
+            .map_err(|error| ConfigurationError::RouteConfiguration {
+                reason: format!("Invalid subnet {}: {}", destination, error),
             })?;
 
     let ifindex = get_ifindex(interface).await?;
@@ -145,21 +145,21 @@ async fn delete_route(destination: &str, interface: &str) -> Result<()> {
             info!("Deleted route: {} dev {}", destination, interface);
             Ok(())
         }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             info!(
                 "Route not found: {} dev {} (already removed)",
                 destination, interface
             );
             Ok(())
         }
-        Err(e) => {
-            let err_msg = format!(
+        Err(error) => {
+            let error_message = format!(
                 "Failed to delete route {} dev {}: {}",
-                destination, interface, e
+                destination, interface, error
             );
-            error!("{}", err_msg);
+            error!("{}", error_message);
             Err(ConfigurationError::RouteConfiguration {
-                reason: format!("Invalid subnet {}: {}", destination, e),
+                reason: format!("Invalid subnet {}: {}", destination, error),
             }
             .into())
         }
@@ -169,12 +169,12 @@ async fn delete_route(destination: &str, interface: &str) -> Result<()> {
 pub async fn update_server_host_route(server_ip: &str) {
     let server_route = format!("{}/32", server_ip);
 
-    if let Err(e) = delete_route(&server_route, "default").await {
-        error!("[RouteMonitor] Failed to delete old host route: {}", e);
+    if let Err(error) = delete_route(&server_route, "default").await {
+        error!("[RouteMonitor] Failed to delete old host route: {}", error);
     }
 
-    if let Err(e) = add_route(&server_route, "default").await {
-        error!("[RouteMonitor] Failed to re-add host route: {}", e);
+    if let Err(error) = add_route(&server_route, "default").await {
+        error!("[RouteMonitor] Failed to re-add host route: {}", error);
     } else {
         info!("[RouteMonitor] Host route for {} refreshed.", server_ip);
     }
