@@ -30,7 +30,7 @@ pub fn generate_server_startup_script(
             reason: error.to_string(),
         })?;
 
-    error!("[GCP] startup script:\n{}", rendered);
+    debug!("Generated GCP startup script ({} bytes)", rendered.len());
     Ok(rendered)
 }
 

@@ -42,11 +42,11 @@ pub(super) async fn spawn_instance(
     let user_data =
         startup_script::generate_server_startup_script(server_private_key, client_public_key)?;
 
-    info!("{:?}", user_data);
+    debug!("Generated startup script ({} bytes)", user_data.len());
     let encoded_user_data = general_purpose::STANDARD.encode(user_data);
 
     let ami_id = config::get_al2023_ami(&ssm_client).await?;
-    info!("AMI ID: {}", ami_id);
+    debug!("Resolved AL2023 AMI: {}", ami_id);
 
     let security_group_id = network::get_security_group_by_name(&ec2_client, SECURITY_GROUP_NAME)
         .await?
@@ -54,7 +54,7 @@ pub(super) async fn spawn_instance(
             group_name: SECURITY_GROUP_NAME.to_string(),
         })?;
 
-    info!("Security group ID: {}", security_group_id);
+    debug!("Resolved security group: {}", security_group_id);
 
     let tags = TagSpecification::builder()
         .resource_type(ResourceType::Instance)
@@ -126,9 +126,10 @@ pub(super) async fn spawn_instance(
         .next()
         .ok_or_else(|| ComputeProvisioningError::MissingPublicIpv6)?
         .to_string();
-    info!("Instance ID: {}", instance_id);
-    info!("Public IPv4: {}", public_ip_v4);
-    info!("Public IPv6: {}", public_ip_v6);
+    info!(
+        "AWS instance {} spawned in {} — IPv4: {}, IPv6: {}",
+        instance_id, region, public_ip_v4, public_ip_v6
+    );
 
     Ok(InstanceInfo {
         id: instance_id,
@@ -144,6 +145,7 @@ pub(super) async fn spawn_instance(
 }
 
 pub async fn terminate_instance(ec2_client: &Ec2Client, instance_id: &str) -> Result<()> {
+    debug!("Terminating AWS instance {}", instance_id);
     ec2_client
         .terminate_instances()
         .instance_ids(instance_id)
@@ -156,6 +158,7 @@ pub async fn terminate_instance(ec2_client: &Ec2Client, instance_id: &str) -> Re
             },
         )?;
 
+    info!("AWS instance {} terminated", instance_id);
     Ok(())
 }
 
@@ -163,6 +166,7 @@ pub(super) async fn list_instances_in_region(
     ec2_client: &Ec2Client,
     region: &str,
 ) -> Result<Vec<InstanceInfo>> {
+    debug!("Listing EC2 instances in region {}", region);
     let response = ec2_client
         .describe_instances()
         .send()
@@ -221,6 +225,7 @@ pub(super) async fn list_instances_in_region(
                 launched_at,
             })
         })
-        .collect();
+        .collect::<Vec<InstanceInfo>>();
+    debug!("Found {} instances in region {}", instances.len(), region);
     Ok(instances)
 }

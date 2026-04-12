@@ -1,7 +1,7 @@
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use byocvpn_core::{
     cloud_provider::{CloudProviderName, InstanceInfo, InstanceState, SpawnInstanceParams},
-    error::{ComputeProvisioningError, Result},
+    error::{ComputeProvisioningError, Error as CoreError, Result},
 };
 use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
@@ -61,6 +61,10 @@ pub async fn spawn_instance(
         },
     });
 
+    debug!(
+        "Launching OCI instance in {} (compartment {}, subnet {})",
+        region, compartment_ocid, subnet_ocid
+    );
     let url = format!("{}/20160918/instances", client.build_core_base_url());
     let response = client.post(&url, &body).await.map_err(|error| {
         ComputeProvisioningError::InstanceSpawnFailed {
@@ -74,6 +78,7 @@ pub async fn spawn_instance(
         .ok_or(ComputeProvisioningError::MissingInstanceIdentifier)?
         .to_string();
 
+    debug!("OCI instance {} created, waiting for RUNNING state", instance_ocid);
     wait_until_running(client, &instance_ocid, region).await?;
 
     let details = get_instance_details(client, &instance_ocid).await?;
@@ -84,22 +89,29 @@ pub async fn spawn_instance(
     info.public_ip_v6 = public_ip_v6;
     info.instance_type = INSTANCE_SHAPE.to_string();
     info.launched_at = Some(Utc::now());
+    info!(
+        "OCI instance {} spawned in {} — IPv4: {}, IPv6: {}",
+        info.id, region, info.public_ip_v4, info.public_ip_v6
+    );
     Ok(info)
 }
 
 pub async fn terminate_instance(client: &OciClient, instance_ocid: &str) -> Result<()> {
+    debug!("Terminating OCI instance {}", instance_ocid);
     let url = format!(
         "{}/20160918/instances/{}?preserveBootVolume=false",
         client.build_core_base_url(),
         instance_ocid
     );
-    client.delete(&url).await.map_err(|error| {
-        ComputeProvisioningError::InstanceTerminationFailed {
+    client
+        .delete(&url)
+        .await
+        .map_err(|error| CoreError::from(ComputeProvisioningError::InstanceTerminationFailed {
             instance_identifier: instance_ocid.to_string(),
             reason: error.to_string(),
-        }
-        .into()
-    })
+        }))?;
+    info!("OCI instance {} terminated", instance_ocid);
+    Ok(())
 }
 
 pub async fn list_instances(
@@ -200,7 +212,10 @@ async fn wait_until_running(client: &OciClient, instance_ocid: &str, _region: &s
                 not_found_count = 0;
                 let state = details["lifecycleState"].as_str().unwrap_or("");
                 match state {
-                    "RUNNING" => return Ok(()),
+                    "RUNNING" => {
+                        debug!("Instance {} reached RUNNING state", instance_ocid);
+                        return Ok(());
+                    }
                     "TERMINATED" | "TERMINATING" => {
                         return Err(ComputeProvisioningError::InstanceWaitFailed {
                             reason: format!(
@@ -218,7 +233,7 @@ async fn wait_until_running(client: &OciClient, instance_ocid: &str, _region: &s
                 if not_found_count > MAX_NOT_FOUND_RETRIES {
                     return Err(error);
                 }
-                error!(
+                warn!(
                     "Instance {} not yet visible (attempt {}/{}): {}",
                     instance_ocid, not_found_count, MAX_NOT_FOUND_RETRIES, error
                 );
@@ -244,6 +259,7 @@ async fn get_public_ips(
         instance_ocid
     );
     let Ok(vnic_attachments) = client.get(&vnic_url).await else {
+        warn!("Failed to fetch VNIC attachments for instance {}", instance_ocid);
         return (String::new(), String::new());
     };
     let vnic_ocid = vnic_attachments
@@ -253,6 +269,7 @@ async fn get_public_ips(
         .unwrap_or_default()
         .to_string();
     if vnic_ocid.is_empty() {
+        warn!("No VNIC attachment found for instance {}", instance_ocid);
         return (String::new(), String::new());
     }
 
@@ -262,6 +279,7 @@ async fn get_public_ips(
         vnic_ocid
     );
     let Ok(vnic) = client.get(&vnic_url).await else {
+        warn!("Failed to fetch VNIC details for {} (instance {})", vnic_ocid, instance_ocid);
         return (String::new(), String::new());
     };
     let public_ip_v4 = vnic["publicIp"].as_str().unwrap_or_default().to_string();

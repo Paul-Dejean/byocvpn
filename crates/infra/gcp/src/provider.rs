@@ -190,8 +190,10 @@ impl CloudProvider for GcpProvider {
             .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {
                 reason: error.to_string(),
             })?;
+        debug!("Resolved GCP subnet {} for spawn in {}", subnet_self_link, params.region);
 
         let image_self_link = network::get_ubuntu_image_self_link(&self.client).await?;
+        debug!("Resolved GCP Ubuntu image {}", image_self_link);
 
         instance::spawn_instance(
             &self.client,

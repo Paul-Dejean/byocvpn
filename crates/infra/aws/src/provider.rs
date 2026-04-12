@@ -347,7 +347,11 @@ impl CloudProvider for AwsProvider {
             AwsSpawnStepId::SetupVpc => {
                 let ec2 = self.create_ec2_client(Some(region.to_string())).await;
                 if network::get_vpc_by_name(&ec2, VPC_NAME).await?.is_none() {
+                    debug!("No existing VPC '{}' in {}, creating", VPC_NAME, region);
                     network::create_vpc(&ec2, VPC_CIDR_BLOCK, VPC_NAME).await?;
+                    info!("VPC '{}' created in {}", VPC_NAME, region);
+                } else {
+                    debug!("VPC '{}' already exists in {}, skipping", VPC_NAME, region);
                 }
                 Ok(())
             }
@@ -375,15 +379,22 @@ impl CloudProvider for AwsProvider {
                         },
                     )?;
                 let igw_id = if let Some(igw) = response.internet_gateways().first() {
-                    igw.internet_gateway_id().unwrap_or_default().to_string()
+                    let existing_igw_id = igw.internet_gateway_id().unwrap_or_default().to_string();
+                    debug!("Internet gateway {} already attached to VPC {}", existing_igw_id, vpc_id);
+                    existing_igw_id
                 } else {
-                    network::create_and_attach_igw(&ec2, &vpc_id).await?
+                    debug!("No internet gateway found for VPC {}, creating and attaching", vpc_id);
+                    let new_igw_id = network::create_and_attach_igw(&ec2, &vpc_id).await?;
+                    info!("Internet gateway {} created and attached to VPC {}", new_igw_id, vpc_id);
+                    new_igw_id
                 };
                 let route_table_id = network::find_main_route_table(&ec2, &vpc_id).await?;
+                debug!("Main route table: {}", route_table_id);
                 network::tag_resource_with_name(&ec2, &route_table_id, MAIN_ROUTE_TABLE_NAME)
                     .await?;
                 network::tag_resource_with_name(&ec2, &igw_id, INTERNET_GATEWAY_NAME).await?;
                 network::add_igw_routes_to_table(&ec2, &route_table_id, &igw_id).await?;
+                info!("Default route via IGW {} added to route table {} in {}", igw_id, route_table_id, region);
                 Ok(())
             }
             AwsSpawnStepId::RegionSubnets => {
@@ -395,6 +406,7 @@ impl CloudProvider for AwsProvider {
                 )?;
                 let subnets = network::get_subnets_in_vpc(&ec2, &vpc_id).await?;
                 if subnets.is_empty() {
+                    debug!("No subnets in VPC {} ({}), creating one", vpc_id, region);
                     let availability_zones = network::list_availability_zones(&ec2).await?;
                     let availability_zone = availability_zones.first().ok_or(
                         NetworkProvisioningError::NetworkQueryFailed {
@@ -413,6 +425,9 @@ impl CloudProvider for AwsProvider {
                     )
                     .await?;
                     network::enable_auto_ip_assign(&ec2, &subnet_id).await?;
+                    info!("Subnet {} created in {} ({})", subnet_id, region, availability_zone);
+                } else {
+                    debug!("Subnet already exists in VPC {} ({}), skipping", vpc_id, region);
                 }
                 Ok(())
             }
@@ -426,6 +441,7 @@ impl CloudProvider for AwsProvider {
                 let existing =
                     network::get_security_group_by_name(&ec2, SECURITY_GROUP_NAME).await?;
                 if existing.is_none() {
+                    debug!("Security group '{}' not found in {}, creating", SECURITY_GROUP_NAME, region);
                     network::create_security_group(
                         &ec2,
                         &vpc_id,
@@ -433,6 +449,9 @@ impl CloudProvider for AwsProvider {
                         "BYOC VPN server",
                     )
                     .await?;
+                    info!("Security group '{}' created in {}", SECURITY_GROUP_NAME, region);
+                } else {
+                    debug!("Security group '{}' already exists in {}, skipping", SECURITY_GROUP_NAME, region);
                 }
                 Ok(())
             }

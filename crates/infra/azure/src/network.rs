@@ -394,7 +394,9 @@ pub async fn ensure_nsg(client: &AzureClient, location: &str) -> Result<String> 
     let url = client.build_arm_url(&path, API_VERSION_NETWORK);
 
     if let Ok(existing) = client.get(&url).await {
-        return Ok(existing["id"].as_str().unwrap_or_default().to_string());
+        let nsg_id = existing["id"].as_str().unwrap_or_default().to_string();
+        debug!("[Azure] NSG '{}' already exists in {} (id: {}).", NSG_NAME, location, nsg_id);
+        return Ok(nsg_id);
     }
 
     let body = json!({
@@ -656,6 +658,11 @@ pub async fn create_public_ip_address(
         }
     });
 
+    info!(
+        "[Azure] Creating {} public IP for '{}'...",
+        version.get_address_version(),
+        vm_name
+    );
     let async_op_url = client.put(&url, &body).await.map_err(|error| {
         NetworkProvisioningError::SubnetCreationFailed {
             reason: format!(
@@ -671,7 +678,13 @@ pub async fn create_public_ip_address(
     }
 
     let public_ip = client.get(&url).await?;
-    Ok(public_ip["id"].as_str().unwrap_or_default().to_string())
+    let public_ip_id = public_ip["id"].as_str().unwrap_or_default().to_string();
+    info!(
+        "[Azure] {} public IP for '{}' created.",
+        version.get_address_version(),
+        vm_name
+    );
+    Ok(public_ip_id)
 }
 
 pub async fn get_public_ip_address(
@@ -735,6 +748,7 @@ pub async fn create_nic(
         }
     });
 
+    info!("[Azure] Creating NIC '{}' in {}...", nic_name, location);
     let async_op_url = client.put(&url, &body).await.map_err(|error| {
         NetworkProvisioningError::SubnetCreationFailed {
             reason: format!("Failed to create NIC: {}", error),
@@ -746,7 +760,9 @@ pub async fn create_nic(
     }
 
     let nic = client.get(&url).await?;
-    Ok(nic["id"].as_str().unwrap_or_default().to_string())
+    let nic_id = nic["id"].as_str().unwrap_or_default().to_string();
+    info!("[Azure] NIC '{}' created in {}.", nic_name, location);
+    Ok(nic_id)
 }
 
 async fn delete_network_resource(
@@ -762,17 +778,22 @@ async fn delete_network_resource(
     ));
     let url = client.build_arm_url(&path, API_VERSION_NETWORK);
 
+    info!("[Azure] Deleting {} '{}'...", resource_type, resource_name);
     match client.delete(&url).await {
         Ok(Some(op_url)) => {
             if let Err(error) = client.wait_for_async_operation(&op_url).await {
                 error!(
-                    "[Azure] Failed to wait for {} deletion: {}",
-                    resource_name, error
+                    "[Azure] Failed to wait for {} '{}' deletion: {}",
+                    resource_type, resource_name, error
                 );
+            } else {
+                info!("[Azure] {} '{}' deleted.", resource_type, resource_name);
             }
         }
-        Ok(None) => {}
-        Err(error) => error!("[Azure] Failed to delete {}: {}", resource_name, error),
+        Ok(None) => {
+            info!("[Azure] {} '{}' deleted.", resource_type, resource_name);
+        }
+        Err(error) => error!("[Azure] Failed to delete {} '{}': {}", resource_type, resource_name, error),
     }
 }
 
@@ -792,6 +813,7 @@ async fn delete_public_ip(client: &AzureClient, location: &str, vm_name: &str, v
 }
 
 pub async fn cleanup_vm_resources(client: &AzureClient, location: &str, vm_name: &str) {
+    info!("[Azure] Cleaning up network resources for VM '{}' in {}...", vm_name, location);
     delete_nic(client, location, vm_name).await;
     tokio::join!(
         delete_public_ip(client, location, vm_name, IpVersion::V4),

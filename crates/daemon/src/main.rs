@@ -99,7 +99,7 @@ mod windows_service_impl {
             }
         });
 
-        let _ = status_handle.set_service_status(ServiceStatus {
+        if let Err(error) = status_handle.set_service_status(ServiceStatus {
             service_type: ServiceType::OWN_PROCESS,
             current_state: ServiceState::Stopped,
             controls_accepted: ServiceControlAccept::empty(),
@@ -107,6 +107,8 @@ mod windows_service_impl {
             checkpoint: 0,
             wait_hint: Duration::default(),
             process_id: None,
-        });
+        }) {
+            log::warn!("Failed to set service status to Stopped: {}", error);
+        }
     }
 }

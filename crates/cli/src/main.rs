@@ -135,6 +135,7 @@ async fn main() -> Result<()> {
             info!("Terminating instance: {}", instance_id);
             let provider = create_cloud_provider(CloudProviderName::Aws).await?;
             commands::terminate::terminate_instance(&*provider, &region, &instance_id).await?;
+            info!("Instance terminated: {}", instance_id);
         }
         Commands::List { region } => {
             info!("Listing instances...");
@@ -143,7 +144,7 @@ async fn main() -> Result<()> {
                 commands::list::list_instances(&*provider, region.as_deref()).await?;
             info!(
                 "{}",
-                if active_instances.len() > 1 {
+                if active_instances.len() > 0 {
                     "Active Instances:"
                 } else {
                     "No Active Instance"

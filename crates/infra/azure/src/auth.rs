@@ -3,6 +3,7 @@ use std::sync::Arc;
 use azure_core::credentials::{Secret, TokenCredential};
 use azure_identity::ClientSecretCredential;
 use byocvpn_core::error::{CredentialsError, Result};
+use log::*;
 
 pub fn create_credential(
     tenant_id: &str,
@@ -22,6 +23,7 @@ pub fn create_credential(
 }
 
 pub async fn get_access_token(credential: &Arc<ClientSecretCredential>) -> Result<String> {
+    debug!("[Azure] Acquiring management API access token...");
     let token_response = credential
         .get_token(&["https://management.azure.com/.default"], None)
         .await
@@ -30,5 +32,6 @@ pub async fn get_access_token(credential: &Arc<ClientSecretCredential>) -> Resul
             reason: error.to_string(),
         })?;
 
+    debug!("[Azure] Access token acquired successfully.");
     Ok(token_response.token.secret().to_string())
 }

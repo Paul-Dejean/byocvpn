@@ -421,13 +421,16 @@ impl CloudProvider for OracleProvider {
             .ok_or_else(|| NetworkProvisioningError::VpcNotFound {
                 vpc_name: network::VCN_DISPLAY_NAME.to_string(),
             })?;
+        debug!("Resolved VCN {} for spawn in {}", vcn_id, params.region);
 
         let (subnet_ocid, subnet_has_ipv6) =
             network::get_subnet_by_name(&client, compartment_ocid, &vcn_id)
                 .await?
                 .ok_or_else(|| NetworkProvisioningError::SubnetMissingIdentifier {})?;
+        debug!("Resolved subnet {} (IPv6: {}) in {}", subnet_ocid, subnet_has_ipv6, params.region);
 
         let image_ocid = network::get_ubuntu_image(&client, compartment_ocid).await?;
+        debug!("Resolved Ubuntu image {} in {}", image_ocid, params.region);
 
         instance::spawn_instance(
             &client,

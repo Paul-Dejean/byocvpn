@@ -104,6 +104,8 @@ impl CloudProvider for AzureProvider {
                     .is_none()
                 {
                     network::create_resource_group(&self.client, region).await?;
+                } else {
+                    debug!("[Azure] Resource group for '{}' already exists, skipping creation.", region);
                 }
                 Ok(())
             }
@@ -111,6 +113,8 @@ impl CloudProvider for AzureProvider {
                 let nsg_id = network::ensure_nsg(&self.client, region).await?;
                 if network::get_vnet(&self.client, region).await?.is_none() {
                     network::create_vnet(&self.client, region).await?;
+                } else {
+                    debug!("[Azure] VNet for '{}' already exists, skipping creation.", region);
                 }
                 if network::get_subnet(&self.client, region).await?.is_none() {
                     network::create_subnet(&self.client, region, &nsg_id)
@@ -118,6 +122,8 @@ impl CloudProvider for AzureProvider {
                         .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {
                             reason: error.to_string(),
                         })?;
+                } else {
+                    debug!("[Azure] Subnet for '{}' already exists, skipping creation.", region);
                 }
                 Ok(())
             }

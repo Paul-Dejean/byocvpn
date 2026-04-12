@@ -23,7 +23,7 @@ pub fn generate_server_startup_script(
         .map_err(|error| ConfigurationError::TemplateRender {
             reason: error.to_string(),
         })?;
-    error!("[OCI] cloud-init script:\n{}", rendered);
+    debug!("Generated OCI cloud-init script ({} bytes)", rendered.len());
     Ok(rendered)
 }
 

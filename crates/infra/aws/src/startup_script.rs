@@ -26,7 +26,7 @@ pub(super) fn generate_server_startup_script(
         .map_err(|error| ConfigurationError::TemplateRender {
             reason: error.to_string(),
         })?;
-    info!("{}", &config);
+    debug!("Generated AWS startup script ({} bytes)", config.len());
     Ok(config)
 }
 

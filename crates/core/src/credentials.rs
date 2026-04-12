@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use ini::Ini;
+use log::*;
 use tokio::fs::{create_dir_all, try_exists};
 
 use crate::error::{ConfigurationError, CredentialsError, Result};
@@ -14,6 +15,7 @@ async fn credentials_path() -> Result<PathBuf> {
             reason: format!("failed to check credentials directory: {}", error),
         })?
     {
+        debug!("Creating credentials directory: {}", dir.display());
         create_dir_all(&dir)
             .await
             .map_err(|error| CredentialsError::FileSaveFailed {
@@ -31,27 +33,33 @@ pub struct CredentialStore {
 impl CredentialStore {
     pub async fn load() -> Result<Self> {
         let path = credentials_path().await?;
+        debug!("Loading credentials from: {}", path.display());
         let ini = if path.exists() {
-            Ini::load_from_file(&path).map_err(|error| match error {
+            let loaded = Ini::load_from_file(&path).map_err(|error| match error {
                 ini::Error::Io(io_error) => CredentialsError::FileReadFailed {
                     reason: io_error.to_string(),
                 },
                 ini::Error::Parse(parse_error) => CredentialsError::InvalidFormat {
                     reason: parse_error.to_string(),
                 },
-            })?
+            })?;
+            debug!("Credentials file loaded successfully");
+            loaded
         } else {
+            debug!("No credentials file found, starting with empty store");
             Ini::new()
         };
         Ok(Self { ini, path })
     }
 
     pub fn save(&self) -> Result<()> {
+        debug!("Saving credentials to: {}", self.path.display());
         self.ini
             .write_to_file(&self.path)
             .map_err(|error| CredentialsError::FileSaveFailed {
                 reason: error.to_string(),
             })?;
+        debug!("Credentials saved successfully");
         Ok(())
     }
 
