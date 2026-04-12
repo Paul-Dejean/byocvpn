@@ -1,9 +1,10 @@
 use byocvpn_core::{
-    daemon_client::DaemonCommand,
+    daemon_client::{DaemonCommand, DaemonResponse},
     error::{DaemonError, Result},
     ipc::IpcSocket,
 };
 use log::*;
+use serde_json::Value;
 
 use crate::{
     constants,
@@ -36,119 +37,89 @@ pub async fn run_daemon() -> Result<()> {
 
         while let Ok(Some(line)) = stream.read_message().await {
             info!("Daemon received: {line}");
-            info!("process id: {}", std::process::id());
-            match serde_json::from_str::<DaemonCommand>(&line) {
-                Ok(DaemonCommand::Connect {
-                    config_path,
-                    region,
-                    provider,
-                    public_ip_v4,
-                    public_ip_v6,
-                }) => {
-                    info!("Daemon received connect: {config_path}");
-                    match connect_vpn(config_path, region, provider, public_ip_v4, public_ip_v6)
-                        .await
-                    {
-                        Ok(_) => {
-                            if stream.send_message("ok:connected").await.is_err() {
-                                error!("Failed to send response to client");
-                            }
-                        }
-                        Err(error) => {
-                            error!("Connect error: {}", error);
-                            if stream
-                                .send_message(&format!("err:{}", error))
-                                .await
-                                .is_err()
-                            {
-                                error!("Failed to send error response to client");
-                            }
-                        }
-                    }
-                }
-                Ok(DaemonCommand::Disconnect) => match disconnect_vpn().await {
-                    Ok(_) => {
-                        if stream.send_message("ok:disconnected").await.is_err() {
-                            error!("Failed to send response to client");
-                        }
-                    }
-                    Err(error) => {
-                        error!("Disconnect error: {}", error);
-                        if stream
-                            .send_message(&format!("err:{}", error))
-                            .await
-                            .is_err()
-                        {
-                            error!("Failed to send error response to client");
-                        }
-                    }
-                },
-                Ok(DaemonCommand::Status) => match get_vpn_status().await {
-                    Ok(status) => match serde_json::to_string(&status) {
-                        Ok(json) => {
-                            if stream.send_message(&format!("ok:{}", json)).await.is_err() {
-                                error!("Failed to send status response to client");
-                            }
-                        }
-                        Err(error) => {
-                            error!("Status serialization error: {}", error);
-                            if stream
-                                .send_message(&format!("err:{}", error))
-                                .await
-                                .is_err()
-                            {
-                                error!("Failed to send error response to client");
-                            }
-                        }
-                    },
-                    Err(error) => {
-                        error!("Status error: {}", error);
-                        if stream
-                            .send_message(&format!("err:{}", error))
-                            .await
-                            .is_err()
-                        {
-                            error!("Failed to send error response to client");
-                        }
-                    }
-                },
-                Ok(DaemonCommand::Stats) => {
-                    let stats = get_current_metrics().await;
-                    match serde_json::to_string(&stats) {
-                        Ok(json) => {
-                            if stream.send_message(&format!("ok:{}", json)).await.is_err() {
-                                error!("Failed to send stats response to client");
-                            }
-                        }
-                        Err(error) => {
-                            error!("Stats serialization error: {}", error);
-                            if stream
-                                .send_message(&format!("err:{}", error))
-                                .await
-                                .is_err()
-                            {
-                                error!("Failed to send error response to client");
-                            }
-                        }
-                    }
-                }
-                Ok(DaemonCommand::HealthCheck) => {
-                    if stream.send_message("ok:healthy").await.is_err() {
-                        error!("Failed to send health response to client");
-                    }
-                }
 
+            let response = match serde_json::from_str::<DaemonCommand>(&line) {
+                Ok(command) => handle_command(command).await,
                 Err(error) => {
                     error!("Invalid command: {}", error);
-                    if stream
-                        .send_message(&format!("err:{}", error))
-                        .await
-                        .is_err()
-                    {
-                        error!("Failed to send error response to client");
+                    DaemonResponse::Err(DaemonError::CommandFailed {
+                        command: error.to_string(),
+                    })
+                }
+            };
+
+            match serde_json::to_string(&response) {
+                Ok(json) => {
+                    if stream.send_message(&json).await.is_err() {
+                        error!("Failed to send response to client");
                     }
+                }
+                Err(error) => {
+                    error!("Failed to serialize response: {}", error);
                 }
             }
         }
+    }
+}
+
+async fn handle_command(command: DaemonCommand) -> DaemonResponse {
+    match command {
+        DaemonCommand::Connect {
+            config_path,
+            region,
+            provider,
+            public_ip_v4,
+            public_ip_v6,
+        } => {
+            info!("Daemon received connect: {config_path}");
+            match connect_vpn(config_path, region, provider, public_ip_v4, public_ip_v6).await {
+                Ok(()) => DaemonResponse::Ok(Value::Null),
+                Err(error) => {
+                    error!("Connect error: {}", error);
+                    DaemonResponse::Err(DaemonError::CommandFailed {
+                        command: error.to_string(),
+                    })
+                }
+            }
+        }
+        DaemonCommand::Disconnect => match disconnect_vpn().await {
+            Ok(()) => DaemonResponse::Ok(Value::Null),
+            Err(error) => {
+                error!("Disconnect error: {}", error);
+                DaemonResponse::Err(DaemonError::CommandFailed {
+                    command: error.to_string(),
+                })
+            }
+        },
+        DaemonCommand::Status => match get_vpn_status().await {
+            Ok(status) => match serde_json::to_value(&status) {
+                Ok(value) => DaemonResponse::Ok(value),
+                Err(error) => {
+                    error!("Status serialization error: {}", error);
+                    DaemonResponse::Err(DaemonError::CommandFailed {
+                        command: error.to_string(),
+                    })
+                }
+            },
+            Err(error) => {
+                error!("Status error: {}", error);
+                DaemonResponse::Err(DaemonError::CommandFailed {
+                    command: error.to_string(),
+                })
+            }
+        },
+        DaemonCommand::Stats => {
+            let stats = get_current_metrics().await;
+            match serde_json::to_value(&stats) {
+                Ok(value) => DaemonResponse::Ok(value),
+                Err(error) => {
+                    error!("Stats serialization error: {}", error);
+                    DaemonResponse::Err(DaemonError::CommandFailed {
+                        command: error.to_string(),
+                    })
+                }
+            }
+        }
+        DaemonCommand::HealthCheck => DaemonResponse::Ok(Value::Null),
     }
 }

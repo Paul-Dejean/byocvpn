@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
-use crate::error::Result;
+use crate::error::{DaemonError, Result};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -18,8 +19,16 @@ pub enum DaemonCommand {
     Stats,
     HealthCheck,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "status", content = "payload", rename_all = "snake_case")]
+pub enum DaemonResponse {
+    Ok(Value),
+    Err(DaemonError),
+}
+
 #[async_trait]
 pub trait DaemonClient: Send + Sync {
-    async fn send_command(&self, command: DaemonCommand) -> Result<String>;
+    async fn send_command(&self, command: DaemonCommand) -> Result<Value>;
     async fn is_daemon_running(&self) -> bool;
 }

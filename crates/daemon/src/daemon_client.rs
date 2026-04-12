@@ -1,9 +1,10 @@
 use async_trait::async_trait;
 use byocvpn_core::{
-    daemon_client::{DaemonClient, DaemonCommand},
+    daemon_client::{DaemonClient, DaemonCommand, DaemonResponse},
     error::{DaemonError, Result},
     ipc::IpcStream,
 };
+use serde_json::Value;
 use tokio::time::{Duration, sleep};
 
 use crate::constants;
@@ -13,7 +14,7 @@ pub struct UnixDaemonClient;
 
 #[async_trait]
 impl DaemonClient for UnixDaemonClient {
-    async fn send_command(&self, command: DaemonCommand) -> Result<String> {
+    async fn send_command(&self, command: DaemonCommand) -> Result<Value> {
         if !self.is_daemon_running().await {
             return Err(DaemonError::NotRunning.into());
         }
@@ -29,7 +30,7 @@ impl DaemonClient for UnixDaemonClient {
             })?;
         stream.send_message(&serialized_command).await?;
 
-        let response =
+        let raw_response =
             stream
                 .read_message()
                 .await?
@@ -37,18 +38,15 @@ impl DaemonClient for UnixDaemonClient {
                     reason: "daemon closed connection without response".to_string(),
                 })?;
 
-        if let Some(data) = response.strip_prefix("ok:") {
-            Ok(data.to_string())
-        } else if let Some(error) = response.strip_prefix("err:") {
-            Err(DaemonError::CommandFailed {
-                command: error.to_string(),
+        let response = serde_json::from_str::<DaemonResponse>(&raw_response).map_err(|error| {
+            DaemonError::InvalidResponse {
+                reason: format!("failed to parse daemon response: {}", error),
             }
-            .into())
-        } else {
-            Err(DaemonError::InvalidResponse {
-                reason: format!("missing ok:/err: prefix: {}", response),
-            }
-            .into())
+        })?;
+
+        match response {
+            DaemonResponse::Ok(value) => Ok(value),
+            DaemonResponse::Err(error) => Err(error.into()),
         }
     }
 
