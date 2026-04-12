@@ -16,7 +16,10 @@ pub async fn disconnect_vpn() -> Result<()> {
     #[cfg(not(any(target_os = "macos", windows)))]
     let tun_interface_name = "tun0";
 
-    if let Ok(config) = Ini::load_from_file("wg0.conf") {
+    if let Ok(config) = Ini::load_from_file("wg0.conf").map_err(|error| {
+        debug!("[VPN Disconnect] Could not load wg0.conf for route cleanup: {}", error);
+        error
+    }) {
         if let Some(peer) = config.section(Some("Peer")) {
             if let Some(endpoint_str) = peer.get("Endpoint") {
                 if let Ok(endpoint) = endpoint_str.parse::<SocketAddr>() {
@@ -66,8 +69,12 @@ pub async fn disconnect_vpn() -> Result<()> {
             Err(error) => error!("[VPN Disconnect] Tunnel task failed: {:?}", error),
         }
 
-        let _ = handle.metrics_task.await;
-        let _ = handle.route_monitor_task.await;
+        if let Err(error) = handle.metrics_task.await {
+            warn!("[VPN Disconnect] Metrics task panicked: {:?}", error);
+        }
+        if let Err(error) = handle.route_monitor_task.await {
+            warn!("[VPN Disconnect] Route monitor task panicked: {:?}", error);
+        }
     } else {
         info!("[VPN Disconnect] No active tunnel found.");
     }

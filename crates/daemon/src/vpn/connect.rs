@@ -35,6 +35,7 @@ pub async fn connect_vpn(
     public_ip_v4: Option<String>,
     public_ip_v6: Option<String>,
 ) -> Result<()> {
+    info!("Connecting VPN: config={}, region={}, provider={}", config_path, region, provider);
     let wg_config = parse_wireguard_config(&config_path).await?;
 
     let instance_id = Path::new(&config_path)

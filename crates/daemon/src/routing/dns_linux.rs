@@ -113,6 +113,8 @@ impl DomainNameSystemOverrideGuard {
 
 impl Drop for DomainNameSystemOverrideGuard {
     fn drop(&mut self) {
-        let _ = self.restore_now();
+        if let Err(error) = self.restore_now() {
+            warn!("Failed to restore DNS on drop: {}", error);
+        }
     }
 }

@@ -20,6 +20,7 @@ pub async fn run_daemon() -> Result<()> {
 
     #[cfg(unix)]
     if let Some(socket_dir) = socket_path.parent() {
+        debug!("Creating socket directory: {:?}", socket_dir);
         tokio::fs::create_dir_all(socket_dir)
             .await
             .map_err(|error| DaemonError::SocketError {

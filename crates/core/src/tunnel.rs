@@ -84,10 +84,15 @@ impl Tunnel {
                         Ok(n) => {
                             match self.wg.encapsulate(&tun_buf[..n], &mut out_buf) {
                                 TunnResult::WriteToNetwork(packet) => {
-                                    if let Ok(sent) = self.udp.send(packet).await {
-                                        let mut metrics = self.metrics.write().await;
-                                        metrics.bytes_sent += sent as u64;
-                                        metrics.packets_sent += 1;
+                                    match self.udp.send(packet).await {
+                                        Ok(sent) => {
+                                            let mut metrics = self.metrics.write().await;
+                                            metrics.bytes_sent += sent as u64;
+                                            metrics.packets_sent += 1;
+                                        }
+                                        Err(error) => {
+                                            warn!("[Tunnel] UDP send failed: {}", error);
+                                        }
                                     }
                                 },
                                 TunnResult::Done => {},

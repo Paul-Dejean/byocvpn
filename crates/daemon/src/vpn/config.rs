@@ -4,6 +4,7 @@ use base64::{Engine, engine::general_purpose};
 use byocvpn_core::error::{ConfigurationError, Result};
 use ini::Ini;
 use ipnet::IpNet;
+use log::*;
 
 pub struct WireguardConfig {
     pub private_key: Vec<u8>,
@@ -91,6 +92,7 @@ pub async fn parse_wireguard_config(config_path: &str) -> Result<WireguardConfig
     #[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
     let dns_servers = Vec::new();
 
+    debug!("Parsed WireGuard config: endpoint={}, ipv4={}, ipv6={}, dns_servers={:?}", endpoint, ipv4, ipv6, dns_servers);
     Ok(WireguardConfig {
         private_key,
         public_key,

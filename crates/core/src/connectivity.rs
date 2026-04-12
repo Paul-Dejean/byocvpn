@@ -72,5 +72,7 @@ pub fn can_connect_ipv6() -> bool {
         .parse()
         .expect("Ipv6 [2001:4860:4860::8888]:53 is invalid");
 
-    TcpStream::connect_timeout(&addr, Duration::from_secs(2)).is_ok()
+    let available = TcpStream::connect_timeout(&addr, Duration::from_secs(2)).is_ok();
+    debug!("[probe] IPv6 connectivity: {}", if available { "available" } else { "unavailable" });
+    available
 }

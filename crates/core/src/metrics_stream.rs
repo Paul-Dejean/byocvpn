@@ -105,8 +105,9 @@ where
 
         info!("Metrics stream stopped (clean={})", stopped_cleanly);
 
-        if let Ok(mut state) = STREAM_STATE.lock() {
-            *state = None;
+        match STREAM_STATE.lock() {
+            Ok(mut state) => *state = None,
+            Err(error) => warn!("Failed to clear metrics stream state: {}", error),
         }
 
         if !stopped_cleanly {
