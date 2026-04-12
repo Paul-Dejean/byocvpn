@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crate::{
     cloud_provider::{CloudProvider, SpawnStep, SpawnStepStatus},
     error::Result,
@@ -13,7 +15,8 @@ pub async fn enable_region(provider: &dyn CloudProvider, region: &str) -> Result
     Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Region {
     pub name: String,
     pub country: String,

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::Result;
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum DaemonCommand {
     Connect {
         config_path: String,

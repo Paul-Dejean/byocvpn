@@ -10,6 +10,7 @@ use byocvpn_core::{
         SpawnProgressEvent,
     },
     commands,
+    commands::setup::Region,
     credentials::CredentialStore,
     crypto::generate_keypair,
     error::{ConfigurationError, Error, Result},
@@ -427,21 +428,10 @@ pub async fn enable_region(
 }
 
 #[tauri::command]
-pub async fn get_regions(provider: String) -> Result<Vec<Value>> {
+pub async fn get_regions(provider: String) -> Result<Vec<Region>> {
     let provider_name = CloudProviderName::from_str(&provider)?;
     let cloud_provider = create_cloud_provider(provider_name).await?;
-
-    let regions = commands::setup::get_regions(&*cloud_provider).await?;
-
-    Ok(regions
-        .into_iter()
-        .map(|r| {
-            json!({
-                "name": r.name,
-                "country": r.country,
-            })
-        })
-        .collect())
+    commands::setup::get_regions(&*cloud_provider).await
 }
 
 async fn fetch_vpn_status() -> Result<VpnStatus> {

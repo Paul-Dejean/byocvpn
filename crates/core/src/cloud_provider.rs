@@ -39,7 +39,7 @@ pub trait CloudProvider: Send + Sync {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Display, EnumString)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "lowercase", ascii_case_insensitive)]
 pub enum CloudProviderName {
     Aws,
@@ -107,7 +107,7 @@ pub struct SpawnJob {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub enum SpawnStepStatus {
     Pending,
     Running,
