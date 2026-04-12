@@ -173,7 +173,7 @@ pub async fn connect_vpn(
     let (metrics_shutdown_tx, mut metrics_shutdown_rx) = watch::channel(());
 
     let metrics_task = tokio::spawn(async move {
-        let listener = match IpcSocket::bind(metrics_socket_path.clone()).await {
+        let mut listener = match IpcSocket::bind(metrics_socket_path.clone()).await {
             Ok(l) => {
                 info!(
                     "[Metrics] Created metrics socket at {}",

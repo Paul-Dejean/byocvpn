@@ -1,10 +1,8 @@
-#[cfg(windows)]
 use std::{collections::HashMap, io, process::Command};
 
 use byocvpn_core::error::{ConfigurationError, Result};
 use log::*;
 
-#[cfg(windows)]
 #[derive(Debug)]
 enum OriginalDnsState {
     Dhcp,
@@ -12,14 +10,12 @@ enum OriginalDnsState {
     Unconfigured,
 }
 
-#[cfg(windows)]
 #[derive(Debug)]
 pub struct DomainNameSystemOverrideGuard {
     original_state_by_interface: HashMap<String, OriginalDnsState>,
     domain_name_system_was_applied: bool,
 }
 
-#[cfg(windows)]
 impl DomainNameSystemOverrideGuard {
     pub fn apply_to_all_services(desired_domain_name_system_servers: &[&str]) -> Result<Self> {
         if desired_domain_name_system_servers.is_empty() {
@@ -73,7 +69,7 @@ impl DomainNameSystemOverrideGuard {
                     restore_dhcp_dns(interface_name)?;
                 }
                 OriginalDnsState::Static(servers) => {
-                    let as_refs: Vec<&str> = servers.iter().map(|s| s.as_str()).collect();
+                    let as_refs: Vec<&str> = servers.iter().map(|string| string.as_str()).collect();
                     set_static_dns_for_interface(interface_name, &as_refs)?;
                 }
             }
@@ -85,14 +81,12 @@ impl DomainNameSystemOverrideGuard {
     }
 }
 
-#[cfg(windows)]
 impl Drop for DomainNameSystemOverrideGuard {
     fn drop(&mut self) {
         let _ = self.restore_now();
     }
 }
 
-#[cfg(windows)]
 fn list_connected_interfaces() -> Result<Vec<String>> {
     let output = Command::new("powershell")
         .args([
@@ -124,7 +118,6 @@ fn list_connected_interfaces() -> Result<Vec<String>> {
     Ok(interfaces)
 }
 
-#[cfg(windows)]
 fn get_dns_state_for_interface(interface_name: &str) -> io::Result<OriginalDnsState> {
     let output = Command::new("netsh")
         .args([
@@ -150,7 +143,6 @@ fn get_dns_state_for_interface(interface_name: &str) -> io::Result<OriginalDnsSt
     Ok(OriginalDnsState::Unconfigured)
 }
 
-#[cfg(windows)]
 fn parse_dns_server_ips_from_netsh_output(text: &str) -> Vec<String> {
     let mut servers = Vec::new();
     let mut in_dns_block = false;
@@ -174,7 +166,6 @@ fn parse_dns_server_ips_from_netsh_output(text: &str) -> Vec<String> {
     servers
 }
 
-#[cfg(windows)]
 fn extract_ip_from_line(line: &str) -> Option<String> {
     for token in line.split_whitespace() {
         let is_ipv4 = token.contains('.') && token.split('.').count() == 4;
@@ -186,7 +177,6 @@ fn extract_ip_from_line(line: &str) -> Option<String> {
     None
 }
 
-#[cfg(windows)]
 fn set_static_dns_for_interface(interface_name: &str, servers: &[&str]) -> io::Result<()> {
     if servers.is_empty() {
         return Ok(());
@@ -243,7 +233,6 @@ fn set_static_dns_for_interface(interface_name: &str, servers: &[&str]) -> io::R
     Ok(())
 }
 
-#[cfg(windows)]
 fn restore_dhcp_dns(interface_name: &str) -> io::Result<()> {
     let output = Command::new("netsh")
         .args([

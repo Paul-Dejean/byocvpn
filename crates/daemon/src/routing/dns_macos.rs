@@ -1,17 +1,14 @@
-#[cfg(target_os = "macos")]
 use std::{collections::HashMap, io, process::Command};
 
 use byocvpn_core::error::{ConfigurationError, Result};
 use log::*;
 
-#[cfg(target_os = "macos")]
 #[derive(Debug)]
 pub struct DomainNameSystemOverrideGuard {
     original_domain_name_system_by_service: HashMap<String, Option<Vec<String>>>,
     domain_name_system_was_applied: bool,
 }
 
-#[cfg(target_os = "macos")]
 impl DomainNameSystemOverrideGuard {
     pub fn apply_to_all_services(desired_domain_name_system_servers: &[&str]) -> Result<Self> {
         if desired_domain_name_system_servers.is_empty() {
@@ -98,14 +95,12 @@ impl DomainNameSystemOverrideGuard {
     }
 }
 
-#[cfg(target_os = "macos")]
 impl Drop for DomainNameSystemOverrideGuard {
     fn drop(&mut self) {
         let _ = self.restore_now();
     }
 }
 
-#[cfg(target_os = "macos")]
 fn list_all_enabled_network_services() -> Result<Vec<String>> {
     let mut command = Command::new("networksetup");
     command.arg("-listallnetworkservices");
@@ -142,7 +137,6 @@ fn list_all_enabled_network_services() -> Result<Vec<String>> {
     Ok(result)
 }
 
-#[cfg(target_os = "macos")]
 fn get_domain_name_system_servers_for_service(
     network_service_name: &str,
 ) -> io::Result<Option<Vec<String>>> {
@@ -177,7 +171,6 @@ fn get_domain_name_system_servers_for_service(
     Ok(Some(servers))
 }
 
-#[cfg(target_os = "macos")]
 fn set_domain_name_system_servers_for_service(
     network_service_name: &str,
     desired_option: Option<&[&str]>,

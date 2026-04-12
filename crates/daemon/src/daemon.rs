@@ -26,7 +26,7 @@ pub async fn run_daemon() -> Result<()> {
             })?;
     }
 
-    let listener = IpcSocket::bind(socket_path.clone()).await?;
+    let mut listener = IpcSocket::bind(socket_path.clone()).await?;
 
     info!("Daemon listening on {}", socket_path.to_string_lossy());
     info!("process id: {}", std::process::id());
