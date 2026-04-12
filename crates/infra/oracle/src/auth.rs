@@ -78,14 +78,16 @@ pub fn build_authorization_header(
 
     let private_key =
         RsaPrivateKey::from_pkcs8_pem(&credentials.private_key_pem).map_err(|error| {
-            CredentialsError::InvalidPrivateKey { reason: error.to_string() }
+            CredentialsError::InvalidPrivateKey {
+                reason: error.to_string(),
+            }
         })?;
 
     let signing_key = SigningKey::<Sha256>::new(private_key);
     let signature_bytes = signing_key
         .try_sign(signing_string.as_bytes())
-        .map_err(|error| {
-            CredentialsError::SigningFailed { reason: error.to_string() }
+        .map_err(|error| CredentialsError::SigningFailed {
+            reason: error.to_string(),
         })?
         .to_bytes();
 

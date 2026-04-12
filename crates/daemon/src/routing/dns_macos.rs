@@ -110,9 +110,11 @@ fn list_all_enabled_network_services() -> Result<Vec<String>> {
     let mut command = Command::new("networksetup");
     command.arg("-listallnetworkservices");
     info!("Executing command: {:?}", command);
-    let output = command.output().map_err(|error| ConfigurationError::DnsConfiguration {
-        reason: format!("failed to run networksetup: {}", error),
-    })?;
+    let output = command
+        .output()
+        .map_err(|error| ConfigurationError::DnsConfiguration {
+            reason: format!("failed to run networksetup: {}", error),
+        })?;
     if !output.status.success() {
         return Err(ConfigurationError::DnsConfiguration {
             reason: format!(

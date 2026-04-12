@@ -62,11 +62,11 @@ async fn get_configs_path() -> Result<PathBuf> {
             reason: format!("failed to check configs directory: {}", error),
         })?
     {
-        create_dir_all(&byocvpn_dir)
-            .await
-            .map_err(|error| ConfigurationError::TunnelConfiguration {
+        create_dir_all(&byocvpn_dir).await.map_err(|error| {
+            ConfigurationError::TunnelConfiguration {
                 reason: format!("failed to create configs directory: {}", error),
-            })?;
+            }
+        })?;
     }
 
     Ok(byocvpn_dir)

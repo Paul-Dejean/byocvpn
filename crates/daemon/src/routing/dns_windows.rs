@@ -35,13 +35,18 @@ impl DomainNameSystemOverrideGuard {
         let mut original_state_by_interface = HashMap::new();
         for interface_name in &interface_names {
             let state = get_dns_state_for_interface(interface_name).map_err(|error| {
-                ConfigurationError::DnsConfiguration { reason: error.to_string() }
+                ConfigurationError::DnsConfiguration {
+                    reason: error.to_string(),
+                }
             })?;
             info!("Original DNS for {}: {:?}", interface_name, state);
             original_state_by_interface.insert(interface_name.clone(), state);
         }
 
-        info!("Setting new DNS servers: {:?}", desired_domain_name_system_servers);
+        info!(
+            "Setting new DNS servers: {:?}",
+            desired_domain_name_system_servers
+        );
         for interface_name in &interface_names {
             set_static_dns_for_interface(interface_name, desired_domain_name_system_servers)
                 .map_err(|error| ConfigurationError::DnsConfiguration {
@@ -49,7 +54,10 @@ impl DomainNameSystemOverrideGuard {
                 })?;
         }
 
-        Ok(Self { original_state_by_interface, domain_name_system_was_applied: true })
+        Ok(Self {
+            original_state_by_interface,
+            domain_name_system_was_applied: true,
+        })
     }
 
     pub fn restore_now(&mut self) -> io::Result<()> {
@@ -119,7 +127,13 @@ fn list_connected_interfaces() -> Result<Vec<String>> {
 #[cfg(windows)]
 fn get_dns_state_for_interface(interface_name: &str) -> io::Result<OriginalDnsState> {
     let output = Command::new("netsh")
-        .args(["interface", "ip", "show", "dns", &format!("name={}", interface_name)])
+        .args([
+            "interface",
+            "ip",
+            "show",
+            "dns",
+            &format!("name={}", interface_name),
+        ])
         .output()?;
 
     let text = String::from_utf8_lossy(&output.stdout);
@@ -232,7 +246,14 @@ fn set_static_dns_for_interface(interface_name: &str, servers: &[&str]) -> io::R
 #[cfg(windows)]
 fn restore_dhcp_dns(interface_name: &str) -> io::Result<()> {
     let output = Command::new("netsh")
-        .args(["interface", "ip", "set", "dns", &format!("name={}", interface_name), "dhcp"])
+        .args([
+            "interface",
+            "ip",
+            "set",
+            "dns",
+            &format!("name={}", interface_name),
+            "dhcp",
+        ])
         .output()?;
 
     if !output.status.success() {

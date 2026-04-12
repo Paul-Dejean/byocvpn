@@ -240,7 +240,10 @@ async fn put_with_provider_retry<B: Serialize>(
             Err(error) => {
                 let error_message = error.to_string();
                 if error_message.contains("MissingSubscriptionRegistration") {
-                    warn!("[Azure] {} — 409 response: {}", resource_label, error_message);
+                    warn!(
+                        "[Azure] {} — 409 response: {}",
+                        resource_label, error_message
+                    );
                     info!(
                         "[Azure] {} — re-registering and retrying in 15 s (attempt {}/{}, {}s elapsed)...",
                         resource_label,

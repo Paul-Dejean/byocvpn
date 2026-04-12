@@ -114,9 +114,10 @@ impl OciClient {
 
     pub async fn post<B: Serialize>(&self, url: &str, body: &B) -> Result<Value> {
         debug!("[OCI] POST {}", url);
-        let body_bytes = to_vec(body).map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!("Failed to serialize body: {}", error),
-        })?;
+        let body_bytes =
+            to_vec(body).map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+                reason: format!("Failed to serialize body: {}", error),
+            })?;
         let parsed = reqwest::Url::parse(url).map_err(|error| {
             NetworkProvisioningError::NetworkQueryFailed {
                 reason: format!("Invalid URL {}: {}", url, error),
@@ -158,9 +159,10 @@ impl OciClient {
 
     pub async fn put<B: Serialize>(&self, url: &str, body: &B) -> Result<Value> {
         debug!("[OCI] PUT {}", url);
-        let body_bytes = to_vec(body).map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!("Failed to serialize body: {}", error),
-        })?;
+        let body_bytes =
+            to_vec(body).map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+                reason: format!("Failed to serialize body: {}", error),
+            })?;
         let parsed = reqwest::Url::parse(url).map_err(|error| {
             NetworkProvisioningError::NetworkQueryFailed {
                 reason: format!("Invalid URL {}: {}", url, error),
@@ -242,11 +244,13 @@ impl OciClient {
 
 async fn parse_response(method: &str, url: &str, response: Response) -> Result<Value> {
     let status = response.status();
-    let body = response.text().await.map_err(|error| {
-        NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!("Failed to read OCI response: {}", error),
-        }
-    })?;
+    let body =
+        response
+            .text()
+            .await
+            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+                reason: format!("Failed to read OCI response: {}", error),
+            })?;
 
     if status.is_success() {
         debug!("[OCI] {} {} → {}", method, url, status);

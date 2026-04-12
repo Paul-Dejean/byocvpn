@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
 use azure_identity::ClientSecretCredential;
-use byocvpn_core::error::{
-    ComputeProvisioningError, Error, NetworkProvisioningError, Result,
-};
+use byocvpn_core::error::{ComputeProvisioningError, Error, NetworkProvisioningError, Result};
 use log::*;
 use reqwest::{Client as HttpClient, Response, StatusCode};
 use serde::Serialize;

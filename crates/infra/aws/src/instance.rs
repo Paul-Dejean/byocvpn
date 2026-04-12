@@ -58,7 +58,12 @@ pub(super) async fn spawn_instance(
 
     let tags = TagSpecification::builder()
         .resource_type(ResourceType::Instance)
-        .tags(Tag::builder().key("Name").value(SERVER_INSTANCE_NAME).build())
+        .tags(
+            Tag::builder()
+                .key("Name")
+                .value(SERVER_INSTANCE_NAME)
+                .build(),
+        )
         .build();
     let response = ec2_client
         .run_instances()
@@ -74,7 +79,7 @@ pub(super) async fn spawn_instance(
         .await
         .map_err(|error| ComputeProvisioningError::InstanceSpawnFailed {
             region_name: region.to_string(),
-            reason: sdk_error_message(&error)
+            reason: sdk_error_message(&error),
         })?;
     let instance = response
         .instances()
@@ -101,7 +106,7 @@ pub(super) async fn spawn_instance(
         .await
         .map_err(|error| ComputeProvisioningError::InstanceSpawnFailed {
             region_name: region.to_string(),
-            reason: sdk_error_message(&error)
+            reason: sdk_error_message(&error),
         })?;
 
     let public_ip_v4 = desc
@@ -147,7 +152,7 @@ pub async fn terminate_instance(ec2_client: &Ec2Client, instance_id: &str) -> Re
         .map_err(
             |error| ComputeProvisioningError::InstanceTerminationFailed {
                 instance_identifier: instance_id.to_string(),
-                reason: sdk_error_message(&error)
+                reason: sdk_error_message(&error),
             },
         )?;
 
@@ -164,7 +169,7 @@ pub(super) async fn list_instances_in_region(
         .await
         .map_err(|error| ComputeProvisioningError::InstanceSpawnFailed {
             region_name: region.to_string(),
-            reason:sdk_error_message(&error)
+            reason: sdk_error_message(&error),
         })?;
 
     let instances = response

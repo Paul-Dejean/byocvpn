@@ -130,12 +130,13 @@ pub async fn connect_vpn(
 
     info!("Created Tunn device");
 
-    let local: SocketAddr = "0.0.0.0:0"
-        .parse()
-        .map_err(|error| ConfigurationError::ParseError {
-            reason: format!("Failed to parse local socket address: {}", error),
-            value: "0.0.0.0".to_string(),
-        })?;
+    let local: SocketAddr =
+        "0.0.0.0:0"
+            .parse()
+            .map_err(|error| ConfigurationError::ParseError {
+                reason: format!("Failed to parse local socket address: {}", error),
+                value: "0.0.0.0".to_string(),
+            })?;
     let udp = UdpSocket::bind(local)
         .await
         .map_err(|error| SystemError::TunnelIoFailed {

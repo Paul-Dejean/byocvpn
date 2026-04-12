@@ -11,8 +11,10 @@ impl ProviderStore {
     }
 
     pub fn mark_provisioned(&self, provider: &str) {
-        self.0
-            .set(Self::provisioned_key(provider), serde_json::Value::Bool(true));
+        self.0.set(
+            Self::provisioned_key(provider),
+            serde_json::Value::Bool(true),
+        );
         let _ = self.0.save();
     }
 
@@ -22,8 +24,10 @@ impl ProviderStore {
     }
 
     pub fn mark_region_enabled(&self, provider: &str, region: &str) {
-        self.0
-            .set(Self::region_key(provider, region), serde_json::Value::Bool(true));
+        self.0.set(
+            Self::region_key(provider, region),
+            serde_json::Value::Bool(true),
+        );
         let _ = self.0.save();
     }
 

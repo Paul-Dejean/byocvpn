@@ -21,14 +21,14 @@ pub(super) async fn get_sdk_config(
 ) -> SdkConfig {
     let region_provider = match &region {
         Some(r) => RegionProviderChain::first_try(Region::new(r.clone())).or_default_provider(),
-        None => RegionProviderChain::default_provider()
-            .or_else(Region::new(DEFAULT_REGION)),
+        None => RegionProviderChain::default_provider().or_else(Region::new(DEFAULT_REGION)),
     };
 
     let mut config_loader = aws_config::from_env().region(region_provider);
 
     if let (Some(id), Some(secret)) = (&config.access_key_id, &config.secret_access_key) {
-        let credentials = Credentials::new(id.clone(), secret.clone(), None, None, CREDENTIALS_SOURCE);
+        let credentials =
+            Credentials::new(id.clone(), secret.clone(), None, None, CREDENTIALS_SOURCE);
         let provider = SharedCredentialsProvider::new(credentials);
         config_loader = config_loader.credentials_provider(provider);
     }

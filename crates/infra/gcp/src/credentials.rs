@@ -17,7 +17,8 @@ pub struct GcpCredentials {
 impl GcpCredentials {
     pub fn from_store(store: &CredentialStore) -> Result<Self> {
         let project_id = store.require(CREDENTIALS_SECTION, PROJECT_ID_FIELD)?;
-        let service_account_json = store.require(CREDENTIALS_SECTION, SERVICE_ACCOUNT_JSON_FIELD)?;
+        let service_account_json =
+            store.require(CREDENTIALS_SECTION, SERVICE_ACCOUNT_JSON_FIELD)?;
         Ok(Self {
             project_id,
             service_account_json,

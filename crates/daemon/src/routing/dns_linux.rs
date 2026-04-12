@@ -32,9 +32,11 @@ impl DomainNameSystemOverrideGuard {
 
         info!("Executing: {:?}", set_dns_command);
         let set_dns_output =
-            set_dns_command.output().map_err(|error| ConfigurationError::DnsConfiguration {
-                reason: format!("failed to run resolvectl dns: {}", error),
-            })?;
+            set_dns_command
+                .output()
+                .map_err(|error| ConfigurationError::DnsConfiguration {
+                    reason: format!("failed to run resolvectl dns: {}", error),
+                })?;
 
         if !set_dns_output.status.success() {
             return Err(ConfigurationError::DnsConfiguration {
@@ -47,13 +49,18 @@ impl DomainNameSystemOverrideGuard {
         }
 
         let mut set_domain_command = Command::new("resolvectl");
-        set_domain_command.arg("domain").arg(TUN_INTERFACE_NAME).arg("~.");
+        set_domain_command
+            .arg("domain")
+            .arg(TUN_INTERFACE_NAME)
+            .arg("~.");
 
         info!("Executing: {:?}", set_domain_command);
         let set_domain_output =
-            set_domain_command.output().map_err(|error| ConfigurationError::DnsConfiguration {
-                reason: format!("failed to run resolvectl domain: {}", error),
-            })?;
+            set_domain_command
+                .output()
+                .map_err(|error| ConfigurationError::DnsConfiguration {
+                    reason: format!("failed to run resolvectl domain: {}", error),
+                })?;
 
         if !set_domain_output.status.success() {
             return Err(ConfigurationError::DnsConfiguration {
@@ -67,7 +74,9 @@ impl DomainNameSystemOverrideGuard {
 
         info!("DNS successfully configured on {}", TUN_INTERFACE_NAME);
 
-        Ok(Self { domain_name_system_was_applied: true })
+        Ok(Self {
+            domain_name_system_was_applied: true,
+        })
     }
 
     pub fn restore_now(&mut self) -> io::Result<()> {
@@ -75,7 +84,10 @@ impl DomainNameSystemOverrideGuard {
             return Ok(());
         }
 
-        info!("Reverting DNS settings on {} via resolvectl", TUN_INTERFACE_NAME);
+        info!(
+            "Reverting DNS settings on {} via resolvectl",
+            TUN_INTERFACE_NAME
+        );
 
         let mut revert_command = Command::new("resolvectl");
         revert_command.arg("revert").arg(TUN_INTERFACE_NAME);

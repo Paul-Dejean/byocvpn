@@ -54,7 +54,9 @@ async fn create_cloud_provider(provider_name: CloudProviderName) -> Result<Box<d
     match provider_name {
         CloudProviderName::Aws => {
             let store = CredentialStore::load().await?;
-            Ok(Box::new(AwsProvider::new(AwsCredentials::from_store(&store)?.into()).await))
+            Ok(Box::new(
+                AwsProvider::new(AwsCredentials::from_store(&store)?.into()).await,
+            ))
         }
         unsupported => {
             unimplemented!("CLI does not support provider: {}", unsupported)

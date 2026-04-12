@@ -346,10 +346,7 @@ impl CloudProvider for AwsProvider {
         match step {
             AwsSpawnStepId::SetupVpc => {
                 let ec2 = self.create_ec2_client(Some(region.to_string())).await;
-                if network::get_vpc_by_name(&ec2, VPC_NAME)
-                    .await?
-                    .is_none()
-                {
+                if network::get_vpc_by_name(&ec2, VPC_NAME).await?.is_none() {
                     network::create_vpc(&ec2, VPC_CIDR_BLOCK, VPC_NAME).await?;
                 }
                 Ok(())
@@ -383,7 +380,8 @@ impl CloudProvider for AwsProvider {
                     network::create_and_attach_igw(&ec2, &vpc_id).await?
                 };
                 let route_table_id = network::find_main_route_table(&ec2, &vpc_id).await?;
-                network::tag_resource_with_name(&ec2, &route_table_id, MAIN_ROUTE_TABLE_NAME).await?;
+                network::tag_resource_with_name(&ec2, &route_table_id, MAIN_ROUTE_TABLE_NAME)
+                    .await?;
                 network::tag_resource_with_name(&ec2, &igw_id, INTERNET_GATEWAY_NAME).await?;
                 network::add_igw_routes_to_table(&ec2, &route_table_id, &igw_id).await?;
                 Ok(())
@@ -477,7 +475,11 @@ impl CloudProvider for AwsProvider {
             let ec2_client = self.create_ec2_client(Some(region.name.clone())).await;
             let result = instance::list_instances_in_region(&ec2_client, &region.name).await;
             match &result {
-                Ok(instances) => info!("Region {}: found {} instances", region.name, instances.len()),
+                Ok(instances) => info!(
+                    "Region {}: found {} instances",
+                    region.name,
+                    instances.len()
+                ),
                 Err(error) => warn!("Skipping region {}: {}", region.name, error),
             }
             result

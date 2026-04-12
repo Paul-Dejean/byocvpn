@@ -12,7 +12,10 @@ pub fn create_credential(
     let secret = Secret::new(client_secret.to_string());
     ClientSecretCredential::new(tenant_id, client_id.to_string(), secret, None).map_err(|error| {
         CredentialsError::InvalidFormat {
-            reason: format!("Failed to create Azure service-principal credential: {}", error),
+            reason: format!(
+                "Failed to create Azure service-principal credential: {}",
+                error
+            ),
         }
         .into()
     })

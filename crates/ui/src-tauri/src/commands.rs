@@ -368,7 +368,12 @@ pub async fn enable_region(
     let cloud_provider = create_cloud_provider(provider_name.clone()).await?;
 
     let job = EnableRegionJob {
-        job_id: format!("{}-{}-{}", provider_name, region, Utc::now().timestamp_millis()),
+        job_id: format!(
+            "{}-{}-{}",
+            provider_name,
+            region,
+            Utc::now().timestamp_millis()
+        ),
         steps: cloud_provider.enable_region_steps(&region),
         region: region.clone(),
         provider: provider_name,
@@ -559,12 +564,14 @@ pub async fn get_instance_pricing(provider: String, instance_type: String) -> Re
 
 #[tauri::command]
 pub async fn save_file(path: String, content: String) -> Result<()> {
-    tokio::fs::write(&path, content).await.map_err(|error| -> Error {
-        ConfigurationError::InvalidFile {
-            reason: error.to_string(),
-        }
-        .into()
-    })
+    tokio::fs::write(&path, content)
+        .await
+        .map_err(|error| -> Error {
+            ConfigurationError::InvalidFile {
+                reason: error.to_string(),
+            }
+            .into()
+        })
 }
 
 #[tauri::command]
@@ -577,4 +584,3 @@ pub async fn get_ledger(app_handle: AppHandle) -> Result<Vec<Value>> {
     })?;
     Ok(ledger.all_entries())
 }
-

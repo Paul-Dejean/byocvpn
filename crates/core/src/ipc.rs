@@ -1,10 +1,12 @@
 use std::path::PathBuf;
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+#[cfg(windows)]
+use tokio::net::windows::named_pipe::{
+    ClientOptions, NamedPipeClient, NamedPipeServer, ServerOptions,
+};
 #[cfg(unix)]
 use tokio::net::{UnixListener, UnixStream};
-#[cfg(windows)]
-use tokio::net::windows::named_pipe::{ClientOptions, NamedPipeClient, NamedPipeServer, ServerOptions};
 
 use crate::error::{DaemonError, Result};
 
@@ -58,38 +60,45 @@ impl IpcSocket {
                     ),
                 })?;
 
-            Ok(Self { pipe_server: tokio::sync::Mutex::new(server), path })
+            Ok(Self {
+                pipe_server: tokio::sync::Mutex::new(server),
+                path,
+            })
         }
     }
 
     pub async fn accept(&self) -> Result<IpcStream> {
         #[cfg(unix)]
         {
-            let (stream, _) = self.listener.accept().await.map_err(|error| {
-                DaemonError::SocketError {
-                    reason: format!("failed to accept connection: {}", error),
-                }
-            })?;
+            let (stream, _) =
+                self.listener
+                    .accept()
+                    .await
+                    .map_err(|error| DaemonError::SocketError {
+                        reason: format!("failed to accept connection: {}", error),
+                    })?;
             Ok(IpcStream { stream })
         }
 
         #[cfg(windows)]
         {
             let mut server = self.pipe_server.lock().await;
-            server.connect().await.map_err(|error| DaemonError::SocketError {
-                reason: format!("failed to accept named pipe connection: {}", error),
-            })?;
-            let next_server =
-                ServerOptions::new().max_instances(10).create(&self.path).map_err(|error| {
-                    DaemonError::SocketError {
-                        reason: format!(
-                            "failed to create next named pipe instance: {}",
-                            error
-                        ),
-                    }
+            server
+                .connect()
+                .await
+                .map_err(|error| DaemonError::SocketError {
+                    reason: format!("failed to accept named pipe connection: {}", error),
+                })?;
+            let next_server = ServerOptions::new()
+                .max_instances(10)
+                .create(&self.path)
+                .map_err(|error| DaemonError::SocketError {
+                    reason: format!("failed to create next named pipe instance: {}", error),
                 })?;
             let connected = std::mem::replace(&mut *server, next_server);
-            Ok(IpcStream { stream: NamedPipeStream::Server(connected) })
+            Ok(IpcStream {
+                stream: NamedPipeStream::Server(connected),
+            })
         }
     }
 
@@ -115,11 +124,12 @@ impl IpcStream {
     pub async fn connect(path: &PathBuf) -> Result<Self> {
         #[cfg(unix)]
         {
-            let stream = UnixStream::connect(path).await.map_err(|error| {
-                DaemonError::ConnectionFailed {
-                    reason: error.to_string(),
-                }
-            })?;
+            let stream =
+                UnixStream::connect(path)
+                    .await
+                    .map_err(|error| DaemonError::ConnectionFailed {
+                        reason: error.to_string(),
+                    })?;
             Ok(Self { stream })
         }
 
@@ -128,7 +138,9 @@ impl IpcStream {
             loop {
                 match ClientOptions::new().open(path) {
                     Ok(client) => {
-                        return Ok(Self { stream: NamedPipeStream::Client(client) });
+                        return Ok(Self {
+                            stream: NamedPipeStream::Client(client),
+                        });
                     }
                     Err(error) if error.raw_os_error() == Some(231) => {
                         // ERROR_PIPE_BUSY — all instances busy, wait and retry
@@ -167,24 +179,32 @@ impl IpcStream {
         {
             match &mut self.stream {
                 NamedPipeStream::Server(server) => {
-                    server.write_all(message.as_bytes()).await.map_err(|error| {
-                        DaemonError::SocketError {
+                    server
+                        .write_all(message.as_bytes())
+                        .await
+                        .map_err(|error| DaemonError::SocketError {
                             reason: format!("failed to send message: {}", error),
-                        }
-                    })?;
-                    server.write_all(b"\n").await.map_err(|error| DaemonError::SocketError {
-                        reason: format!("failed to send message terminator: {}", error),
-                    })?;
+                        })?;
+                    server
+                        .write_all(b"\n")
+                        .await
+                        .map_err(|error| DaemonError::SocketError {
+                            reason: format!("failed to send message terminator: {}", error),
+                        })?;
                 }
                 NamedPipeStream::Client(client) => {
-                    client.write_all(message.as_bytes()).await.map_err(|error| {
-                        DaemonError::SocketError {
+                    client
+                        .write_all(message.as_bytes())
+                        .await
+                        .map_err(|error| DaemonError::SocketError {
                             reason: format!("failed to send message: {}", error),
-                        }
-                    })?;
-                    client.write_all(b"\n").await.map_err(|error| DaemonError::SocketError {
-                        reason: format!("failed to send message terminator: {}", error),
-                    })?;
+                        })?;
+                    client
+                        .write_all(b"\n")
+                        .await
+                        .map_err(|error| DaemonError::SocketError {
+                            reason: format!("failed to send message terminator: {}", error),
+                        })?;
                 }
             }
             Ok(())
@@ -196,9 +216,12 @@ impl IpcStream {
         {
             let mut reader = BufReader::new(&mut self.stream);
             let mut line = String::new();
-            match reader.read_line(&mut line).await.map_err(|error| DaemonError::SocketError {
-                reason: format!("failed to read message: {}", error),
-            })? {
+            match reader
+                .read_line(&mut line)
+                .await
+                .map_err(|error| DaemonError::SocketError {
+                    reason: format!("failed to read message: {}", error),
+                })? {
                 0 => Ok(None),
                 _ => {
                     if line.ends_with('\n') {
@@ -239,9 +262,12 @@ impl IpcStream {
     pub async fn write_all(&mut self, data: &[u8]) -> Result<()> {
         #[cfg(unix)]
         {
-            self.stream.write_all(data).await.map_err(|error| DaemonError::SocketError {
-                reason: format!("failed to write data: {}", error),
-            })?;
+            self.stream
+                .write_all(data)
+                .await
+                .map_err(|error| DaemonError::SocketError {
+                    reason: format!("failed to write data: {}", error),
+                })?;
             Ok(())
         }
 

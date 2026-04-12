@@ -84,11 +84,9 @@ async fn add_route(destination: &str, interface: &str) -> Result<()> {
             .map_err(|error| ConfigurationError::RouteConfiguration {
                 reason: format!("failed to query default route: {}", error),
             })?
-            .ok_or_else(|| {
-            ConfigurationError::RouteConfiguration {
+            .ok_or_else(|| ConfigurationError::RouteConfiguration {
                 reason: "No default route found".to_string(),
-            }
-        })?;
+            })?;
         let gateway =
             default_route
                 .gateway
@@ -120,7 +118,10 @@ async fn add_route(destination: &str, interface: &str) -> Result<()> {
                 destination, interface, error
             );
             error!("{}", error_message);
-            Err(ConfigurationError::RouteConfiguration { reason: error_message }.into())
+            Err(ConfigurationError::RouteConfiguration {
+                reason: error_message,
+            }
+            .into())
         }
     }
 }

@@ -17,20 +17,28 @@ pub struct WireguardConfig {
 pub async fn parse_wireguard_config(config_path: &str) -> Result<WireguardConfig> {
     fn require_section<'a>(config: &'a Ini, name: &str) -> Result<&'a ini::Properties> {
         config.section(Some(name)).ok_or_else(|| {
-            ConfigurationError::MissingField { field: format!("[{}] section", name) }.into()
+            ConfigurationError::MissingField {
+                field: format!("[{}] section", name),
+            }
+            .into()
         })
     }
 
     fn require_field<'a>(section: &'a ini::Properties, field: &str) -> Result<&'a str> {
-        section
-            .get(field)
-            .ok_or_else(|| ConfigurationError::MissingField { field: field.to_string() }.into())
+        section.get(field).ok_or_else(|| {
+            ConfigurationError::MissingField {
+                field: field.to_string(),
+            }
+            .into()
+        })
     }
 
     fn decode_base64(value: &str, field: &str) -> Result<Vec<u8>> {
         general_purpose::STANDARD.decode(value).map_err(|error| {
-            ConfigurationError::InvalidFile { reason: format!("Invalid {}: {}", field, error) }
-                .into()
+            ConfigurationError::InvalidFile {
+                reason: format!("Invalid {}: {}", field, error),
+            }
+            .into()
         })
     }
 
@@ -39,14 +47,17 @@ pub async fn parse_wireguard_config(config_path: &str) -> Result<WireguardConfig
         T::Err: std::fmt::Display,
     {
         value.parse().map_err(|error| {
-            ConfigurationError::InvalidFile { reason: format!("Invalid {}: {}", field, error) }
-                .into()
+            ConfigurationError::InvalidFile {
+                reason: format!("Invalid {}: {}", field, error),
+            }
+            .into()
         })
     }
 
-    let config = Ini::load_from_file(config_path).map_err(|error| ConfigurationError::InvalidFile {
-        reason: format!("Failed to read config file: {}", error),
-    })?;
+    let config =
+        Ini::load_from_file(config_path).map_err(|error| ConfigurationError::InvalidFile {
+            reason: format!("Failed to read config file: {}", error),
+        })?;
 
     let interface = require_section(&config, "Interface")?;
     let peer = require_section(&config, "Peer")?;
@@ -63,12 +74,16 @@ pub async fn parse_wireguard_config(config_path: &str) -> Result<WireguardConfig
     let ipv4 = addresses
         .iter()
         .find(|ip| ip.addr().is_ipv4())
-        .ok_or(ConfigurationError::MissingField { field: "IPv4 address".to_string() })?
+        .ok_or(ConfigurationError::MissingField {
+            field: "IPv4 address".to_string(),
+        })?
         .clone();
     let ipv6 = addresses
         .iter()
         .find(|ip| ip.addr().is_ipv6())
-        .ok_or(ConfigurationError::MissingField { field: "IPv6 address".to_string() })?
+        .ok_or(ConfigurationError::MissingField {
+            field: "IPv6 address".to_string(),
+        })?
         .clone();
 
     #[cfg(any(target_os = "macos", target_os = "linux", windows))]
@@ -76,7 +91,14 @@ pub async fn parse_wireguard_config(config_path: &str) -> Result<WireguardConfig
     #[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
     let dns_servers = Vec::new();
 
-    Ok(WireguardConfig { private_key, public_key, endpoint, ipv4, ipv6, dns_servers })
+    Ok(WireguardConfig {
+        private_key,
+        public_key,
+        endpoint,
+        ipv4,
+        ipv6,
+        dns_servers,
+    })
 }
 
 fn parse_domain_name_system_servers_from_interface_section(

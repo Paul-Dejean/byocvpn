@@ -23,21 +23,27 @@ impl DaemonClient for UnixDaemonClient {
         let mut stream = IpcStream::connect(&socket_path).await?;
         info!("Connected to daemon at {}", socket_path.to_string_lossy());
 
-        let serialized_command = serde_json::to_string(&command).map_err(|error| DaemonError::SocketError {
-            reason: format!("failed to serialize command: {}", error),
-        })?;
+        let serialized_command =
+            serde_json::to_string(&command).map_err(|error| DaemonError::SocketError {
+                reason: format!("failed to serialize command: {}", error),
+            })?;
         stream.send_message(&serialized_command).await?;
 
-        let response = stream.read_message().await?.ok_or_else(|| {
-            DaemonError::ConnectionFailed {
-                reason: "daemon closed connection without response".to_string(),
-            }
-        })?;
+        let response =
+            stream
+                .read_message()
+                .await?
+                .ok_or_else(|| DaemonError::ConnectionFailed {
+                    reason: "daemon closed connection without response".to_string(),
+                })?;
 
         if let Some(data) = response.strip_prefix("ok:") {
             Ok(data.to_string())
         } else if let Some(error) = response.strip_prefix("err:") {
-            Err(DaemonError::CommandFailed { command: error.to_string() }.into())
+            Err(DaemonError::CommandFailed {
+                command: error.to_string(),
+            }
+            .into())
         } else {
             Err(DaemonError::InvalidResponse {
                 reason: format!("missing ok:/err: prefix: {}", response),

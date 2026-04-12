@@ -41,8 +41,11 @@ mod windows_service_impl {
     define_windows_service!(ffi_service_main, service_main);
 
     pub fn start_as_service() -> windows_service::Result<()> {
-        let service_name =
-            if cfg!(debug_assertions) { "byocvpn-daemon-dev" } else { "byocvpn-daemon" };
+        let service_name = if cfg!(debug_assertions) {
+            "byocvpn-daemon-dev"
+        } else {
+            "byocvpn-daemon"
+        };
         service_dispatcher::start(service_name, ffi_service_main)
     }
 
@@ -50,7 +53,11 @@ mod windows_service_impl {
         let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>();
 
         let status_handle = service_control_handler::register(
-            if cfg!(debug_assertions) { "byocvpn-daemon-dev" } else { "byocvpn-daemon" },
+            if cfg!(debug_assertions) {
+                "byocvpn-daemon-dev"
+            } else {
+                "byocvpn-daemon"
+            },
             move |control_event| match control_event {
                 ServiceControl::Stop | ServiceControl::Shutdown => {
                     let _ = shutdown_tx.send(());

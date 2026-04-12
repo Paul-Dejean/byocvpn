@@ -1,4 +1,8 @@
-use byocvpn_core::{daemon_client::DaemonCommand, error::{DaemonError, Result}, ipc::IpcSocket};
+use byocvpn_core::{
+    daemon_client::DaemonCommand,
+    error::{DaemonError, Result},
+    ipc::IpcSocket,
+};
 use log::*;
 
 use crate::{
@@ -34,9 +38,17 @@ pub async fn run_daemon() -> Result<()> {
             info!("Daemon received: {line}");
             info!("process id: {}", std::process::id());
             match serde_json::from_str::<DaemonCommand>(&line) {
-                Ok(DaemonCommand::Connect { config_path, region, provider, public_ip_v4, public_ip_v6 }) => {
+                Ok(DaemonCommand::Connect {
+                    config_path,
+                    region,
+                    provider,
+                    public_ip_v4,
+                    public_ip_v6,
+                }) => {
                     info!("Daemon received connect: {config_path}");
-                    match connect_vpn(config_path, region, provider, public_ip_v4, public_ip_v6).await {
+                    match connect_vpn(config_path, region, provider, public_ip_v4, public_ip_v6)
+                        .await
+                    {
                         Ok(_) => {
                             if stream.send_message("ok:connected").await.is_err() {
                                 error!("Failed to send response to client");
@@ -44,7 +56,11 @@ pub async fn run_daemon() -> Result<()> {
                         }
                         Err(error) => {
                             error!("Connect error: {}", error);
-                            if stream.send_message(&format!("err:{}", error)).await.is_err() {
+                            if stream
+                                .send_message(&format!("err:{}", error))
+                                .await
+                                .is_err()
+                            {
                                 error!("Failed to send error response to client");
                             }
                         }
@@ -58,7 +74,11 @@ pub async fn run_daemon() -> Result<()> {
                     }
                     Err(error) => {
                         error!("Disconnect error: {}", error);
-                        if stream.send_message(&format!("err:{}", error)).await.is_err() {
+                        if stream
+                            .send_message(&format!("err:{}", error))
+                            .await
+                            .is_err()
+                        {
                             error!("Failed to send error response to client");
                         }
                     }
@@ -72,14 +92,22 @@ pub async fn run_daemon() -> Result<()> {
                         }
                         Err(error) => {
                             error!("Status serialization error: {}", error);
-                            if stream.send_message(&format!("err:{}", error)).await.is_err() {
+                            if stream
+                                .send_message(&format!("err:{}", error))
+                                .await
+                                .is_err()
+                            {
                                 error!("Failed to send error response to client");
                             }
                         }
                     },
                     Err(error) => {
                         error!("Status error: {}", error);
-                        if stream.send_message(&format!("err:{}", error)).await.is_err() {
+                        if stream
+                            .send_message(&format!("err:{}", error))
+                            .await
+                            .is_err()
+                        {
                             error!("Failed to send error response to client");
                         }
                     }
@@ -94,7 +122,11 @@ pub async fn run_daemon() -> Result<()> {
                         }
                         Err(error) => {
                             error!("Stats serialization error: {}", error);
-                            if stream.send_message(&format!("err:{}", error)).await.is_err() {
+                            if stream
+                                .send_message(&format!("err:{}", error))
+                                .await
+                                .is_err()
+                            {
                                 error!("Failed to send error response to client");
                             }
                         }
@@ -108,7 +140,11 @@ pub async fn run_daemon() -> Result<()> {
 
                 Err(error) => {
                     error!("Invalid command: {}", error);
-                    if stream.send_message(&format!("err:{}", error)).await.is_err() {
+                    if stream
+                        .send_message(&format!("err:{}", error))
+                        .await
+                        .is_err()
+                    {
                         error!("Failed to send error response to client");
                     }
                 }

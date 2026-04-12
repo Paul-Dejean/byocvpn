@@ -1,7 +1,4 @@
-use byocvpn_core::{
-    credentials::CredentialStore,
-    error::Result,
-};
+use byocvpn_core::{credentials::CredentialStore, error::Result};
 use serde::{Deserialize, Serialize};
 
 use crate::provider::AwsProviderConfig;
@@ -26,8 +23,16 @@ impl AwsCredentials {
     }
 
     pub fn write_to_store(&self, store: &mut CredentialStore) {
-        store.set(CREDENTIALS_SECTION, ACCESS_KEY_ID_FIELD, &self.access_key_id);
-        store.set(CREDENTIALS_SECTION, SECRET_ACCESS_KEY_FIELD, &self.secret_access_key);
+        store.set(
+            CREDENTIALS_SECTION,
+            ACCESS_KEY_ID_FIELD,
+            &self.access_key_id,
+        );
+        store.set(
+            CREDENTIALS_SECTION,
+            SECRET_ACCESS_KEY_FIELD,
+            &self.secret_access_key,
+        );
     }
 }
 

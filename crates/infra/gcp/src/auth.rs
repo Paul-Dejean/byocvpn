@@ -5,11 +5,10 @@ use http::Extensions;
 pub fn parse_credentials_from_service_account_json(
     json_str: &str,
 ) -> Result<(Credentials, String)> {
-    let json: serde_json::Value = serde_json::from_str(json_str).map_err(|error| {
-        CredentialsError::InvalidFormat {
+    let json: serde_json::Value =
+        serde_json::from_str(json_str).map_err(|error| CredentialsError::InvalidFormat {
             reason: format!("Invalid GCP service-account JSON: {}", error),
-        }
-    })?;
+        })?;
 
     let project_id = json["project_id"]
         .as_str()

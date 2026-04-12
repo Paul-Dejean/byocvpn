@@ -25,10 +25,9 @@ async fn wait_for_operation(client: &GcpClient, operation_url: &str) -> Result<(
                         .and_then(|error| error["message"].as_str())
                         .unwrap_or("unknown error")
                         .to_string();
-                    return Err(NetworkProvisioningError::CloudOperationFailed {
-                        reason: message,
-                    }
-                    .into());
+                    return Err(
+                        NetworkProvisioningError::CloudOperationFailed { reason: message }.into(),
+                    );
                 }
                 return Ok(());
             }
@@ -328,8 +327,9 @@ async fn wait_for_service_usage_operation(client: &GcpClient, operation_name: &s
                     .as_str()
                     .unwrap_or("unknown error")
                     .to_string();
-                return Err(NetworkProvisioningError::CloudOperationFailed { reason: message }
-                    .into());
+                return Err(
+                    NetworkProvisioningError::CloudOperationFailed { reason: message }.into(),
+                );
             }
             return Ok(());
         }
@@ -352,12 +352,14 @@ pub async fn ensure_compute_api_enabled(client: &GcpClient) -> Result<()> {
     );
     let url = format!("{}/{}", SERVICE_USAGE_BASE, service_name);
 
-    let response = client.get(&url).await.map_err(|error| {
-        NetworkProvisioningError::ProviderSetupFailed {
-            step: "Compute Engine API check".to_string(),
-            reason: error.to_string(),
-        }
-    })?;
+    let response =
+        client
+            .get(&url)
+            .await
+            .map_err(|error| NetworkProvisioningError::ProviderSetupFailed {
+                step: "Compute Engine API check".to_string(),
+                reason: error.to_string(),
+            })?;
 
     if response["state"].as_str() == Some("ENABLED") {
         return Ok(());

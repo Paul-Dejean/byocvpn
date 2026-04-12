@@ -29,10 +29,18 @@ impl AzureCredentials {
     }
 
     pub fn write_to_store(&self, store: &mut CredentialStore) {
-        store.set(CREDENTIALS_SECTION, SUBSCRIPTION_ID_FIELD, &self.subscription_id);
+        store.set(
+            CREDENTIALS_SECTION,
+            SUBSCRIPTION_ID_FIELD,
+            &self.subscription_id,
+        );
         store.set(CREDENTIALS_SECTION, TENANT_ID_FIELD, &self.tenant_id);
         store.set(CREDENTIALS_SECTION, CLIENT_ID_FIELD, &self.client_id);
-        store.set(CREDENTIALS_SECTION, CLIENT_SECRET_FIELD, &self.client_secret);
+        store.set(
+            CREDENTIALS_SECTION,
+            CLIENT_SECRET_FIELD,
+            &self.client_secret,
+        );
     }
 }
 

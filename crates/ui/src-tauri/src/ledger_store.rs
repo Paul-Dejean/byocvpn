@@ -24,7 +24,8 @@ impl LedgerStore {
         let key = LedgerEntry::build_store_key(instance_id);
         if let Some(mut entry) = self.deserialize_entry(instance_id) {
             entry.mark_terminated();
-            self.0.set(key, serde_json::to_value(&entry).unwrap_or_default());
+            self.0
+                .set(key, serde_json::to_value(&entry).unwrap_or_default());
             let _ = self.0.save();
         }
     }
@@ -33,7 +34,8 @@ impl LedgerStore {
         let key = LedgerEntry::build_store_key(instance_id);
         if let Some(mut entry) = self.deserialize_entry(instance_id) {
             entry.update_metrics(bytes_sent, bytes_received);
-            self.0.set(key, serde_json::to_value(&entry).unwrap_or_default());
+            self.0
+                .set(key, serde_json::to_value(&entry).unwrap_or_default());
             let _ = self.0.save();
         }
     }
@@ -53,7 +55,8 @@ impl LedgerStore {
                     && !running_ids.contains(entry.instance_id.as_str())
                 {
                     entry.mark_terminated();
-                    self.0.set(key, serde_json::to_value(&entry).unwrap_or_default());
+                    self.0
+                        .set(key, serde_json::to_value(&entry).unwrap_or_default());
                 }
             }
         }

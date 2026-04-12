@@ -131,11 +131,11 @@ pub async fn write_wireguard_config(
 
     #[cfg(unix)]
     {
-    let metadata = fs::metadata(wireguard_file_path.clone())
-        .await
-        .map_err(|error| ConfigurationError::TunnelConfiguration {
-            reason: format!("failed to read config file metadata: {}", error),
-        })?;
+        let metadata = fs::metadata(wireguard_file_path.clone())
+            .await
+            .map_err(|error| ConfigurationError::TunnelConfiguration {
+                reason: format!("failed to read config file metadata: {}", error),
+            })?;
         let mut perms = metadata.permissions();
         perms.set_mode(0o600);
         fs::set_permissions(wireguard_file_path.clone(), perms)
