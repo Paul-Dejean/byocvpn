@@ -5,19 +5,12 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct LedgerEntry {
     pub instance_id: String,
-
     pub provider: String,
-
     pub region: String,
-
     pub instance_type: String,
-
     pub launched_at: DateTime<Utc>,
-
     pub terminated_at: Option<DateTime<Utc>>,
-
     pub bytes_sent: u64,
-
     pub bytes_received: u64,
 }
 

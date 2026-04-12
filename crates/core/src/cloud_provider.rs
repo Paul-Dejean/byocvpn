@@ -79,13 +79,9 @@ pub struct InstanceInfo {
 #[serde(rename_all = "camelCase")]
 pub struct PricingInfo {
     pub hourly_rate: f64,
-
     pub ip_hourly_rate: f64,
-
     pub egress_rate_per_gb: f64,
-
     pub storage_gb: f64,
-
     pub storage_rate_per_gb_month: f64,
 }
 
@@ -93,7 +89,6 @@ pub struct PricingInfo {
 #[serde(rename_all = "camelCase")]
 pub struct SpawnStep {
     pub id: String,
-
     pub label: String,
 }
 

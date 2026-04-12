@@ -16,11 +16,8 @@ use crate::{auth::create_credential, client::AzureClient, instance, network};
 
 pub struct AzureProviderConfig {
     pub subscription_id: String,
-
     pub tenant_id: String,
-
     pub client_id: String,
-
     pub client_secret: String,
 }
 

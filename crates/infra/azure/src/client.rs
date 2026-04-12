@@ -17,7 +17,6 @@ const REQUEST_TIMEOUT_SECS: u64 = 90;
 pub struct AzureClient {
     http: HttpClient,
     credential: Arc<ClientSecretCredential>,
-
     pub subscription_id: String,
 }
 

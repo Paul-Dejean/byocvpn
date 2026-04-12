@@ -12,13 +12,9 @@ use sha2::{Digest, Sha256 as Sha256Digest};
 #[derive(Clone, Debug)]
 pub struct OciCredentials {
     pub tenancy_ocid: String,
-
     pub user_ocid: String,
-
     pub fingerprint: String,
-
     pub private_key_pem: String,
-
     pub region: String,
 }
 
