@@ -5,7 +5,6 @@ use byocvpn_core::{
     ipc::IpcStream,
 };
 use serde_json::Value;
-use tokio::time::{Duration, sleep};
 
 use crate::constants;
 use log::*;
@@ -19,8 +18,6 @@ impl DaemonClient for UnixDaemonClient {
             return Err(DaemonError::NotRunning.into());
         }
         let socket_path = constants::socket_path();
-        wait_for_socket(&socket_path, 50).await?;
-
         let mut stream = IpcStream::connect(&socket_path).await?;
         info!("Connected to daemon at {}", socket_path.to_string_lossy());
 
@@ -82,20 +79,4 @@ impl DaemonClient for UnixDaemonClient {
             }
         }
     }
-}
-
-async fn wait_for_socket(path: &std::path::PathBuf, max_retries: u32) -> Result<()> {
-    for _ in 0..max_retries {
-        match IpcStream::connect(path).await {
-            Ok(_) => return Ok(()),
-            Err(_) => {
-                sleep(Duration::from_millis(100)).await;
-            }
-        }
-    }
-
-    Err(DaemonError::ConnectionFailed {
-        reason: "timed out waiting for daemon socket".to_string(),
-    }
-    .into())
 }
