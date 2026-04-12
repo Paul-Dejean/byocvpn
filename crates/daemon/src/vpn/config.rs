@@ -104,14 +104,13 @@ pub async fn parse_wireguard_config(config_path: &str) -> Result<WireguardConfig
 fn parse_domain_name_system_servers_from_interface_section(
     interface_section: &ini::Properties,
 ) -> Vec<String> {
-    if let Some(value) = interface_section.get("DNS") {
-        value
-            .split(|c: char| c == ',' || c.is_whitespace())
-            .map(|p| p.trim())
-            .filter(|p| !p.is_empty())
-            .map(|s| s.to_string())
-            .collect()
-    } else {
-        Vec::new()
-    }
+    let Some(value) = interface_section.get("DNS") else {
+        return Vec::new();
+    };
+    value
+        .split(|c: char| c == ',' || c.is_whitespace())
+        .map(|p| p.trim())
+        .filter(|p| !p.is_empty())
+        .map(|s| s.to_string())
+        .collect()
 }
