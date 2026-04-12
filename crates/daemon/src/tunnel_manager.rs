@@ -23,6 +23,7 @@ pub struct TunnelHandle {
     pub route_monitor_shutdown: watch::Sender<()>,
     #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     pub domain_name_system_override_guard: Option<DomainNameSystemOverrideGuard>,
+    pub server_ip: String,
     pub instance: Option<ConnectedInstance>,
 }
 

@@ -287,12 +287,18 @@ pub async fn connect_vpn(
                 return;
             }
         };
+        let mut last_gateway = route_handle
+            .default_route()
+            .await
+            .ok()
+            .flatten()
+            .and_then(|r| r.gateway);
         let stream = route_handle.route_listen_stream();
         futures::pin_mut!(stream);
         loop {
             tokio::select! {
                 Some(_event) = StreamExt::next(&mut stream) => {
-                    update_server_host_route(&route_monitor_server_ip).await;
+                    update_server_host_route(&route_monitor_server_ip, &mut last_gateway).await;
                 }
                 _ = route_monitor_shutdown_rx.changed() => {
                     info!("[RouteMonitor] Stopping.");
@@ -339,6 +345,7 @@ pub async fn connect_vpn(
         route_monitor_shutdown: route_monitor_shutdown_tx,
         #[cfg(any(target_os = "macos", target_os = "linux", windows))]
         domain_name_system_override_guard: optional_domain_name_system_override_guard,
+        server_ip: wg_config.endpoint.ip().to_string(),
         instance: Some(ConnectedInstance {
             instance_id,
             public_ip_v4,

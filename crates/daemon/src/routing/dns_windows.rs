@@ -25,7 +25,10 @@ impl DomainNameSystemOverrideGuard {
             .into());
         }
 
-        let interface_names = list_connected_interfaces()?;
+        let interface_names: Vec<String> = list_connected_interfaces()?
+            .into_iter()
+            .filter(|name| name != "byocvpn")
+            .collect();
         info!("Found network interfaces: {:?}", interface_names);
 
         let mut original_state_by_interface = HashMap::new();
@@ -184,51 +187,71 @@ fn set_static_dns_for_interface(interface_name: &str, servers: &[&str]) -> io::R
         return Ok(());
     }
 
-    let output = Command::new("netsh")
-        .args([
-            "interface",
-            "ip",
-            "set",
-            "dns",
-            &format!("name={}", interface_name),
-            "static",
-            servers[0],
-        ])
-        .output()?;
+    // Split servers into IPv4 and IPv6
+    let ipv4_servers: Vec<&str> = servers.iter().copied().filter(|s| !s.contains(':')).collect();
+    let ipv6_servers: Vec<&str> = servers.iter().copied().filter(|s| s.contains(':')).collect();
 
-    if !output.status.success() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!(
-                "netsh set dns failed for {}: {}",
-                interface_name,
-                String::from_utf8_lossy(&output.stderr)
-            ),
-        ));
-    }
-
-    for (index, server) in servers[1..].iter().enumerate() {
+    // Set IPv4 DNS
+    if let Some(first) = ipv4_servers.first() {
         let output = Command::new("netsh")
             .args([
-                "interface",
-                "ip",
-                "add",
-                "dns",
+                "interface", "ip", "set", "dns",
                 &format!("name={}", interface_name),
-                &format!("addr={}", server),
-                &format!("index={}", index + 2),
+                "static", first,
             ])
             .output()?;
 
         if !output.status.success() {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!(
-                    "netsh add dns failed for {}: {}",
-                    interface_name,
-                    String::from_utf8_lossy(&output.stderr)
-                ),
-            ));
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            error!("netsh ip set dns failed for {}: {}", interface_name, stderr);
+        }
+
+        for (index, server) in ipv4_servers[1..].iter().enumerate() {
+            let output = Command::new("netsh")
+                .args([
+                    "interface", "ip", "add", "dns",
+                    &format!("name={}", interface_name),
+                    &format!("addr={}", server),
+                    &format!("index={}", index + 2),
+                ])
+                .output()?;
+
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                error!("netsh ip add dns failed for {}: {}", interface_name, stderr);
+            }
+        }
+    }
+
+    // Set IPv6 DNS
+    if let Some(first) = ipv6_servers.first() {
+        let output = Command::new("netsh")
+            .args([
+                "interface", "ipv6", "set", "dns",
+                &format!("name={}", interface_name),
+                "static", first,
+            ])
+            .output()?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            error!("netsh ipv6 set dns failed for {}: {}", interface_name, stderr);
+        }
+
+        for (index, server) in ipv6_servers[1..].iter().enumerate() {
+            let output = Command::new("netsh")
+                .args([
+                    "interface", "ipv6", "add", "dns",
+                    &format!("name={}", interface_name),
+                    &format!("addr={}", server),
+                    &format!("index={}", index + 2),
+                ])
+                .output()?;
+
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                error!("netsh ipv6 add dns failed for {}: {}", interface_name, stderr);
+            }
         }
     }
 
