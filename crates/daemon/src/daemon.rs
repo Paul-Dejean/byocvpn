@@ -36,7 +36,7 @@ pub async fn run_daemon() -> Result<()> {
         let mut stream = listener.accept().await?;
 
         while let Ok(Some(line)) = stream.read_message().await {
-            info!("Daemon received: {line}");
+            debug!("Daemon received: {line}");
 
             let response = match serde_json::from_str::<DaemonCommand>(&line) {
                 Ok(command) => handle_command(command).await,
@@ -71,7 +71,6 @@ async fn handle_command(command: DaemonCommand) -> DaemonResponse {
             public_ip_v4,
             public_ip_v6,
         } => {
-            info!("Daemon received connect: {config_path}");
             match connect_vpn(config_path, region, provider, public_ip_v4, public_ip_v6).await {
                 Ok(()) => DaemonResponse::Ok(Value::Null),
                 Err(error) => {

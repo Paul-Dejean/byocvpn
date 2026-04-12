@@ -66,24 +66,24 @@ impl DomainNameSystemOverrideGuard {
 
         for (network_service_name, original_option) in &self.original_domain_name_system_by_service
         {
-            info!("Restoring DNS for service: {}", network_service_name);
-            info!("Original DNS servers: {:?}", original_option);
+            debug!("Restoring DNS for service: {}", network_service_name);
+            debug!("Original DNS servers: {:?}", original_option);
 
             match original_option {
                 Some(list) if !list.is_empty() => {
                     let as_slices: Vec<&str> = list.iter().map(|string| string.as_str()).collect();
-                    info!("Setting DNS servers to: {:?}", as_slices);
+                    debug!("Setting DNS servers to: {:?}", as_slices);
                     set_domain_name_system_servers_for_service(
                         network_service_name,
                         Some(&as_slices),
                     )?;
                 }
                 Some(_) => {
-                    info!("Clearing DNS servers (original was empty)");
+                    debug!("Clearing DNS servers (original was empty)");
                     set_domain_name_system_servers_for_service(network_service_name, None)?;
                 }
                 None => {
-                    info!("Clearing DNS servers (original was None)");
+                    debug!("Clearing DNS servers (original was None)");
                     set_domain_name_system_servers_for_service(network_service_name, None)?;
                 }
             }
@@ -104,7 +104,7 @@ impl Drop for DomainNameSystemOverrideGuard {
 fn list_all_enabled_network_services() -> Result<Vec<String>> {
     let mut command = Command::new("networksetup");
     command.arg("-listallnetworkservices");
-    info!("Executing command: {:?}", command);
+    debug!("Executing command: {:?}", command);
     let output = command
         .output()
         .map_err(|error| ConfigurationError::DnsConfiguration {
@@ -142,7 +142,7 @@ fn get_domain_name_system_servers_for_service(
 ) -> io::Result<Option<Vec<String>>> {
     let mut command = Command::new("networksetup");
     command.arg("-getdnsservers").arg(network_service_name);
-    info!("Executing command: {:?}", command);
+    debug!("Executing command: {:?}", command);
     let output = command.output()?;
 
     if !output.status.success() {
@@ -189,7 +189,7 @@ fn set_domain_name_system_servers_for_service(
         }
     }
 
-    info!("Executing command: {:?}", command);
+    debug!("Executing command: {:?}", command);
     let output = command.output()?;
 
     if !output.status.success() {

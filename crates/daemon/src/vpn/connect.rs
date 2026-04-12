@@ -35,8 +35,6 @@ pub async fn connect_vpn(
     public_ip_v4: Option<String>,
     public_ip_v6: Option<String>,
 ) -> Result<()> {
-    info!("Daemon received connect: {}", &config_path);
-
     let wg_config = parse_wireguard_config(&config_path).await?;
 
     let instance_id = Path::new(&config_path)
@@ -92,15 +90,13 @@ pub async fn connect_vpn(
         .as_ref()
         .map_or(false, |handle| !handle.task.is_finished());
 
-    info!("Previous Tunnel running: {}", is_tunnel_running);
+    debug!("Previous Tunnel running: {}", is_tunnel_running);
     if is_tunnel_running {
         return Err(ConfigurationError::TunnelConfiguration {
             reason: "Tunnel already running".to_string(),
         }
         .into());
     }
-
-    info!("Creating Tunnel");
 
     let private_key_bytes: [u8; 32] =
         wg_config.private_key.as_slice().try_into().map_err(|_| {
@@ -128,8 +124,6 @@ pub async fn connect_vpn(
         reason: format!("Failed to create tunnel: {:?}", error),
     })?;
 
-    info!("Created Tunn device");
-
     let local: SocketAddr =
         "0.0.0.0:0"
             .parse()
@@ -142,7 +136,7 @@ pub async fn connect_vpn(
         .map_err(|error| SystemError::TunnelIoFailed {
             reason: format!("failed to bind UDP socket: {}", error),
         })?;
-    info!(
+    debug!(
         "{:?} UDP socket bound to {}",
         wg_config.endpoint,
         udp.local_addr()
@@ -199,7 +193,7 @@ pub async fn connect_vpn(
             tokio::select! {
 
                 Ok(stream) = listener.accept() => {
-                    info!("[Metrics] Client connected to metrics stream");
+                    debug!("[Metrics] Client connected to metrics stream");
                     connected_stream = Some(stream);
                 }
 
@@ -255,7 +249,7 @@ pub async fn connect_vpn(
                         if let Ok(json) = serde_json::to_string(&metrics) {
                             if stream.write_all(json.as_bytes()).await.is_err()
                                 || stream.write_all(b"\n").await.is_err() {
-                                info!("[Metrics] Client disconnected");
+                                debug!("[Metrics] Client disconnected");
                                 connected_stream = None;
                             }
                         }
@@ -312,12 +306,12 @@ pub async fn connect_vpn(
     let optional_domain_name_system_override_guard: Option<DomainNameSystemOverrideGuard> = {
         let domain_name_system_servers = wg_config.dns_servers;
 
-        info!(
+        debug!(
             "Parsed DNS servers from config: {:?}",
             domain_name_system_servers
         );
         if domain_name_system_servers.is_empty() {
-            error!("No DNS servers found in [Interface] DNS = ...; leaving system DNS unchanged.");
+            warn!("No DNS servers found in [Interface] DNS; leaving system DNS unchanged.");
             None
         } else {
             let as_refs: Vec<&str> = domain_name_system_servers
@@ -327,7 +321,7 @@ pub async fn connect_vpn(
             match DomainNameSystemOverrideGuard::apply_to_all_services(&as_refs) {
                 Ok(guard) => Some(guard),
                 Err(error) => {
-                    error!("Failed to apply DNS servers: {error}");
+                    warn!("Failed to apply DNS servers: {error}");
                     None
                 }
             }

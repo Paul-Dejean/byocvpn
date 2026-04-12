@@ -35,37 +35,35 @@ pub async fn disconnect_vpn() -> Result<()> {
     };
 
     if let Some(mut handle) = maybe_handle {
-        info!("[VPN Disconnect] Stopping tunnel task...");
+        debug!("[VPN Disconnect] Stopping tunnel task...");
 
         #[cfg(any(target_os = "macos", target_os = "linux", windows))]
         if let Some(mut domain_name_system_override_guard) =
             handle.domain_name_system_override_guard.take()
         {
             if let Err(error) = domain_name_system_override_guard.restore_now() {
-                error!("[VPN Disconnect] Warning: Failed to restore DNS: {error}");
+                warn!("[VPN Disconnect] Failed to restore DNS: {error}");
             } else {
                 info!("[VPN Disconnect] Restored original DNS.");
             }
         }
 
         if handle.shutdown.send(()).is_ok() {
-            info!("[VPN Disconnect] Shutdown signal sent to tunnel task.");
+            debug!("[VPN Disconnect] Shutdown signal sent to tunnel task.");
         } else {
-            error!(
-                "[VPN Disconnect] Warning: Failed to send shutdown signal (tunnel task likely already stopped)."
-            );
+            warn!("[VPN Disconnect] Failed to send shutdown signal (tunnel task likely already stopped).");
         }
 
         let _ = handle.metrics_shutdown.send(());
-        info!("[VPN Disconnect] Metrics broadcaster stopped.");
+        debug!("[VPN Disconnect] Metrics broadcaster stopped.");
 
         let _ = handle.route_monitor_shutdown.send(());
-        info!("[VPN Disconnect] Route monitor stopped.");
+        debug!("[VPN Disconnect] Route monitor stopped.");
 
-        info!("[VPN Disconnect] Waiting for tunnel task to complete...");
+        debug!("[VPN Disconnect] Waiting for tunnel task to complete...");
         match handle.task.await {
-            Ok(_) => info!("[VPN Disconnect] Tunnel task completed successfully."),
-            Err(error) => error!("[VPN Disconnect] Error: Tunnel task failed: {:?}", error),
+            Ok(_) => debug!("[VPN Disconnect] Tunnel task completed successfully."),
+            Err(error) => error!("[VPN Disconnect] Tunnel task failed: {:?}", error),
         }
 
         let _ = handle.metrics_task.await;

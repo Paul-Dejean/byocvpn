@@ -68,13 +68,13 @@ impl DaemonClient for UnixDaemonClient {
                         true
                     }
                     _ => {
-                        info!("Daemon did not respond to health check");
+                        debug!("Daemon did not respond to health check");
                         false
                     }
                 }
             }
             Err(error) => {
-                info!("Daemon connection error: {:?}", error);
+                debug!("Daemon connection error: {:?}", error);
                 false
             }
         }

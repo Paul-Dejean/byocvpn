@@ -30,7 +30,7 @@ impl DomainNameSystemOverrideGuard {
             set_dns_command.arg(server);
         }
 
-        info!("Executing: {:?}", set_dns_command);
+        debug!("Executing: {:?}",set_dns_command);
         let set_dns_output =
             set_dns_command
                 .output()
@@ -54,7 +54,7 @@ impl DomainNameSystemOverrideGuard {
             .arg(TUN_INTERFACE_NAME)
             .arg("~.");
 
-        info!("Executing: {:?}", set_domain_command);
+        debug!("Executing: {:?}",set_domain_command);
         let set_domain_output =
             set_domain_command
                 .output()
@@ -92,7 +92,7 @@ impl DomainNameSystemOverrideGuard {
         let mut revert_command = Command::new("resolvectl");
         revert_command.arg("revert").arg(TUN_INTERFACE_NAME);
 
-        info!("Executing: {:?}", revert_command);
+        debug!("Executing: {:?}",revert_command);
         let revert_output = revert_command.output()?;
 
         if !revert_output.status.success() {

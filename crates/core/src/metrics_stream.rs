@@ -19,7 +19,7 @@ where
 {
     {
         let mut state = STREAM_STATE.lock().map_err(|error| {
-            error!("Failed to acquire metrics stream state lock: {error}");
+            warn!("Failed to acquire metrics stream state lock: {error}");
             SystemError::MutexPoisoned(error.to_string())
         })?;
 
@@ -40,7 +40,7 @@ where
                     break;
                 }
                 Err(error) => {
-                    error!(
+                    debug!(
                         "Failed to connect to metrics socket (attempt {}): {}",
                         attempt, error
                     );
@@ -52,7 +52,7 @@ where
         let mut stream = match stream {
             Some(connected_stream) => connected_stream,
             None => {
-                error!("Failed to connect to metrics socket after retries");
+                warn!("Failed to connect to metrics socket after retries");
                 if let Ok(mut state) = STREAM_STATE.lock() {
                     *state = None;
                 }
@@ -67,7 +67,7 @@ where
                 let state_guard = match STREAM_STATE.lock() {
                     Ok(guard) => guard,
                     Err(error) => {
-                        error!("Failed to acquire metrics stream state lock: {error}");
+                        warn!("Failed to acquire metrics stream state lock: {error}");
                         break;
                     }
                 };
@@ -123,7 +123,7 @@ where
 
 pub async fn stop() -> Result<()> {
     let mut state = STREAM_STATE.lock().map_err(|error| {
-        error!("Failed to acquire metrics stream state lock: {error}");
+        warn!("Failed to acquire metrics stream state lock: {error}");
         SystemError::MutexPoisoned(error.to_string())
     })?;
 

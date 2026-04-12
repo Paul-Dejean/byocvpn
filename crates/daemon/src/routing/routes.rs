@@ -22,10 +22,7 @@ pub async fn add_vpn_routes(iface_name: &str, server_ip: &str) -> Result<()> {
 
     for (destination, interface) in routes.iter() {
         if let Err(error) = add_route(destination, interface).await {
-            error!(
-                "Warning: Failed to add route {} via {}: {}",
-                destination, interface, error
-            );
+            warn!("Failed to add route {} via {}: {}", destination, interface, error);
         }
     }
 
@@ -50,10 +47,7 @@ pub async fn remove_vpn_routes(iface_name: &str, server_ip: &str) {
 
     for (destination, interface) in routes.iter() {
         if let Err(error) = delete_route(destination, interface).await {
-            error!(
-                "Warning: Failed to remove route {} via {}: {}",
-                destination, interface, error
-            );
+            warn!("Failed to remove route {} via {}: {}", destination, interface, error);
         }
     }
 
@@ -61,7 +55,7 @@ pub async fn remove_vpn_routes(iface_name: &str, server_ip: &str) {
 }
 
 async fn add_route(destination: &str, interface: &str) -> Result<()> {
-    info!("Adding route: {} via {}", destination, interface);
+    debug!("Adding route: {} via {}", destination, interface);
 
     let subnet: IpNet = destination
         .parse()
@@ -75,7 +69,7 @@ async fn add_route(destination: &str, interface: &str) -> Result<()> {
     })?;
     let ifindex = get_ifindex(interface).await?;
 
-    info!("Interface index: {}", ifindex);
+    debug!("Interface index: {}", ifindex);
 
     let route = if interface == "default" {
         let default_route = handle
@@ -98,18 +92,15 @@ async fn add_route(destination: &str, interface: &str) -> Result<()> {
         Route::new(subnet.addr(), subnet.prefix_len()).with_ifindex(ifindex)
     };
 
-    info!("Route configuration: {:?}", route);
+    debug!("Route configuration: {:?}", route);
 
     match handle.add(&route).await {
         Ok(_) => {
-            info!("Added route: {} via {}", destination, interface);
+            debug!("Added route: {} via {}", destination, interface);
             Ok(())
         }
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-            info!(
-                "Route already exists: {} via {} (skipping)",
-                destination, interface
-            );
+            debug!("Route already exists: {} via {} (skipping)", destination, interface);
             Ok(())
         }
         Err(error) => {
@@ -143,14 +134,11 @@ async fn delete_route(destination: &str, interface: &str) -> Result<()> {
 
     match handle.delete(&route).await {
         Ok(_) => {
-            info!("Deleted route: {} dev {}", destination, interface);
+            debug!("Deleted route: {} dev {}", destination, interface);
             Ok(())
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            info!(
-                "Route not found: {} dev {} (already removed)",
-                destination, interface
-            );
+            debug!("Route not found: {} dev {} (already removed)", destination, interface);
             Ok(())
         }
         Err(error) => {
