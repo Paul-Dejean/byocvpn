@@ -29,6 +29,7 @@ use tauri::{AppHandle, Emitter};
 use crate::ledger_store::LedgerStore;
 
 async fn create_cloud_provider(provider_name: CloudProviderName) -> Result<Box<dyn CloudProvider>> {
+    debug!("Creating {} cloud provider", provider_name);
     let store = CredentialStore::load().await?;
     let provider: Box<dyn CloudProvider> = match provider_name {
         CloudProviderName::Aws => {
@@ -93,6 +94,7 @@ pub async fn save_credentials(provider: String, creds: Value) -> Result<()> {
         }
     }
 
+    info!("Credentials saved for provider: {}", provider_name);
     store.save()
 }
 
@@ -110,6 +112,8 @@ pub async fn delete_credentials(provider: String, app_handle: AppHandle) -> Resu
     store.save()?;
     if let Some(provider_store) = crate::provider_store::ProviderStore::open(&app_handle) {
         provider_store.clear_provisioned(&provider_name.to_string());
+    } else {
+        debug!("Provider store unavailable when deleting credentials for {}", provider_name);
     }
     Ok(())
 }
@@ -153,7 +157,7 @@ pub async fn spawn_instance(
             &server_private_key,
             &client_public_key,
             move |step_id, status, error| {
-                let _ = progress_handle.emit(
+                if let Err(error) = progress_handle.emit(
                     "spawn-progress",
                     SpawnProgressEvent {
                         job_id: job_id_for_progress.clone(),
@@ -161,7 +165,9 @@ pub async fn spawn_instance(
                         status,
                         error,
                     },
-                );
+                ) {
+                    warn!("Failed to emit spawn-progress: {}", error);
+                }
             },
         )
         .await
@@ -191,22 +197,28 @@ pub async fn spawn_instance(
                 )
                 .await
                 {
-                    let _ = app_handle.emit(
+                    if let Err(error) = app_handle.emit(
                         "spawn-failed",
                         json!({ "jobId": &job_id, "error": error.to_string() }),
-                    );
+                    ) {
+                        warn!("Failed to emit spawn-failed: {}", error);
+                    }
                     return;
                 }
                 if let Some(ledger) = LedgerStore::open(&app_handle) {
                     ledger.set_entry(&entry);
                 }
-                let _ = app_handle.emit("spawn-complete", SpawnCompleteEvent { job_id, instance });
+                if let Err(error) = app_handle.emit("spawn-complete", SpawnCompleteEvent { job_id, instance }) {
+                    warn!("Failed to emit spawn-complete: {}", error);
+                }
             }
             Err(error) => {
-                let _ = app_handle.emit(
+                if let Err(error) = app_handle.emit(
                     "spawn-failed",
                     json!({ "jobId": &job_id, "error": error.to_string() }),
-                );
+                ) {
+                    warn!("Failed to emit spawn-failed: {}", error);
+                }
             }
         }
     });
@@ -251,7 +263,10 @@ pub async fn list_instances(
                     (provider_name, None)
                 }
             },
-            Err(_) => (provider_name, None),
+            Err(error) => {
+                    debug!("No credentials for {}, skipping: {}", provider_name, error);
+                    (provider_name, None)
+                }
         }
     }
 
@@ -318,7 +333,7 @@ pub async fn provision_account(
             &*cloud_provider,
             &steps,
             move |step_id, status, error| {
-                let _ = progress_handle.emit(
+                if let Err(error) = progress_handle.emit(
                     "provision-account-progress",
                     ProvisionAccountProgressEvent {
                         job_id: job_id_for_progress.clone(),
@@ -326,7 +341,9 @@ pub async fn provision_account(
                         status,
                         error,
                     },
-                );
+                ) {
+                    warn!("Failed to emit provision-account-progress: {}", error);
+                }
             },
         )
         .await;
@@ -337,20 +354,26 @@ pub async fn provision_account(
                     crate::provider_store::ProviderStore::open(&app_handle)
                 {
                     provider_store.mark_provisioned(&provider);
+                } else {
+                    debug!("Provider store unavailable when marking {} provisioned", provider);
                 }
-                let _ = app_handle.emit(
+                if let Err(error) = app_handle.emit(
                     "provision-account-complete",
                     ProvisionAccountCompleteEvent {
                         job_id,
                         provider: cloud_provider.get_provider_name(),
                     },
-                );
+                ) {
+                    warn!("Failed to emit provision-account-complete: {}", error);
+                }
             }
             Err(error) => {
-                let _ = app_handle.emit(
+                if let Err(error) = app_handle.emit(
                     "provision-account-failed",
                     json!({ "jobId": &job_id, "error": error.to_string() }),
-                );
+                ) {
+                    warn!("Failed to emit provision-account-failed: {}", error);
+                }
             }
         }
     });
@@ -391,7 +414,7 @@ pub async fn enable_region(
             &steps,
             &region,
             move |step_id, status, error| {
-                let _ = progress_handle.emit(
+                if let Err(error) = progress_handle.emit(
                     "enable-region-progress",
                     EnableRegionProgressEvent {
                         job_id: job_id_for_progress.clone(),
@@ -399,7 +422,9 @@ pub async fn enable_region(
                         status,
                         error,
                     },
-                );
+                ) {
+                    warn!("Failed to emit enable-region-progress: {}", error);
+                }
             },
         )
         .await;
@@ -410,21 +435,27 @@ pub async fn enable_region(
                     crate::provider_store::ProviderStore::open(&app_handle)
                 {
                     provider_store.mark_region_enabled(&provider, &region);
+                } else {
+                    debug!("Provider store unavailable when marking region {} enabled for {}", region, provider);
                 }
-                let _ = app_handle.emit(
+                if let Err(error) = app_handle.emit(
                     "enable-region-complete",
                     EnableRegionCompleteEvent {
                         job_id,
                         region,
                         provider: cloud_provider.get_provider_name(),
                     },
-                );
+                ) {
+                    warn!("Failed to emit enable-region-complete: {}", error);
+                }
             }
             Err(error) => {
-                let _ = app_handle.emit(
+                if let Err(error) = app_handle.emit(
                     "enable-region-failed",
                     json!({ "jobId": &job_id, "error": error.to_string() }),
-                );
+                ) {
+                    warn!("Failed to emit enable-region-failed: {}", error);
+                }
             }
         }
     });
@@ -483,7 +514,9 @@ pub async fn connect(
         }
     }
 
-    let _ = app_handle.emit("vpn-status", &vpn_status);
+    if let Err(error) = app_handle.emit("vpn-status", &vpn_status) {
+        warn!("Failed to emit vpn-status: {}", error);
+    }
 
     Ok(format!(
         "Connected to instance {} successfully.",
@@ -498,14 +531,16 @@ pub async fn disconnect(app_handle: AppHandle) -> Result<String> {
     let daemon_client = UnixDaemonClient;
     commands::disconnect::disconnect(&daemon_client).await?;
 
-    let _ = app_handle.emit(
+    if let Err(error) = app_handle.emit(
         "vpn-status",
         &VpnStatus {
             connected: false,
             instance: None,
             metrics: None,
         },
-    );
+    ) {
+        warn!("Failed to emit vpn-status: {}", error);
+    }
 
     Ok("Disconnected successfully.".to_string())
 }
@@ -564,6 +599,7 @@ pub async fn get_instance_pricing(provider: String, instance_type: String) -> Re
 
 #[tauri::command]
 pub async fn save_file(path: String, content: String) -> Result<()> {
+    debug!("Writing file: {}", path);
     tokio::fs::write(&path, content)
         .await
         .map_err(|error| -> Error {

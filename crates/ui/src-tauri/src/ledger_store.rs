@@ -1,6 +1,7 @@
 use std::{collections::HashSet, sync::Arc};
 
 use byocvpn_core::ledger::LedgerEntry;
+use log::*;
 use serde_json::Value;
 use tauri::{AppHandle, Wry};
 use tauri_plugin_store::{Store, StoreExt};
@@ -15,18 +16,27 @@ impl LedgerStore {
     pub fn set_entry(&self, entry: &LedgerEntry) {
         self.0.set(
             LedgerEntry::build_store_key(&entry.instance_id),
-            serde_json::to_value(entry).unwrap_or_default(),
+            serde_json::to_value(&entry).unwrap_or_else(|error| {
+                warn!("Failed to serialize ledger entry: {}", error);
+                serde_json::Value::Null
+            }),
         );
-        let _ = self.0.save();
+        if let Err(error) = self.0.save() {
+            warn!("Failed to save ledger store: {}", error);
+        }
     }
 
     pub fn mark_terminated(&self, instance_id: &str) {
         let key = LedgerEntry::build_store_key(instance_id);
         if let Some(mut entry) = self.deserialize_entry(instance_id) {
             entry.mark_terminated();
-            self.0
-                .set(key, serde_json::to_value(&entry).unwrap_or_default());
-            let _ = self.0.save();
+            self.0.set(key, serde_json::to_value(&entry).unwrap_or_else(|error| {
+                warn!("Failed to serialize ledger entry: {}", error);
+                serde_json::Value::Null
+            }));
+            if let Err(error) = self.0.save() {
+                warn!("Failed to save ledger store: {}", error);
+            }
         }
     }
 
@@ -34,9 +44,13 @@ impl LedgerStore {
         let key = LedgerEntry::build_store_key(instance_id);
         if let Some(mut entry) = self.deserialize_entry(instance_id) {
             entry.update_metrics(bytes_sent, bytes_received);
-            self.0
-                .set(key, serde_json::to_value(&entry).unwrap_or_default());
-            let _ = self.0.save();
+            self.0.set(key, serde_json::to_value(&entry).unwrap_or_else(|error| {
+                warn!("Failed to serialize ledger entry: {}", error);
+                serde_json::Value::Null
+            }));
+            if let Err(error) = self.0.save() {
+                warn!("Failed to save ledger store: {}", error);
+            }
         }
     }
 
@@ -55,12 +69,16 @@ impl LedgerStore {
                     && !running_ids.contains(entry.instance_id.as_str())
                 {
                     entry.mark_terminated();
-                    self.0
-                        .set(key, serde_json::to_value(&entry).unwrap_or_default());
+                    self.0.set(key, serde_json::to_value(&entry).unwrap_or_else(|error| {
+                        warn!("Failed to serialize ledger entry: {}", error);
+                        serde_json::Value::Null
+                    }));
                 }
             }
         }
-        let _ = self.0.save();
+        if let Err(error) = self.0.save() {
+            warn!("Failed to save ledger store: {}", error);
+        }
     }
 
     pub fn all_entries(&self) -> Vec<Value> {

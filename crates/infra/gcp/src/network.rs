@@ -74,7 +74,9 @@ pub async fn get_or_create_vpc(client: &GcpClient) -> Result<String> {
                 .unwrap_or_default()
                 .to_string());
         }
-        Err(_) => {}
+        Err(_) => {
+            debug!("[GCP] VPC '{}' not found, creating...", VPC_NAME);
+        }
     }
 
     let create_url = format!("{}/global/networks", client.build_compute_base_url());
@@ -128,6 +130,8 @@ pub async fn get_or_create_firewall(client: &GcpClient) -> Result<()> {
         })?;
         wait_for_operation_response(client, &operation).await?;
         info!("GCP firewall rule '{}' created.", FIREWALL_NAME_IPV4);
+    } else {
+        debug!("[GCP] Firewall rule '{}' already exists, skipping.", FIREWALL_NAME_IPV4);
     }
 
     let ipv6_firewall_url = format!(
@@ -156,6 +160,8 @@ pub async fn get_or_create_firewall(client: &GcpClient) -> Result<()> {
         })?;
         wait_for_operation_response(client, &operation).await?;
         info!("GCP firewall rule '{}' created.", FIREWALL_NAME_IPV6);
+    } else {
+        debug!("[GCP] Firewall rule '{}' already exists, skipping.", FIREWALL_NAME_IPV6);
     }
 
     Ok(())

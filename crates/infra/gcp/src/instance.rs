@@ -299,7 +299,7 @@ async fn wait_for_zone_operation(
                 return Ok(());
             }
             _ => {
-                error!(
+                debug!(
                     "[GCP] Waiting for instance creation (attempt {}/60)...",
                     attempt
                 );

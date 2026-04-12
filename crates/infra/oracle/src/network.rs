@@ -101,6 +101,7 @@ pub async fn ensure_vcn_ipv6(client: &OciClient, vcn_id: &str, current_prefix: &
 
     let vcn_url = format!("{}/20160918/vcns/{}", client.build_core_base_url(), vcn_id);
     let Ok(vcn) = client.get(&vcn_url).await else {
+        warn!("[Oracle] Failed to fetch VCN {} after adding IPv6 CIDR", vcn_id);
         return String::new();
     };
     vcn["ipv6CidrBlocks"]
@@ -122,7 +123,9 @@ pub async fn teardown_vcn_resources(
         client.build_core_base_url(),
         route_table_id
     );
-    client.put(&rt_url, &json!({ "routeRules": [] })).await.ok();
+    if let Err(error) = client.put(&rt_url, &json!({ "routeRules": [] })).await {
+        warn!("[Oracle] Failed to clear route table rules for {}: {}", route_table_id, error);
+    }
 
     let igw_list_url = format!(
         "{}/20160918/internetGateways?compartmentId={}&vcnId={}",
@@ -138,7 +141,9 @@ pub async fn teardown_vcn_resources(
                     client.build_core_base_url(),
                     igw_id
                 );
-                client.delete(&del).await.ok();
+                if let Err(error) = client.delete(&del).await {
+                    warn!("[Oracle] Failed to delete internet gateway {}: {}", igw_id, error);
+                }
             }
         }
     }
@@ -158,7 +163,9 @@ pub async fn teardown_vcn_resources(
                     client.build_core_base_url(),
                     subnet_id
                 );
-                client.delete(&del).await.ok();
+                if let Err(error) = client.delete(&del).await {
+                    warn!("[Oracle] Failed to delete subnet {}: {}", subnet_id, error);
+                }
             }
         }
     }
@@ -178,7 +185,9 @@ pub async fn teardown_vcn_resources(
                     client.build_core_base_url(),
                     sl_id
                 );
-                client.delete(&del).await.ok();
+                if let Err(error) = client.delete(&del).await {
+                    warn!("[Oracle] Failed to delete security list {}: {}", sl_id, error);
+                }
             }
         }
     }

@@ -277,21 +277,27 @@ pub(super) async fn add_igw_routes_to_table(
     route_table_id: &str,
     igw_id: &str,
 ) -> Result<()> {
-    let _ = ec2
+    if let Err(error) = ec2
         .create_route()
         .route_table_id(route_table_id)
         .destination_cidr_block(IPV4_ALL_CIDR)
         .gateway_id(igw_id)
         .send()
-        .await;
+        .await
+    {
+        warn!("[AWS] Failed to add IPv4 default route to {}: {}", route_table_id, error);
+    }
 
-    let _ = ec2
+    if let Err(error) = ec2
         .create_route()
         .route_table_id(route_table_id)
         .destination_ipv6_cidr_block(IPV6_ALL_CIDR)
         .gateway_id(igw_id)
         .send()
-        .await;
+        .await
+    {
+        warn!("[AWS] Failed to add IPv6 default route to {}: {}", route_table_id, error);
+    }
 
     info!("✅ Added default routes to route table: {}", route_table_id);
     Ok(())
