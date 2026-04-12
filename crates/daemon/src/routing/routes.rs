@@ -87,7 +87,9 @@ async fn add_route(destination: &str, interface: &str) -> Result<()> {
                 .ok_or_else(|| ConfigurationError::RouteConfiguration {
                     reason: "Default route has no gateway".to_string(),
                 })?;
-        Route::new(subnet.addr(), subnet.prefix_len()).with_gateway(gateway)
+        Route::new(subnet.addr(), subnet.prefix_len())
+            .with_gateway(gateway)
+            .with_ifindex(ifindex)
     } else {
         Route::new(subnet.addr(), subnet.prefix_len()).with_ifindex(ifindex)
     };
@@ -155,7 +157,32 @@ async fn delete_route(destination: &str, interface: &str) -> Result<()> {
     }
 }
 
-pub async fn update_server_host_route(server_ip: &str) {
+pub async fn update_server_host_route(server_ip: &str, last_gateway: &mut Option<std::net::IpAddr>) {
+    let handle = match Handle::new() {
+        Ok(handle) => handle,
+        Err(error) => {
+            error!("[RouteMonitor] Failed to create route handle: {}", error);
+            return;
+        }
+    };
+
+    let current_gateway = handle
+        .default_route()
+        .await
+        .ok()
+        .flatten()
+        .and_then(|r| r.gateway);
+
+    if current_gateway == *last_gateway {
+        return;
+    }
+
+    info!(
+        "[RouteMonitor] Gateway changed: {:?} -> {:?}",
+        last_gateway, current_gateway
+    );
+    *last_gateway = current_gateway;
+
     let server_route = format!("{}/32", server_ip);
 
     if let Err(error) = delete_route(&server_route, "default").await {

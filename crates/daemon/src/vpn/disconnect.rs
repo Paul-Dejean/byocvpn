@@ -1,7 +1,4 @@
-use std::net::SocketAddr;
-
 use byocvpn_core::error::{Result, SystemError};
-use ini::Ini;
 
 use crate::{routing::routes::remove_vpn_routes, tunnel_manager::TUNNEL_MANAGER};
 use log::*;
@@ -16,20 +13,6 @@ pub async fn disconnect_vpn() -> Result<()> {
     #[cfg(not(any(target_os = "macos", windows)))]
     let tun_interface_name = "tun0";
 
-    if let Ok(config) = Ini::load_from_file("wg0.conf").map_err(|error| {
-        debug!("[VPN Disconnect] Could not load wg0.conf for route cleanup: {}", error);
-        error
-    }) {
-        if let Some(peer) = config.section(Some("Peer")) {
-            if let Some(endpoint_str) = peer.get("Endpoint") {
-                if let Ok(endpoint) = endpoint_str.parse::<SocketAddr>() {
-                    remove_vpn_routes(tun_interface_name, &endpoint.ip().to_string()).await;
-                    info!("[VPN Disconnect] Removed VPN routes.");
-                }
-            }
-        }
-    }
-
     let maybe_handle = {
         let mut manager_guard = TUNNEL_MANAGER
             .lock()
@@ -38,7 +21,13 @@ pub async fn disconnect_vpn() -> Result<()> {
     };
 
     if let Some(mut handle) = maybe_handle {
-        debug!("[VPN Disconnect] Stopping tunnel task...");
+        // Stop the route monitor before deleting routes so it doesn't re-add them.
+        let _ = handle.route_monitor_shutdown.send(());
+        let _ = handle.route_monitor_task.await;
+        debug!("[VPN Disconnect] Route monitor stopped.");
+
+        remove_vpn_routes(tun_interface_name, &handle.server_ip).await;
+        info!("[VPN Disconnect] Removed VPN routes.");
 
         #[cfg(any(target_os = "macos", target_os = "linux", windows))]
         if let Some(mut domain_name_system_override_guard) =
@@ -60,9 +49,6 @@ pub async fn disconnect_vpn() -> Result<()> {
         let _ = handle.metrics_shutdown.send(());
         debug!("[VPN Disconnect] Metrics broadcaster stopped.");
 
-        let _ = handle.route_monitor_shutdown.send(());
-        debug!("[VPN Disconnect] Route monitor stopped.");
-
         debug!("[VPN Disconnect] Waiting for tunnel task to complete...");
         match handle.task.await {
             Ok(_) => debug!("[VPN Disconnect] Tunnel task completed successfully."),
@@ -71,9 +57,6 @@ pub async fn disconnect_vpn() -> Result<()> {
 
         if let Err(error) = handle.metrics_task.await {
             warn!("[VPN Disconnect] Metrics task panicked: {:?}", error);
-        }
-        if let Err(error) = handle.route_monitor_task.await {
-            warn!("[VPN Disconnect] Route monitor task panicked: {:?}", error);
         }
     } else {
         info!("[VPN Disconnect] No active tunnel found.");

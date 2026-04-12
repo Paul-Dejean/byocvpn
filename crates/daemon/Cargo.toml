@@ -28,3 +28,4 @@ futures = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 windows-service = "0.7"
+windows = { version = "0.61", features = ["Win32_NetworkManagement_IpHelper"] }

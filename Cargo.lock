@@ -1029,6 +1029,7 @@ dependencies = [
  "thiserror 2.0.17",
  "tokio",
  "tun-rs",
+ "windows",
  "windows-service",
 ]
 
