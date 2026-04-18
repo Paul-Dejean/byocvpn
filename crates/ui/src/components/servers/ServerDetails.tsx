@@ -4,6 +4,7 @@ import {
   SpawnStepStatus,
 } from "../../types";
 import { getRegionInfo } from "../../types/regionInfo";
+import { FlagIcon } from "../FlagIcon";
 import { ProviderIcon } from "../providers/ProviderIcon";
 
 function StepIndicator({ status }: { status: SpawnStepStatus }) {
@@ -79,7 +80,7 @@ export function ServerDetails({
           {!isSpawning && (
             <div className="bg-gray-800 rounded-lg p-6">
               <div className="flex items-center gap-3 mb-4">
-                <span className="text-3xl">{regionInfo.flag}</span>
+                <FlagIcon countryCode={regionInfo.countryCode} className="text-3xl" />
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold text-blue-400">
                     {regionInfo.city}

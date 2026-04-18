@@ -1,10 +1,19 @@
 use std::path::PathBuf;
 
+pub const TUNNEL_MTU: u16 = 1280;
+
+pub fn get_interface_name() -> &'static str {
+    #[cfg(target_os = "macos")]
+    return "utun4";
+    #[cfg(windows)]
+    return "byocvpn";
+    #[cfg(not(any(target_os = "macos", windows)))]
+    return "tun0";
+}
+
 #[cfg(unix)]
 fn socket_dir() -> PathBuf {
-    if cfg!(feature = "external-daemon") {
-        PathBuf::from("/var/run/byocvpn/external")
-    } else if cfg!(debug_assertions) {
+    if cfg!(debug_assertions) {
         PathBuf::from("/var/run/byocvpn/dev")
     } else {
         PathBuf::from("/var/run/byocvpn/release")
@@ -23,9 +32,7 @@ pub fn metrics_socket_path() -> PathBuf {
 
 #[cfg(windows)]
 fn pipe_prefix() -> &'static str {
-    if cfg!(feature = "external-daemon") {
-        r"\\.\pipe\byocvpn\external"
-    } else if cfg!(debug_assertions) {
+    if cfg!(debug_assertions) {
         r"\\.\pipe\byocvpn\dev"
     } else {
         r"\\.\pipe\byocvpn\release"

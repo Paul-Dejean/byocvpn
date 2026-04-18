@@ -77,7 +77,7 @@ impl CloudProvider for GcpProvider {
         CloudProviderName::Gcp
     }
 
-    fn spawn_steps(&self, _region: &str) -> Vec<SpawnStep> {
+    fn get_spawn_steps(&self, _region: &str) -> Vec<SpawnStep> {
         vec![
             SpawnStep {
                 id: GcpSpawnStepId::SetupApi.as_str().into(),
@@ -152,7 +152,7 @@ impl CloudProvider for GcpProvider {
         Ok(())
     }
 
-    fn provision_account_steps(&self) -> Vec<SpawnStep> {
+    fn get_provision_account_steps(&self) -> Vec<SpawnStep> {
         vec![
             SpawnStep {
                 id: GcpSpawnStepId::SetupApi.as_str().into(),
@@ -173,7 +173,7 @@ impl CloudProvider for GcpProvider {
         self.run_spawn_step(step_id, "").await
     }
 
-    fn enable_region_steps(&self, _region: &str) -> Vec<SpawnStep> {
+    fn get_enable_region_steps(&self, _region: &str) -> Vec<SpawnStep> {
         vec![SpawnStep {
             id: GcpSpawnStepId::RegionSubnet.as_str().into(),
             label: "Creating regional subnet".into(),
@@ -190,8 +190,13 @@ impl CloudProvider for GcpProvider {
             .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {
                 reason: error.to_string(),
             })?;
+        debug!(
+            "Resolved GCP subnet {} for spawn in {}",
+            subnet_self_link, params.region
+        );
 
         let image_self_link = network::get_ubuntu_image_self_link(&self.client).await?;
+        debug!("Resolved GCP Ubuntu image {}", image_self_link);
 
         instance::spawn_instance(
             &self.client,

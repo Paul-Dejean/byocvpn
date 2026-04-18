@@ -1,11 +1,11 @@
 use byocvpn_aws::{AwsCredentials, AwsProvider};
 use byocvpn_core::{
-    cloud_provider::CloudProvider,
+    cloud_provider::{CloudProvider, CloudProviderName},
     commands,
     connectivity::wait_until_ready,
     credentials::CredentialStore,
     crypto::generate_keypair,
-    error::{ConfigurationError, Result},
+    error::Result,
 };
 use byocvpn_daemon::daemon_client::UnixDaemonClient;
 use clap::{Parser, Subcommand};
@@ -50,16 +50,16 @@ enum Commands {
     },
 }
 
-async fn create_cloud_provider(cloud_provider_name: &str) -> Result<Box<dyn CloudProvider>> {
-    match cloud_provider_name {
-        "aws" => {
+async fn create_cloud_provider(provider_name: CloudProviderName) -> Result<Box<dyn CloudProvider>> {
+    match provider_name {
+        CloudProviderName::Aws => {
             let store = CredentialStore::load().await?;
-            Ok(Box::new(AwsProvider::new(AwsCredentials::from_store(&store)?.into()).await))
+            Ok(Box::new(
+                AwsProvider::new(AwsCredentials::from_store(&store)?.into()).await,
+            ))
         }
-        _ => {
-            return Err(
-                ConfigurationError::UnknownProviderName { name: cloud_provider_name.to_string() }.into(),
-            );
+        unsupported => {
+            unimplemented!("CLI does not support provider: {}", unsupported)
         }
     }
 }
@@ -71,7 +71,7 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Commands::Spawn { region } => {
-            let provider = create_cloud_provider("aws").await?;
+            let provider = create_cloud_provider(CloudProviderName::Aws).await?;
             commands::setup::setup(&*provider).await?;
             commands::setup::enable_region(&*provider, &region).await?;
 
@@ -108,7 +108,7 @@ async fn main() -> Result<()> {
             instance_id,
         } => {
             info!("Connecting to VPN...");
-            let provider = create_cloud_provider("aws").await?;
+            let provider = create_cloud_provider(CloudProviderName::Aws).await?;
             let daemon_client = UnixDaemonClient;
 
             commands::connect::connect(
@@ -133,17 +133,18 @@ async fn main() -> Result<()> {
             instance_id,
         } => {
             info!("Terminating instance: {}", instance_id);
-            let provider = create_cloud_provider("aws").await?;
+            let provider = create_cloud_provider(CloudProviderName::Aws).await?;
             commands::terminate::terminate_instance(&*provider, &region, &instance_id).await?;
+            info!("Instance terminated: {}", instance_id);
         }
         Commands::List { region } => {
             info!("Listing instances...");
-            let provider = create_cloud_provider("aws").await?;
+            let provider = create_cloud_provider(CloudProviderName::Aws).await?;
             let active_instances =
                 commands::list::list_instances(&*provider, region.as_deref()).await?;
             info!(
                 "{}",
-                if active_instances.len() > 1 {
+                if active_instances.len() > 0 {
                     "Active Instances:"
                 } else {
                     "No Active Instance"
@@ -155,13 +156,13 @@ async fn main() -> Result<()> {
         }
         Commands::Setup => {
             info!("Setting up cloud provider...");
-            let provider = create_cloud_provider("aws").await?;
+            let provider = create_cloud_provider(CloudProviderName::Aws).await?;
             commands::setup::setup(&*provider).await?;
             info!("Cloud provider setup complete.");
         }
         Commands::EnableRegion { region } => {
             info!("Enabling region: {}", region);
-            let provider = create_cloud_provider("aws").await?;
+            let provider = create_cloud_provider(CloudProviderName::Aws).await?;
 
             commands::setup::enable_region(&*provider, &region).await?;
             info!("Region enabled: {}", region);

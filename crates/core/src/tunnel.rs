@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use boringtun::noise::{Tunn, TunnResult};
 use serde::{Deserialize, Serialize};
+
+use crate::cloud_provider::CloudProviderName;
 use tokio::{
     net::UdpSocket,
     sync::{RwLock, watch},
@@ -30,7 +32,7 @@ pub struct ConnectedInstance {
     pub public_ip_v4: Option<String>,
     pub public_ip_v6: Option<String>,
     pub region: String,
-    pub provider: String,
+    pub provider: CloudProviderName,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,22 +86,27 @@ impl Tunnel {
                         Ok(n) => {
                             match self.wg.encapsulate(&tun_buf[..n], &mut out_buf) {
                                 TunnResult::WriteToNetwork(packet) => {
-                                    if let Ok(sent) = self.udp.send(packet).await {
-                                        let mut metrics = self.metrics.write().await;
-                                        metrics.bytes_sent += sent as u64;
-                                        metrics.packets_sent += 1;
+                                    match self.udp.send(packet).await {
+                                        Ok(sent) => {
+                                            let mut metrics = self.metrics.write().await;
+                                            metrics.bytes_sent += sent as u64;
+                                            metrics.packets_sent += 1;
+                                        }
+                                        Err(error) => {
+                                            warn!("[Tunnel] UDP send failed: {}", error);
+                                        }
                                     }
                                 },
                                 TunnResult::Done => {},
-                                TunnResult::Err(e) => {
-                                    error!("encapsulate error: {:?}", e);
+                                TunnResult::Err(error) => {
+                                    error!("encapsulate error: {:?}", error);
                                 },
                                 _ => {}
                             }
                         }
-                        Err(e) => {
-                            error!("[Tunnel] TUN device read failed: {}", e);
-                            return Err(SystemError::TunnelIoFailed { reason: e.to_string() }.into());
+                        Err(error) => {
+                            error!("[Tunnel] TUN device read failed: {}", error);
+                            return Err(SystemError::TunnelIoFailed { reason: error.to_string() }.into());
                         }
                     }
                 }
@@ -122,8 +129,8 @@ impl Tunnel {
                             self.udp.send(packet).await.map_err(|error| SystemError::TunnelIoFailed { reason: error.to_string() })?;
                         },
                         TunnResult::Done => {},
-                        TunnResult::Err(e) => {
-                            error!("decapsulate error: {:?}", e);
+                        TunnResult::Err(error) => {
+                            error!("decapsulate error: {:?}", error);
                         },
                     }
                 }

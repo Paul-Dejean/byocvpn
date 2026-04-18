@@ -1,6 +1,5 @@
 use byocvpn_core::error::Result;
 use byocvpn_daemon::daemon::run_daemon;
-
 #[cfg(not(windows))]
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -25,8 +24,7 @@ fn main() {
 
 #[cfg(windows)]
 mod windows_service_impl {
-    use std::sync::mpsc;
-    use std::time::Duration;
+    use std::{sync::mpsc, time::Duration};
 
     use windows_service::{
         define_windows_service,
@@ -41,8 +39,11 @@ mod windows_service_impl {
     define_windows_service!(ffi_service_main, service_main);
 
     pub fn start_as_service() -> windows_service::Result<()> {
-        let service_name =
-            if cfg!(debug_assertions) { "byocvpn-daemon-dev" } else { "byocvpn-daemon" };
+        let service_name = if cfg!(debug_assertions) {
+            "byocvpn-daemon-dev"
+        } else {
+            "byocvpn-daemon"
+        };
         service_dispatcher::start(service_name, ffi_service_main)
     }
 
@@ -50,7 +51,11 @@ mod windows_service_impl {
         let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>();
 
         let status_handle = service_control_handler::register(
-            if cfg!(debug_assertions) { "byocvpn-daemon-dev" } else { "byocvpn-daemon" },
+            if cfg!(debug_assertions) {
+                "byocvpn-daemon-dev"
+            } else {
+                "byocvpn-daemon"
+            },
             move |control_event| match control_event {
                 ServiceControl::Stop | ServiceControl::Shutdown => {
                     let _ = shutdown_tx.send(());
@@ -92,7 +97,7 @@ mod windows_service_impl {
             }
         });
 
-        let _ = status_handle.set_service_status(ServiceStatus {
+        if let Err(error) = status_handle.set_service_status(ServiceStatus {
             service_type: ServiceType::OWN_PROCESS,
             current_state: ServiceState::Stopped,
             controls_accepted: ServiceControlAccept::empty(),
@@ -100,6 +105,8 @@ mod windows_service_impl {
             checkpoint: 0,
             wait_hint: Duration::default(),
             process_id: None,
-        });
+        }) {
+            log::warn!("Failed to set service status to Stopped: {}", error);
+        }
     }
 }

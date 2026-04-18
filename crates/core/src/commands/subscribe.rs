@@ -1,5 +1,7 @@
 use std::{cell::Cell, path::PathBuf, time::Instant};
 
+use log::*;
+
 use crate::{
     error::Result,
     metrics_stream,
@@ -16,6 +18,10 @@ where
     F: Fn(VpnStatus) + Send + 'static,
     G: Fn(u64, u64) + Send + 'static,
 {
+    info!(
+        "Starting metrics subscription via socket: {}",
+        socket_path.display()
+    );
     metrics_stream::start(socket_path, connected_instance, move |vpn_status| {
         thread_local! {
             static LAST_PERSIST: Cell<Option<Instant>> = const { Cell::new(None) };

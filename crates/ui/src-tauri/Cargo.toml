@@ -5,9 +5,6 @@ description = "A Tauri App"
 authors = ["you"]
 edition = "2024"
 
-[features]
-external-daemon = ["byocvpn_core/external-daemon", "byocvpn_daemon/external-daemon"]
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]

@@ -1,20 +1,17 @@
-#[cfg(target_os = "macos")]
 use std::{collections::HashMap, io, process::Command};
 
 use byocvpn_core::error::{ConfigurationError, Result};
 use log::*;
 
-#[cfg(target_os = "macos")]
 #[derive(Debug)]
-pub struct DomainNameSystemOverrideGuard {
+pub struct DnsOverrideGuard {
     original_domain_name_system_by_service: HashMap<String, Option<Vec<String>>>,
-    domain_name_system_was_applied: bool,
+    dns_override_active: bool,
 }
 
-#[cfg(target_os = "macos")]
-impl DomainNameSystemOverrideGuard {
-    pub fn apply_to_all_services(desired_domain_name_system_servers: &[&str]) -> Result<Self> {
-        if desired_domain_name_system_servers.is_empty() {
+impl DnsOverrideGuard {
+    pub fn override_system_dns(new_dns_servers: &[&str]) -> Result<Self> {
+        if new_dns_servers.is_empty() {
             return Err(ConfigurationError::DnsConfiguration {
                 reason: "desired DNS servers list is empty".to_string(),
             }
@@ -26,12 +23,10 @@ impl DomainNameSystemOverrideGuard {
 
         let mut original_domain_name_system_by_service = HashMap::new();
         for network_service_name in &network_service_names {
-            let current_domain_name_system = get_domain_name_system_servers_for_service(
-                network_service_name,
-            )
-            .map_err(|error| ConfigurationError::DnsConfiguration {
-                reason: error.to_string(),
-            })?;
+            let current_domain_name_system = get_dns_servers_for_service(network_service_name)
+                .map_err(|error| ConfigurationError::DnsConfiguration {
+                    reason: error.to_string(),
+                })?;
             info!(
                 "Original DNS for {}: {:?}",
                 network_service_name, current_domain_name_system
@@ -40,28 +35,23 @@ impl DomainNameSystemOverrideGuard {
                 .insert(network_service_name.clone(), current_domain_name_system);
         }
 
-        info!(
-            "Setting new DNS servers: {:?}",
-            desired_domain_name_system_servers
-        );
+        info!("Setting new DNS servers: {:?}", new_dns_servers);
         for network_service_name in &network_service_names {
-            set_domain_name_system_servers_for_service(
-                network_service_name,
-                Some(desired_domain_name_system_servers),
-            )
-            .map_err(|error| ConfigurationError::DnsConfiguration {
-                reason: error.to_string(),
+            set_dns_for_service(network_service_name, Some(new_dns_servers)).map_err(|error| {
+                ConfigurationError::DnsConfiguration {
+                    reason: error.to_string(),
+                }
             })?;
         }
 
         Ok(Self {
             original_domain_name_system_by_service,
-            domain_name_system_was_applied: true,
+            dns_override_active: true,
         })
     }
 
-    pub fn restore_now(&mut self) -> io::Result<()> {
-        if !self.domain_name_system_was_applied {
+    pub fn restore_previous_dns_configuration(&mut self) -> io::Result<()> {
+        if !self.dns_override_active {
             return Ok(());
         }
 
@@ -69,50 +59,49 @@ impl DomainNameSystemOverrideGuard {
 
         for (network_service_name, original_option) in &self.original_domain_name_system_by_service
         {
-            info!("Restoring DNS for service: {}", network_service_name);
-            info!("Original DNS servers: {:?}", original_option);
+            debug!("Restoring DNS for service: {}", network_service_name);
+            debug!("Original DNS servers: {:?}", original_option);
 
             match original_option {
                 Some(list) if !list.is_empty() => {
-                    let as_slices: Vec<&str> = list.iter().map(|s| s.as_str()).collect();
-                    info!("Setting DNS servers to: {:?}", as_slices);
-                    set_domain_name_system_servers_for_service(
-                        network_service_name,
-                        Some(&as_slices),
-                    )?;
+                    let as_slices: Vec<&str> = list.iter().map(|string| string.as_str()).collect();
+                    debug!("Setting DNS servers to: {:?}", as_slices);
+                    set_dns_for_service(network_service_name, Some(&as_slices))?;
                 }
                 Some(_) => {
-                    info!("Clearing DNS servers (original was empty)");
-                    set_domain_name_system_servers_for_service(network_service_name, None)?;
+                    debug!("Clearing DNS servers (original was empty)");
+                    set_dns_for_service(network_service_name, None)?;
                 }
                 None => {
-                    info!("Clearing DNS servers (original was None)");
-                    set_domain_name_system_servers_for_service(network_service_name, None)?;
+                    debug!("Clearing DNS servers (original was None)");
+                    set_dns_for_service(network_service_name, None)?;
                 }
             }
         }
 
-        self.domain_name_system_was_applied = false;
+        self.dns_override_active = false;
         info!("DNS restoration completed");
         Ok(())
     }
 }
 
-#[cfg(target_os = "macos")]
-impl Drop for DomainNameSystemOverrideGuard {
+impl Drop for DnsOverrideGuard {
     fn drop(&mut self) {
-        let _ = self.restore_now();
+        if let Err(error) = self.restore_previous_dns_configuration() {
+            warn!("Failed to restore DNS on drop: {}", error);
+        }
     }
 }
 
-#[cfg(target_os = "macos")]
 fn list_all_enabled_network_services() -> Result<Vec<String>> {
-    let mut cmd = Command::new("networksetup");
-    cmd.arg("-listallnetworkservices");
-    info!("Executing command: {:?}", cmd);
-    let output = cmd.output().map_err(|error| ConfigurationError::DnsConfiguration {
-        reason: format!("failed to run networksetup: {}", error),
-    })?;
+    let mut command = Command::new("networksetup");
+    command.arg("-listallnetworkservices");
+    debug!("Executing command: {:?}", command);
+    let output = command
+        .output()
+        .map_err(|error| ConfigurationError::DnsConfiguration {
+            reason: format!("failed to run networksetup: {}", error),
+        })?;
     if !output.status.success() {
         return Err(ConfigurationError::DnsConfiguration {
             reason: format!(
@@ -140,14 +129,11 @@ fn list_all_enabled_network_services() -> Result<Vec<String>> {
     Ok(result)
 }
 
-#[cfg(target_os = "macos")]
-fn get_domain_name_system_servers_for_service(
-    network_service_name: &str,
-) -> io::Result<Option<Vec<String>>> {
-    let mut cmd = Command::new("networksetup");
-    cmd.arg("-getdnsservers").arg(network_service_name);
-    info!("Executing command: {:?}", cmd);
-    let output = cmd.output()?;
+fn get_dns_servers_for_service(network_service_name: &str) -> io::Result<Option<Vec<String>>> {
+    let mut command = Command::new("networksetup");
+    command.arg("-getdnsservers").arg(network_service_name);
+    debug!("Executing command: {:?}", command);
+    let output = command.output()?;
 
     if !output.status.success() {
         return Err(io::Error::new(
@@ -167,35 +153,34 @@ fn get_domain_name_system_servers_for_service(
 
     let mut servers = Vec::new();
     for line in text.lines() {
-        let t = line.trim();
-        if !t.is_empty() {
-            servers.push(t.to_string());
+        let trimmed = line.trim();
+        if !trimmed.is_empty() {
+            servers.push(trimmed.to_string());
         }
     }
     Ok(Some(servers))
 }
 
-#[cfg(target_os = "macos")]
-fn set_domain_name_system_servers_for_service(
+fn set_dns_for_service(
     network_service_name: &str,
     desired_option: Option<&[&str]>,
 ) -> io::Result<()> {
-    let mut cmd = Command::new("networksetup");
-    cmd.arg("-setdnsservers").arg(network_service_name);
+    let mut command = Command::new("networksetup");
+    command.arg("-setdnsservers").arg(network_service_name);
 
     match desired_option {
         Some(list) if !list.is_empty() => {
             for server in list {
-                cmd.arg(*server);
+                command.arg(*server);
             }
         }
         _ => {
-            cmd.arg("Empty");
+            command.arg("Empty");
         }
     }
 
-    info!("Executing command: {:?}", cmd);
-    let output = cmd.output()?;
+    debug!("Executing command: {:?}", command);
+    let output = command.output()?;
 
     if !output.status.success() {
         return Err(io::Error::new(

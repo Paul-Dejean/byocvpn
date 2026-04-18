@@ -16,13 +16,9 @@ use log::*;
 
 pub struct OracleProviderConfig {
     pub tenancy_ocid: String,
-
     pub user_ocid: String,
-
     pub fingerprint: String,
-
     pub private_key_pem: String,
-
     pub region: String,
 }
 
@@ -104,7 +100,7 @@ impl CloudProvider for OracleProvider {
         CloudProviderName::Oracle
     }
 
-    fn spawn_steps(&self, _region: &str) -> Vec<SpawnStep> {
+    fn get_spawn_steps(&self, _region: &str) -> Vec<SpawnStep> {
         vec![
             SpawnStep {
                 id: OracleSpawnStepId::SetupVcn.as_str().into(),
@@ -168,7 +164,7 @@ impl CloudProvider for OracleProvider {
                     network::get_vcn_by_name(&client, compartment)
                         .await?
                         .ok_or(NetworkProvisioningError::VpcNotFound {
-                            vpc_name: "byocvpn-vcn".to_string(),
+                            vpc_name: network::VCN_DISPLAY_NAME.to_string(),
                         })?;
                 let igw_id =
                     network::get_or_create_internet_gateway(&client, compartment, &vcn_id).await?;
@@ -204,7 +200,7 @@ impl CloudProvider for OracleProvider {
                     network::get_vcn_by_name(&client, compartment)
                         .await?
                         .ok_or(NetworkProvisioningError::VpcNotFound {
-                            vpc_name: "byocvpn-vcn".to_string(),
+                            vpc_name: network::VCN_DISPLAY_NAME.to_string(),
                         })?;
                 let igw_id =
                     network::get_or_create_internet_gateway(&client, compartment, &vcn_id).await?;
@@ -223,7 +219,7 @@ impl CloudProvider for OracleProvider {
                 let (vcn_id, _, ipv6_prefix) = network::get_vcn_by_name(&client, compartment)
                     .await?
                     .ok_or(NetworkProvisioningError::VpcNotFound {
-                        vpc_name: "byocvpn-vcn".to_string(),
+                        vpc_name: network::VCN_DISPLAY_NAME.to_string(),
                     })?;
                 network::get_or_create_security_list(&client, compartment, &vcn_id, &ipv6_prefix)
                     .await?;
@@ -236,7 +232,7 @@ impl CloudProvider for OracleProvider {
                     network::get_vcn_by_name(&client, compartment)
                         .await?
                         .ok_or(NetworkProvisioningError::VpcNotFound {
-                            vpc_name: "byocvpn-vcn".to_string(),
+                            vpc_name: network::VCN_DISPLAY_NAME.to_string(),
                         })?;
                 let security_list_id = network::get_or_create_security_list(
                     &client,
@@ -280,7 +276,7 @@ impl CloudProvider for OracleProvider {
         Ok(())
     }
 
-    fn provision_account_steps(&self) -> Vec<SpawnStep> {
+    fn get_provision_account_steps(&self) -> Vec<SpawnStep> {
         vec![
             SpawnStep {
                 id: OracleSpawnStepId::SetupVcn.as_str().into(),
@@ -297,7 +293,7 @@ impl CloudProvider for OracleProvider {
         self.run_spawn_step(step_id, "").await
     }
 
-    fn enable_region_steps(&self, _region: &str) -> Vec<SpawnStep> {
+    fn get_enable_region_steps(&self, _region: &str) -> Vec<SpawnStep> {
         vec![
             SpawnStep {
                 id: OracleSpawnStepId::RegionSubscribe.as_str().into(),
@@ -423,15 +419,21 @@ impl CloudProvider for OracleProvider {
         let (vcn_id, _, _) = network::get_vcn_by_name(&client, compartment_ocid)
             .await?
             .ok_or_else(|| NetworkProvisioningError::VpcNotFound {
-                vpc_name: "byocvpn-vcn".to_string(),
+                vpc_name: network::VCN_DISPLAY_NAME.to_string(),
             })?;
+        debug!("Resolved VCN {} for spawn in {}", vcn_id, params.region);
 
         let (subnet_ocid, subnet_has_ipv6) =
             network::get_subnet_by_name(&client, compartment_ocid, &vcn_id)
                 .await?
                 .ok_or_else(|| NetworkProvisioningError::SubnetMissingIdentifier {})?;
+        debug!(
+            "Resolved subnet {} (IPv6: {}) in {}",
+            subnet_ocid, subnet_has_ipv6, params.region
+        );
 
         let image_ocid = network::get_ubuntu_image(&client, compartment_ocid).await?;
+        debug!("Resolved Ubuntu image {} in {}", image_ocid, params.region);
 
         instance::spawn_instance(
             &client,
@@ -463,12 +465,13 @@ impl CloudProvider for OracleProvider {
             .into_iter()
             .map(|(name, country)| Region { name, country })
             .collect();
-        let results = futures::future::join_all(regions.iter().map(|r| async move {
-            let client = self.make_client(Some(&r.name));
-            match instance::list_instances(&client, self.get_compartment_ocid(), &r.name).await {
+        let results = futures::future::join_all(regions.iter().map(|region| async move {
+            let client = self.make_client(Some(&region.name));
+            match instance::list_instances(&client, self.get_compartment_ocid(), &region.name).await
+            {
                 Ok(instances) => instances,
-                Err(e) => {
-                    error!("Skipping OCI region {}: {}", r.name, e);
+                Err(error) => {
+                    error!("Skipping OCI region {}: {}", region.name, error);
                     vec![]
                 }
             }

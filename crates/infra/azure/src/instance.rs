@@ -49,13 +49,23 @@ pub async fn spawn_instance(
     location: &str,
     params: &SpawnInstanceParams<'_>,
 ) -> Result<InstanceInfo> {
+    info!("[Azure] Spawning instance in '{}'...", location);
+
     ensure_providers_registered(client)
         .await
         .map_err(|error| build_spawn_error(location, "Provider registration", error))?;
+    debug!(
+        "[Azure] Provider registration confirmed for '{}'.",
+        location
+    );
 
     let network_ids = ensure_region_networking(client, location)
         .await
         .map_err(|error| build_spawn_error(location, "Region networking", error))?;
+    debug!(
+        "[Azure] Region networking ready in '{}' (subnet: {}).",
+        location, network_ids.subnet_id
+    );
 
     let vm_name = format!(
         "byocvpn-{}",
@@ -201,6 +211,21 @@ pub async fn spawn_instance(
         .await
         .unwrap_or_default();
 
+    debug!(
+        "[Azure] VM '{}' public addresses: IPv4={:?} IPv6={:?}",
+        vm_name,
+        if public_ip_v4.is_empty() {
+            None
+        } else {
+            Some(&public_ip_v4)
+        },
+        if public_ip_v6.is_empty() {
+            None
+        } else {
+            Some(&public_ip_v6)
+        }
+    );
+
     let instance_id = format!("{}/{}", resource_group, vm_name);
     info!("[Azure] VM '{}' created in {}.", vm_name, location);
 
@@ -218,6 +243,7 @@ pub async fn spawn_instance(
 }
 
 pub async fn terminate_instance(client: &AzureClient, instance_id: &str) -> Result<()> {
+    info!("[Azure] Terminating instance '{}'...", instance_id);
     let (resource_group, vm_name) = parse_instance_id(instance_id)?;
 
     let location = resource_group
@@ -265,6 +291,7 @@ pub async fn list_instances(client: &AzureClient, location: &str) -> Result<Vec<
 }
 
 pub async fn list_all_instances(client: &AzureClient) -> Result<Vec<InstanceInfo>> {
+    debug!("[Azure] Listing all virtual machines across subscription...");
     let path = client.build_subscription_path("/providers/Microsoft.Compute/virtualMachines");
     let url = client.build_arm_url(&path, API_VERSION_COMPUTE);
 
@@ -299,6 +326,10 @@ pub async fn list_all_instances(client: &AzureClient) -> Result<Vec<InstanceInfo
         }
     }
 
+    debug!(
+        "[Azure] Found {} byocvpn instance(s) in subscription.",
+        instances.len()
+    );
     Ok(instances)
 }
 

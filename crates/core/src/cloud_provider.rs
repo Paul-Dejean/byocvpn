@@ -1,17 +1,10 @@
-use std::{
-    fmt::{self, Display, Formatter},
-    str::FromStr,
-};
-
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use strum::{Display, EnumString};
 
-use crate::{
-    commands::setup::Region,
-    error::{ConfigurationError, Error, Result},
-};
+use crate::{commands::setup::Region, error::Result};
 
 pub struct SpawnInstanceParams<'a> {
     pub region: &'a str,
@@ -35,49 +28,25 @@ pub trait CloudProvider: Send + Sync {
     async fn get_regions(&self) -> Result<Vec<Region>>;
     fn get_provider_name(&self) -> CloudProviderName;
 
-    fn spawn_steps(&self, region: &str) -> Vec<SpawnStep>;
+    fn get_spawn_steps(&self, region: &str) -> Vec<SpawnStep>;
     async fn run_spawn_step(&self, step_id: &str, region: &str) -> Result<()>;
 
-    fn provision_account_steps(&self) -> Vec<SpawnStep>;
+    fn get_provision_account_steps(&self) -> Vec<SpawnStep>;
     async fn run_provision_account_step(&self, step_id: &str) -> Result<()>;
 
-    fn enable_region_steps(&self, region: &str) -> Vec<SpawnStep>;
+    fn get_enable_region_steps(&self, region: &str) -> Vec<SpawnStep>;
     async fn run_enable_region_step(&self, step_id: &str, region: &str) -> Result<()>;
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Display, EnumString)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "lowercase", ascii_case_insensitive)]
 pub enum CloudProviderName {
     Aws,
     Azure,
     Gcp,
+    #[strum(serialize = "oracle", serialize = "oci")]
     Oracle,
-}
-
-impl FromStr for CloudProviderName {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        match s.to_lowercase().as_str() {
-            "aws" => Ok(CloudProviderName::Aws),
-            "azure" => Ok(CloudProviderName::Azure),
-            "gcp" => Ok(CloudProviderName::Gcp),
-            "oracle" | "oci" => Ok(CloudProviderName::Oracle),
-            e => Err(ConfigurationError::UnknownProviderName { name: e.to_string() }.into()),
-        }
-    }
-}
-
-impl Display for CloudProviderName {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let value = match self {
-            CloudProviderName::Aws => "AWS",
-            CloudProviderName::Gcp => "GCP",
-            CloudProviderName::Azure => "AZURE",
-            CloudProviderName::Oracle => "ORACLE",
-        };
-        write!(f, "{}", value)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -110,13 +79,9 @@ pub struct InstanceInfo {
 #[serde(rename_all = "camelCase")]
 pub struct PricingInfo {
     pub hourly_rate: f64,
-
     pub ip_hourly_rate: f64,
-
     pub egress_rate_per_gb: f64,
-
     pub storage_gb: f64,
-
     pub storage_rate_per_gb_month: f64,
 }
 
@@ -124,7 +89,6 @@ pub struct PricingInfo {
 #[serde(rename_all = "camelCase")]
 pub struct SpawnStep {
     pub id: String,
-
     pub label: String,
 }
 
@@ -138,7 +102,7 @@ pub struct SpawnJob {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub enum SpawnStepStatus {
     Pending,
     Running,

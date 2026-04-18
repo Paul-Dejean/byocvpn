@@ -37,7 +37,10 @@ pub fn generate_client_config(
         .map_err(|error| ConfigurationError::TemplateRender {
             reason: error.to_string(),
         })?;
-    info!("{}", &config);
+    debug!(
+        "WireGuard client config generated for server IP: {}",
+        server_ip_v4
+    );
     Ok(config)
 }
 
@@ -49,6 +52,7 @@ pub async fn get_wireguard_config_file_path(
     let file_name = get_wireguard_config_file_name(provider_name, region, instance_id);
     let directory = get_configs_path().await?;
     let path = directory.join(file_name);
+    debug!("Resolved WireGuard config file path: {}", path.display());
     Ok(path)
 }
 
@@ -62,11 +66,12 @@ async fn get_configs_path() -> Result<PathBuf> {
             reason: format!("failed to check configs directory: {}", error),
         })?
     {
-        create_dir_all(&byocvpn_dir)
-            .await
-            .map_err(|error| ConfigurationError::TunnelConfiguration {
+        debug!("Creating configs directory: {}", byocvpn_dir.display());
+        create_dir_all(&byocvpn_dir).await.map_err(|error| {
+            ConfigurationError::TunnelConfiguration {
                 reason: format!("failed to create configs directory: {}", error),
-            })?;
+            }
+        })?;
     }
 
     Ok(byocvpn_dir)

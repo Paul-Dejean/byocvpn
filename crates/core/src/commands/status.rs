@@ -15,7 +15,7 @@ pub async fn fetch_vpn_status(client: &impl DaemonClient) -> Result<VpnStatus> {
 
     let response = client.send_command(DaemonCommand::Status).await?;
 
-    serde_json::from_str(&response).map_err(|error| {
+    serde_json::from_value(response).map_err(|error| {
         ConfigurationError::ParseError {
             value: "daemon status response".to_string(),
             reason: error.to_string(),

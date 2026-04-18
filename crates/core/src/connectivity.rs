@@ -22,7 +22,7 @@ pub async fn wait_until_ready(ip_address: &str) -> Result<()> {
     let address = format!("{}:51820", ip_address);
 
     for attempt in 1..=PROBE_MAX_ATTEMPTS {
-        error!(
+        debug!(
             "[probe] attempt {}/{} → {}",
             attempt, PROBE_MAX_ATTEMPTS, address
         );
@@ -39,10 +39,10 @@ pub async fn wait_until_ready(ip_address: &str) -> Result<()> {
                 let _ = timeout(TokioDuration::from_secs(3), stream.read_to_end(&mut buffer)).await;
 
                 let response = String::from_utf8_lossy(&buffer).trim().to_string();
-                error!("[probe] response: {:?}", response);
+                debug!("[probe] response: {:?}", response);
 
                 if response == "active" {
-                    error!("[probe] instance ready");
+                    debug!("[probe] instance ready");
                     return Ok(());
                 } else {
                     return Err(SystemError::ReadinessProbeFailed {
@@ -52,10 +52,10 @@ pub async fn wait_until_ready(ip_address: &str) -> Result<()> {
                 }
             }
             Ok(Err(error)) => {
-                error!("[probe] connect error: {}", error);
+                debug!("[probe] connect error: {}", error);
             }
             Err(_) => {
-                error!("[probe] connect timed out");
+                debug!("[probe] connect timed out");
             }
         }
 
@@ -72,5 +72,14 @@ pub fn can_connect_ipv6() -> bool {
         .parse()
         .expect("Ipv6 [2001:4860:4860::8888]:53 is invalid");
 
-    TcpStream::connect_timeout(&addr, Duration::from_secs(2)).is_ok()
+    let available = TcpStream::connect_timeout(&addr, Duration::from_secs(2)).is_ok();
+    debug!(
+        "[probe] IPv6 connectivity: {}",
+        if available {
+            "available"
+        } else {
+            "unavailable"
+        }
+    );
+    available
 }

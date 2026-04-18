@@ -8,9 +8,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "cross-env CARGO_TARGET_DIR=../../../target/tauri tauri",
-    "tauri:dev": "cargo build -p byocvpn_daemon --manifest-path ../../Cargo.toml && cross-env CARGO_TARGET_DIR=../../../target/tauri tauri dev",
-    "tauri:dev:external-daemon": "cross-env CARGO_TARGET_DIR=../../../target/tauri tauri dev -- --features external-daemon",
-    "tauri:build": "cross-env CARGO_TARGET_DIR=../../../target/tauri tauri build"
+    "tauri:dev": "cargo build -p byocvpn_daemon --manifest-path ../../Cargo.toml && cross-env CARGO_TARGET_DIR=../../../target/tauri RUST_LOG_STYLE=always tauri dev",
+"tauri:build": "cross-env CARGO_TARGET_DIR=../../../target/tauri tauri build"
   },
   "dependencies": {
     "@fontsource-variable/outfit": "^5.2.8",
@@ -20,6 +19,7 @@
     "@tauri-apps/plugin-log": "^2.8.0",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-store": "^2.4.2",
+    "flag-icons": "^7.5.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hot-toast": "^2.6.0",

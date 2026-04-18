@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
 use azure_identity::ClientSecretCredential;
-use byocvpn_core::error::{
-    ComputeProvisioningError, Error, NetworkProvisioningError, Result,
-};
+use byocvpn_core::error::{ComputeProvisioningError, Error, NetworkProvisioningError, Result};
 use log::*;
 use reqwest::{Client as HttpClient, Response, StatusCode};
 use serde::Serialize;
@@ -19,7 +17,6 @@ const REQUEST_TIMEOUT_SECS: u64 = 90;
 pub struct AzureClient {
     http: HttpClient,
     credential: Arc<ClientSecretCredential>,
-
     pub subscription_id: String,
 }
 

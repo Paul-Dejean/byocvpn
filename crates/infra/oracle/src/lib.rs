@@ -1,6 +1,6 @@
 mod auth;
-pub mod credentials;
 mod client;
+pub mod credentials;
 mod instance;
 mod network;
 pub mod pricing;

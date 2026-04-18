@@ -106,11 +106,13 @@ impl GcpClient {
 
 async fn parse_response(method: &str, url: &str, response: Response) -> Result<Value> {
     let status = response.status();
-    let body = response.text().await.map_err(|error| {
-        NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!("Failed to read GCP response body: {}", error),
-        }
-    })?;
+    let body =
+        response
+            .text()
+            .await
+            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+                reason: format!("Failed to read GCP response body: {}", error),
+            })?;
 
     if status.is_success() {
         debug!("[GCP] {} {} → {}", method, url, status);

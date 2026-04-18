@@ -23,10 +23,10 @@ pub(super) fn generate_server_startup_script(
 
     let config = handlebars_registry
         .render_template(template_text, &context)
-        .map_err(|e| ConfigurationError::TemplateRender {
-            reason: e.to_string(),
+        .map_err(|error| ConfigurationError::TemplateRender {
+            reason: error.to_string(),
         })?;
-    info!("{}", &config);
+    debug!("Generated AWS startup script ({} bytes)", config.len());
     Ok(config)
 }
 
@@ -51,9 +51,9 @@ fn generate_wireguard_server_config(
 
     handlebars_registry
         .render_template(template_text, &context)
-        .map_err(|e| {
+        .map_err(|error| {
             ConfigurationError::TemplateRender {
-                reason: e.to_string(),
+                reason: error.to_string(),
             }
             .into()
         })

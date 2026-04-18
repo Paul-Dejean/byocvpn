@@ -3,6 +3,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::provider::AzureProviderConfig;
 
+const CREDENTIALS_SECTION: &str = "AZURE";
+const SUBSCRIPTION_ID_FIELD: &str = "subscription_id";
+const TENANT_ID_FIELD: &str = "tenant_id";
+const CLIENT_ID_FIELD: &str = "client_id";
+const CLIENT_SECRET_FIELD: &str = "client_secret";
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AzureCredentials {
@@ -15,18 +21,26 @@ pub struct AzureCredentials {
 impl AzureCredentials {
     pub fn from_store(store: &CredentialStore) -> Result<Self> {
         Ok(Self {
-            subscription_id: store.require("AZURE", "subscription_id")?,
-            tenant_id: store.require("AZURE", "tenant_id")?,
-            client_id: store.require("AZURE", "client_id")?,
-            client_secret: store.require("AZURE", "client_secret")?,
+            subscription_id: store.require(CREDENTIALS_SECTION, SUBSCRIPTION_ID_FIELD)?,
+            tenant_id: store.require(CREDENTIALS_SECTION, TENANT_ID_FIELD)?,
+            client_id: store.require(CREDENTIALS_SECTION, CLIENT_ID_FIELD)?,
+            client_secret: store.require(CREDENTIALS_SECTION, CLIENT_SECRET_FIELD)?,
         })
     }
 
     pub fn write_to_store(&self, store: &mut CredentialStore) {
-        store.set("AZURE", "subscription_id", &self.subscription_id);
-        store.set("AZURE", "tenant_id", &self.tenant_id);
-        store.set("AZURE", "client_id", &self.client_id);
-        store.set("AZURE", "client_secret", &self.client_secret);
+        store.set(
+            CREDENTIALS_SECTION,
+            SUBSCRIPTION_ID_FIELD,
+            &self.subscription_id,
+        );
+        store.set(CREDENTIALS_SECTION, TENANT_ID_FIELD, &self.tenant_id);
+        store.set(CREDENTIALS_SECTION, CLIENT_ID_FIELD, &self.client_id);
+        store.set(
+            CREDENTIALS_SECTION,
+            CLIENT_SECRET_FIELD,
+            &self.client_secret,
+        );
     }
 }
 

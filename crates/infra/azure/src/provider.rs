@@ -16,11 +16,8 @@ use crate::{auth::create_credential, client::AzureClient, instance, network};
 
 pub struct AzureProviderConfig {
     pub subscription_id: String,
-
     pub tenant_id: String,
-
     pub client_id: String,
-
     pub client_secret: String,
 }
 
@@ -75,7 +72,7 @@ impl CloudProvider for AzureProvider {
         CloudProviderName::Azure
     }
 
-    fn spawn_steps(&self, _region: &str) -> Vec<SpawnStep> {
+    fn get_spawn_steps(&self, _region: &str) -> Vec<SpawnStep> {
         vec![
             SpawnStep {
                 id: AzureSpawnStepId::RegionResourceGroup.as_str().into(),
@@ -107,6 +104,11 @@ impl CloudProvider for AzureProvider {
                     .is_none()
                 {
                     network::create_resource_group(&self.client, region).await?;
+                } else {
+                    debug!(
+                        "[Azure] Resource group for '{}' already exists, skipping creation.",
+                        region
+                    );
                 }
                 Ok(())
             }
@@ -114,13 +116,23 @@ impl CloudProvider for AzureProvider {
                 let nsg_id = network::ensure_nsg(&self.client, region).await?;
                 if network::get_vnet(&self.client, region).await?.is_none() {
                     network::create_vnet(&self.client, region).await?;
+                } else {
+                    debug!(
+                        "[Azure] VNet for '{}' already exists, skipping creation.",
+                        region
+                    );
                 }
                 if network::get_subnet(&self.client, region).await?.is_none() {
                     network::create_subnet(&self.client, region, &nsg_id)
                         .await
-                        .map_err(|e| NetworkProvisioningError::SubnetCreationFailed {
-                            reason: e.to_string(),
+                        .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {
+                            reason: error.to_string(),
                         })?;
+                } else {
+                    debug!(
+                        "[Azure] Subnet for '{}' already exists, skipping creation.",
+                        region
+                    );
                 }
                 Ok(())
             }
@@ -143,7 +155,7 @@ impl CloudProvider for AzureProvider {
         Ok(())
     }
 
-    fn provision_account_steps(&self) -> Vec<SpawnStep> {
+    fn get_provision_account_steps(&self) -> Vec<SpawnStep> {
         vec![]
     }
 
@@ -151,7 +163,7 @@ impl CloudProvider for AzureProvider {
         Ok(())
     }
 
-    fn enable_region_steps(&self, _region: &str) -> Vec<SpawnStep> {
+    fn get_enable_region_steps(&self, _region: &str) -> Vec<SpawnStep> {
         vec![
             SpawnStep {
                 id: AzureSpawnStepId::RegionResourceGroup.as_str().into(),

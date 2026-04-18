@@ -15,7 +15,14 @@ use log::*;
 use serde::Serialize;
 use serde_json::Value;
 
+use crate::constants::{IPV4_ALL_CIDR, SECURITY_GROUP_NAME, VPC_NAME};
 use crate::{config, instance, network};
+
+const VPC_CIDR_BLOCK: &str = "10.0.0.0/16";
+const SUBNET_CIDR_BLOCK: &str = "10.0.0.0/24";
+const SUBNET_NAME: &str = "byocvpn-subnet";
+const INTERNET_GATEWAY_NAME: &str = "byocvpn-igw";
+const MAIN_ROUTE_TABLE_NAME: &str = "byocvpn-main-route-table";
 
 pub struct AwsProvider {
     config: AwsProviderConfig,
@@ -102,7 +109,7 @@ impl CloudProvider for AwsProvider {
         CloudProviderName::Aws
     }
 
-    fn spawn_steps(&self, _region: &str) -> Vec<SpawnStep> {
+    fn get_spawn_steps(&self, _region: &str) -> Vec<SpawnStep> {
         vec![
             SpawnStep {
                 id: AwsSpawnStepId::SetupVpc.as_str().into(),
@@ -170,7 +177,7 @@ impl CloudProvider for AwsProvider {
 
         let ec2_create_security_group = ec2_client
             .create_security_group()
-            .group_name("byocvpn-security-group")
+            .group_name(SECURITY_GROUP_NAME)
             .description("Test SG")
             .vpc_id("vpc-12345678")
             .dry_run(true)
@@ -202,7 +209,7 @@ impl CloudProvider for AwsProvider {
                     .to_port(22)
                     .ip_ranges(
                         aws_sdk_ec2::types::IpRange::builder()
-                            .cidr_ip("0.0.0.0/0")
+                            .cidr_ip(IPV4_ALL_CIDR)
                             .build(),
                     )
                     .build(),
@@ -279,9 +286,9 @@ impl CloudProvider for AwsProvider {
             ssm_get_parameter,
         };
 
-        let value = serde_json::to_value(&permissions).map_err(|e| {
+        let value = serde_json::to_value(&permissions).map_err(|error| {
             NetworkProvisioningError::NetworkQueryFailed {
-                reason: e.to_string(),
+                reason: error.to_string(),
             }
         })?;
         Ok(value)
@@ -299,7 +306,7 @@ impl CloudProvider for AwsProvider {
         Ok(())
     }
 
-    fn provision_account_steps(&self) -> Vec<SpawnStep> {
+    fn get_provision_account_steps(&self) -> Vec<SpawnStep> {
         vec![]
     }
 
@@ -307,7 +314,7 @@ impl CloudProvider for AwsProvider {
         Ok(())
     }
 
-    fn enable_region_steps(&self, _region: &str) -> Vec<SpawnStep> {
+    fn get_enable_region_steps(&self, _region: &str) -> Vec<SpawnStep> {
         vec![
             SpawnStep {
                 id: AwsSpawnStepId::SetupVpc.as_str().into(),
@@ -339,23 +346,24 @@ impl CloudProvider for AwsProvider {
         match step {
             AwsSpawnStepId::SetupVpc => {
                 let ec2 = self.create_ec2_client(Some(region.to_string())).await;
-                if network::get_vpc_by_name(&ec2, "byocvpn-vpc")
-                    .await?
-                    .is_none()
-                {
-                    network::create_vpc(&ec2, "10.0.0.0/16", "byocvpn-vpc").await?;
+                if network::get_vpc_by_name(&ec2, VPC_NAME).await?.is_none() {
+                    debug!("No existing VPC '{}' in {}, creating", VPC_NAME, region);
+                    network::create_vpc(&ec2, VPC_CIDR_BLOCK, VPC_NAME).await?;
+                    info!("VPC '{}' created in {}", VPC_NAME, region);
+                } else {
+                    debug!("VPC '{}' already exists in {}, skipping", VPC_NAME, region);
                 }
                 Ok(())
             }
             AwsSpawnStepId::SetupIgw => {
                 let ec2 = self.create_ec2_client(Some(region.to_string())).await;
-                let vpc_id = network::get_vpc_by_name(&ec2, "byocvpn-vpc").await?.ok_or(
+                let vpc_id = network::get_vpc_by_name(&ec2, VPC_NAME).await?.ok_or(
                     NetworkProvisioningError::VpcNotFound {
-                        vpc_name: "byocvpn-vpc".to_string(),
+                        vpc_name: VPC_NAME.to_string(),
                     },
                 )?;
 
-                let resp = ec2
+                let response = ec2
                     .describe_internet_gateways()
                     .filters(
                         aws_sdk_ec2::types::Filter::builder()
@@ -366,30 +374,51 @@ impl CloudProvider for AwsProvider {
                     .send()
                     .await
                     .map_err(
-                        |e| NetworkProvisioningError::InternetGatewayOperationFailed {
-                            reason: e.to_string(),
+                        |error| NetworkProvisioningError::InternetGatewayOperationFailed {
+                            reason: error.to_string(),
                         },
                     )?;
-                let igw_id = if let Some(igw) = resp.internet_gateways().first() {
-                    igw.internet_gateway_id().unwrap_or_default().to_string()
+                let igw_id = if let Some(igw) = response.internet_gateways().first() {
+                    let existing_igw_id = igw.internet_gateway_id().unwrap_or_default().to_string();
+                    debug!(
+                        "Internet gateway {} already attached to VPC {}",
+                        existing_igw_id, vpc_id
+                    );
+                    existing_igw_id
                 } else {
-                    network::create_and_attach_igw(&ec2, &vpc_id).await?
+                    debug!(
+                        "No internet gateway found for VPC {}, creating and attaching",
+                        vpc_id
+                    );
+                    let new_igw_id = network::create_and_attach_igw(&ec2, &vpc_id).await?;
+                    info!(
+                        "Internet gateway {} created and attached to VPC {}",
+                        new_igw_id, vpc_id
+                    );
+                    new_igw_id
                 };
-                let rt_id = network::find_main_route_table(&ec2, &vpc_id).await?;
-                network::tag_resource_with_name(&ec2, &rt_id, "byocvpn-main-route-table").await?;
-                network::tag_resource_with_name(&ec2, &igw_id, "byocvpn-igw").await?;
-                network::add_igw_routes_to_table(&ec2, &rt_id, &igw_id).await?;
+                let route_table_id = network::find_main_route_table(&ec2, &vpc_id).await?;
+                debug!("Main route table: {}", route_table_id);
+                network::tag_resource_with_name(&ec2, &route_table_id, MAIN_ROUTE_TABLE_NAME)
+                    .await?;
+                network::tag_resource_with_name(&ec2, &igw_id, INTERNET_GATEWAY_NAME).await?;
+                network::add_igw_routes_to_table(&ec2, &route_table_id, &igw_id).await?;
+                info!(
+                    "Default route via IGW {} added to route table {} in {}",
+                    igw_id, route_table_id, region
+                );
                 Ok(())
             }
             AwsSpawnStepId::RegionSubnets => {
                 let ec2 = self.create_ec2_client(Some(region.to_string())).await;
-                let vpc_id = network::get_vpc_by_name(&ec2, "byocvpn-vpc").await?.ok_or(
+                let vpc_id = network::get_vpc_by_name(&ec2, VPC_NAME).await?.ok_or(
                     NetworkProvisioningError::VpcNotFound {
-                        vpc_name: "byocvpn-vpc".to_string(),
+                        vpc_name: VPC_NAME.to_string(),
                     },
                 )?;
                 let subnets = network::get_subnets_in_vpc(&ec2, &vpc_id).await?;
                 if subnets.is_empty() {
+                    debug!("No subnets in VPC {} ({}), creating one", vpc_id, region);
                     let availability_zones = network::list_availability_zones(&ec2).await?;
                     let availability_zone = availability_zones.first().ok_or(
                         NetworkProvisioningError::NetworkQueryFailed {
@@ -401,33 +430,55 @@ impl CloudProvider for AwsProvider {
                     let subnet_id = network::create_subnet(
                         &ec2,
                         &vpc_id,
-                        "10.0.0.0/24",
+                        SUBNET_CIDR_BLOCK,
                         &ipv6_cidr,
                         availability_zone,
-                        "byocvpn-subnet",
+                        SUBNET_NAME,
                     )
                     .await?;
                     network::enable_auto_ip_assign(&ec2, &subnet_id).await?;
+                    info!(
+                        "Subnet {} created in {} ({})",
+                        subnet_id, region, availability_zone
+                    );
+                } else {
+                    debug!(
+                        "Subnet already exists in VPC {} ({}), skipping",
+                        vpc_id, region
+                    );
                 }
                 Ok(())
             }
             AwsSpawnStepId::RegionSecurityGroup => {
                 let ec2 = self.create_ec2_client(Some(region.to_string())).await;
-                let vpc_id = network::get_vpc_by_name(&ec2, "byocvpn-vpc").await?.ok_or(
+                let vpc_id = network::get_vpc_by_name(&ec2, VPC_NAME).await?.ok_or(
                     NetworkProvisioningError::VpcNotFound {
-                        vpc_name: "byocvpn-vpc".to_string(),
+                        vpc_name: VPC_NAME.to_string(),
                     },
                 )?;
                 let existing =
-                    network::get_security_group_by_name(&ec2, "byocvpn-security-group").await?;
+                    network::get_security_group_by_name(&ec2, SECURITY_GROUP_NAME).await?;
                 if existing.is_none() {
+                    debug!(
+                        "Security group '{}' not found in {}, creating",
+                        SECURITY_GROUP_NAME, region
+                    );
                     network::create_security_group(
                         &ec2,
                         &vpc_id,
-                        "byocvpn-security-group",
+                        SECURITY_GROUP_NAME,
                         "BYOC VPN server",
                     )
                     .await?;
+                    info!(
+                        "Security group '{}' created in {}",
+                        SECURITY_GROUP_NAME, region
+                    );
+                } else {
+                    debug!(
+                        "Security group '{}' already exists in {}, skipping",
+                        SECURITY_GROUP_NAME, region
+                    );
                 }
                 Ok(())
             }
@@ -470,15 +521,19 @@ impl CloudProvider for AwsProvider {
             let ec2_client = self.create_ec2_client(Some(region.name.clone())).await;
             let result = instance::list_instances_in_region(&ec2_client, &region.name).await;
             match &result {
-                Ok(instances) => info!("Region {}: found {} instances", region.name, instances.len()),
-                Err(e) => warn!("Skipping region {}: {}", region.name, e),
+                Ok(instances) => info!(
+                    "Region {}: found {} instances",
+                    region.name,
+                    instances.len()
+                ),
+                Err(error) => warn!("Skipping region {}: {}", region.name, error),
             }
             result
         }))
         .await;
         return Ok(results
             .into_iter()
-            .filter_map(|r| r.ok())
+            .filter_map(|result| result.ok())
             .flatten()
             .collect());
     }

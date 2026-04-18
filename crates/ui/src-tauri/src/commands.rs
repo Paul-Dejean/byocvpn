@@ -10,6 +10,7 @@ use byocvpn_core::{
         SpawnProgressEvent,
     },
     commands,
+    commands::setup::Region,
     credentials::CredentialStore,
     crypto::generate_keypair,
     error::{ConfigurationError, Error, Result},
@@ -27,25 +28,22 @@ use tauri::{AppHandle, Emitter};
 
 use crate::ledger_store::LedgerStore;
 
-async fn create_cloud_provider(cloud_provider_name: &str) -> Result<Box<dyn CloudProvider>> {
+async fn create_cloud_provider(provider_name: CloudProviderName) -> Result<Box<dyn CloudProvider>> {
+    debug!("Creating {} cloud provider", provider_name);
     let store = CredentialStore::load().await?;
-    let provider: Box<dyn CloudProvider> = match cloud_provider_name {
-        "aws" => Box::new(AwsProvider::new(AwsCredentials::from_store(&store)?.into()).await),
-        "oracle" => Box::new(byocvpn_oracle::OracleProvider::new(
+    let provider: Box<dyn CloudProvider> = match provider_name {
+        CloudProviderName::Aws => {
+            Box::new(AwsProvider::new(AwsCredentials::from_store(&store)?.into()).await)
+        }
+        CloudProviderName::Oracle => Box::new(byocvpn_oracle::OracleProvider::new(
             OracleCredentials::from_store(&store)?.into(),
         )),
-        "gcp" => Box::new(GcpProvider::new(
+        CloudProviderName::Gcp => Box::new(GcpProvider::new(
             GcpCredentials::from_store(&store)?.into(),
         )?),
-        "azure" => Box::new(AzureProvider::new(
+        CloudProviderName::Azure => Box::new(AzureProvider::new(
             AzureCredentials::from_store(&store)?.into(),
         )?),
-        _ => {
-            return Err(ConfigurationError::UnknownProviderName {
-                name: cloud_provider_name.to_string(),
-            }
-            .into());
-        }
     };
     Ok(provider)
 }
@@ -62,12 +60,12 @@ pub async fn get_credentials(provider: String) -> Result<Value> {
             .and_then(|value| serde_json::to_value(value).ok())
             .unwrap_or(Value::Null)
     }
-    Ok(match provider.as_str() {
-        "aws" => serialize_or_null(AwsCredentials::from_store(&store)),
-        "oracle" => serialize_or_null(OracleCredentials::from_store(&store)),
-        "gcp" => serialize_or_null(GcpCredentials::from_store(&store)),
-        "azure" => serialize_or_null(AzureCredentials::from_store(&store)),
-        _ => return Err(ConfigurationError::UnknownProviderName { name: provider }.into()),
+    let provider_name = CloudProviderName::from_str(&provider)?;
+    Ok(match provider_name {
+        CloudProviderName::Aws => serialize_or_null(AwsCredentials::from_store(&store)),
+        CloudProviderName::Oracle => serialize_or_null(OracleCredentials::from_store(&store)),
+        CloudProviderName::Gcp => serialize_or_null(GcpCredentials::from_store(&store)),
+        CloudProviderName::Azure => serialize_or_null(AzureCredentials::from_store(&store)),
     })
 }
 
@@ -83,39 +81,49 @@ pub async fn save_credentials(provider: String, creds: Value) -> Result<()> {
     }
 
     let mut store = CredentialStore::load().await?;
+    let provider_name = CloudProviderName::from_str(&provider)?;
 
-    match provider.as_str() {
-        "aws" => deserialize::<AwsCredentials>(creds)?.write_to_store(&mut store),
-        "oracle" => deserialize::<OracleCredentials>(creds)?.write_to_store(&mut store),
-        "gcp" => deserialize::<GcpCredentials>(creds)?.write_to_store(&mut store),
-        "azure" => deserialize::<AzureCredentials>(creds)?.write_to_store(&mut store),
-        _ => return Err(ConfigurationError::UnknownProviderName { name: provider }.into()),
+    match provider_name {
+        CloudProviderName::Aws => deserialize::<AwsCredentials>(creds)?.write_to_store(&mut store),
+        CloudProviderName::Oracle => {
+            deserialize::<OracleCredentials>(creds)?.write_to_store(&mut store)
+        }
+        CloudProviderName::Gcp => deserialize::<GcpCredentials>(creds)?.write_to_store(&mut store),
+        CloudProviderName::Azure => {
+            deserialize::<AzureCredentials>(creds)?.write_to_store(&mut store)
+        }
     }
 
+    info!("Credentials saved for provider: {}", provider_name);
     store.save()
 }
 
 #[tauri::command]
 pub async fn delete_credentials(provider: String, app_handle: AppHandle) -> Result<()> {
     let mut store = CredentialStore::load().await?;
-    let section = match provider.as_str() {
-        "aws" => "AWS",
-        "oracle" => "ORACLE",
-        "gcp" => "GCP",
-        "azure" => "AZURE",
-        _ => return Err(ConfigurationError::UnknownProviderName { name: provider }.into()),
+    let provider_name = CloudProviderName::from_str(&provider)?;
+    let section = match provider_name {
+        CloudProviderName::Aws => "AWS",
+        CloudProviderName::Oracle => "ORACLE",
+        CloudProviderName::Gcp => "GCP",
+        CloudProviderName::Azure => "AZURE",
     };
     store.delete_section(section);
     store.save()?;
     if let Some(provider_store) = crate::provider_store::ProviderStore::open(&app_handle) {
-        provider_store.clear_provisioned(&provider);
+        provider_store.clear_provisioned(&provider_name.to_string());
+    } else {
+        debug!(
+            "Provider store unavailable when deleting credentials for {}",
+            provider_name
+        );
     }
     Ok(())
 }
 
 #[tauri::command]
 pub async fn verify_permissions() -> Result<Value> {
-    let cloud_provider = create_cloud_provider("aws").await?;
+    let cloud_provider = create_cloud_provider(CloudProviderName::Aws).await?;
     let result = commands::verify_permissions::verify_permissions(&*cloud_provider).await;
     return result;
 }
@@ -127,16 +135,16 @@ pub async fn spawn_instance(
     app_handle: AppHandle,
 ) -> Result<SpawnJob> {
     let provider_name = CloudProviderName::from_str(&provider)?;
-    let cloud_provider = create_cloud_provider(&provider).await?;
+    let cloud_provider = create_cloud_provider(provider_name.clone()).await?;
 
     let (client_private_key, client_public_key) = generate_keypair();
     let (server_private_key, server_public_key) = generate_keypair();
 
     let job = SpawnJob {
-        job_id: format!("{}-{}", provider, Utc::now().timestamp_millis()),
-        steps: cloud_provider.spawn_steps(&region),
+        job_id: format!("{}-{}", provider_name, Utc::now().timestamp_millis()),
+        steps: cloud_provider.get_spawn_steps(&region),
         region: region.clone(),
-        provider: provider_name,
+        provider: provider_name.clone(),
     };
 
     let job_id = job.job_id.clone();
@@ -152,7 +160,7 @@ pub async fn spawn_instance(
             &server_private_key,
             &client_public_key,
             move |step_id, status, error| {
-                let _ = progress_handle.emit(
+                if let Err(error) = progress_handle.emit(
                     "spawn-progress",
                     SpawnProgressEvent {
                         job_id: job_id_for_progress.clone(),
@@ -160,14 +168,16 @@ pub async fn spawn_instance(
                         status,
                         error,
                     },
-                );
+                ) {
+                    warn!("Failed to emit spawn-progress: {}", error);
+                }
             },
         )
         .await
         .and_then(|instance| {
             let entry = LedgerEntry {
                 instance_id: instance.id.clone(),
-                provider: provider.clone(),
+                provider: provider_name.clone(),
                 region: region.clone(),
                 instance_type: instance.instance_type.clone(),
                 launched_at: instance.launched_at.unwrap_or_else(Utc::now),
@@ -190,22 +200,30 @@ pub async fn spawn_instance(
                 )
                 .await
                 {
-                    let _ = app_handle.emit(
+                    if let Err(error) = app_handle.emit(
                         "spawn-failed",
                         json!({ "jobId": &job_id, "error": error.to_string() }),
-                    );
+                    ) {
+                        warn!("Failed to emit spawn-failed: {}", error);
+                    }
                     return;
                 }
                 if let Some(ledger) = LedgerStore::open(&app_handle) {
                     ledger.set_entry(&entry);
                 }
-                let _ = app_handle.emit("spawn-complete", SpawnCompleteEvent { job_id, instance });
+                if let Err(error) =
+                    app_handle.emit("spawn-complete", SpawnCompleteEvent { job_id, instance })
+                {
+                    warn!("Failed to emit spawn-complete: {}", error);
+                }
             }
             Err(error) => {
-                let _ = app_handle.emit(
+                if let Err(error) = app_handle.emit(
                     "spawn-failed",
                     json!({ "jobId": &job_id, "error": error.to_string() }),
-                );
+                ) {
+                    warn!("Failed to emit spawn-failed: {}", error);
+                }
             }
         }
     });
@@ -220,7 +238,8 @@ pub async fn terminate_instance(
     provider: String,
     app_handle: AppHandle,
 ) -> Result<String> {
-    let cloud_provider = create_cloud_provider(&provider).await?;
+    let provider_name = CloudProviderName::from_str(&provider)?;
+    let cloud_provider = create_cloud_provider(provider_name).await?;
     commands::terminate::terminate_instance(&*cloud_provider, &region, &instance_id).await?;
 
     if let Some(ledger) = LedgerStore::open(&app_handle) {
@@ -238,45 +257,43 @@ pub async fn list_instances(
     let region_ref = region.as_deref();
 
     async fn list_provider_instances(
-        provider_name: &'static str,
+        provider_name: CloudProviderName,
         region: Option<&str>,
-    ) -> Option<Vec<InstanceInfo>> {
-        match create_cloud_provider(provider_name).await {
+    ) -> (CloudProviderName, Option<Vec<InstanceInfo>>) {
+        match create_cloud_provider(provider_name.clone()).await {
             Ok(provider) => match commands::list::list_instances(&*provider, region).await {
-                Ok(instances) => Some(instances),
-                Err(e) => {
-                    error!("Failed to list {} instances: {}", provider_name, e);
-                    None
+                Ok(instances) => (provider_name, Some(instances)),
+                Err(error) => {
+                    error!("Failed to list {} instances: {}", provider_name, error);
+                    (provider_name, None)
                 }
             },
-            Err(_) => None,
+            Err(error) => {
+                debug!("No credentials for {}, skipping: {}", provider_name, error);
+                (provider_name, None)
+            }
         }
     }
 
     let (r_aws, r_oracle, r_gcp, r_azure) = tokio::join!(
-        list_provider_instances("aws", region_ref),
-        list_provider_instances("oracle", region_ref),
-        list_provider_instances("gcp", region_ref),
-        list_provider_instances("azure", region_ref),
+        list_provider_instances(CloudProviderName::Aws, region_ref),
+        list_provider_instances(CloudProviderName::Oracle, region_ref),
+        list_provider_instances(CloudProviderName::Gcp, region_ref),
+        list_provider_instances(CloudProviderName::Azure, region_ref),
     );
 
     let mut all_instances: Vec<InstanceInfo> = Vec::new();
-    let mut queried_providers: Vec<&str> = Vec::new();
-    for (name, result) in [
-        ("aws", r_aws),
-        ("oracle", r_oracle),
-        ("gcp", r_gcp),
-        ("azure", r_azure),
-    ] {
+    let mut queried_provider_names: Vec<CloudProviderName> = Vec::new();
+    for (provider_name, result) in [r_aws, r_oracle, r_gcp, r_azure] {
         if let Some(instances) = result {
-            queried_providers.push(name);
+            queried_provider_names.push(provider_name);
             all_instances.extend(instances);
         }
     }
 
     if let Some(ledger) = LedgerStore::open(&app_handle) {
         let running_ids: HashSet<&str> = all_instances.iter().map(|i| i.id.as_str()).collect();
-        ledger.reconcile_terminated(&running_ids, &queried_providers);
+        ledger.reconcile_terminated(&running_ids, &queried_provider_names);
     }
 
     Ok(all_instances)
@@ -300,11 +317,11 @@ pub async fn provision_account(
     app_handle: AppHandle,
 ) -> Result<ProvisionAccountJob> {
     let provider_name = CloudProviderName::from_str(&provider)?;
-    let cloud_provider = create_cloud_provider(&provider).await?;
+    let cloud_provider = create_cloud_provider(provider_name.clone()).await?;
 
     let job = ProvisionAccountJob {
-        job_id: format!("{}-{}", provider, Utc::now().timestamp_millis()),
-        steps: cloud_provider.provision_account_steps(),
+        job_id: format!("{}-{}", provider_name, Utc::now().timestamp_millis()),
+        steps: cloud_provider.get_provision_account_steps(),
         provider: provider_name,
     };
 
@@ -319,7 +336,7 @@ pub async fn provision_account(
             &*cloud_provider,
             &steps,
             move |step_id, status, error| {
-                let _ = progress_handle.emit(
+                if let Err(error) = progress_handle.emit(
                     "provision-account-progress",
                     ProvisionAccountProgressEvent {
                         job_id: job_id_for_progress.clone(),
@@ -327,7 +344,9 @@ pub async fn provision_account(
                         status,
                         error,
                     },
-                );
+                ) {
+                    warn!("Failed to emit provision-account-progress: {}", error);
+                }
             },
         )
         .await;
@@ -338,20 +357,29 @@ pub async fn provision_account(
                     crate::provider_store::ProviderStore::open(&app_handle)
                 {
                     provider_store.mark_provisioned(&provider);
+                } else {
+                    debug!(
+                        "Provider store unavailable when marking {} provisioned",
+                        provider
+                    );
                 }
-                let _ = app_handle.emit(
+                if let Err(error) = app_handle.emit(
                     "provision-account-complete",
                     ProvisionAccountCompleteEvent {
                         job_id,
                         provider: cloud_provider.get_provider_name(),
                     },
-                );
+                ) {
+                    warn!("Failed to emit provision-account-complete: {}", error);
+                }
             }
             Err(error) => {
-                let _ = app_handle.emit(
+                if let Err(error) = app_handle.emit(
                     "provision-account-failed",
                     json!({ "jobId": &job_id, "error": error.to_string() }),
-                );
+                ) {
+                    warn!("Failed to emit provision-account-failed: {}", error);
+                }
             }
         }
     });
@@ -366,11 +394,16 @@ pub async fn enable_region(
     app_handle: AppHandle,
 ) -> Result<EnableRegionJob> {
     let provider_name = CloudProviderName::from_str(&provider)?;
-    let cloud_provider = create_cloud_provider(&provider).await?;
+    let cloud_provider = create_cloud_provider(provider_name.clone()).await?;
 
     let job = EnableRegionJob {
-        job_id: format!("{}-{}-{}", provider, region, Utc::now().timestamp_millis()),
-        steps: cloud_provider.enable_region_steps(&region),
+        job_id: format!(
+            "{}-{}-{}",
+            provider_name,
+            region,
+            Utc::now().timestamp_millis()
+        ),
+        steps: cloud_provider.get_enable_region_steps(&region),
         region: region.clone(),
         provider: provider_name,
     };
@@ -387,7 +420,7 @@ pub async fn enable_region(
             &steps,
             &region,
             move |step_id, status, error| {
-                let _ = progress_handle.emit(
+                if let Err(error) = progress_handle.emit(
                     "enable-region-progress",
                     EnableRegionProgressEvent {
                         job_id: job_id_for_progress.clone(),
@@ -395,7 +428,9 @@ pub async fn enable_region(
                         status,
                         error,
                     },
-                );
+                ) {
+                    warn!("Failed to emit enable-region-progress: {}", error);
+                }
             },
         )
         .await;
@@ -406,21 +441,30 @@ pub async fn enable_region(
                     crate::provider_store::ProviderStore::open(&app_handle)
                 {
                     provider_store.mark_region_enabled(&provider, &region);
+                } else {
+                    debug!(
+                        "Provider store unavailable when marking region {} enabled for {}",
+                        region, provider
+                    );
                 }
-                let _ = app_handle.emit(
+                if let Err(error) = app_handle.emit(
                     "enable-region-complete",
                     EnableRegionCompleteEvent {
                         job_id,
                         region,
                         provider: cloud_provider.get_provider_name(),
                     },
-                );
+                ) {
+                    warn!("Failed to emit enable-region-complete: {}", error);
+                }
             }
             Err(error) => {
-                let _ = app_handle.emit(
+                if let Err(error) = app_handle.emit(
                     "enable-region-failed",
                     json!({ "jobId": &job_id, "error": error.to_string() }),
-                );
+                ) {
+                    warn!("Failed to emit enable-region-failed: {}", error);
+                }
             }
         }
     });
@@ -429,20 +473,10 @@ pub async fn enable_region(
 }
 
 #[tauri::command]
-pub async fn get_regions(provider: String) -> Result<Vec<Value>> {
-    let cloud_provider = create_cloud_provider(&provider).await?;
-
-    let regions = commands::setup::get_regions(&*cloud_provider).await?;
-
-    Ok(regions
-        .into_iter()
-        .map(|r| {
-            json!({
-                "name": r.name,
-                "country": r.country,
-            })
-        })
-        .collect())
+pub async fn get_regions(provider: String) -> Result<Vec<Region>> {
+    let provider_name = CloudProviderName::from_str(&provider)?;
+    let cloud_provider = create_cloud_provider(provider_name).await?;
+    commands::setup::get_regions(&*cloud_provider).await
 }
 
 async fn fetch_vpn_status() -> Result<VpnStatus> {
@@ -458,7 +492,8 @@ pub async fn connect(
     public_ip_v6: Option<String>,
     app_handle: AppHandle,
 ) -> Result<String> {
-    let cloud_provider = create_cloud_provider(&provider).await?;
+    let provider_name = CloudProviderName::from_str(&provider)?;
+    let cloud_provider = create_cloud_provider(provider_name).await?;
     let daemon_client = UnixDaemonClient;
 
     commands::connect::connect(
@@ -488,7 +523,9 @@ pub async fn connect(
         }
     }
 
-    let _ = app_handle.emit("vpn-status", &vpn_status);
+    if let Err(error) = app_handle.emit("vpn-status", &vpn_status) {
+        warn!("Failed to emit vpn-status: {}", error);
+    }
 
     Ok(format!(
         "Connected to instance {} successfully.",
@@ -503,14 +540,16 @@ pub async fn disconnect(app_handle: AppHandle) -> Result<String> {
     let daemon_client = UnixDaemonClient;
     commands::disconnect::disconnect(&daemon_client).await?;
 
-    let _ = app_handle.emit(
+    if let Err(error) = app_handle.emit(
         "vpn-status",
         &VpnStatus {
             connected: false,
             instance: None,
             metrics: None,
         },
-    );
+    ) {
+        warn!("Failed to emit vpn-status: {}", error);
+    }
 
     Ok("Disconnected successfully.".to_string())
 }
@@ -552,16 +591,16 @@ pub async fn subscribe_to_vpn_status(app_handle: AppHandle) -> Result<()> {
 
 #[tauri::command]
 pub async fn get_instance_pricing(provider: String, instance_type: String) -> Result<PricingInfo> {
-    let pricing = match provider.as_str() {
-        "aws" => aws_pricing::get_pricing(&instance_type),
-        "azure" => azure_pricing::get_pricing(&instance_type),
-        "gcp" => gcp_pricing::get_pricing(&instance_type),
-        "oracle" => oracle_pricing::get_pricing(&instance_type),
-        _ => None,
+    let provider_name = CloudProviderName::from_str(&provider)?;
+    let pricing = match provider_name {
+        CloudProviderName::Aws => aws_pricing::get_pricing(&instance_type),
+        CloudProviderName::Azure => azure_pricing::get_pricing(&instance_type),
+        CloudProviderName::Gcp => gcp_pricing::get_pricing(&instance_type),
+        CloudProviderName::Oracle => oracle_pricing::get_pricing(&instance_type),
     };
     pricing.ok_or_else(|| {
         ConfigurationError::MissingField {
-            field: format!("pricing/{}/{}", provider, instance_type),
+            field: format!("pricing/{}/{}", provider_name, instance_type),
         }
         .into()
     })
@@ -569,12 +608,15 @@ pub async fn get_instance_pricing(provider: String, instance_type: String) -> Re
 
 #[tauri::command]
 pub async fn save_file(path: String, content: String) -> Result<()> {
-    tokio::fs::write(&path, content).await.map_err(|error| -> Error {
-        ConfigurationError::InvalidFile {
-            reason: error.to_string(),
-        }
-        .into()
-    })
+    debug!("Writing file: {}", path);
+    tokio::fs::write(&path, content)
+        .await
+        .map_err(|error| -> Error {
+            ConfigurationError::InvalidFile {
+                reason: error.to_string(),
+            }
+            .into()
+        })
 }
 
 #[tauri::command]
@@ -587,4 +629,3 @@ pub async fn get_ledger(app_handle: AppHandle) -> Result<Vec<Value>> {
     })?;
     Ok(ledger.all_entries())
 }
-

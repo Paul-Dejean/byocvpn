@@ -1,10 +1,12 @@
 use crate::{
     cloud_provider::CloudProvider,
     config::get_wireguard_config_file_path,
-    daemon_client::{DaemonClient, DaemonCommand},
+    daemon_client::{DaemonClient, DaemonCommand, VpnConnectParams},
     error::Result,
+    wireguard_config::parse_wireguard_config,
 };
 use log::*;
+
 pub async fn connect(
     provider: &dyn CloudProvider,
     daemon_client: &dyn DaemonClient,
@@ -17,15 +19,23 @@ pub async fn connect(
     let wireguard_file_path =
         get_wireguard_config_file_path(&provider_name, region, instance_id).await?;
 
+    let wireguard_config = parse_wireguard_config(&wireguard_file_path.to_string_lossy()).await?;
+
     info!("Sending connect command to daemon...");
     let response = daemon_client
-        .send_command(DaemonCommand::Connect {
-            config_path: wireguard_file_path.to_string_lossy().to_string(),
+        .send_command(DaemonCommand::Connect(VpnConnectParams {
+            instance_id: wireguard_config.instance_id,
+            private_key: wireguard_config.private_key,
+            public_key: wireguard_config.public_key,
+            server_endpoint: wireguard_config.server_endpoint,
+            private_ipv4: wireguard_config.private_ipv4,
+            private_ipv6: wireguard_config.private_ipv6,
+            dns_servers: wireguard_config.dns_servers,
             region: region.to_string(),
-            provider: format!("{provider_name}").to_lowercase(),
+            provider: provider_name,
             public_ip_v4,
             public_ip_v6,
-        })
+        }))
         .await?;
 
     info!("Daemon response: {}", response);

@@ -10,6 +10,8 @@ const SUBNET_NAME: &str = "byocvpn-subnet";
 const FIREWALL_NAME_IPV4: &str = "byocvpn-wireguard-ipv4";
 const FIREWALL_NAME_IPV6: &str = "byocvpn-wireguard-ipv6";
 const FIREWALL_TAG: &str = "byocvpn";
+const IPV4_ALL_CIDR: &str = "0.0.0.0/0";
+const IPV6_ALL_CIDR: &str = "::/0";
 
 async fn wait_for_operation(client: &GcpClient, operation_url: &str) -> Result<()> {
     for attempt in 1..=60u32 {
@@ -23,10 +25,9 @@ async fn wait_for_operation(client: &GcpClient, operation_url: &str) -> Result<(
                         .and_then(|error| error["message"].as_str())
                         .unwrap_or("unknown error")
                         .to_string();
-                    return Err(NetworkProvisioningError::CloudOperationFailed {
-                        reason: message,
-                    }
-                    .into());
+                    return Err(
+                        NetworkProvisioningError::CloudOperationFailed { reason: message }.into(),
+                    );
                 }
                 return Ok(());
             }
@@ -73,7 +74,9 @@ pub async fn get_or_create_vpc(client: &GcpClient) -> Result<String> {
                 .unwrap_or_default()
                 .to_string());
         }
-        Err(_) => {}
+        Err(_) => {
+            debug!("[GCP] VPC '{}' not found, creating...", VPC_NAME);
+        }
     }
 
     let create_url = format!("{}/global/networks", client.build_compute_base_url());
@@ -118,7 +121,7 @@ pub async fn get_or_create_firewall(client: &GcpClient) -> Result<()> {
                 { "IPProtocol": "udp", "ports": ["51820"] },
                 { "IPProtocol": "tcp", "ports": ["51820"] }
             ],
-            "sourceRanges": ["0.0.0.0/0"],
+            "sourceRanges": [IPV4_ALL_CIDR],
         });
         let operation = client.post(&create_url, &body).await.map_err(|error| {
             NetworkProvisioningError::SecurityGroupCreationFailed {
@@ -127,6 +130,11 @@ pub async fn get_or_create_firewall(client: &GcpClient) -> Result<()> {
         })?;
         wait_for_operation_response(client, &operation).await?;
         info!("GCP firewall rule '{}' created.", FIREWALL_NAME_IPV4);
+    } else {
+        debug!(
+            "[GCP] Firewall rule '{}' already exists, skipping.",
+            FIREWALL_NAME_IPV4
+        );
     }
 
     let ipv6_firewall_url = format!(
@@ -146,7 +154,7 @@ pub async fn get_or_create_firewall(client: &GcpClient) -> Result<()> {
                 { "IPProtocol": "udp", "ports": ["51820"] },
                 { "IPProtocol": "tcp", "ports": ["51820"] }
             ],
-            "sourceRanges": ["::/0"],
+            "sourceRanges": [IPV6_ALL_CIDR],
         });
         let operation = client.post(&create_url, &body).await.map_err(|error| {
             NetworkProvisioningError::SecurityGroupCreationFailed {
@@ -155,6 +163,11 @@ pub async fn get_or_create_firewall(client: &GcpClient) -> Result<()> {
         })?;
         wait_for_operation_response(client, &operation).await?;
         info!("GCP firewall rule '{}' created.", FIREWALL_NAME_IPV6);
+    } else {
+        debug!(
+            "[GCP] Firewall rule '{}' already exists, skipping.",
+            FIREWALL_NAME_IPV6
+        );
     }
 
     Ok(())
@@ -326,8 +339,9 @@ async fn wait_for_service_usage_operation(client: &GcpClient, operation_name: &s
                     .as_str()
                     .unwrap_or("unknown error")
                     .to_string();
-                return Err(NetworkProvisioningError::CloudOperationFailed { reason: message }
-                    .into());
+                return Err(
+                    NetworkProvisioningError::CloudOperationFailed { reason: message }.into(),
+                );
             }
             return Ok(());
         }
@@ -350,12 +364,14 @@ pub async fn ensure_compute_api_enabled(client: &GcpClient) -> Result<()> {
     );
     let url = format!("{}/{}", SERVICE_USAGE_BASE, service_name);
 
-    let response = client.get(&url).await.map_err(|error| {
-        NetworkProvisioningError::ProviderSetupFailed {
-            step: "Compute Engine API check".to_string(),
-            reason: error.to_string(),
-        }
-    })?;
+    let response =
+        client
+            .get(&url)
+            .await
+            .map_err(|error| NetworkProvisioningError::ProviderSetupFailed {
+                step: "Compute Engine API check".to_string(),
+                reason: error.to_string(),
+            })?;
 
     if response["state"].as_str() == Some("ENABLED") {
         return Ok(());

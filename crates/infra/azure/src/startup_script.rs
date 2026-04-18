@@ -31,7 +31,10 @@ pub fn generate_server_startup_script(
             reason: error.to_string(),
         })?;
 
-    error!("[Azure] startup script:\n{}", script);
+    debug!(
+        "[Azure] Generated startup script ({} bytes base64-encoded)",
+        script.len()
+    );
 
     Ok(BASE64.encode(script.as_bytes()))
 }

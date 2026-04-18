@@ -10,3 +10,4 @@ pub mod ipc;
 pub mod ledger;
 pub mod metrics_stream;
 pub mod tunnel;
+pub mod wireguard_config;

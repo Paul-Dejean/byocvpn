@@ -10,7 +10,10 @@ use aws_sdk_ec2::{
 use byocvpn_core::error::{NetworkProvisioningError, Result};
 use log::*;
 
-use crate::aws_error::sdk_error_message;
+use crate::{
+    aws_error::sdk_error_message,
+    constants::{IPV4_ALL_CIDR, IPV6_ALL_CIDR},
+};
 
 pub(super) async fn create_security_group(
     ec2_client: &Ec2Client,
@@ -18,7 +21,7 @@ pub(super) async fn create_security_group(
     group_name: &str,
     description: &str,
 ) -> Result<String> {
-    let create_resp = ec2_client
+    let create_response = ec2_client
         .create_security_group()
         .vpc_id(vpc_id)
         .group_name(group_name)
@@ -31,7 +34,7 @@ pub(super) async fn create_security_group(
             },
         )?;
 
-    let group_id = create_resp
+    let group_id = create_response
         .group_id()
         .ok_or(NetworkProvisioningError::MissingSecurityGroupIdentifier)?
         .to_string();
@@ -46,8 +49,8 @@ pub(super) async fn create_security_group(
                 .ip_protocol("udp")
                 .from_port(51820)
                 .to_port(51820)
-                .ip_ranges(IpRange::builder().cidr_ip("0.0.0.0/0").build())
-                .ipv6_ranges(Ipv6Range::builder().cidr_ipv6("::/0").build())
+                .ip_ranges(IpRange::builder().cidr_ip(IPV4_ALL_CIDR).build())
+                .ipv6_ranges(Ipv6Range::builder().cidr_ipv6(IPV6_ALL_CIDR).build())
                 .build(),
         )
         .ip_permissions(
@@ -55,8 +58,8 @@ pub(super) async fn create_security_group(
                 .ip_protocol("tcp")
                 .from_port(51820)
                 .to_port(51820)
-                .ip_ranges(IpRange::builder().cidr_ip("0.0.0.0/0").build())
-                .ipv6_ranges(Ipv6Range::builder().cidr_ipv6("::/0").build())
+                .ip_ranges(IpRange::builder().cidr_ip(IPV4_ALL_CIDR).build())
+                .ipv6_ranges(Ipv6Range::builder().cidr_ipv6(IPV6_ALL_CIDR).build())
                 .build(),
         )
         .send()
@@ -72,14 +75,11 @@ pub(super) async fn create_security_group(
 
 pub(super) async fn get_security_group_by_name(
     ec2_client: &Ec2Client,
-    group_name: &str,
+    name: &str,
 ) -> Result<Option<String>> {
-    let filters = Filter::builder()
-        .name("group-name")
-        .values(group_name)
-        .build();
+    let filters = Filter::builder().name("group-name").values(name).build();
 
-    let resp = ec2_client
+    let response = ec2_client
         .describe_security_groups()
         .filters(filters)
         .send()
@@ -88,7 +88,7 @@ pub(super) async fn get_security_group_by_name(
             reason: sdk_error_message(&error),
         })?;
 
-    let group_id = resp
+    let group_id = response
         .security_groups()
         .first()
         .and_then(|security_group| security_group.group_id())
@@ -107,7 +107,7 @@ pub(super) async fn create_vpc(
         .tags(Tag::builder().key("Name").value(name).build())
         .build();
 
-    let resp = ec2_client
+    let response = ec2_client
         .create_vpc()
         .cidr_block(cidr_block)
         .amazon_provided_ipv6_cidr_block(true)
@@ -118,7 +118,7 @@ pub(super) async fn create_vpc(
             reason: sdk_error_message(&error),
         })?;
 
-    let vpc_id = resp
+    let vpc_id = response
         .vpc()
         .and_then(|vpc| vpc.vpc_id())
         .ok_or_else(|| NetworkProvisioningError::MissingVpcIdentifier)?;
@@ -130,7 +130,7 @@ pub(super) async fn create_vpc(
 pub(super) async fn get_vpc_by_name(ec2_client: &Ec2Client, name: &str) -> Result<Option<String>> {
     let filter = Filter::builder().name("tag:Name").values(name).build();
 
-    let resp = ec2_client
+    let response = ec2_client
         .describe_vpcs()
         .filters(filter)
         .send()
@@ -139,7 +139,7 @@ pub(super) async fn get_vpc_by_name(ec2_client: &Ec2Client, name: &str) -> Resul
             reason: sdk_error_message(&error),
         })?;
 
-    let vpc_id = resp
+    let vpc_id = response
         .vpcs()
         .first()
         .and_then(|vpc| vpc.vpc_id())
@@ -161,7 +161,7 @@ pub(super) async fn create_subnet(
         .tags(Tag::builder().key("Name").value(name).build())
         .build();
 
-    let resp = ec2_client
+    let response = ec2_client
         .create_subnet()
         .vpc_id(vpc_id)
         .cidr_block(cidr_block)
@@ -174,7 +174,7 @@ pub(super) async fn create_subnet(
             reason: sdk_error_message(&error),
         })?;
 
-    let subnet_id = resp
+    let subnet_id = response
         .subnet()
         .and_then(|subnet| subnet.subnet_id())
         .ok_or_else(|| NetworkProvisioningError::MissingSubnetIdentifier)?;
@@ -184,7 +184,7 @@ pub(super) async fn create_subnet(
 }
 
 pub(super) async fn list_availability_zones(ec2_client: &Ec2Client) -> Result<Vec<String>> {
-    let resp = ec2_client
+    let response = ec2_client
         .describe_availability_zones()
         .send()
         .await
@@ -192,7 +192,7 @@ pub(super) async fn list_availability_zones(ec2_client: &Ec2Client) -> Result<Ve
             reason: sdk_error_message(&error),
         })?;
 
-    let availability_zones = resp
+    let availability_zones = response
         .availability_zones()
         .iter()
         .filter_map(|availability_zone| availability_zone.zone_name())
@@ -203,14 +203,14 @@ pub(super) async fn list_availability_zones(ec2_client: &Ec2Client) -> Result<Ve
 }
 
 pub(super) async fn get_vpc_ipv6_block(ec2_client: &Ec2Client, vpc_id: &str) -> Result<String> {
-    let resp = ec2_client
+    let response = ec2_client
         .describe_vpcs()
         .vpc_ids(vpc_id)
         .send()
         .await
         .map_err(|_error| NetworkProvisioningError::MissingVpcIdentifier)?;
 
-    let cidr = resp
+    let cidr = response
         .vpcs()
         .iter()
         .flat_map(|vpc| vpc.ipv6_cidr_block_association_set())
@@ -277,21 +277,33 @@ pub(super) async fn add_igw_routes_to_table(
     route_table_id: &str,
     igw_id: &str,
 ) -> Result<()> {
-    let _ = ec2
+    if let Err(error) = ec2
         .create_route()
         .route_table_id(route_table_id)
-        .destination_cidr_block("0.0.0.0/0")
+        .destination_cidr_block(IPV4_ALL_CIDR)
         .gateway_id(igw_id)
         .send()
-        .await;
+        .await
+    {
+        warn!(
+            "[AWS] Failed to add IPv4 default route to {}: {}",
+            route_table_id, error
+        );
+    }
 
-    let _ = ec2
+    if let Err(error) = ec2
         .create_route()
         .route_table_id(route_table_id)
-        .destination_ipv6_cidr_block("::/0")
+        .destination_ipv6_cidr_block(IPV6_ALL_CIDR)
         .gateway_id(igw_id)
         .send()
-        .await;
+        .await
+    {
+        warn!(
+            "[AWS] Failed to add IPv6 default route to {}: {}",
+            route_table_id, error
+        );
+    }
 
     info!("✅ Added default routes to route table: {}", route_table_id);
     Ok(())
@@ -326,7 +338,7 @@ pub(super) async fn enable_auto_ip_assign(ec2: &Ec2Client, subnet_id: &str) -> R
 pub(super) async fn find_main_route_table(ec2: &Ec2Client, vpc_id: &str) -> Result<String> {
     let filters = Filter::builder().name("vpc-id").values(vpc_id).build();
 
-    let resp = ec2
+    let response = ec2
         .describe_route_tables()
         .filters(filters)
         .send()
@@ -337,7 +349,7 @@ pub(super) async fn find_main_route_table(ec2: &Ec2Client, vpc_id: &str) -> Resu
             },
         )?;
 
-    let rt_id = resp
+    let route_table_id = response
         .route_tables()
         .iter()
         .find(|route_table| {
@@ -351,11 +363,11 @@ pub(super) async fn find_main_route_table(ec2: &Ec2Client, vpc_id: &str) -> Resu
             vpc_id: vpc_id.to_string(),
         })?;
 
-    Ok(rt_id.to_string())
+    Ok(route_table_id.to_string())
 }
 
 pub async fn get_subnets_in_vpc(ec2_client: &Ec2Client, vpc_id: &str) -> Result<Vec<Subnet>> {
-    let resp = ec2_client
+    let response = ec2_client
         .describe_subnets()
         .filters(
             aws_sdk_ec2::types::Filter::builder()
@@ -369,7 +381,7 @@ pub async fn get_subnets_in_vpc(ec2_client: &Ec2Client, vpc_id: &str) -> Result<
             reason: sdk_error_message(&error),
         })?;
 
-    Ok(resp.subnets().to_vec())
+    Ok(response.subnets().to_vec())
 }
 
 pub async fn tag_resource_with_name(
