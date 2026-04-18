@@ -77,4 +77,10 @@ pub enum NetworkProvisioningError {
 
     #[error("missing main route table for virtual private cloud: {vpc_id}")]
     MissingMainRouteTable { vpc_id: String },
+
+    #[error("resource not found: {url}")]
+    ResourceNotFound { url: String },
+
+    #[error("missing field '{field}' on resource '{resource}'")]
+    MissingResourceField { field: &'static str, resource: &'static str },
 }

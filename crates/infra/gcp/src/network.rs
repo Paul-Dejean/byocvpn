@@ -1,4 +1,4 @@
-use byocvpn_core::error::{NetworkProvisioningError, Result};
+use byocvpn_core::error::{Error, NetworkProvisioningError, Result};
 use byocvpn_core::retry::retry;
 use tokio::time::Duration;
 
@@ -71,8 +71,15 @@ async fn wait_for_operation_response(client: &GcpClient, operation: &Operation) 
 async fn get_vpc(client: &GcpClient) -> Result<Option<String>> {
     let url = format!("{}/global/networks/{}", client.build_compute_base_url(), VPC_NAME);
     match client.get::<VpcResponse>(&url).await {
-        Ok(existing) => Ok(Some(existing.self_link.unwrap_or_default())),
-        Err(_) => Ok(None),
+        Ok(vpc) => {
+            let self_link = vpc.self_link.ok_or(NetworkProvisioningError::MissingResourceField {
+                field: "selfLink",
+                resource: "VPC",
+            })?;
+            Ok(Some(self_link))
+        }
+        Err(Error::Network(NetworkProvisioningError::ResourceNotFound { .. })) => Ok(None),
+        Err(error) => Err(error),
     }
 }
 
@@ -92,7 +99,13 @@ async fn create_vpc(client: &GcpClient) -> Result<String> {
     wait_for_operation_response(client, &operation).await?;
     let vpc: VpcResponse = client.get(&url).await?;
     info!("GCP VPC '{}' created.", VPC_NAME);
-    Ok(vpc.self_link.unwrap_or_default())
+    vpc.self_link.ok_or_else(|| {
+        NetworkProvisioningError::MissingResourceField {
+            field: "selfLink",
+            resource: "VPC",
+        }
+        .into()
+    })
 }
 
 pub async fn ensure_vpc(client: &GcpClient) -> Result<String> {
@@ -266,7 +279,8 @@ async fn get_subnet(client: &GcpClient, region: &str) -> Result<Option<SubnetRes
     let url = format!("{}/regions/{}/subnetworks/{}", client.build_compute_base_url(), region, SUBNET_NAME);
     match client.get::<SubnetResponse>(&url).await {
         Ok(subnet) => Ok(Some(subnet)),
-        Err(_) => Ok(None),
+        Err(Error::Network(NetworkProvisioningError::ResourceNotFound { .. })) => Ok(None),
+        Err(error) => Err(error),
     }
 }
 
@@ -298,13 +312,22 @@ async fn create_subnet(client: &GcpClient, region: &str) -> Result<String> {
     wait_for_operation_response(client, &operation).await?;
     let subnet: SubnetResponse = client.get(&url).await?;
     info!("GCP subnet '{}' created in {}.", SUBNET_NAME, region);
-    Ok(subnet.self_link.unwrap_or_default())
+    subnet.self_link.ok_or_else(|| {
+        NetworkProvisioningError::MissingResourceField {
+            field: "selfLink",
+            resource: "subnet",
+        }
+        .into()
+    })
 }
 
 pub async fn ensure_subnet(client: &GcpClient, region: &str) -> Result<String> {
     let url = format!("{}/regions/{}/subnetworks/{}", client.build_compute_base_url(), region, SUBNET_NAME);
     if let Some(existing) = get_subnet(client, region).await? {
-        let self_link = existing.self_link.clone().unwrap_or_default();
+        let self_link = existing.self_link.clone().ok_or(NetworkProvisioningError::MissingResourceField {
+            field: "selfLink",
+            resource: "subnet",
+        })?;
         if existing.stack_type.as_deref() != Some("IPV4_IPV6") {
             info!("[GCP] Upgrading subnet '{}' in {} to IPV4_IPV6...", SUBNET_NAME, region);
             let fingerprint = existing.fingerprint.clone().unwrap_or_default();
