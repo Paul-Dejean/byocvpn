@@ -27,6 +27,15 @@ impl OciCredentials {
     }
 }
 
+#[derive(strum::Display)]
+#[strum(serialize_all = "lowercase")]
+pub enum HttpMethod {
+    Get,
+    Post,
+    Put,
+    Delete,
+}
+
 pub fn compute_body_digest(body: &[u8]) -> String {
     let mut hasher = Sha256Digest::new();
     hasher.update(body);
@@ -34,17 +43,15 @@ pub fn compute_body_digest(body: &[u8]) -> String {
 }
 
 pub fn build_authorization_header(
-    method: &str,
+    method: HttpMethod,
     host: &str,
     path: &str,
     date: &str,
     body: Option<&[u8]>,
     credentials: &OciCredentials,
 ) -> Result<(String, String)> {
-    let method_lower = method.to_lowercase();
-
     let mut headers_to_sign = vec![
-        ("(request-target)", format!("{} {}", method_lower, path)),
+        ("(request-target)", format!("{} {}", method, path)),
         ("host", host.to_string()),
         ("date", date.to_string()),
     ];

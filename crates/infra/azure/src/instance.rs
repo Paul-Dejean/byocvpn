@@ -1,20 +1,26 @@
 use byocvpn_core::{
     cloud_provider::{CloudProviderName, InstanceInfo, InstanceState, SpawnInstanceParams},
     error::{ComputeProvisioningError, Error, Result},
+    retry::retry,
 };
 use chrono::{DateTime, Utc};
 use futures::future::join_all;
 use log::*;
-use serde_json::json;
-use tokio::time::{Duration, sleep};
+use tokio::time::Duration;
 use uuid::Uuid;
 
 use crate::{
     client::AzureClient,
+    models::{
+        AsyncOperationResponse, HardwareProfile, ImageReference, LinuxConfiguration,
+        NetworkInterfaceReference, NetworkInterfaceReferenceProperties, NetworkProfile, OsDisk,
+        OsProfile, StorageProfile, VmListResponse, VmProperties, VmRequest, VmResponse,
+        byocvpn_tags,
+    },
     network::{
         IpVersion, build_resource_group_name, cleanup_vm_resources, create_nic,
-        create_public_ip_address, ensure_providers_registered, ensure_region_networking,
-        get_public_ip_address, get_public_ip_id,
+        ensure_providers_registered, ensure_public_ip, ensure_region_networking,
+        get_public_ip_address,
     },
     startup_script::generate_server_startup_script,
     state::AzureProvisioningState,
@@ -72,22 +78,17 @@ pub async fn spawn_instance(
         Uuid::new_v4().to_string().replace('-', "")[..12].to_lowercase()
     );
 
-    let public_ipv4_id = match get_public_ip_id(client, location, &vm_name, IpVersion::V4).await? {
-        Some(id) => id,
-        None => create_public_ip_address(client, location, &vm_name, IpVersion::V4)
+    let public_ipv4_id =
+        ensure_public_ip(client, location, &vm_name, IpVersion::V4)
             .await
-            .map_err(|error| build_spawn_error(location, "Public IP", error))?,
-    };
+            .map_err(|error| build_spawn_error(location, "Public IP", error))?;
 
-    let public_ipv6_id = match get_public_ip_id(client, location, &vm_name, IpVersion::V6).await? {
-        Some(id) => id,
-        None => match create_public_ip_address(client, location, &vm_name, IpVersion::V6).await {
-            Ok(id) => id,
-            Err(error) => {
-                cleanup_vm_resources(client, location, &vm_name).await;
-                return Err(build_spawn_error(location, "Public IPv6 IP", error));
-            }
-        },
+    let public_ipv6_id = match ensure_public_ip(client, location, &vm_name, IpVersion::V6).await {
+        Ok(id) => id,
+        Err(error) => {
+            cleanup_vm_resources(client, location, &vm_name).await;
+            return Err(build_spawn_error(location, "Public IPv6 IP", error));
+        }
     };
 
     let nic_id = match create_nic(
@@ -128,46 +129,50 @@ pub async fn spawn_instance(
         let mut last_error = String::new();
         let mut result = None;
         for &vm_size in VM_SIZES {
-            let vm_body = json!({
-                "location": location,
-                "tags": { "created-by": "byocvpn" },
-                "properties": {
-                    "hardwareProfile": { "vmSize": vm_size },
-                    "osProfile": {
-                        "computerName": vm_name,
-                        "adminUsername": "azureuser",
-                        "adminPassword": admin_password,
-                        "linuxConfiguration": {
-                            "disablePasswordAuthentication": false,
-                            "provisionVMAgent": true
-                        },
-                        "customData": custom_data
+            let vm_body = VmRequest {
+                location: location.to_string(),
+                tags: byocvpn_tags(),
+                properties: VmProperties {
+                    hardware_profile: HardwareProfile {
+                        vm_size: vm_size.to_string(),
                     },
-                    "storageProfile": {
-                        "imageReference": {
-                            "publisher": IMAGE_PUBLISHER,
-                            "offer": IMAGE_OFFER,
-                            "sku": IMAGE_SKU,
-                            "version": "latest"
+                    os_profile: OsProfile {
+                        computer_name: vm_name.clone(),
+                        admin_username: "azureuser".to_string(),
+                        admin_password: admin_password.clone(),
+                        linux_configuration: LinuxConfiguration {
+                            disable_password_authentication: false,
+                            provision_vm_agent: true,
                         },
-                        "osDisk": {
-                            "createOption": "FromImage",
-                            "deleteOption": "Delete",
-                            "diskSizeGB": 30
-                        }
+                        custom_data: custom_data.clone(),
                     },
-                    "networkProfile": {
-                        "networkInterfaces": [{
-                            "id": nic_id,
-                            "properties": { "deleteOption": "Delete" }
-                        }]
-                    }
-                }
-            });
+                    storage_profile: StorageProfile {
+                        image_reference: ImageReference {
+                            publisher: IMAGE_PUBLISHER.to_string(),
+                            offer: IMAGE_OFFER.to_string(),
+                            sku: IMAGE_SKU.to_string(),
+                            version: "latest".to_string(),
+                        },
+                        os_disk: OsDisk {
+                            create_option: "FromImage".to_string(),
+                            delete_option: "Delete".to_string(),
+                            disk_size_gb: 30,
+                        },
+                    },
+                    network_profile: NetworkProfile {
+                        network_interfaces: vec![NetworkInterfaceReference {
+                            id: nic_id.clone(),
+                            properties: NetworkInterfaceReferenceProperties {
+                                delete_option: "Delete".to_string(),
+                            },
+                        }],
+                    },
+                },
+            };
             match client.put(&vm_url, &vm_body).await {
-                Ok(op_url) => {
+                Ok(operation_url) => {
                     info!("[Azure] VM '{}' creating with size {}...", vm_name, vm_size);
-                    result = Some((op_url, vm_size));
+                    result = Some((operation_url, vm_size));
                     break;
                 }
                 Err(error) => {
@@ -185,7 +190,7 @@ pub async fn spawn_instance(
             }
         }
         match result {
-            Some((op_url, vm_size)) => (op_url, vm_size),
+            Some((operation_url, vm_size)) => (operation_url, vm_size),
             None => {
                 cleanup_vm_resources(client, location, &vm_name).await;
                 return Err(build_spawn_error(
@@ -197,8 +202,8 @@ pub async fn spawn_instance(
         }
     };
 
-    if let Some(op_url) = async_op_url
-        && let Err(error) = wait_for_vm_creation(client, &op_url, location).await
+    if let Some(operation_url) = async_op_url
+        && let Err(error) = wait_for_vm_creation(client, &operation_url, location).await
     {
         cleanup_vm_resources(client, location, &vm_name).await;
         return Err(error);
@@ -263,9 +268,9 @@ pub async fn terminate_instance(client: &AzureClient, instance_id: &str) -> Resu
         }
     })?;
 
-    if let Some(op_url) = async_op_url {
+    if let Some(operation_url) = async_op_url {
         client
-            .wait_for_async_operation(&op_url)
+            .wait_for_async_operation(&operation_url)
             .await
             .map_err(
                 |error| ComputeProvisioningError::InstanceTerminationFailed {
@@ -295,16 +300,17 @@ pub async fn list_all_instances(client: &AzureClient) -> Result<Vec<InstanceInfo
     let path = client.build_subscription_path("/providers/Microsoft.Compute/virtualMachines");
     let url = client.build_arm_url(&path, API_VERSION_COMPUTE);
 
-    let response = client.get(&url).await?;
+    let response: VmListResponse = client.get(&url).await?;
 
-    let vms: Vec<serde_json::Value> = response["value"]
-        .as_array()
-        .cloned()
+    let vms: Vec<VmResponse> = response
+        .value
         .unwrap_or_default()
         .into_iter()
         .filter(|virtual_machine| {
-            virtual_machine["tags"]["created-by"]
-                .as_str()
+            virtual_machine
+                .tags
+                .as_ref()
+                .and_then(|tags| tags.get("created-by"))
                 .map(|tag_value| tag_value == "byocvpn")
                 .unwrap_or(false)
         })
@@ -335,17 +341,17 @@ pub async fn list_all_instances(client: &AzureClient) -> Result<Vec<InstanceInfo
 
 async fn resolve_vm_info(
     client: &AzureClient,
-    vm: &serde_json::Value,
+    virtual_machine: &VmResponse,
 ) -> Result<Option<InstanceInfo>> {
-    let vm_name = match vm["name"].as_str() {
-        Some(name) => name.to_string(),
+    let vm_name = match virtual_machine.name.clone() {
+        Some(name) => name,
         None => return Ok(None),
     };
-    let location = match vm["location"].as_str() {
-        Some(loc) => loc.to_string(),
+    let location = match virtual_machine.location.clone() {
+        Some(location_value) => location_value,
         None => return Ok(None),
     };
-    let vm_id = match vm["id"].as_str() {
+    let vm_id = match virtual_machine.id.as_deref() {
         Some(id) => id,
         None => return Ok(None),
     };
@@ -354,20 +360,25 @@ async fn resolve_vm_info(
         .unwrap_or("unknown")
         .to_string();
 
-    let state: InstanceState = AzureProvisioningState::from(
-        vm["properties"]["provisioningState"]
-            .as_str()
-            .unwrap_or("Unknown"),
-    )
-    .into();
+    let provisioning_state = virtual_machine
+        .properties
+        .as_ref()
+        .and_then(|properties| properties.provisioning_state.as_deref())
+        .unwrap_or("Unknown");
 
-    let instance_type = vm["properties"]["hardwareProfile"]["vmSize"]
-        .as_str()
-        .unwrap_or_default()
-        .to_string();
+    let state: InstanceState = AzureProvisioningState::from(provisioning_state).into();
 
-    let launched_at = vm["properties"]["timeCreated"]
-        .as_str()
+    let instance_type = virtual_machine
+        .properties
+        .as_ref()
+        .and_then(|properties| properties.hardware_profile.as_ref())
+        .and_then(|hardware_profile| hardware_profile.vm_size.clone())
+        .unwrap_or_default();
+
+    let launched_at = virtual_machine
+        .properties
+        .as_ref()
+        .and_then(|properties| properties.time_created.as_deref())
         .and_then(|timestamp| DateTime::parse_from_rfc3339(timestamp).ok())
         .map(|datetime| datetime.with_timezone(&Utc));
 
@@ -409,30 +420,35 @@ async fn wait_for_vm_creation(
     operation_url: &str,
     location: &str,
 ) -> Result<()> {
-    for attempt in 1..=60u32 {
-        let body = client.get(operation_url).await?;
-        match body["status"].as_str() {
-            Some("Succeeded") => return Ok(()),
-            Some("Failed") | Some("Canceled") => {
-                let message = body["error"]["message"].as_str().unwrap_or("unknown error");
-                return Err(ComputeProvisioningError::InstanceSpawnFailed {
-                    region_name: location.to_string(),
-                    reason: message.to_string(),
+    retry(
+        || async move {
+            let operation: AsyncOperationResponse = client.get(operation_url).await?;
+            match operation.status.as_deref() {
+                Some("Succeeded") => Ok(()),
+                Some("Failed") | Some("Canceled") => {
+                    let message = operation
+                        .error
+                        .as_ref()
+                        .and_then(|error| error.message.as_deref())
+                        .unwrap_or("unknown error");
+                    Err(ComputeProvisioningError::InstanceSpawnFailed {
+                        region_name: location.to_string(),
+                        reason: message.to_string(),
+                    }
+                    .into())
                 }
-                .into());
+                _ => {
+                    debug!("[Azure] Waiting for VM creation...");
+                    Err(ComputeProvisioningError::InstanceSpawnFailed {
+                        region_name: location.to_string(),
+                        reason: "Timed out waiting for VM creation".to_string(),
+                    }
+                    .into())
+                }
             }
-            _ => {
-                debug!(
-                    "[Azure] Waiting for VM creation (attempt {}/60)...",
-                    attempt
-                );
-                sleep(Duration::from_secs(10)).await;
-            }
-        }
-    }
-    Err(ComputeProvisioningError::InstanceSpawnFailed {
-        region_name: location.to_string(),
-        reason: "Timed out waiting for VM creation".to_string(),
-    }
-    .into())
+        },
+        60,
+        Duration::from_secs(10),
+    )
+    .await
 }

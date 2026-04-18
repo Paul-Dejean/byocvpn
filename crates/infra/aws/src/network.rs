@@ -2,8 +2,9 @@ use std::{net::Ipv6Addr, str::FromStr};
 
 use aws_sdk_ec2::{
     Client as Ec2Client,
+    error::ProvideErrorMetadata,
     types::{
-        AttributeBooleanValue, Filter, IpPermission, IpRange, Ipv6Range, ResourceType, Subnet, Tag,
+        AttributeBooleanValue, Filter, IpPermission, IpRange, Ipv6Range, ResourceType, Tag,
         TagSpecification,
     },
 };
@@ -15,7 +16,7 @@ use crate::{
     constants::{IPV4_ALL_CIDR, IPV6_ALL_CIDR},
 };
 
-pub(super) async fn create_security_group(
+async fn create_security_group(
     ec2_client: &Ec2Client,
     vpc_id: &str,
     group_name: &str,
@@ -73,7 +74,7 @@ pub(super) async fn create_security_group(
     Ok(group_id)
 }
 
-pub(super) async fn get_security_group_by_name(
+async fn get_security_group_by_name(
     ec2_client: &Ec2Client,
     name: &str,
 ) -> Result<Option<String>> {
@@ -97,7 +98,154 @@ pub(super) async fn get_security_group_by_name(
     Ok(group_id)
 }
 
-pub(super) async fn create_vpc(
+fn build_desired_ingress_rules() -> Vec<IpPermission> {
+    vec![
+        IpPermission::builder()
+            .ip_protocol("udp")
+            .from_port(51820)
+            .to_port(51820)
+            .ip_ranges(IpRange::builder().cidr_ip(IPV4_ALL_CIDR).build())
+            .build(),
+        IpPermission::builder()
+            .ip_protocol("tcp")
+            .from_port(51820)
+            .to_port(51820)
+            .ip_ranges(IpRange::builder().cidr_ip(IPV4_ALL_CIDR).build())
+            .build(),
+        IpPermission::builder()
+            .ip_protocol("udp")
+            .from_port(51820)
+            .to_port(51820)
+            .ipv6_ranges(Ipv6Range::builder().cidr_ipv6(IPV6_ALL_CIDR).build())
+            .build(),
+        IpPermission::builder()
+            .ip_protocol("tcp")
+            .from_port(51820)
+            .to_port(51820)
+            .ipv6_ranges(Ipv6Range::builder().cidr_ipv6(IPV6_ALL_CIDR).build())
+            .build(),
+    ]
+}
+
+fn ingress_rule_matches_desired(
+    existing: &IpPermission,
+    desired: &IpPermission,
+) -> bool {
+    existing.ip_protocol() == desired.ip_protocol()
+        && existing.from_port() == desired.from_port()
+        && existing.to_port() == desired.to_port()
+        && existing
+            .ip_ranges()
+            .iter()
+            .any(|existing_range| {
+                desired
+                    .ip_ranges()
+                    .iter()
+                    .any(|desired_range| existing_range.cidr_ip() == desired_range.cidr_ip())
+            })
+        && existing
+            .ipv6_ranges()
+            .iter()
+            .any(|existing_range| {
+                desired
+                    .ipv6_ranges()
+                    .iter()
+                    .any(|desired_range| existing_range.cidr_ipv6() == desired_range.cidr_ipv6())
+            })
+}
+
+fn existing_rule_is_desired(
+    existing: &IpPermission,
+    desired_rules: &[IpPermission],
+) -> bool {
+    desired_rules
+        .iter()
+        .any(|desired| ingress_rule_matches_desired(existing, desired))
+}
+
+async fn patch_security_group_rules(
+    ec2_client: &Ec2Client,
+    security_group_id: &str,
+) -> Result<()> {
+    let describe_response = ec2_client
+        .describe_security_groups()
+        .group_ids(security_group_id)
+        .send()
+        .await
+        .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+            reason: sdk_error_message(&error),
+        })?;
+
+    let current_rules: Vec<IpPermission> = describe_response
+        .security_groups()
+        .first()
+        .map(|security_group| security_group.ip_permissions().to_vec())
+        .unwrap_or_default();
+
+    let desired_rules = build_desired_ingress_rules();
+
+    let rules_to_add: Vec<IpPermission> = desired_rules
+        .iter()
+        .filter(|desired| {
+            !current_rules
+                .iter()
+                .any(|existing| ingress_rule_matches_desired(existing, desired))
+        })
+        .cloned()
+        .collect();
+
+    let rules_to_remove: Vec<IpPermission> = current_rules
+        .into_iter()
+        .filter(|existing| !existing_rule_is_desired(existing, &desired_rules))
+        .collect();
+
+    if !rules_to_add.is_empty() {
+        let mut authorize_builder = ec2_client
+            .authorize_security_group_ingress()
+            .group_id(security_group_id);
+        for rule in rules_to_add {
+            authorize_builder = authorize_builder.ip_permissions(rule);
+        }
+        authorize_builder
+            .send()
+            .await
+            .map_err(|error| NetworkProvisioningError::SecurityGroupRuleConfigurationFailed {
+                reason: sdk_error_message(&error),
+            })?;
+    }
+
+    if !rules_to_remove.is_empty() {
+        let mut revoke_builder = ec2_client
+            .revoke_security_group_ingress()
+            .group_id(security_group_id);
+        for rule in rules_to_remove {
+            revoke_builder = revoke_builder.ip_permissions(rule);
+        }
+        revoke_builder
+            .send()
+            .await
+            .map_err(|error| NetworkProvisioningError::SecurityGroupRuleConfigurationFailed {
+                reason: sdk_error_message(&error),
+            })?;
+    }
+
+    Ok(())
+}
+
+pub async fn ensure_security_group(
+    ec2_client: &Ec2Client,
+    vpc_id: &str,
+    name: &str,
+    description: &str,
+) -> Result<String> {
+    if let Some(security_group_id) = get_security_group_by_name(ec2_client, name).await? {
+        patch_security_group_rules(ec2_client, &security_group_id).await?;
+        return Ok(security_group_id);
+    }
+    create_security_group(ec2_client, vpc_id, name, description).await
+}
+
+async fn create_vpc(
     ec2_client: &Ec2Client,
     cidr_block: &str,
     name: &str,
@@ -127,7 +275,7 @@ pub(super) async fn create_vpc(
     Ok(vpc_id.to_string())
 }
 
-pub(super) async fn get_vpc_by_name(ec2_client: &Ec2Client, name: &str) -> Result<Option<String>> {
+async fn get_vpc_by_name(ec2_client: &Ec2Client, name: &str) -> Result<Option<String>> {
     let filter = Filter::builder().name("tag:Name").values(name).build();
 
     let response = ec2_client
@@ -148,7 +296,14 @@ pub(super) async fn get_vpc_by_name(ec2_client: &Ec2Client, name: &str) -> Resul
     Ok(vpc_id)
 }
 
-pub(super) async fn create_subnet(
+pub async fn ensure_vpc(ec2: &Ec2Client, cidr: &str, name: &str) -> Result<String> {
+    if let Some(vpc_id) = get_vpc_by_name(ec2, name).await? {
+        return Ok(vpc_id);
+    }
+    create_vpc(ec2, cidr, name).await
+}
+
+async fn create_subnet(
     ec2_client: &Ec2Client,
     vpc_id: &str,
     cidr_block: &str,
@@ -181,6 +336,54 @@ pub(super) async fn create_subnet(
 
     info!("Created Subnet: {}", subnet_id);
     Ok(subnet_id.to_string())
+}
+
+async fn get_subnets_in_vpc(ec2_client: &Ec2Client, vpc_id: &str) -> Result<Vec<String>> {
+    let response = ec2_client
+        .describe_subnets()
+        .filters(
+            aws_sdk_ec2::types::Filter::builder()
+                .name("vpc-id")
+                .values(vpc_id)
+                .build(),
+        )
+        .send()
+        .await
+        .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+            reason: sdk_error_message(&error),
+        })?;
+
+    let subnet_ids = response
+        .subnets()
+        .iter()
+        .filter_map(|subnet| subnet.subnet_id())
+        .map(|subnet_id| subnet_id.to_string())
+        .collect();
+
+    Ok(subnet_ids)
+}
+
+pub async fn ensure_subnet(
+    ec2: &Ec2Client,
+    vpc_id: &str,
+    cidr: &str,
+    subnet_name: &str,
+) -> Result<String> {
+    let existing = get_subnets_in_vpc(ec2, vpc_id).await?;
+    if let Some(subnet_id) = existing.into_iter().next() {
+        return Ok(subnet_id);
+    }
+    let availability_zones = list_availability_zones(ec2).await?;
+    let availability_zone = availability_zones.first().ok_or(
+        NetworkProvisioningError::NetworkQueryFailed {
+            reason: "no availability zones found in region".to_string(),
+        },
+    )?;
+    let vpc_ipv6_cidr = get_vpc_ipv6_block(ec2, vpc_id).await?;
+    let ipv6_cidr = carve_ipv6_subnet(&vpc_ipv6_cidr, 0)?;
+    let subnet_id = create_subnet(ec2, vpc_id, cidr, &ipv6_cidr, availability_zone, subnet_name).await?;
+    enable_auto_ip_assign(ec2, &subnet_id).await?;
+    Ok(subnet_id)
 }
 
 pub(super) async fn list_availability_zones(ec2_client: &Ec2Client) -> Result<Vec<String>> {
@@ -242,7 +445,33 @@ pub(super) fn carve_ipv6_subnet(base_cidr: &str, index: u8) -> Result<String> {
     Ok(format!("{}/64", subnet))
 }
 
-pub(super) async fn create_and_attach_igw(ec2: &Ec2Client, vpc_id: &str) -> Result<String> {
+async fn get_internet_gateway(ec2: &Ec2Client, vpc_id: &str) -> Result<Option<String>> {
+    let response = ec2
+        .describe_internet_gateways()
+        .filters(
+            Filter::builder()
+                .name("attachment.vpc-id")
+                .values(vpc_id)
+                .build(),
+        )
+        .send()
+        .await
+        .map_err(
+            |error| NetworkProvisioningError::InternetGatewayOperationFailed {
+                reason: sdk_error_message(&error),
+            },
+        )?;
+
+    let igw_id = response
+        .internet_gateways()
+        .first()
+        .and_then(|igw| igw.internet_gateway_id())
+        .map(|igw_id| igw_id.to_string());
+
+    Ok(igw_id)
+}
+
+async fn create_internet_gateway(ec2: &Ec2Client, vpc_id: &str) -> Result<String> {
     let igw = ec2
         .create_internet_gateway()
         .send()
@@ -268,8 +497,33 @@ pub(super) async fn create_and_attach_igw(ec2: &Ec2Client, vpc_id: &str) -> Resu
             },
         )?;
 
-    info!("🌐 Internet Gateway {igw_id} attached to VPC {vpc_id}");
+    info!("Internet Gateway {igw_id} attached to VPC {vpc_id}");
     Ok(igw_id.to_string())
+}
+
+pub async fn ensure_internet_gateway(
+    ec2: &Ec2Client,
+    vpc_id: &str,
+    igw_name: &str,
+    route_table_name: &str,
+) -> Result<String> {
+    let igw_id = if let Some(existing_id) = get_internet_gateway(ec2, vpc_id).await? {
+        existing_id
+    } else {
+        create_internet_gateway(ec2, vpc_id).await?
+    };
+    let route_table_id = find_main_route_table(ec2, vpc_id).await?;
+    tag_resource_with_name(ec2, &route_table_id, route_table_name).await?;
+    tag_resource_with_name(ec2, &igw_id, igw_name).await?;
+    add_igw_routes_to_table(ec2, &route_table_id, &igw_id).await?;
+    Ok(igw_id)
+}
+
+fn is_route_already_exists_error<E: ProvideErrorMetadata>(error: &aws_sdk_ec2::error::SdkError<E>) -> bool {
+    if let aws_sdk_ec2::error::SdkError::ServiceError(service_error) = error {
+        return service_error.err().code() == Some("RouteAlreadyExists");
+    }
+    false
 }
 
 pub(super) async fn add_igw_routes_to_table(
@@ -277,35 +531,41 @@ pub(super) async fn add_igw_routes_to_table(
     route_table_id: &str,
     igw_id: &str,
 ) -> Result<()> {
-    if let Err(error) = ec2
+    let ipv4_result = ec2
         .create_route()
         .route_table_id(route_table_id)
         .destination_cidr_block(IPV4_ALL_CIDR)
         .gateway_id(igw_id)
         .send()
-        .await
-    {
-        warn!(
-            "[AWS] Failed to add IPv4 default route to {}: {}",
-            route_table_id, error
-        );
+        .await;
+
+    if let Err(error) = ipv4_result {
+        if !is_route_already_exists_error(&error) {
+            return Err(NetworkProvisioningError::RouteTableOperationFailed {
+                reason: sdk_error_message(&error),
+            }
+            .into());
+        }
     }
 
-    if let Err(error) = ec2
+    let ipv6_result = ec2
         .create_route()
         .route_table_id(route_table_id)
         .destination_ipv6_cidr_block(IPV6_ALL_CIDR)
         .gateway_id(igw_id)
         .send()
-        .await
-    {
-        warn!(
-            "[AWS] Failed to add IPv6 default route to {}: {}",
-            route_table_id, error
-        );
+        .await;
+
+    if let Err(error) = ipv6_result {
+        if !is_route_already_exists_error(&error) {
+            return Err(NetworkProvisioningError::RouteTableOperationFailed {
+                reason: sdk_error_message(&error),
+            }
+            .into());
+        }
     }
 
-    info!("✅ Added default routes to route table: {}", route_table_id);
+    info!("Added default routes to route table: {}", route_table_id);
     Ok(())
 }
 
@@ -364,24 +624,6 @@ pub(super) async fn find_main_route_table(ec2: &Ec2Client, vpc_id: &str) -> Resu
         })?;
 
     Ok(route_table_id.to_string())
-}
-
-pub async fn get_subnets_in_vpc(ec2_client: &Ec2Client, vpc_id: &str) -> Result<Vec<Subnet>> {
-    let response = ec2_client
-        .describe_subnets()
-        .filters(
-            aws_sdk_ec2::types::Filter::builder()
-                .name("vpc-id")
-                .values(vpc_id)
-                .build(),
-        )
-        .send()
-        .await
-        .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-            reason: sdk_error_message(&error),
-        })?;
-
-    Ok(response.subnets().to_vec())
 }
 
 pub async fn tag_resource_with_name(

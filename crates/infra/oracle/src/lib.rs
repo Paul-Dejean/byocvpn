@@ -1,5 +1,6 @@
 mod auth;
 mod client;
+mod models;
 pub mod credentials;
 mod instance;
 mod network;

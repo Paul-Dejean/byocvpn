@@ -38,6 +38,7 @@ pub enum GcpSpawnStepId {
     SetupVpc,
     SetupFirewall,
     RegionSubnet,
+    SetupNetwork,
     Launch,
     WireguardReady,
 }
@@ -49,6 +50,7 @@ impl GcpSpawnStepId {
             Self::SetupVpc => "setup_vpc",
             Self::SetupFirewall => "setup_firewall",
             Self::RegionSubnet => "region_subnet",
+            Self::SetupNetwork => "setup_network",
             Self::Launch => "launch",
             Self::WireguardReady => "wireguard_ready",
         }
@@ -64,6 +66,7 @@ impl FromStr for GcpSpawnStepId {
             "setup_vpc" => Ok(Self::SetupVpc),
             "setup_firewall" => Ok(Self::SetupFirewall),
             "region_subnet" => Ok(Self::RegionSubnet),
+            "setup_network" => Ok(Self::SetupNetwork),
             "launch" => Ok(Self::Launch),
             "wireguard_ready" => Ok(Self::WireguardReady),
             _ => Err(()),
@@ -80,20 +83,8 @@ impl CloudProvider for GcpProvider {
     fn get_spawn_steps(&self, _region: &str) -> Vec<SpawnStep> {
         vec![
             SpawnStep {
-                id: GcpSpawnStepId::SetupApi.as_str().into(),
-                label: "Enabling Compute Engine API".into(),
-            },
-            SpawnStep {
-                id: GcpSpawnStepId::SetupVpc.as_str().into(),
-                label: "Creating VPC network".into(),
-            },
-            SpawnStep {
-                id: GcpSpawnStepId::SetupFirewall.as_str().into(),
-                label: "Creating firewall rules".into(),
-            },
-            SpawnStep {
-                id: GcpSpawnStepId::RegionSubnet.as_str().into(),
-                label: "Creating regional subnet".into(),
+                id: GcpSpawnStepId::SetupNetwork.as_str().into(),
+                label: "Verifying network infrastructure".into(),
             },
             SpawnStep {
                 id: GcpSpawnStepId::Launch.as_str().into(),
@@ -116,16 +107,20 @@ impl CloudProvider for GcpProvider {
                 Ok(())
             }
             GcpSpawnStepId::SetupVpc => {
-                network::get_or_create_vpc(&self.client).await?;
+                network::ensure_vpc(&self.client).await?;
                 Ok(())
             }
             GcpSpawnStepId::SetupFirewall => {
-                network::get_or_create_firewall(&self.client).await?;
+                network::ensure_firewall_rules(&self.client).await?;
                 Ok(())
             }
             GcpSpawnStepId::RegionSubnet => {
-                network::get_or_create_subnet(&self.client, region).await?;
+                network::ensure_subnet(&self.client, region).await?;
                 Ok(())
+            }
+            GcpSpawnStepId::SetupNetwork => {
+                self.setup().await?;
+                self.enable_region(region).await
             }
             _ => Ok(()),
         }
@@ -137,17 +132,17 @@ impl CloudProvider for GcpProvider {
 
     async fn setup(&self) -> Result<()> {
         network::ensure_compute_api_enabled(&self.client).await?;
-        network::get_or_create_vpc(&self.client).await?;
-        network::get_or_create_firewall(&self.client).await?;
+        network::ensure_vpc(&self.client).await?;
+        network::ensure_firewall_rules(&self.client).await?;
         info!("GCP setup complete (VPC + firewall).");
         Ok(())
     }
 
     async fn enable_region(&self, region: &str) -> Result<()> {
         network::ensure_compute_api_enabled(&self.client).await?;
-        network::get_or_create_vpc(&self.client).await?;
-        network::get_or_create_firewall(&self.client).await?;
-        network::get_or_create_subnet(&self.client, region).await?;
+        network::ensure_vpc(&self.client).await?;
+        network::ensure_firewall_rules(&self.client).await?;
+        network::ensure_subnet(&self.client, region).await?;
         info!("GCP region {} enabled.", region);
         Ok(())
     }
@@ -185,7 +180,7 @@ impl CloudProvider for GcpProvider {
     }
 
     async fn spawn_instance(&self, params: &SpawnInstanceParams) -> Result<InstanceInfo> {
-        let subnet_self_link = network::get_or_create_subnet(&self.client, params.region)
+        let subnet_self_link = network::ensure_subnet(&self.client, params.region)
             .await
             .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {
                 reason: error.to_string(),

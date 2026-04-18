@@ -157,8 +157,10 @@ pub async fn spawn_instance(
             &*cloud_provider,
             &steps,
             &region,
+            &client_private_key,
             &server_private_key,
             &client_public_key,
+            &server_public_key,
             move |step_id, status, error| {
                 if let Err(error) = progress_handle.emit(
                     "spawn-progress",
@@ -190,24 +192,6 @@ pub async fn spawn_instance(
 
         match result {
             Ok((instance, entry)) => {
-                let provider_name = cloud_provider.get_provider_name();
-                if let Err(error) = commands::spawn::write_wireguard_config(
-                    &provider_name,
-                    &region,
-                    &instance,
-                    &client_private_key,
-                    &server_public_key,
-                )
-                .await
-                {
-                    if let Err(error) = app_handle.emit(
-                        "spawn-failed",
-                        json!({ "jobId": &job_id, "error": error.to_string() }),
-                    ) {
-                        warn!("Failed to emit spawn-failed: {}", error);
-                    }
-                    return;
-                }
                 if let Some(ledger) = LedgerStore::open(&app_handle) {
                     ledger.set_entry(&entry);
                 }

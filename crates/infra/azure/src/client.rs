@@ -2,13 +2,15 @@ use std::sync::Arc;
 
 use azure_identity::ClientSecretCredential;
 use byocvpn_core::error::{ComputeProvisioningError, Error, NetworkProvisioningError, Result};
+use byocvpn_core::retry::retry;
 use log::*;
 use reqwest::{Client as HttpClient, Response, StatusCode};
-use serde::Serialize;
-use serde_json::Value;
-use tokio::time::{Duration, sleep};
+use serde::{Serialize, de::DeserializeOwned};
+use serde_json::from_str;
+use tokio::time::Duration;
 
 use crate::auth::get_access_token;
+use crate::models::AsyncOperationResponse;
 
 const ARM_BASE: &str = "https://management.azure.com";
 
@@ -45,7 +47,7 @@ impl AzureClient {
         get_access_token(&self.credential).await
     }
 
-    pub async fn get(&self, url: &str) -> Result<Value> {
+    pub async fn get<T: DeserializeOwned>(&self, url: &str) -> Result<T> {
         debug!("[Azure] GET {}", url);
         let token = self.get_access_token().await?;
         let response = self
@@ -91,7 +93,7 @@ impl AzureClient {
         parse_lro_response("DELETE", url, response).await
     }
 
-    pub async fn post<B: Serialize>(&self, url: &str, body: &B) -> Result<Value> {
+    pub async fn post<B: Serialize, T: DeserializeOwned>(&self, url: &str, body: &B) -> Result<T> {
         debug!("[Azure] POST {}", url);
         let token = self.get_access_token().await?;
         let response = self
@@ -108,49 +110,59 @@ impl AzureClient {
     }
 
     pub async fn wait_for_async_operation(&self, operation_url: &str) -> Result<()> {
-        for attempt in 1..=120u32 {
-            let body = self.get(operation_url).await?;
-            match body["status"].as_str() {
-                Some("Succeeded") => return Ok(()),
-                Some("Failed") | Some("Canceled") => {
-                    let message = body["error"]["message"].as_str().unwrap_or("unknown error");
-                    return Err(ComputeProvisioningError::InstanceSpawnFailed {
-                        region_name: String::new(),
-                        reason: format!("ARM operation failed: {}", message),
+        retry(
+            || async move {
+                let operation: AsyncOperationResponse = self.get(operation_url).await?;
+                match operation.status.as_deref() {
+                    Some("Succeeded") => Ok(()),
+                    Some("Failed") | Some("Canceled") => {
+                        let message = operation
+                            .error
+                            .as_ref()
+                            .and_then(|error| error.message.as_deref())
+                            .unwrap_or("unknown error");
+                        Err(ComputeProvisioningError::InstanceSpawnFailed {
+                            region_name: String::new(),
+                            reason: format!("ARM operation failed: {}", message),
+                        }
+                        .into())
                     }
-                    .into());
+                    Some("InProgress") | Some("Running") | None => {
+                        debug!("[Azure] ARM operation in progress...");
+                        Err(Error::Transient {
+                            operation_name: "ARM async operation".to_string(),
+                        })
+                    }
+                    Some(other) => {
+                        warn!("[Azure] Unexpected ARM operation status: {}", other);
+                        Err(Error::Transient {
+                            operation_name: "ARM async operation".to_string(),
+                        })
+                    }
                 }
-                Some("InProgress") | Some("Running") | None => {
-                    debug!(
-                        "[Azure] ARM operation in progress (attempt {}/120)...",
-                        attempt
-                    );
-                    sleep(Duration::from_secs(5)).await;
-                }
-                Some(other) => {
-                    warn!("[Azure] Unexpected ARM operation status: {}", other);
-                    sleep(Duration::from_secs(5)).await;
-                }
-            }
-        }
-        Err(Error::Transient {
-            operation_name: "ARM async operation".to_string(),
-        })
+            },
+            120,
+            Duration::from_secs(5),
+        )
+        .await
     }
 }
 
-async fn parse_json_response(method: &str, url: &str, response: Response) -> Result<Value> {
+async fn parse_json_response<T: DeserializeOwned>(method: &str, url: &str, response: Response) -> Result<T> {
     let status = response.status();
 
     if status.is_success() {
-        if status == StatusCode::NO_CONTENT {
-            return Ok(Value::Null);
-        }
-        response.json::<Value>().await.map_err(|error| {
+        let body = response.text().await.map_err(|error| {
+            NetworkProvisioningError::NetworkQueryFailed {
+                reason: format!("Azure {} {} failed to read body: {}", method, url, error),
+            }
+        })?;
+        let json_str = if body.is_empty() { "null" } else { body.as_str() };
+        from_str(json_str).map_err(|error| {
             NetworkProvisioningError::NetworkQueryFailed {
                 reason: format!(
-                    "Azure {} {} succeeded but body is not JSON: {}",
-                    method, url, error
+                    "Azure {} {} succeeded but body is not JSON: {} — body: {}",
+                    method, url, error, body
                 ),
             }
             .into()

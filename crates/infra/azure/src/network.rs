@@ -1,10 +1,18 @@
 use byocvpn_core::error::{NetworkProvisioningError, Result};
+use byocvpn_core::retry::retry;
 use log::*;
 use serde::Serialize;
-use serde_json::json;
 use tokio::time::{Duration, sleep};
 
 use crate::client::AzureClient;
+use crate::models::{
+    AddressSpace, EmptyRequest, IpConfiguration, IpConfigurationProperties, LocationListResponse,
+    NicProperties, NicRequest, NicResponse, NsgProperties, NsgRequest, NsgResponse,
+    ProviderRegistrationResponse, PublicIpProperties, PublicIpRequest, PublicIpResponse,
+    PublicIpSku, ResourceGroupRequest, ResourceGroupResponse, ResourceReference, SecurityRule,
+    SecurityRuleProperties, SubnetRequest, SubnetRequestProperties, SubnetResponse, VnetProperties,
+    VnetRequest, VnetResponse, byocvpn_tags,
+};
 
 const API_VERSION_RESOURCE_GROUPS: &str = "2021-04-01";
 pub(crate) const API_VERSION_NETWORK: &str = "2024-05-01";
@@ -111,7 +119,7 @@ pub async fn list_regions(client: &AzureClient) -> Result<Vec<(String, String)>>
     let path = client.build_subscription_path("/locations");
     let url = client.build_arm_url(&path, API_VERSION_LOCATIONS);
 
-    let response =
+    let response: LocationListResponse =
         client
             .get(&url)
             .await
@@ -171,15 +179,16 @@ pub async fn list_regions(client: &AzureClient) -> Result<Vec<(String, String)>>
         ("chilecentral", "South America"),
     ];
 
-    let regions = response["value"]
-        .as_array()
-        .cloned()
+    let regions = response
+        .value
         .unwrap_or_default()
         .into_iter()
-        .filter_map(|location| {
-            let name = location["name"].as_str()?.to_string();
-
-            let category = location["metadata"]["regionCategory"].as_str()?;
+        .filter_map(|location_item| {
+            let name = location_item.name?;
+            let category = location_item
+                .metadata
+                .as_ref()
+                .and_then(|metadata| metadata.region_category.as_deref())?;
             if category != "Recommended" {
                 return None;
             }
@@ -210,20 +219,10 @@ pub async fn ensure_region_networking(
     client: &AzureClient,
     location: &str,
 ) -> Result<RegionNetworkIds> {
-    if get_resource_group_by_location(client, location)
-        .await?
-        .is_none()
-    {
-        create_resource_group(client, location).await?;
-    }
+    ensure_resource_group(client, location).await?;
     let nsg_id = ensure_nsg(client, location).await?;
-    if get_vnet(client, location).await?.is_none() {
-        create_vnet(client, location).await?;
-    }
-    let subnet_id = match get_subnet(client, location).await? {
-        Some(id) => id,
-        None => create_subnet(client, location, &nsg_id).await?,
-    };
+    ensure_vnet(client, location).await?;
+    let subnet_id = ensure_subnet(client, location, &nsg_id).await?;
     Ok(RegionNetworkIds { subnet_id, nsg_id })
 }
 
@@ -236,7 +235,7 @@ async fn put_with_provider_retry<B: Serialize>(
     let max_attempts = 120u32;
     for attempt in 1..=max_attempts {
         match client.put(url, body).await {
-            Ok(op_url) => return Ok(op_url),
+            Ok(operation_url) => return Ok(operation_url),
             Err(error) => {
                 let error_message = error.to_string();
                 if error_message.contains("MissingSubscriptionRegistration") {
@@ -256,8 +255,8 @@ async fn put_with_provider_retry<B: Serialize>(
                         client.build_subscription_path("/providers/Microsoft.Network/register");
                     let register_url =
                         client.build_arm_url(&register_path, API_VERSION_RESOURCE_GROUPS);
-                    match client.post(&register_url, &serde_json::Value::Null).await {
-                        Ok(body) => debug!("[Azure] Re-registration POST succeeded: {}", body),
+                    match client.post::<_, ProviderRegistrationResponse>(&register_url, &EmptyRequest {}).await {
+                        Ok(_) => debug!("[Azure] Re-registration POST succeeded"),
                         Err(reg_error) => {
                             warn!("[Azure] Re-registration POST failed: {}", reg_error)
                         }
@@ -288,13 +287,13 @@ pub async fn ensure_providers_registered(client: &AzureClient) -> Result<()> {
     for namespace in NAMESPACES {
         let status_path = client.build_subscription_path(&format!("/providers/{}", namespace));
         let status_url = client.build_arm_url(&status_path, API_VERSION_RESOURCE_GROUPS);
-        let state = client.get(&status_url).await.ok().and_then(|body| {
-            body["registrationState"]
-                .as_str()
-                .map(|state_str| state_str.to_string())
-        });
+        let registration_state = client
+            .get::<ProviderRegistrationResponse>(&status_url)
+            .await
+            .ok()
+            .and_then(|response| response.registration_state);
 
-        if state.as_deref() == Some("Registered") {
+        if registration_state.as_deref() == Some("Registered") {
             continue;
         }
 
@@ -303,41 +302,48 @@ pub async fn ensure_providers_registered(client: &AzureClient) -> Result<()> {
         let register_url = client.build_arm_url(&register_path, API_VERSION_RESOURCE_GROUPS);
         info!("[Azure] Registering provider '{}'...", namespace);
         client
-            .post(&register_url, &serde_json::Value::Null)
+            .post::<_, ProviderRegistrationResponse>(&register_url, &EmptyRequest {})
             .await
             .map_err(|error| NetworkProvisioningError::ProviderSetupFailed {
                 step: namespace.to_string(),
                 reason: error.to_string(),
             })?;
 
-        for attempt in 1..=60u32 {
-            sleep(Duration::from_secs(5)).await;
-            let body = client.get(&status_url).await.map_err(|error| {
-                NetworkProvisioningError::ProviderSetupFailed {
-                    step: namespace.to_string(),
-                    reason: error.to_string(),
+        retry(
+            || {
+                let status_url = status_url.clone();
+                async move {
+                    let response: ProviderRegistrationResponse =
+                        client.get(&status_url).await.map_err(|error| {
+                            NetworkProvisioningError::ProviderSetupFailed {
+                                step: namespace.to_string(),
+                                reason: error.to_string(),
+                            }
+                        })?;
+                    let state = response.registration_state.as_deref().unwrap_or("Unknown");
+                    debug!(
+                        "[Azure] Provider '{}' registration state: {}",
+                        namespace, state
+                    );
+                    if state == "Registered" {
+                        Ok::<(), byocvpn_core::error::Error>(())
+                    } else {
+                        Err(NetworkProvisioningError::CloudOperationTimedOut {
+                            operation: format!("{} provider registration", namespace),
+                        }
+                        .into())
+                    }
                 }
-            })?;
-            let registration_state = body["registrationState"].as_str().unwrap_or("Unknown");
-            debug!(
-                "[Azure] Provider '{}' registration state: {} (attempt {}/60)",
-                namespace, registration_state, attempt
-            );
-            if registration_state == "Registered" {
-                break;
-            }
-            if attempt == 60 {
-                return Err(NetworkProvisioningError::CloudOperationTimedOut {
-                    operation: format!("{} provider registration", namespace),
-                }
-                .into());
-            }
-        }
+            },
+            60,
+            Duration::from_secs(5),
+        )
+        .await?;
     }
     Ok(())
 }
 
-pub async fn get_resource_group_by_location(
+async fn get_resource_group_by_location(
     client: &AzureClient,
     location: &str,
 ) -> Result<Option<String>> {
@@ -345,21 +351,21 @@ pub async fn get_resource_group_by_location(
     let path = client.build_subscription_path(&format!("/resourceGroups/{}", resource_group));
     let url = client.build_arm_url(&path, API_VERSION_RESOURCE_GROUPS);
 
-    match client.get(&url).await {
+    match client.get::<ResourceGroupResponse>(&url).await {
         Ok(_) => Ok(Some(resource_group)),
         Err(_) => Ok(None),
     }
 }
 
-pub async fn create_resource_group(client: &AzureClient, location: &str) -> Result<()> {
+async fn create_resource_group(client: &AzureClient, location: &str) -> Result<()> {
     let resource_group = build_resource_group_name(location);
     let path = client.build_subscription_path(&format!("/resourceGroups/{}", resource_group));
     let url = client.build_arm_url(&path, API_VERSION_RESOURCE_GROUPS);
 
-    let body = json!({
-        "location": location,
-        "tags": { "created-by": "byocvpn" }
-    });
+    let body = ResourceGroupRequest {
+        location: location.to_string(),
+        tags: byocvpn_tags(),
+    };
 
     info!("[Azure] Creating resource group '{}'...", resource_group);
     let async_op_url = put_with_provider_retry(
@@ -373,19 +379,34 @@ pub async fn create_resource_group(client: &AzureClient, location: &str) -> Resu
         reason: format!("Failed to create resource group: {}", error),
     })?;
 
-    if let Some(op_url) = async_op_url {
+    if let Some(operation_url) = async_op_url {
         debug!(
             "[Azure] Waiting for resource group '{}' to be ready...",
             resource_group
         );
-        client.wait_for_async_operation(&op_url).await?;
+        client.wait_for_async_operation(&operation_url).await?;
     }
 
     info!("[Azure] Resource group '{}' created.", resource_group);
     Ok(())
 }
 
-pub async fn ensure_nsg(client: &AzureClient, location: &str) -> Result<String> {
+pub async fn ensure_resource_group(client: &AzureClient, location: &str) -> Result<()> {
+    if get_resource_group_by_location(client, location)
+        .await?
+        .is_none()
+    {
+        create_resource_group(client, location).await?;
+    } else {
+        debug!(
+            "[Azure] Resource group for '{}' already exists, skipping creation.",
+            location
+        );
+    }
+    Ok(())
+}
+
+async fn get_nsg(client: &AzureClient, location: &str) -> Result<Option<String>> {
     let resource_group = build_resource_group_name(location);
     let path = client.build_subscription_path(&format!(
         "/resourceGroups/{}/providers/Microsoft.Network/networkSecurityGroups/{}",
@@ -393,49 +414,141 @@ pub async fn ensure_nsg(client: &AzureClient, location: &str) -> Result<String> 
     ));
     let url = client.build_arm_url(&path, API_VERSION_NETWORK);
 
-    if let Ok(existing) = client.get(&url).await {
-        let nsg_id = existing["id"].as_str().unwrap_or_default().to_string();
-        debug!(
-            "[Azure] NSG '{}' already exists in {} (id: {}).",
-            NSG_NAME, location, nsg_id
-        );
-        return Ok(nsg_id);
+    match client.get::<NsgResponse>(&url).await {
+        Ok(response) => Ok(Some(response.id.unwrap_or_default())),
+        Err(_) => Ok(None),
+    }
+}
+
+fn build_wireguard_security_rules() -> Vec<SecurityRule> {
+    vec![
+        SecurityRule {
+            name: "AllowWireGuard".to_string(),
+            properties: SecurityRuleProperties {
+                priority: 1000,
+                protocol: "UDP".to_string(),
+                access: "Allow".to_string(),
+                direction: "Inbound".to_string(),
+                source_address_prefix: "*".to_string(),
+                source_port_range: "*".to_string(),
+                destination_address_prefix: "*".to_string(),
+                destination_port_range: "51820".to_string(),
+            },
+        },
+        SecurityRule {
+            name: "AllowHealthEndpoint".to_string(),
+            properties: SecurityRuleProperties {
+                priority: 1001,
+                protocol: "TCP".to_string(),
+                access: "Allow".to_string(),
+                direction: "Inbound".to_string(),
+                source_address_prefix: "*".to_string(),
+                source_port_range: "*".to_string(),
+                destination_address_prefix: "*".to_string(),
+                destination_port_range: "51820".to_string(),
+            },
+        },
+    ]
+}
+
+fn check_rule_matches(rule: &SecurityRule, name: &str, protocol: &str) -> bool {
+    if rule.name != name {
+        return false;
+    }
+    let expected_priority = if name == "AllowWireGuard" { 1000 } else { 1001 };
+    rule.properties.priority == expected_priority
+        && rule.properties.protocol.eq_ignore_ascii_case(protocol)
+        && rule.properties.access == "Allow"
+        && rule.properties.direction == "Inbound"
+        && rule.properties.destination_port_range == "51820"
+}
+
+async fn patch_nsg_rules(client: &AzureClient, location: &str) -> Result<()> {
+    let resource_group = build_resource_group_name(location);
+    let path = client.build_subscription_path(&format!(
+        "/resourceGroups/{}/providers/Microsoft.Network/networkSecurityGroups/{}",
+        resource_group, NSG_NAME
+    ));
+    let url = client.build_arm_url(&path, "2023-05-01");
+
+    let current_nsg: NsgResponse = client
+        .get(&url)
+        .await
+        .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+            reason: format!("Failed to fetch NSG for drift check: {}", error),
+        })?;
+
+    let security_rules = current_nsg
+        .properties
+        .as_ref()
+        .and_then(|properties| properties.security_rules.as_deref())
+        .unwrap_or(&[]);
+
+    let has_wireguard_rule = security_rules
+        .iter()
+        .any(|rule| check_rule_matches(rule, "AllowWireGuard", "UDP"));
+    let has_health_endpoint_rule = security_rules
+        .iter()
+        .any(|rule| check_rule_matches(rule, "AllowHealthEndpoint", "TCP"));
+
+    if has_wireguard_rule && has_health_endpoint_rule {
+        debug!("[Azure] NSG '{}' security rules are up to date.", NSG_NAME);
+        return Ok(());
     }
 
-    let body = json!({
-        "location": location,
-        "tags": { "created-by": "byocvpn" },
-        "properties": {
-            "securityRules": [
-                {
-                    "name": "AllowWireGuard",
-                    "properties": {
-                        "priority": 1000,
-                        "protocol": "UDP",
-                        "access": "Allow",
-                        "direction": "Inbound",
-                        "sourceAddressPrefix": "*",
-                        "sourcePortRange": "*",
-                        "destinationAddressPrefix": "*",
-                        "destinationPortRange": "51820"
-                    }
-                },
-                {
-                    "name": "AllowHealthEndpoint",
-                    "properties": {
-                        "priority": 1001,
-                        "protocol": "TCP",
-                        "access": "Allow",
-                        "direction": "Inbound",
-                        "sourceAddressPrefix": "*",
-                        "sourcePortRange": "*",
-                        "destinationAddressPrefix": "*",
-                        "destinationPortRange": "51820"
-                    }
-                }
-            ]
-        }
-    });
+    info!(
+        "[Azure] NSG '{}' security rules have drifted — patching...",
+        NSG_NAME
+    );
+
+    let nsg_location = current_nsg.location.unwrap_or_else(|| location.to_string());
+
+    let patch_body = NsgRequest {
+        location: nsg_location,
+        tags: current_nsg
+            .tags
+            .as_ref()
+            .and_then(|tags| serde_json::from_value(tags.clone()).ok())
+            .unwrap_or_else(byocvpn_tags),
+        properties: NsgProperties {
+            security_rules: build_wireguard_security_rules(),
+        },
+    };
+
+    let async_op_url = put_with_provider_retry(
+        client,
+        &url,
+        &patch_body,
+        &format!("NSG '{}' patch", NSG_NAME),
+    )
+    .await
+    .map_err(|error| NetworkProvisioningError::SecurityGroupCreationFailed {
+        reason: format!("Failed to patch NSG rules: {}", error),
+    })?;
+
+    if let Some(operation_url) = async_op_url {
+        client.wait_for_async_operation(&operation_url).await?;
+    }
+
+    info!("[Azure] NSG '{}' security rules patched.", NSG_NAME);
+    Ok(())
+}
+
+async fn create_nsg(client: &AzureClient, location: &str) -> Result<String> {
+    let resource_group = build_resource_group_name(location);
+    let path = client.build_subscription_path(&format!(
+        "/resourceGroups/{}/providers/Microsoft.Network/networkSecurityGroups/{}",
+        resource_group, NSG_NAME
+    ));
+    let url = client.build_arm_url(&path, API_VERSION_NETWORK);
+
+    let body = NsgRequest {
+        location: location.to_string(),
+        tags: byocvpn_tags(),
+        properties: NsgProperties {
+            security_rules: build_wireguard_security_rules(),
+        },
+    };
 
     info!("[Azure] Creating NSG '{}' in {}...", NSG_NAME, location);
     let async_op_url = put_with_provider_retry(client, &url, &body, &format!("NSG '{}'", NSG_NAME))
@@ -446,20 +559,32 @@ pub async fn ensure_nsg(client: &AzureClient, location: &str) -> Result<String> 
             },
         )?;
 
-    if let Some(op_url) = async_op_url {
+    if let Some(operation_url) = async_op_url {
         debug!(
             "[Azure] Waiting for NSG '{}' to be provisioned...",
             NSG_NAME
         );
-        client.wait_for_async_operation(&op_url).await?;
+        client.wait_for_async_operation(&operation_url).await?;
     }
 
-    let nsg = client.get(&url).await?;
+    let nsg: NsgResponse = client.get(&url).await?;
     info!("[Azure] NSG '{}' created in {}.", NSG_NAME, location);
-    Ok(nsg["id"].as_str().unwrap_or_default().to_string())
+    Ok(nsg.id.unwrap_or_default())
 }
 
-pub async fn get_vnet(client: &AzureClient, location: &str) -> Result<Option<String>> {
+pub async fn ensure_nsg(client: &AzureClient, location: &str) -> Result<String> {
+    if let Some(network_security_group_id) = get_nsg(client, location).await? {
+        debug!(
+            "[Azure] NSG '{}' already exists in {} (id: {}).",
+            NSG_NAME, location, network_security_group_id
+        );
+        patch_nsg_rules(client, location).await?;
+        return Ok(network_security_group_id);
+    }
+    create_nsg(client, location).await
+}
+
+async fn get_vnet(client: &AzureClient, location: &str) -> Result<Option<String>> {
     let resource_group = build_resource_group_name(location);
     let path = client.build_subscription_path(&format!(
         "/resourceGroups/{}/providers/Microsoft.Network/virtualNetworks/{}",
@@ -467,13 +592,13 @@ pub async fn get_vnet(client: &AzureClient, location: &str) -> Result<Option<Str
     ));
     let url = client.build_arm_url(&path, API_VERSION_NETWORK);
 
-    match client.get(&url).await {
-        Ok(body) => Ok(Some(body["id"].as_str().unwrap_or_default().to_string())),
+    match client.get::<VnetResponse>(&url).await {
+        Ok(response) => Ok(Some(response.id.unwrap_or_default())),
         Err(_) => Ok(None),
     }
 }
 
-pub async fn create_vnet(client: &AzureClient, location: &str) -> Result<String> {
+async fn create_vnet(client: &AzureClient, location: &str) -> Result<String> {
     let resource_group = build_resource_group_name(location);
     let path = client.build_subscription_path(&format!(
         "/resourceGroups/{}/providers/Microsoft.Network/virtualNetworks/{}",
@@ -481,18 +606,18 @@ pub async fn create_vnet(client: &AzureClient, location: &str) -> Result<String>
     ));
     let url = client.build_arm_url(&path, API_VERSION_NETWORK);
 
-    let body = json!({
-        "location": location,
-        "tags": { "created-by": "byocvpn" },
-        "properties": {
-            "addressSpace": {
-                "addressPrefixes": [
+    let body = VnetRequest {
+        location: location.to_string(),
+        tags: byocvpn_tags(),
+        properties: VnetProperties {
+            address_space: AddressSpace {
+                address_prefixes: vec![
                     build_vnet_cidr_for_location(location),
-                    build_vnet_ipv6_cidr_for_location(location)
-                ]
-            }
-        }
-    });
+                    build_vnet_ipv6_cidr_for_location(location),
+                ],
+            },
+        },
+    };
 
     info!("[Azure] Creating VNet '{}' in {}...", VPC_NAME, location);
     let async_op = put_with_provider_retry(client, &url, &body, &format!("VNet '{}'", VPC_NAME))
@@ -501,16 +626,35 @@ pub async fn create_vnet(client: &AzureClient, location: &str) -> Result<String>
             reason: error.to_string(),
         })?;
 
-    if let Some(op_url) = async_op {
-        client.wait_for_async_operation(&op_url).await?;
+    if let Some(operation_url) = async_op {
+        client.wait_for_async_operation(&operation_url).await?;
     }
 
-    let vnet = client.get(&url).await?;
+    let vnet: VnetResponse = client.get(&url).await?;
     info!("[Azure] VNet '{}' created in {}.", VPC_NAME, location);
-    Ok(vnet["id"].as_str().unwrap_or_default().to_string())
+    Ok(vnet.id.unwrap_or_default())
 }
 
-pub async fn get_subnet(client: &AzureClient, location: &str) -> Result<Option<String>> {
+pub async fn ensure_vnet(client: &AzureClient, location: &str) -> Result<String> {
+    if let Some(vnet_id) = get_vnet(client, location).await? {
+        debug!(
+            "[Azure] VNet '{}' already exists in {}.",
+            VPC_NAME, location
+        );
+        return Ok(vnet_id);
+    }
+    create_vnet(client, location).await
+}
+
+struct ExistingSubnet {
+    subnet_id: String,
+    address_prefixes: Vec<String>,
+}
+
+async fn get_subnet(
+    client: &AzureClient,
+    location: &str,
+) -> Result<Option<ExistingSubnet>> {
     let resource_group = build_resource_group_name(location);
     let path = client.build_subscription_path(&format!(
         "/resourceGroups/{}/providers/Microsoft.Network/virtualNetworks/{}/subnets/{}",
@@ -518,22 +662,20 @@ pub async fn get_subnet(client: &AzureClient, location: &str) -> Result<Option<S
     ));
     let url = client.build_arm_url(&path, API_VERSION_NETWORK);
 
-    match client.get(&url).await {
+    match client.get::<SubnetResponse>(&url).await {
         Ok(existing) => {
-            let has_ipv6 = existing["properties"]["addressPrefixes"]
-                .as_array()
-                .map(|prefixes| {
-                    prefixes.iter().any(|prefix| {
-                        prefix
-                            .as_str()
-                            .is_some_and(|prefix_str| prefix_str.contains(':'))
-                    })
-                })
-                .unwrap_or(false);
+            let address_prefixes: Vec<String> = existing
+                .properties
+                .as_ref()
+                .and_then(|properties| properties.address_prefixes.clone())
+                .unwrap_or_default();
+
+            let has_ipv6 = address_prefixes.iter().any(|prefix| prefix.contains(':'));
             if has_ipv6 {
-                Ok(Some(
-                    existing["id"].as_str().unwrap_or_default().to_string(),
-                ))
+                Ok(Some(ExistingSubnet {
+                    subnet_id: existing.id.unwrap_or_default(),
+                    address_prefixes,
+                }))
             } else {
                 info!(
                     "[Azure] Subnet '{}' exists but lacks IPv6 — will recreate as dual-stack.",
@@ -546,7 +688,7 @@ pub async fn get_subnet(client: &AzureClient, location: &str) -> Result<Option<S
     }
 }
 
-pub async fn create_subnet(client: &AzureClient, location: &str, nsg_id: &str) -> Result<String> {
+async fn create_subnet(client: &AzureClient, location: &str, nsg_id: &str) -> Result<String> {
     let resource_group = build_resource_group_name(location);
     let path = client.build_subscription_path(&format!(
         "/resourceGroups/{}/providers/Microsoft.Network/virtualNetworks/{}/subnets/{}",
@@ -557,12 +699,14 @@ pub async fn create_subnet(client: &AzureClient, location: &str, nsg_id: &str) -
     let cidr = build_subnet_cidr_for_location(location);
     let cidr_ipv6 = build_subnet_ipv6_cidr_for_location(location);
 
-    let body = json!({
-        "properties": {
-            "addressPrefixes": [cidr, cidr_ipv6],
-            "networkSecurityGroup": { "id": nsg_id }
-        }
-    });
+    let body = SubnetRequest {
+        properties: SubnetRequestProperties {
+            address_prefixes: vec![cidr.clone(), cidr_ipv6.clone()],
+            network_security_group: ResourceReference {
+                id: nsg_id.to_string(),
+            },
+        },
+    };
 
     info!(
         "[Azure] Creating subnet '{}' ({}, {}) in {}...",
@@ -575,16 +719,107 @@ pub async fn create_subnet(client: &AzureClient, location: &str, nsg_id: &str) -
                 reason: error.to_string(),
             })?;
 
-    if let Some(op_url) = async_op {
-        client.wait_for_async_operation(&op_url).await?;
+    if let Some(operation_url) = async_op {
+        client.wait_for_async_operation(&operation_url).await?;
     }
 
-    let subnet = client.get(&url).await?;
+    let subnet: SubnetResponse = client.get(&url).await?;
     info!(
         "[Azure] Subnet '{}' ({}) created in {}.",
         SUBNET_NAME, cidr, location
     );
-    Ok(subnet["id"].as_str().unwrap_or_default().to_string())
+    Ok(subnet.id.unwrap_or_default())
+}
+
+async fn patch_subnet_nsg_association(
+    client: &AzureClient,
+    location: &str,
+    nsg_id: &str,
+    address_prefixes: &[String],
+) -> Result<()> {
+    let resource_group = build_resource_group_name(location);
+    let path = client.build_subscription_path(&format!(
+        "/resourceGroups/{}/providers/Microsoft.Network/virtualNetworks/{}/subnets/{}",
+        resource_group, VPC_NAME, SUBNET_NAME
+    ));
+    let url = client.build_arm_url(&path, "2023-05-01");
+
+    info!(
+        "[Azure] Subnet '{}' NSG association has drifted — patching...",
+        SUBNET_NAME
+    );
+
+    let patch_body = SubnetRequest {
+        properties: SubnetRequestProperties {
+            address_prefixes: address_prefixes.to_vec(),
+            network_security_group: ResourceReference {
+                id: nsg_id.to_string(),
+            },
+        },
+    };
+
+    let async_op_url = put_with_provider_retry(
+        client,
+        &url,
+        &patch_body,
+        &format!("subnet '{}' NSG patch", SUBNET_NAME),
+    )
+    .await
+    .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {
+        reason: format!("Failed to patch subnet NSG association: {}", error),
+    })?;
+
+    if let Some(operation_url) = async_op_url {
+        client.wait_for_async_operation(&operation_url).await?;
+    }
+
+    info!(
+        "[Azure] Subnet '{}' NSG association patched.",
+        SUBNET_NAME
+    );
+    Ok(())
+}
+
+pub async fn ensure_subnet(client: &AzureClient, location: &str, nsg_id: &str) -> Result<String> {
+    if let Some(existing_subnet) = get_subnet(client, location).await? {
+        debug!(
+            "[Azure] Subnet '{}' already exists in {}.",
+            SUBNET_NAME, location
+        );
+
+        let resource_group = build_resource_group_name(location);
+        let path = client.build_subscription_path(&format!(
+            "/resourceGroups/{}/providers/Microsoft.Network/virtualNetworks/{}/subnets/{}",
+            resource_group, VPC_NAME, SUBNET_NAME
+        ));
+        let url = client.build_arm_url(&path, API_VERSION_NETWORK);
+        let subnet_body: SubnetResponse = client
+            .get(&url)
+            .await
+            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+                reason: format!("Failed to fetch subnet for drift check: {}", error),
+            })?;
+
+        let current_nsg_id = subnet_body
+            .properties
+            .as_ref()
+            .and_then(|properties| properties.network_security_group.as_ref())
+            .map(|reference| reference.id.as_str())
+            .unwrap_or_default();
+
+        if current_nsg_id != nsg_id {
+            patch_subnet_nsg_association(
+                client,
+                location,
+                nsg_id,
+                &existing_subnet.address_prefixes,
+            )
+            .await?;
+        }
+
+        return Ok(existing_subnet.subnet_id);
+    }
+    create_subnet(client, location, nsg_id).await
 }
 
 // ── VM network resources (public IPs, NIC) ───────────────────────────────────
@@ -630,20 +865,20 @@ fn build_public_ip_url(
     client.build_arm_url(&path, API_VERSION_NETWORK)
 }
 
-pub async fn get_public_ip_id(
+async fn get_public_ip_id(
     client: &AzureClient,
     location: &str,
     vm_name: &str,
     version: IpVersion,
 ) -> Result<Option<String>> {
     let url = build_public_ip_url(client, location, vm_name, version);
-    match client.get(&url).await {
-        Ok(body) => Ok(Some(body["id"].as_str().unwrap_or_default().to_string())),
+    match client.get::<PublicIpResponse>(&url).await {
+        Ok(response) => Ok(Some(response.id.unwrap_or_default())),
         Err(_) => Ok(None),
     }
 }
 
-pub async fn create_public_ip_address(
+async fn create_public_ip_address(
     client: &AzureClient,
     location: &str,
     vm_name: &str,
@@ -651,15 +886,17 @@ pub async fn create_public_ip_address(
 ) -> Result<String> {
     let url = build_public_ip_url(client, location, vm_name, version);
 
-    let body = json!({
-        "location": location,
-        "sku": { "name": "Standard" },
-        "tags": { "created-by": "byocvpn" },
-        "properties": {
-            "publicIPAllocationMethod": "Static",
-            "publicIPAddressVersion": version.get_address_version()
-        }
-    });
+    let body = PublicIpRequest {
+        location: location.to_string(),
+        sku: PublicIpSku {
+            name: "Standard".to_string(),
+        },
+        tags: byocvpn_tags(),
+        properties: PublicIpProperties {
+            public_ip_allocation_method: "Static".to_string(),
+            public_ip_address_version: version.get_address_version().to_string(),
+        },
+    };
 
     info!(
         "[Azure] Creating {} public IP for '{}'...",
@@ -676,18 +913,35 @@ pub async fn create_public_ip_address(
         }
     })?;
 
-    if let Some(op_url) = async_op_url {
-        client.wait_for_async_operation(&op_url).await?;
+    if let Some(operation_url) = async_op_url {
+        client.wait_for_async_operation(&operation_url).await?;
     }
 
-    let public_ip = client.get(&url).await?;
-    let public_ip_id = public_ip["id"].as_str().unwrap_or_default().to_string();
+    let public_ip: PublicIpResponse = client.get(&url).await?;
+    let public_ip_id = public_ip.id.unwrap_or_default();
     info!(
         "[Azure] {} public IP for '{}' created.",
         version.get_address_version(),
         vm_name
     );
     Ok(public_ip_id)
+}
+
+pub async fn ensure_public_ip(
+    client: &AzureClient,
+    location: &str,
+    vm_name: &str,
+    version: IpVersion,
+) -> Result<String> {
+    if let Some(existing_id) = get_public_ip_id(client, location, vm_name, version).await? {
+        debug!(
+            "[Azure] {} public IP for '{}' already exists.",
+            version.get_address_version(),
+            vm_name
+        );
+        return Ok(existing_id);
+    }
+    create_public_ip_address(client, location, vm_name, version).await
 }
 
 pub async fn get_public_ip_address(
@@ -697,11 +951,11 @@ pub async fn get_public_ip_address(
     version: IpVersion,
 ) -> Result<String> {
     let url = build_public_ip_url(client, location, vm_name, version);
-    let public_ip = client.get(&url).await?;
-    Ok(public_ip["properties"]["ipAddress"]
-        .as_str()
-        .unwrap_or_default()
-        .to_string())
+    let public_ip: PublicIpResponse = client.get(&url).await?;
+    Ok(public_ip
+        .properties
+        .and_then(|properties| properties.ip_address)
+        .unwrap_or_default())
 }
 
 pub async fn create_nic(
@@ -722,34 +976,45 @@ pub async fn create_nic(
     ));
     let url = client.build_arm_url(&path, API_VERSION_NETWORK);
 
-    let body = json!({
-        "location": location,
-        "tags": { "created-by": "byocvpn" },
-        "properties": {
-            "networkSecurityGroup": { "id": nsg_id },
-            "ipConfigurations": [
-                {
-                    "name": "ipconfig1",
-                    "properties": {
-                        "privateIPAllocationMethod": "Dynamic",
-                        "privateIPAddressVersion": "IPv4",
-                        "subnet": { "id": subnet_id },
-                        "publicIPAddress": { "id": public_ipv4_id },
-                        "primary": true
-                    }
+    let body = NicRequest {
+        location: location.to_string(),
+        tags: byocvpn_tags(),
+        properties: NicProperties {
+            network_security_group: ResourceReference {
+                id: nsg_id.to_string(),
+            },
+            ip_configurations: vec![
+                IpConfiguration {
+                    name: "ipconfig1".to_string(),
+                    properties: IpConfigurationProperties {
+                        private_ip_allocation_method: "Dynamic".to_string(),
+                        private_ip_address_version: "IPv4".to_string(),
+                        subnet: ResourceReference {
+                            id: subnet_id.to_string(),
+                        },
+                        public_ip_address: ResourceReference {
+                            id: public_ipv4_id.to_string(),
+                        },
+                        primary: Some(true),
+                    },
                 },
-                {
-                    "name": "ipconfig2",
-                    "properties": {
-                        "privateIPAllocationMethod": "Dynamic",
-                        "privateIPAddressVersion": "IPv6",
-                        "subnet": { "id": subnet_id },
-                        "publicIPAddress": { "id": public_ipv6_id }
-                    }
-                }
-            ]
-        }
-    });
+                IpConfiguration {
+                    name: "ipconfig2".to_string(),
+                    properties: IpConfigurationProperties {
+                        private_ip_allocation_method: "Dynamic".to_string(),
+                        private_ip_address_version: "IPv6".to_string(),
+                        subnet: ResourceReference {
+                            id: subnet_id.to_string(),
+                        },
+                        public_ip_address: ResourceReference {
+                            id: public_ipv6_id.to_string(),
+                        },
+                        primary: None,
+                    },
+                },
+            ],
+        },
+    };
 
     info!("[Azure] Creating NIC '{}' in {}...", nic_name, location);
     let async_op_url = client.put(&url, &body).await.map_err(|error| {
@@ -758,12 +1023,12 @@ pub async fn create_nic(
         }
     })?;
 
-    if let Some(op_url) = async_op_url {
-        client.wait_for_async_operation(&op_url).await?;
+    if let Some(operation_url) = async_op_url {
+        client.wait_for_async_operation(&operation_url).await?;
     }
 
-    let nic = client.get(&url).await?;
-    let nic_id = nic["id"].as_str().unwrap_or_default().to_string();
+    let nic: NicResponse = client.get(&url).await?;
+    let nic_id = nic.id.unwrap_or_default();
     info!("[Azure] NIC '{}' created in {}.", nic_name, location);
     Ok(nic_id)
 }
@@ -783,8 +1048,8 @@ async fn delete_network_resource(
 
     info!("[Azure] Deleting {} '{}'...", resource_type, resource_name);
     match client.delete(&url).await {
-        Ok(Some(op_url)) => {
-            if let Err(error) = client.wait_for_async_operation(&op_url).await {
+        Ok(Some(operation_url)) => {
+            if let Err(error) = client.wait_for_async_operation(&operation_url).await {
                 error!(
                     "[Azure] Failed to wait for {} '{}' deletion: {}",
                     resource_type, resource_name, error

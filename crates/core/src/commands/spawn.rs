@@ -18,8 +18,10 @@ pub async fn run_spawn_steps<F>(
     provider: &dyn CloudProvider,
     steps: &[SpawnStep],
     region: &str,
+    client_private_key: &str,
     server_private_key: &str,
     client_public_key: &str,
+    server_public_key: &str,
     on_step_progress: F,
 ) -> Result<InstanceInfo>
 where
@@ -35,6 +37,15 @@ where
                 {
                     Ok(instance) => {
                         on_step_progress("launch", SpawnStepStatus::Completed, None);
+                        let provider_name = provider.get_provider_name();
+                        write_wireguard_config(
+                            &provider_name,
+                            region,
+                            &instance,
+                            client_private_key,
+                            server_public_key,
+                        )
+                        .await?;
                         spawned_instance = Some(instance);
                     }
                     Err(error) => {

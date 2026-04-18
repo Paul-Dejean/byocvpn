@@ -141,9 +141,9 @@ export const useInstances = (regions: AwsRegion[]) => {
         ...prev,
         [job.jobId]: {
           jobId: job.jobId,
-          steps: job.steps.map((step) => ({
+          steps: job.steps.map((step, index) => ({
             ...step,
-            status: "pending" as const,
+            status: index === 0 ? ("running" as const) : ("pending" as const),
           })),
         },
       }));

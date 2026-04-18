@@ -1,21 +1,27 @@
+use std::collections::HashMap;
+
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use byocvpn_core::{
-    cloud_provider::{CloudProviderName, InstanceInfo, InstanceState, SpawnInstanceParams},
+    cloud_provider::{CloudProviderName, InstanceInfo, SpawnInstanceParams},
     error::{ComputeProvisioningError, Error as CoreError, Result},
 };
 use chrono::{DateTime, Utc};
-use serde_json::{Value, json};
 use tokio::time::{Duration, sleep};
 
 use crate::{
-    client::OciClient, startup_script::generate_server_startup_script, state::OciLifecycleState,
+    client::OciClient,
+    models::{
+        AvailabilityDomain, CreateVnicDetails, InstanceResponse, LaunchInstanceRequest,
+        ShapeConfig, SourceDetails, Vnic, VnicAttachment, byocvpn_tags,
+    },
+    startup_script::generate_server_startup_script,
+    state::OciLifecycleState,
 };
 use log::*;
 
 const INSTANCE_SHAPE: &str = "VM.Standard.A1.Flex";
 const INSTANCE_OCPUS: f32 = 1.0;
 const INSTANCE_MEMORY_GB: f32 = 6.0;
-
 const INSTANCE_DISPLAY_NAME: &str = "byocvpn-server";
 
 pub async fn spawn_instance(
@@ -31,53 +37,41 @@ pub async fn spawn_instance(
         generate_server_startup_script(params.server_private_key, params.client_public_key)?;
     let encoded_user_data = BASE64.encode(&user_data);
 
-    let mut create_vnic_details = json!({
-        "subnetId": subnet_ocid,
-        "assignPublicIp": true,
-    });
-    if subnet_has_ipv6 {
-        create_vnic_details["assignIpv6Ip"] = json!(true);
-    }
-
-    let body = json!({
-        "compartmentId": compartment_ocid,
-        "displayName": INSTANCE_DISPLAY_NAME,
-        "availabilityDomain": get_first_availability_domain(client, compartment_ocid).await?,
-        "shape": INSTANCE_SHAPE,
-        "shapeConfig": {
-            "ocpus": INSTANCE_OCPUS,
-            "memoryInGBs": INSTANCE_MEMORY_GB,
+    let body = LaunchInstanceRequest {
+        compartment_id: compartment_ocid.to_string(),
+        display_name: INSTANCE_DISPLAY_NAME.to_string(),
+        availability_domain: get_first_availability_domain(client, compartment_ocid).await?,
+        shape: INSTANCE_SHAPE.to_string(),
+        shape_config: ShapeConfig {
+            ocpus: INSTANCE_OCPUS,
+            memory_in_g_bs: INSTANCE_MEMORY_GB,
         },
-        "sourceDetails": {
-            "sourceType": "image",
-            "imageId": image_ocid,
+        source_details: SourceDetails {
+            source_type: "image".to_string(),
+            image_id: image_ocid.to_string(),
         },
-        "createVnicDetails": create_vnic_details,
-        "metadata": {
-            "user_data": encoded_user_data,
+        create_vnic_details: CreateVnicDetails {
+            subnet_id: subnet_ocid.to_string(),
+            assign_public_ip: true,
+            assign_ipv6_ip: subnet_has_ipv6.then_some(true),
         },
-        "freeformTags": {
-            "created-by": "byocvpn",
-        },
-    });
+        metadata: HashMap::from([("user_data".to_string(), encoded_user_data)]),
+        freeform_tags: byocvpn_tags(),
+    };
 
     debug!(
         "Launching OCI instance in {} (compartment {}, subnet {})",
         region, compartment_ocid, subnet_ocid
     );
-    let url = format!("{}/20160918/instances", client.build_core_base_url());
-    let response = client.post(&url, &body).await.map_err(|error| {
+    let url = client.build_core_url("/instances");
+    let response: InstanceResponse = client.post(&url, &body).await.map_err(|error| {
         ComputeProvisioningError::InstanceSpawnFailed {
             region_name: region.to_string(),
             reason: error.to_string(),
         }
     })?;
 
-    let instance_ocid = response["id"]
-        .as_str()
-        .ok_or(ComputeProvisioningError::MissingInstanceIdentifier)?
-        .to_string();
-
+    let instance_ocid = response.id.clone();
     debug!(
         "OCI instance {} created, waiting for RUNNING state",
         instance_ocid
@@ -85,7 +79,7 @@ pub async fn spawn_instance(
     wait_until_running(client, &instance_ocid, region).await?;
 
     let details = get_instance_details(client, &instance_ocid).await?;
-    let mut info = build_instance_info(&details, region)?;
+    let mut info = build_instance_info(&details, region);
     let (public_ip_v4, public_ip_v6) =
         get_public_ips(client, &instance_ocid, compartment_ocid).await;
     info.public_ip_v4 = public_ip_v4;
@@ -101,11 +95,7 @@ pub async fn spawn_instance(
 
 pub async fn terminate_instance(client: &OciClient, instance_ocid: &str) -> Result<()> {
     debug!("Terminating OCI instance {}", instance_ocid);
-    let url = format!(
-        "{}/20160918/instances/{}?preserveBootVolume=false",
-        client.build_core_base_url(),
-        instance_ocid
-    );
+    let url = client.build_core_url(&format!("/instances/{}?preserveBootVolume=false", instance_ocid));
     client.delete(&url).await.map_err(|error| {
         CoreError::from(ComputeProvisioningError::InstanceTerminationFailed {
             instance_identifier: instance_ocid.to_string(),
@@ -121,12 +111,8 @@ pub async fn list_instances(
     compartment_ocid: &str,
     region: &str,
 ) -> Result<Vec<InstanceInfo>> {
-    let url = format!(
-        "{}/20160918/instances?compartmentId={}&lifecycleState=RUNNING",
-        client.build_core_base_url(),
-        compartment_ocid
-    );
-    let response =
+    let url = client.build_core_url(&format!("/instances?compartmentId={}&lifecycleState=RUNNING", compartment_ocid));
+    let response: Vec<InstanceResponse> =
         client
             .get(&url)
             .await
@@ -136,21 +122,21 @@ pub async fn list_instances(
             })?;
 
     let mut instances: Vec<InstanceInfo> = response
-        .as_array()
-        .cloned()
-        .unwrap_or_default()
         .into_iter()
         .filter(|instance| {
-            instance["displayName"]
-                .as_str()
+            instance
+                .display_name
+                .as_deref()
                 .map(|name| name.contains("byocvpn"))
                 .unwrap_or(false)
-                || instance["freeformTags"]["created-by"]
-                    .as_str()
-                    .map(|tag_value| tag_value == "byocvpn")
+                || instance
+                    .freeform_tags
+                    .as_ref()
+                    .and_then(|tags| tags.get("created-by"))
+                    .map(|value| value == "byocvpn")
                     .unwrap_or(false)
         })
-        .filter_map(|instance| build_instance_info(&instance, region).ok())
+        .map(|instance| build_instance_info(&instance, region))
         .collect();
 
     let ip_results = futures::future::join_all(
@@ -172,17 +158,12 @@ async fn get_first_availability_domain(
     client: &OciClient,
     compartment_ocid: &str,
 ) -> Result<String> {
-    let url = format!(
-        "{}/20160918/availabilityDomains?compartmentId={}",
-        client.build_identity_base_url(),
-        compartment_ocid
-    );
-    let response = client.get(&url).await?;
-    response
-        .as_array()
-        .and_then(|availability_domains| availability_domains.first())
-        .and_then(|availability_domain| availability_domain["name"].as_str())
-        .map(|name| name.to_string())
+    let url = client.build_identity_url(&format!("/availabilityDomains?compartmentId={}", compartment_ocid));
+    let domains: Vec<AvailabilityDomain> = client.get(&url).await?;
+    domains
+        .into_iter()
+        .next()
+        .map(|domain| domain.name)
         .ok_or_else(|| {
             ComputeProvisioningError::InstanceSpawnFailed {
                 region_name: "unknown".to_string(),
@@ -192,12 +173,8 @@ async fn get_first_availability_domain(
         })
 }
 
-async fn get_instance_details(client: &OciClient, instance_ocid: &str) -> Result<Value> {
-    let url = format!(
-        "{}/20160918/instances/{}",
-        client.build_core_base_url(),
-        instance_ocid
-    );
+async fn get_instance_details(client: &OciClient, instance_ocid: &str) -> Result<InstanceResponse> {
+    let url = client.build_core_url(&format!("/instances/{}", instance_ocid));
     client.get(&url).await
 }
 
@@ -212,8 +189,7 @@ async fn wait_until_running(client: &OciClient, instance_ocid: &str, _region: &s
         match get_instance_details(client, instance_ocid).await {
             Ok(details) => {
                 not_found_count = 0;
-                let state = details["lifecycleState"].as_str().unwrap_or("");
-                match state {
+                match details.lifecycle_state.as_str() {
                     "RUNNING" => {
                         debug!("Instance {} reached RUNNING state", instance_ocid);
                         return Ok(());
@@ -222,7 +198,7 @@ async fn wait_until_running(client: &OciClient, instance_ocid: &str, _region: &s
                         return Err(ComputeProvisioningError::InstanceWaitFailed {
                             reason: format!(
                                 "Instance {} entered terminal state '{}'",
-                                instance_ocid, state
+                                instance_ocid, details.lifecycle_state
                             ),
                         }
                         .into());
@@ -254,87 +230,49 @@ async fn get_public_ips(
     instance_ocid: &str,
     compartment_ocid: &str,
 ) -> (String, String) {
-    let vnic_url = format!(
-        "{}/20160918/vnicAttachments?compartmentId={}&instanceId={}",
-        client.build_core_base_url(),
-        compartment_ocid,
-        instance_ocid
-    );
-    let Ok(vnic_attachments) = client.get(&vnic_url).await else {
+    let vnic_url = client.build_core_url(&format!("/vnicAttachments?compartmentId={}&instanceId={}", compartment_ocid, instance_ocid));
+    let Ok(vnic_attachments): Result<Vec<VnicAttachment>> = client.get(&vnic_url).await else {
         warn!(
             "Failed to fetch VNIC attachments for instance {}",
             instance_ocid
         );
         return (String::new(), String::new());
     };
-    let vnic_ocid = vnic_attachments
-        .as_array()
-        .and_then(|list| list.first())
-        .and_then(|attachment| attachment["vnicId"].as_str())
-        .unwrap_or_default()
-        .to_string();
-    if vnic_ocid.is_empty() {
+    let Some(vnic_ocid) = vnic_attachments.into_iter().next().map(|attachment| attachment.vnic_id) else {
         warn!("No VNIC attachment found for instance {}", instance_ocid);
         return (String::new(), String::new());
-    }
+    };
 
-    let vnic_url = format!(
-        "{}/20160918/vnics/{}",
-        client.build_core_base_url(),
-        vnic_ocid
-    );
-    let Ok(vnic) = client.get(&vnic_url).await else {
+    let vnic_url = client.build_core_url(&format!("/vnics/{}", vnic_ocid));
+    let Ok(vnic): Result<Vnic> = client.get(&vnic_url).await else {
         warn!(
             "Failed to fetch VNIC details for {} (instance {})",
             vnic_ocid, instance_ocid
         );
         return (String::new(), String::new());
     };
-    let public_ip_v4 = vnic["publicIp"].as_str().unwrap_or_default().to_string();
-    let public_ip_v6 = vnic["ipv6Addresses"]
-        .as_array()
-        .and_then(|list| list.first())
-        .and_then(|address| address.as_str())
-        .unwrap_or_default()
-        .to_string();
+    let public_ip_v4 = vnic.public_ip.unwrap_or_default();
+    let public_ip_v6 = vnic
+        .ipv6_addresses
+        .and_then(|addresses| addresses.into_iter().next())
+        .unwrap_or_default();
     (public_ip_v4, public_ip_v6)
 }
 
-fn build_instance_info(instance: &Value, region: &str) -> Result<InstanceInfo> {
-    let id = instance["id"]
-        .as_str()
-        .ok_or(ComputeProvisioningError::MissingInstanceIdentifier)?
-        .to_string();
-
-    let name = instance["displayName"]
-        .as_str()
-        .map(|display_name| display_name.to_string());
-
-    let state: InstanceState =
-        OciLifecycleState::from(instance["lifecycleState"].as_str().unwrap_or("UNKNOWN")).into();
-
-    let public_ip_v4 = instance["primaryPublicIp"]
-        .as_str()
-        .unwrap_or_default()
-        .to_string();
-
-    let public_ip_v6 = instance["primaryIpv6Address"]
-        .as_str()
-        .unwrap_or_default()
-        .to_string();
-
-    Ok(InstanceInfo {
-        id,
-        name,
-        state,
-        public_ip_v4,
-        public_ip_v6,
+fn build_instance_info(instance: &InstanceResponse, region: &str) -> InstanceInfo {
+    InstanceInfo {
+        id: instance.id.clone(),
+        name: instance.display_name.clone(),
+        state: OciLifecycleState::from(instance.lifecycle_state.as_str()).into(),
+        public_ip_v4: String::new(),
+        public_ip_v6: String::new(),
         region: region.to_string(),
         provider: CloudProviderName::Oracle,
-        instance_type: instance["shape"].as_str().unwrap_or_default().to_string(),
-        launched_at: instance["timeCreated"]
-            .as_str()
+        instance_type: instance.shape.clone(),
+        launched_at: instance
+            .time_created
+            .as_deref()
             .and_then(|timestamp| DateTime::parse_from_rfc3339(timestamp).ok())
             .map(|datetime| datetime.with_timezone(&Utc)),
-    })
+    }
 }

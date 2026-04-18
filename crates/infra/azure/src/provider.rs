@@ -7,7 +7,7 @@ use byocvpn_core::{
         TerminateInstanceParams,
     },
     commands::setup::Region,
-    error::{NetworkProvisioningError, Result},
+    error::Result,
 };
 use log::*;
 use serde_json::Value;
@@ -37,6 +37,7 @@ impl AzureProvider {
 pub enum AzureSpawnStepId {
     RegionResourceGroup,
     RegionVnet,
+    SetupNetwork,
     Launch,
     WireguardReady,
 }
@@ -46,6 +47,7 @@ impl AzureSpawnStepId {
         match self {
             Self::RegionResourceGroup => "region_resource_group",
             Self::RegionVnet => "region_vnet",
+            Self::SetupNetwork => "setup_network",
             Self::Launch => "launch",
             Self::WireguardReady => "wireguard_ready",
         }
@@ -59,6 +61,7 @@ impl FromStr for AzureSpawnStepId {
         match s {
             "region_resource_group" => Ok(Self::RegionResourceGroup),
             "region_vnet" => Ok(Self::RegionVnet),
+            "setup_network" => Ok(Self::SetupNetwork),
             "launch" => Ok(Self::Launch),
             "wireguard_ready" => Ok(Self::WireguardReady),
             _ => Err(()),
@@ -75,12 +78,8 @@ impl CloudProvider for AzureProvider {
     fn get_spawn_steps(&self, _region: &str) -> Vec<SpawnStep> {
         vec![
             SpawnStep {
-                id: AzureSpawnStepId::RegionResourceGroup.as_str().into(),
-                label: "Creating resource group".into(),
-            },
-            SpawnStep {
-                id: AzureSpawnStepId::RegionVnet.as_str().into(),
-                label: "Creating VNet and subnet".into(),
+                id: AzureSpawnStepId::SetupNetwork.as_str().into(),
+                label: "Verifying network infrastructure".into(),
             },
             SpawnStep {
                 id: AzureSpawnStepId::Launch.as_str().into(),
@@ -99,43 +98,15 @@ impl CloudProvider for AzureProvider {
         };
         match step {
             AzureSpawnStepId::RegionResourceGroup => {
-                if network::get_resource_group_by_location(&self.client, region)
-                    .await?
-                    .is_none()
-                {
-                    network::create_resource_group(&self.client, region).await?;
-                } else {
-                    debug!(
-                        "[Azure] Resource group for '{}' already exists, skipping creation.",
-                        region
-                    );
-                }
-                Ok(())
+                network::ensure_resource_group(&self.client, region).await
             }
             AzureSpawnStepId::RegionVnet => {
                 let nsg_id = network::ensure_nsg(&self.client, region).await?;
-                if network::get_vnet(&self.client, region).await?.is_none() {
-                    network::create_vnet(&self.client, region).await?;
-                } else {
-                    debug!(
-                        "[Azure] VNet for '{}' already exists, skipping creation.",
-                        region
-                    );
-                }
-                if network::get_subnet(&self.client, region).await?.is_none() {
-                    network::create_subnet(&self.client, region, &nsg_id)
-                        .await
-                        .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {
-                            reason: error.to_string(),
-                        })?;
-                } else {
-                    debug!(
-                        "[Azure] Subnet for '{}' already exists, skipping creation.",
-                        region
-                    );
-                }
+                network::ensure_vnet(&self.client, region).await?;
+                network::ensure_subnet(&self.client, region, &nsg_id).await?;
                 Ok(())
             }
+            AzureSpawnStepId::SetupNetwork => self.enable_region(region).await,
             _ => Ok(()),
         }
     }

@@ -1,8 +1,8 @@
 use byocvpn_core::error::{NetworkProvisioningError, Result};
 use google_cloud_auth::credentials::Credentials;
 use reqwest::{Client as HttpClient, Response, StatusCode};
-use serde::Serialize;
-use serde_json::{Value, from_str};
+use serde::{Serialize, de::DeserializeOwned};
+use serde_json::from_str;
 
 use crate::auth::fetch_bearer_token;
 use log::*;
@@ -33,7 +33,7 @@ impl GcpClient {
         fetch_bearer_token(&self.credentials).await
     }
 
-    pub async fn get(&self, url: &str) -> Result<Value> {
+    pub async fn get<T: DeserializeOwned>(&self, url: &str) -> Result<T> {
         debug!("[GCP] GET {}", url);
         let token = self.get_bearer_token().await?;
         let response = self
@@ -48,7 +48,7 @@ impl GcpClient {
         parse_response("GET", url, response).await
     }
 
-    pub async fn post<B: Serialize>(&self, url: &str, body: &B) -> Result<Value> {
+    pub async fn post<B: Serialize, T: DeserializeOwned>(&self, url: &str, body: &B) -> Result<T> {
         debug!("[GCP] POST {}", url);
         let token = self.get_bearer_token().await?;
         let response = self
@@ -64,7 +64,7 @@ impl GcpClient {
         parse_response("POST", url, response).await
     }
 
-    pub async fn patch<B: Serialize>(&self, url: &str, body: &B) -> Result<Value> {
+    pub async fn patch<B: Serialize, T: DeserializeOwned>(&self, url: &str, body: &B) -> Result<T> {
         debug!("[GCP] PATCH {}", url);
         let token = self.get_bearer_token().await?;
         let response = self
@@ -104,7 +104,7 @@ impl GcpClient {
     }
 }
 
-async fn parse_response(method: &str, url: &str, response: Response) -> Result<Value> {
+async fn parse_response<T: DeserializeOwned>(method: &str, url: &str, response: Response) -> Result<T> {
     let status = response.status();
     let body =
         response
@@ -116,10 +116,8 @@ async fn parse_response(method: &str, url: &str, response: Response) -> Result<V
 
     if status.is_success() {
         debug!("[GCP] {} {} → {}", method, url, status);
-        if body.is_empty() {
-            return Ok(Value::Null);
-        }
-        from_str(&body).map_err(|error| {
+        let json_str = if body.is_empty() { "null" } else { body.as_str() };
+        from_str(json_str).map_err(|error| {
             NetworkProvisioningError::NetworkQueryFailed {
                 reason: format!("Failed to parse GCP JSON: {} — body: {}", error, body),
             }
