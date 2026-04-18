@@ -13,7 +13,7 @@ use chrono::{DateTime, Utc};
 use log::*;
 use tokio::time::Duration;
 
-use crate::aws_error::sdk_error_message;
+use crate::aws_error::extract_error_message;
 use crate::constants::{SECURITY_GROUP_NAME, SUBNET_CIDR_BLOCK, SUBNET_NAME, VPC_CIDR_BLOCK, VPC_NAME};
 use crate::{config, network, startup_script, state::Ec2InstanceState};
 
@@ -73,7 +73,7 @@ pub(super) async fn spawn_instance(
         .await
         .map_err(|error| ComputeProvisioningError::InstanceSpawnFailed {
             region_name: region.to_string(),
-            reason: sdk_error_message(&error),
+            reason: extract_error_message(&error),
         })?;
     let instance = response
         .instances()
@@ -100,7 +100,7 @@ pub(super) async fn spawn_instance(
         .await
         .map_err(|error| ComputeProvisioningError::InstanceSpawnFailed {
             region_name: region.to_string(),
-            reason: sdk_error_message(&error),
+            reason: extract_error_message(&error),
         })?;
 
     let public_ip_v4 = desc
@@ -148,7 +148,7 @@ pub async fn terminate_instance(ec2_client: &Ec2Client, instance_id: &str) -> Re
         .map_err(
             |error| ComputeProvisioningError::InstanceTerminationFailed {
                 instance_identifier: instance_id.to_string(),
-                reason: sdk_error_message(&error),
+                reason: extract_error_message(&error),
             },
         )?;
 
@@ -167,7 +167,7 @@ pub(super) async fn list_instances_in_region(
         .await
         .map_err(|error| ComputeProvisioningError::InstanceSpawnFailed {
             region_name: region.to_string(),
-            reason: sdk_error_message(&error),
+            reason: extract_error_message(&error),
         })?;
 
     let instances = response
