@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, net::SocketAddr, path::Path};
+use std::{collections::VecDeque, net::SocketAddr};
 
 use boringtun::{
     noise::Tunn,
@@ -10,6 +10,7 @@ use byocvpn_core::{
     tunnel::{ConnectedInstance, Tunnel, TunnelMetrics},
 };
 use futures::StreamExt;
+use ipnet::IpNet;
 use log::*;
 use net_route::Handle as RouteHandle;
 use tokio::{net::UdpSocket, sync::watch};
@@ -20,34 +21,29 @@ use crate::{
     constants,
     routing::routes::{add_vpn_routes, update_server_host_route},
     tunnel_manager::{TUNNEL_MANAGER, TunnelHandle},
-    vpn::config::parse_wireguard_config,
 };
 
 pub async fn connect_vpn(
-    config_path: String,
+    instance_id: String,
+    private_key: Vec<u8>,
+    public_key: Vec<u8>,
+    endpoint: SocketAddr,
+    ipv4: IpNet,
+    ipv6: IpNet,
+    dns_servers: Vec<String>,
     region: String,
     provider: String,
     public_ip_v4: Option<String>,
     public_ip_v6: Option<String>,
 ) -> Result<()> {
-    info!("Connecting VPN: config={}, region={}, provider={}", config_path, region, provider);
-    let wg_config = parse_wireguard_config(&config_path).await?;
+    info!("Connecting VPN: instance={}, region={}, provider={}", instance_id, region, provider);
 
-    let instance_id = Path::new(&config_path)
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .map(|s| s.to_string())
-        .ok_or(ConfigurationError::InvalidValue {
-            field: "filename".to_string(),
-            reason: "unable to extract instance ID".to_string(),
-        })?;
-
-    let endpoint_ip = wg_config.endpoint.ip().to_string();
+    let endpoint_ip = endpoint.ip().to_string();
     let (public_ip_v4, public_ip_v6) = match (public_ip_v4, public_ip_v6) {
         (Some(v4), v6) => (Some(v4), v6),
         (None, Some(v6)) => (None, Some(v6)),
         (None, None) => {
-            if wg_config.endpoint.is_ipv4() {
+            if endpoint.is_ipv4() {
                 (Some(endpoint_ip), None)
             } else {
                 (None, Some(endpoint_ip))
@@ -64,8 +60,8 @@ pub async fn connect_vpn(
 
     let tun = DeviceBuilder::new()
         .name(tun_interface_name)
-        .ipv4(wg_config.ipv4.addr(), wg_config.ipv4.prefix_len(), None)
-        .ipv6(wg_config.ipv6.addr(), wg_config.ipv6.prefix_len())
+        .ipv4(ipv4.addr(), ipv4.prefix_len(), None)
+        .ipv6(ipv6.addr(), ipv6.prefix_len())
         .mtu(1280)
         .build_async()
         .map_err(|error| ConfigurationError::TunnelConfiguration {
@@ -95,13 +91,13 @@ pub async fn connect_vpn(
     }
 
     let private_key_bytes: [u8; 32] =
-        wg_config.private_key.as_slice().try_into().map_err(|_| {
+        private_key.as_slice().try_into().map_err(|_| {
             ConfigurationError::InvalidValue {
                 field: "private_key".to_string(),
                 reason: "Private key must be exactly 32 bytes".to_string(),
             }
         })?;
-    let public_key_bytes: [u8; 32] = wg_config.public_key.as_slice().try_into().map_err(|_| {
+    let public_key_bytes: [u8; 32] = public_key.as_slice().try_into().map_err(|_| {
         ConfigurationError::InvalidValue {
             field: "public_key".to_string(),
             reason: "Public key must be exactly 32 bytes".to_string(),
@@ -134,18 +130,18 @@ pub async fn connect_vpn(
         })?;
     debug!(
         "{:?} UDP socket bound to {}",
-        wg_config.endpoint,
+        endpoint,
         udp.local_addr()
             .map_err(|error| SystemError::TunnelIoFailed {
                 reason: format!("failed to get UDP local address: {}", error),
             })?
     );
-    udp.connect(wg_config.endpoint)
+    udp.connect(endpoint)
         .await
         .map_err(|error| SystemError::TunnelIoFailed {
             reason: format!("failed to connect UDP socket: {}", error),
         })?;
-    info!("UDP socket connected to {}", wg_config.endpoint);
+    info!("UDP socket connected to {}", endpoint);
 
     let (shutdown_tx, shutdown_rx) = watch::channel(());
 
@@ -270,9 +266,9 @@ pub async fn connect_vpn(
         .map_err(|_| SystemError::MutexPoisoned("TUNNEL_MANAGER".to_string()))?;
 
     info!("Adding VPN routes...");
-    add_vpn_routes(&iface_name, &wg_config.endpoint.ip().to_string()).await?;
+    add_vpn_routes(&iface_name, &endpoint.ip().to_string()).await?;
 
-    let route_monitor_server_ip = wg_config.endpoint.ip().to_string();
+    let route_monitor_server_ip = endpoint.ip().to_string();
     let (route_monitor_shutdown_tx, mut route_monitor_shutdown_rx) = watch::channel(());
     let route_monitor_task = tokio::spawn(async move {
         let route_handle = match RouteHandle::new() {
@@ -305,7 +301,7 @@ pub async fn connect_vpn(
 
     info!("Configuring DNS...");
     let optional_domain_name_system_override_guard: Option<DomainNameSystemOverrideGuard> = {
-        let domain_name_system_servers = wg_config.dns_servers;
+        let domain_name_system_servers = dns_servers;
 
         debug!(
             "Parsed DNS servers from config: {:?}",
@@ -338,7 +334,7 @@ pub async fn connect_vpn(
         route_monitor_task,
         route_monitor_shutdown: route_monitor_shutdown_tx,
         domain_name_system_override_guard: optional_domain_name_system_override_guard,
-        server_ip: wg_config.endpoint.ip().to_string(),
+        server_ip: endpoint.ip().to_string(),
         instance: Some(ConnectedInstance {
             instance_id,
             public_ip_v4,

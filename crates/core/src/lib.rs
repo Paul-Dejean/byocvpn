@@ -1,4 +1,5 @@
 pub mod cloud_provider;
+pub mod wireguard_config;
 pub mod commands;
 pub mod config;
 pub mod connectivity;

@@ -14,7 +14,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 rust-ini = "0.21.3"
 net-route = "0.4.6"
-ipnet = "2.11.0"
+ipnet = { version = "2.11.0", features = ["serde"] }
 
 boringtun = "0.6.0"
 once_cell = "1.21.3"

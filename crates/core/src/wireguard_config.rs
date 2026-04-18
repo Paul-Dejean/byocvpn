@@ -1,12 +1,14 @@
 use std::net::SocketAddr;
 
 use base64::{Engine, engine::general_purpose};
-use byocvpn_core::error::{ConfigurationError, Result};
 use ini::Ini;
 use ipnet::IpNet;
 use log::*;
 
+use crate::error::{ConfigurationError, Result};
+
 pub struct WireguardConfig {
+    pub instance_id: String,
     pub private_key: Vec<u8>,
     pub public_key: Vec<u8>,
     pub endpoint: SocketAddr,
@@ -55,6 +57,15 @@ pub async fn parse_wireguard_config(config_path: &str) -> Result<WireguardConfig
         })
     }
 
+    let instance_id = std::path::Path::new(config_path)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_string())
+        .ok_or(ConfigurationError::InvalidValue {
+            field: "filename".to_string(),
+            reason: "unable to extract instance ID".to_string(),
+        })?;
+
     let config =
         Ini::load_from_file(config_path).map_err(|error| ConfigurationError::InvalidFile {
             reason: format!("Failed to read config file: {}", error),
@@ -87,10 +98,15 @@ pub async fn parse_wireguard_config(config_path: &str) -> Result<WireguardConfig
         })?
         .clone();
 
-    let dns_servers = parse_domain_name_system_servers_from_interface_section(interface);
+    let dns_servers = parse_dns_servers_from_interface_section(interface);
 
-    debug!("Parsed WireGuard config: endpoint={}, ipv4={}, ipv6={}, dns_servers={:?}", endpoint, ipv4, ipv6, dns_servers);
+    debug!(
+        "Parsed WireGuard config: endpoint={}, ipv4={}, ipv6={}, dns_servers={:?}",
+        endpoint, ipv4, ipv6, dns_servers
+    );
+
     Ok(WireguardConfig {
+        instance_id,
         private_key,
         public_key,
         endpoint,
@@ -100,9 +116,7 @@ pub async fn parse_wireguard_config(config_path: &str) -> Result<WireguardConfig
     })
 }
 
-fn parse_domain_name_system_servers_from_interface_section(
-    interface_section: &ini::Properties,
-) -> Vec<String> {
+fn parse_dns_servers_from_interface_section(interface_section: &ini::Properties) -> Vec<String> {
     let Some(value) = interface_section.get("DNS") else {
         return Vec::new();
     };

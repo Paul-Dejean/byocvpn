@@ -65,13 +65,19 @@ pub async fn run_daemon() -> Result<()> {
 async fn handle_command(command: DaemonCommand) -> DaemonResponse {
     match command {
         DaemonCommand::Connect {
-            config_path,
+            instance_id,
+            private_key,
+            public_key,
+            endpoint,
+            ipv4,
+            ipv6,
+            dns_servers,
             region,
             provider,
             public_ip_v4,
             public_ip_v6,
         } => {
-            match connect_vpn(config_path, region, provider, public_ip_v4, public_ip_v6).await {
+            match connect_vpn(instance_id, private_key, public_key, endpoint, ipv4, ipv6, dns_servers, region, provider, public_ip_v4, public_ip_v6).await {
                 Ok(()) => DaemonResponse::Ok(Value::Null),
                 Err(error) => {
                     error!("Connect error: {}", error);

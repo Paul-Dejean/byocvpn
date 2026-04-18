@@ -1,4 +1,7 @@
+use std::net::SocketAddr;
+
 use async_trait::async_trait;
+use ipnet::IpNet;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -8,7 +11,13 @@ use crate::error::{DaemonError, Result};
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum DaemonCommand {
     Connect {
-        config_path: String,
+        instance_id: String,
+        private_key: Vec<u8>,
+        public_key: Vec<u8>,
+        endpoint: SocketAddr,
+        ipv4: IpNet,
+        ipv6: IpNet,
+        dns_servers: Vec<String>,
         region: String,
         provider: String,
         public_ip_v4: Option<String>,
