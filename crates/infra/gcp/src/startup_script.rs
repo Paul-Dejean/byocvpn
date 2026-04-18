@@ -6,6 +6,7 @@ use serde::Serialize;
 #[derive(Serialize)]
 struct StartupScriptContext {
     wg_config: String,
+    status_server_script: &'static str,
 }
 
 #[derive(Serialize)]
@@ -21,7 +22,10 @@ pub fn generate_server_startup_script(
     let wg_config = render_server_config(server_private_key, client_public_key)?;
 
     let template_text: &str = include_str!("templates/server_startup_script.sh.hbs");
-    let context = StartupScriptContext { wg_config };
+    let context = StartupScriptContext {
+        wg_config,
+        status_server_script: byocvpn_core::STATUS_SERVER_SCRIPT,
+    };
 
     let handlebars = Handlebars::new();
     let rendered = handlebars

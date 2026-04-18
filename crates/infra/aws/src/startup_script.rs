@@ -6,6 +6,7 @@ use serde::Serialize;
 #[derive(Serialize)]
 struct WireguardCloudInitContext {
     wg_config: String,
+    status_server_script: &'static str,
 }
 pub(super) fn generate_server_startup_script(
     server_private_key: &str,
@@ -16,7 +17,8 @@ pub(super) fn generate_server_startup_script(
     let template_text: &str = include_str!("templates/server_startup_script.sh.hbs");
 
     let context = WireguardCloudInitContext {
-        wg_config: wg_config,
+        wg_config,
+        status_server_script: byocvpn_core::STATUS_SERVER_SCRIPT,
     };
 
     let handlebars_registry = Handlebars::new();

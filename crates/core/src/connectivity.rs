@@ -3,6 +3,7 @@ use std::{
     time::Duration,
 };
 
+use serde::Deserialize;
 use tokio::{
     io::AsyncReadExt,
     net::TcpStream as AsyncTcpStream,
@@ -17,6 +18,11 @@ const PROBE_MAX_ATTEMPTS: u32 = 30;
 const PROBE_RETRY_DELAY_SECS: u64 = 10;
 
 const PROBE_CONNECT_TIMEOUT_SECS: u64 = 3;
+
+#[derive(Deserialize)]
+struct ServerStatus {
+    status: String,
+}
 
 pub async fn wait_until_ready(ip_address: &str) -> Result<()> {
     let address = format!("{}:51820", ip_address);
@@ -38,17 +44,26 @@ pub async fn wait_until_ready(ip_address: &str) -> Result<()> {
                 let mut buffer = Vec::new();
                 let _ = timeout(TokioDuration::from_secs(3), stream.read_to_end(&mut buffer)).await;
 
-                let response = String::from_utf8_lossy(&buffer).trim().to_string();
-                debug!("[probe] response: {:?}", response);
+                let raw = String::from_utf8_lossy(&buffer).trim().to_string();
+                debug!("[probe] response: {:?}", raw);
 
-                if response == "active" {
-                    debug!("[probe] instance ready");
-                    return Ok(());
-                } else {
-                    return Err(SystemError::ReadinessProbeFailed {
-                        reason: format!("wg-quick@wg0 status: {}", response),
+                match serde_json::from_str::<ServerStatus>(&raw) {
+                    Ok(ServerStatus { status }) if status == "ready" => {
+                        debug!("[probe] instance ready");
+                        return Ok(());
                     }
-                    .into());
+                    Ok(ServerStatus { status }) if status == "error" => {
+                        return Err(SystemError::ReadinessProbeFailed {
+                            reason: "WireGuard setup failed on the server".to_string(),
+                        }
+                        .into());
+                    }
+                    Ok(ServerStatus { status }) => {
+                        debug!("[probe] server status: {}, retrying...", status);
+                    }
+                    Err(_) => {
+                        debug!("[probe] unparseable response, retrying...");
+                    }
                 }
             }
             Ok(Err(error)) => {
