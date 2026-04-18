@@ -120,26 +120,49 @@ async fn add_route(destination: &str, interface: &str) -> Result<()> {
 }
 
 async fn delete_route(destination: &str, interface: &str) -> Result<()> {
-    let subnet: IpNet =
-        destination
-            .parse()
-            .map_err(|error| ConfigurationError::RouteConfiguration {
-                reason: format!("Invalid subnet {}: {}", destination, error),
-            })?;
+    let subnet: IpNet = destination
+        .parse()
+        .map_err(|error| ConfigurationError::RouteConfiguration {
+            reason: format!("Invalid subnet {}: {}", destination, error),
+        })?;
 
-    let ifindex = get_ifindex(interface).await?;
     let handle = Handle::new().map_err(|error| ConfigurationError::RouteConfiguration {
         reason: format!("failed to create route handle: {}", error),
     })?;
 
-    let route = Route::new(subnet.addr(), subnet.prefix_len()).with_ifindex(ifindex);
+    let route = if interface == "default" {
+        let default_route = handle
+            .default_route()
+            .await
+            .map_err(|error| ConfigurationError::RouteConfiguration {
+                reason: format!("failed to query default route: {}", error),
+            })?
+            .ok_or_else(|| ConfigurationError::RouteConfiguration {
+                reason: "No default route found".to_string(),
+            })?;
+        let gateway = default_route
+            .gateway
+            .ok_or_else(|| ConfigurationError::RouteConfiguration {
+                reason: "Default route has no gateway".to_string(),
+            })?;
+        let ifindex = get_ifindex(interface).await?;
+        Route::new(subnet.addr(), subnet.prefix_len())
+            .with_gateway(gateway)
+            .with_ifindex(ifindex)
+    } else {
+        let ifindex = get_ifindex(interface).await?;
+        Route::new(subnet.addr(), subnet.prefix_len()).with_ifindex(ifindex)
+    };
 
     match handle.delete(&route).await {
         Ok(_) => {
             debug!("Deleted route: {} dev {}", destination, interface);
             Ok(())
         }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+        Err(error)
+            if error.kind() == std::io::ErrorKind::NotFound
+                || error.raw_os_error() == Some(3) =>
+        {
             debug!("Route not found: {} dev {} (already removed)", destination, interface);
             Ok(())
         }
@@ -150,7 +173,7 @@ async fn delete_route(destination: &str, interface: &str) -> Result<()> {
             );
             error!("{}", error_message);
             Err(ConfigurationError::RouteConfiguration {
-                reason: format!("Invalid subnet {}: {}", destination, error),
+                reason: error_message,
             }
             .into())
         }
