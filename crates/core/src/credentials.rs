@@ -6,7 +6,7 @@ use tokio::fs::{create_dir_all, try_exists};
 
 use crate::error::{ConfigurationError, CredentialsError, Result};
 
-async fn credentials_path() -> Result<PathBuf> {
+async fn get_credentials_path() -> Result<PathBuf> {
     let home_dir = dirs::home_dir().ok_or(ConfigurationError::HomeDirectoryNotAvailable)?;
     let dir = home_dir.join(".byocvpn");
     if !try_exists(&dir)
@@ -32,7 +32,7 @@ pub struct CredentialStore {
 
 impl CredentialStore {
     pub async fn load() -> Result<Self> {
-        let path = credentials_path().await?;
+        let path = get_credentials_path().await?;
         debug!("Loading credentials from: {}", path.display());
         let ini = if path.exists() {
             let loaded = Ini::load_from_file(&path).map_err(|error| match error {
