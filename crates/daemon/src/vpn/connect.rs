@@ -15,12 +15,7 @@ use net_route::Handle as RouteHandle;
 use tokio::{net::UdpSocket, sync::watch};
 use tun_rs::DeviceBuilder;
 
-#[cfg(target_os = "linux")]
-use crate::routing::dns_linux::DomainNameSystemOverrideGuard;
-#[cfg(target_os = "macos")]
-use crate::routing::dns_macos::DomainNameSystemOverrideGuard;
-#[cfg(windows)]
-use crate::routing::dns_windows::DomainNameSystemOverrideGuard;
+use crate::routing::dns::DomainNameSystemOverrideGuard;
 use crate::{
     constants,
     routing::routes::{add_vpn_routes, update_server_host_route},

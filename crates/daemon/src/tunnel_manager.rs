@@ -6,12 +6,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-#[cfg(target_os = "linux")]
-use crate::routing::dns_linux::DomainNameSystemOverrideGuard;
-#[cfg(target_os = "macos")]
-use crate::routing::dns_macos::DomainNameSystemOverrideGuard;
-#[cfg(windows)]
-use crate::routing::dns_windows::DomainNameSystemOverrideGuard;
+use crate::routing::dns::DomainNameSystemOverrideGuard;
 
 pub struct TunnelHandle {
     pub shutdown: watch::Sender<()>,
