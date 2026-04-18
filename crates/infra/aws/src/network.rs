@@ -1,4 +1,4 @@
-use std::{net::Ipv6Addr, str::FromStr};
+use std::{collections::HashSet, net::Ipv6Addr, str::FromStr};
 
 use aws_sdk_ec2::{
     Client as Ec2Client,
@@ -98,69 +98,56 @@ async fn get_security_group_by_name(
     Ok(group_id)
 }
 
-fn build_desired_ingress_rules() -> Vec<IpPermission> {
-    vec![
-        IpPermission::builder()
-            .ip_protocol("udp")
-            .from_port(51820)
-            .to_port(51820)
-            .ip_ranges(IpRange::builder().cidr_ip(IPV4_ALL_CIDR).build())
-            .build(),
-        IpPermission::builder()
-            .ip_protocol("tcp")
-            .from_port(51820)
-            .to_port(51820)
-            .ip_ranges(IpRange::builder().cidr_ip(IPV4_ALL_CIDR).build())
-            .build(),
-        IpPermission::builder()
-            .ip_protocol("udp")
-            .from_port(51820)
-            .to_port(51820)
-            .ipv6_ranges(Ipv6Range::builder().cidr_ipv6(IPV6_ALL_CIDR).build())
-            .build(),
-        IpPermission::builder()
-            .ip_protocol("tcp")
-            .from_port(51820)
-            .to_port(51820)
-            .ipv6_ranges(Ipv6Range::builder().cidr_ipv6(IPV6_ALL_CIDR).build())
-            .build(),
-    ]
+#[derive(PartialEq, Eq, Hash, Clone)]
+struct IngressRule {
+    protocol: String,
+    port: i32,
+    cidr: String,
 }
 
-fn ingress_rule_matches_desired(
-    existing: &IpPermission,
-    desired: &IpPermission,
-) -> bool {
-    existing.ip_protocol() == desired.ip_protocol()
-        && existing.from_port() == desired.from_port()
-        && existing.to_port() == desired.to_port()
-        && existing
+impl IngressRule {
+    fn from_ip_permission(permission: &IpPermission) -> Vec<Self> {
+        let protocol = permission.ip_protocol().unwrap_or_default().to_string();
+        let port = permission.from_port().unwrap_or(0);
+        let mut rules: Vec<Self> = permission
             .ip_ranges()
             .iter()
-            .any(|existing_range| {
-                desired
-                    .ip_ranges()
-                    .iter()
-                    .any(|desired_range| existing_range.cidr_ip() == desired_range.cidr_ip())
-            })
-        && existing
-            .ipv6_ranges()
-            .iter()
-            .any(|existing_range| {
-                desired
-                    .ipv6_ranges()
-                    .iter()
-                    .any(|desired_range| existing_range.cidr_ipv6() == desired_range.cidr_ipv6())
-            })
+            .filter_map(|range| range.cidr_ip())
+            .map(|cidr| Self { protocol: protocol.clone(), port, cidr: cidr.to_string() })
+            .collect();
+        rules.extend(
+            permission
+                .ipv6_ranges()
+                .iter()
+                .filter_map(|range| range.cidr_ipv6())
+                .map(|cidr| Self { protocol: protocol.clone(), port, cidr: cidr.to_string() }),
+        );
+        rules
+    }
+
+    fn to_ip_permission(&self) -> IpPermission {
+        let mut builder = IpPermission::builder()
+            .ip_protocol(&self.protocol)
+            .from_port(self.port)
+            .to_port(self.port);
+        if self.cidr.contains(':') {
+            builder = builder.ipv6_ranges(Ipv6Range::builder().cidr_ipv6(&self.cidr).build());
+        } else {
+            builder = builder.ip_ranges(IpRange::builder().cidr_ip(&self.cidr).build());
+        }
+        builder.build()
+    }
 }
 
-fn existing_rule_is_desired(
-    existing: &IpPermission,
-    desired_rules: &[IpPermission],
-) -> bool {
-    desired_rules
-        .iter()
-        .any(|desired| ingress_rule_matches_desired(existing, desired))
+fn build_desired_ingress_rules() -> HashSet<IngressRule> {
+    [("udp", IPV4_ALL_CIDR), ("tcp", IPV4_ALL_CIDR), ("udp", IPV6_ALL_CIDR), ("tcp", IPV6_ALL_CIDR)]
+        .into_iter()
+        .map(|(protocol, cidr)| IngressRule {
+            protocol: protocol.to_string(),
+            port: 51820,
+            cidr: cidr.to_string(),
+        })
+        .collect()
 }
 
 async fn patch_security_group_rules(
@@ -176,27 +163,27 @@ async fn patch_security_group_rules(
             reason: extract_error_message(&error),
         })?;
 
-    let current_rules: Vec<IpPermission> = describe_response
+    let current_permissions: Vec<IpPermission> = describe_response
         .security_groups()
         .first()
         .map(|security_group| security_group.ip_permissions().to_vec())
         .unwrap_or_default();
 
+    let current_rules: HashSet<IngressRule> = current_permissions
+        .iter()
+        .flat_map(IngressRule::from_ip_permission)
+        .collect();
+
     let desired_rules = build_desired_ingress_rules();
 
     let rules_to_add: Vec<IpPermission> = desired_rules
-        .iter()
-        .filter(|desired| {
-            !current_rules
-                .iter()
-                .any(|existing| ingress_rule_matches_desired(existing, desired))
-        })
-        .cloned()
+        .difference(&current_rules)
+        .map(IngressRule::to_ip_permission)
         .collect();
 
     let rules_to_remove: Vec<IpPermission> = current_rules
-        .into_iter()
-        .filter(|existing| !existing_rule_is_desired(existing, &desired_rules))
+        .difference(&desired_rules)
+        .map(IngressRule::to_ip_permission)
         .collect();
 
     if !rules_to_add.is_empty() {
