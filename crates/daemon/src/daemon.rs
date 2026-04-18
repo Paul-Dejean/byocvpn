@@ -30,8 +30,7 @@ pub async fn run_daemon() -> Result<()> {
 
     let mut listener = IpcSocket::bind(socket_path.clone()).await?;
 
-    info!("Daemon listening on {}", socket_path.to_string_lossy());
-    info!("process id: {}", std::process::id());
+    info!("Daemon listening on {} (pid: {})", socket_path.to_string_lossy(), std::process::id());
 
     loop {
         let mut stream = listener.accept().await?;

@@ -21,7 +21,6 @@ pub struct TunnelHandle {
     pub metrics_shutdown: watch::Sender<()>,
     pub route_monitor_task: JoinHandle<()>,
     pub route_monitor_shutdown: watch::Sender<()>,
-    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     pub domain_name_system_override_guard: Option<DomainNameSystemOverrideGuard>,
     pub server_ip: String,
     pub instance: Option<ConnectedInstance>,

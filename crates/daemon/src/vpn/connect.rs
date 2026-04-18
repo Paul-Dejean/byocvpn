@@ -309,7 +309,6 @@ pub async fn connect_vpn(
     });
 
     info!("Configuring DNS...");
-    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     let optional_domain_name_system_override_guard: Option<DomainNameSystemOverrideGuard> = {
         let domain_name_system_servers = wg_config.dns_servers;
 
@@ -343,7 +342,6 @@ pub async fn connect_vpn(
         metrics_shutdown: metrics_shutdown_tx,
         route_monitor_task,
         route_monitor_shutdown: route_monitor_shutdown_tx,
-        #[cfg(any(target_os = "macos", target_os = "linux", windows))]
         domain_name_system_override_guard: optional_domain_name_system_override_guard,
         server_ip: wg_config.endpoint.ip().to_string(),
         instance: Some(ConnectedInstance {

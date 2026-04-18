@@ -87,10 +87,7 @@ pub async fn parse_wireguard_config(config_path: &str) -> Result<WireguardConfig
         })?
         .clone();
 
-    #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     let dns_servers = parse_domain_name_system_servers_from_interface_section(interface);
-    #[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
-    let dns_servers = Vec::new();
 
     debug!("Parsed WireGuard config: endpoint={}, ipv4={}, ipv6={}, dns_servers={:?}", endpoint, ipv4, ipv6, dns_servers);
     Ok(WireguardConfig {

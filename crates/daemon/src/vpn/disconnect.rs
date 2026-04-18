@@ -29,7 +29,6 @@ pub async fn disconnect_vpn() -> Result<()> {
         remove_vpn_routes(tun_interface_name, &handle.server_ip).await;
         info!("[VPN Disconnect] Removed VPN routes.");
 
-        #[cfg(any(target_os = "macos", target_os = "linux", windows))]
         if let Some(mut domain_name_system_override_guard) =
             handle.domain_name_system_override_guard.take()
         {
