@@ -1,5 +1,3 @@
-#![cfg(unix)]
-
 use std::path::PathBuf;
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};

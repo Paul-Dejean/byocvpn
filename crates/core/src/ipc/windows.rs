@@ -1,5 +1,3 @@
-#![cfg(windows)]
-
 use std::path::PathBuf;
 
 use tokio::{
