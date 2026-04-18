@@ -87,9 +87,7 @@ async fn add_route(destination: &str, interface: &str) -> Result<()> {
                 .ok_or_else(|| ConfigurationError::RouteConfiguration {
                     reason: "Default route has no gateway".to_string(),
                 })?;
-        Route::new(subnet.addr(), subnet.prefix_len())
-            .with_gateway(gateway)
-            .with_ifindex(ifindex)
+        Route::new(subnet.addr(), subnet.prefix_len()).with_gateway(gateway)
     } else {
         Route::new(subnet.addr(), subnet.prefix_len()).with_ifindex(ifindex)
     };
