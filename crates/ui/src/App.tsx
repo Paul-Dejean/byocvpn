@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Toaster } from "react-hot-toast";
 
 import "./App.css";
+import "flag-icons/css/flag-icons.min.css";
 import {
   VpnPage,
   LandingPage,

@@ -1,5 +1,6 @@
 import { Instance, RegionGroup, SpawnJobState } from "../../types";
 import { getRegionInfo } from "../../types/regionInfo";
+import { FlagIcon } from "../FlagIcon";
 import { ProviderIcon } from "../providers/ProviderIcon";
 
 interface ServerCardProps {
@@ -54,7 +55,7 @@ export function ServerCard({
     >
       <div className={`flex items-center justify-between ${isSpawning ? "mb-2" : ""}`}>
         <div className="flex items-center gap-2">
-          <span className="text-lg">{regionInfo.flag}</span>
+          <FlagIcon countryCode={regionInfo.countryCode} className="text-lg" />
           <div>
             <p className="font-medium text-sm">
               {regionInfo.city || instance.name || "VPN Server"}

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Instance } from "../../types";
 import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
 import { getRegionInfo } from "../../types/regionInfo";
+import { FlagIcon } from "../FlagIcon";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -41,7 +42,7 @@ export function ConnectedView({ connectedInstance }: ConnectedViewProps) {
         {/* Location + IPs */}
         <div className="space-y-2 mb-2">
           <div className="flex items-center gap-2.5">
-            <span className="text-xl leading-none">{regionInfo.flag}</span>
+            <FlagIcon countryCode={regionInfo.countryCode} className="text-xl" />
             <div>
               <div className="text-sm font-medium text-white leading-tight">{regionInfo.city}</div>
               <div className="text-xs text-gray-600 font-mono">{connectedInstance.region}</div>

@@ -1,5 +1,6 @@
 import { useInstancesContext } from "../../contexts";
 import { getRegionInfo } from "../../types/regionInfo";
+import { FlagIcon } from "../FlagIcon";
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -240,11 +241,10 @@ export function RegionSelector({
                         }`}
                       >
                         <div className="flex items-start gap-3 mb-3">
-                          <span
-                            className={`text-2xl leading-none mt-0.5 ${!isEnabled ? "opacity-30" : ""}`}
-                          >
-                            {lookupRegionInfo(region.name).flag}
-                          </span>
+                          <FlagIcon
+                            countryCode={lookupRegionInfo(region.name).countryCode}
+                            className={`text-2xl mt-0.5 ${!isEnabled ? "opacity-30" : ""}`}
+                          />
                           <div className="flex-1 min-w-0">
                             <p
                               className={`font-medium text-sm ${isEnabled ? "text-white" : "text-gray-600"}`}

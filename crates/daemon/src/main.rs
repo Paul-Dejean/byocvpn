@@ -1,5 +1,5 @@
+use byocvpn_core::error::Result;
 use byocvpn_daemon::daemon::run_daemon;
-
 #[cfg(not(windows))]
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -24,8 +24,7 @@ fn main() {
 
 #[cfg(windows)]
 mod windows_service_impl {
-    use std::sync::mpsc;
-    use std::time::Duration;
+    use std::{sync::mpsc, time::Duration};
 
     use windows_service::{
         define_windows_service,
