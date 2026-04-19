@@ -462,7 +462,7 @@ pub async fn list_regions(client: &GcpClient) -> Result<Vec<(String, String)>> {
             })?;
 
     let continent_prefixes: &[(&str, &str)] = &[
-        ("us-", "United States"),
+        ("us-", "North America"),
         ("northamerica-", "North America"),
         ("southamerica-", "South America"),
         ("europe-", "Europe"),

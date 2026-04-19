@@ -59,6 +59,34 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   COMPONENTS
+   Semantic atoms — use these instead of raw utilities for inputs and buttons.
+   Padding is NOT included in button classes; add it at the call site.
+───────────────────────────────────────────────────────────────────────────── */
+
+@layer components {
+  .input {
+    @apply w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white;
+  }
+
+  .btn-primary {
+    @apply bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition-colors;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-600 hover:bg-gray-500 text-white rounded-lg font-medium transition-colors;
+  }
+
+  .btn-danger {
+    @apply bg-red-600 hover:bg-red-500 text-white rounded-lg font-semibold transition-colors;
+  }
+
+  .btn-ghost-danger {
+    @apply bg-red-500/10 border border-red-500/25 hover:bg-red-500/20 hover:glow-red text-white rounded-lg font-semibold transition-colors;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    BASE
 ───────────────────────────────────────────────────────────────────────────── */
 
@@ -112,6 +140,14 @@
     box-shadow:
       0 0 18px rgba(8, 136, 220, 0.4),
       0 0 4px rgba(8, 136, 220, 0.2),
+      0 2px 8px rgba(0, 0, 0, 0.5);
+  }
+
+  /* ── Destructive button glow on hover ── */
+  button.bg-red-600:hover {
+    box-shadow:
+      0 0 18px rgba(239, 68, 68, 0.35),
+      0 0 4px rgba(239, 68, 68, 0.2),
       0 2px 8px rgba(0, 0, 0, 0.5);
   }
 
@@ -173,4 +209,37 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* Outer ring glow for blue icon hero (LandingPage, ConnectedView) */
+@utility glow-blue-ring {
+  box-shadow: 0 0 24px rgba(32, 180, 250, 0.12);
+}
+
+/* Inner core glow for blue icon hero */
+@utility glow-blue-core {
+  box-shadow: 0 0 32px rgba(32, 180, 250, 0.2);
+}
+
+/* Outer ring glow for green connected hero (ConnectedView) */
+@utility glow-green-ring {
+  box-shadow: 0 0 24px rgba(74, 222, 128, 0.12);
+}
+
+/* Inner core glow for green connected hero */
+@utility glow-green-core {
+  box-shadow: 0 0 32px rgba(74, 222, 128, 0.2);
+}
+
+/* Destructive red glow — ghost red buttons on hover */
+@utility glow-red {
+  box-shadow:
+    0 0 18px rgba(239, 68, 68, 0.35),
+    0 0 4px rgba(239, 68, 68, 0.2),
+    0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* Navbar connected status indicator */
+@utility glow-connected-indicator {
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.9), 0 0 12px rgba(74, 222, 128, 0.4);
 }

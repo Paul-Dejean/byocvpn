@@ -212,11 +212,11 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
                         <div className="flex items-center gap-2">
                           <h3 className="font-semibold text-lg text-white">AWS Profile</h3>
                           {provisionedProviders.has("aws") ? (
-                            <span className="text-xs px-2 py-0.5 bg-green-900 text-green-400 rounded-full border border-green-700">
+                            <span className="text-xs px-2 py-0.5 bg-green-900/50 text-green-400 rounded-full border border-green-700/50">
                               Provisioned
                             </span>
                           ) : (
-                            <span className="text-xs px-2 py-0.5 bg-amber-900 text-amber-400 rounded-full border border-amber-700">
+                            <span className="text-xs px-2 py-0.5 bg-yellow-900/50 text-yellow-300 rounded-full border border-yellow-700/50">
                               Not provisioned
                             </span>
                           )}
@@ -230,30 +230,30 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
                       {isAwsConfirmingDelete ? (
                         <>
                           <span className="text-sm text-gray-300">Delete?</span>
-                          <button onClick={() => setIsAwsConfirmingDelete(false)} className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition text-sm">Cancel</button>
-                          <button onClick={handleAwsDeleteCredentials} className="px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white rounded-lg transition text-sm">Confirm</button>
+                          <button onClick={() => setIsAwsConfirmingDelete(false)} className="px-3 py-1.5 btn-secondary text-sm">Cancel</button>
+                          <button onClick={handleAwsDeleteCredentials} className="px-3 py-1.5 btn-danger text-sm">Confirm</button>
                         </>
                       ) : (
                         <>
                           {provisionedProviders.has("aws") ? (
-                            <button onClick={() => startProvisionAccount("aws")} className="p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded-lg transition" title="Re-provision">
+                            <button onClick={() => startProvisionAccount("aws")} className="p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded-lg transition-colors" title="Re-provision">
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                               </svg>
                             </button>
                           ) : (
-                            <button onClick={() => startProvisionAccount("aws")} className="p-2 text-amber-400 hover:text-amber-300 hover:bg-gray-600 rounded-lg transition" title="Provision">
+                            <button onClick={() => startProvisionAccount("aws")} className="p-2 text-amber-400 hover:text-amber-300 hover:bg-gray-600 rounded-lg transition-colors" title="Provision">
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                               </svg>
                             </button>
                           )}
-                          <button onClick={() => setIsAwsConfirmingDelete(true)} className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-600 rounded-lg transition" title="Delete credentials">
+                          <button onClick={() => setIsAwsConfirmingDelete(true)} className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-600 rounded-lg transition-colors" title="Delete credentials">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
                           </button>
-                          <button onClick={handleAwsEditOpen} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-medium flex items-center gap-2">
+                          <button onClick={handleAwsEditOpen} className="px-4 py-2 btn-primary font-medium flex items-center gap-2">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
@@ -282,7 +282,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
                           type="text"
                           value={accessKey}
                           onChange={(e) => setAccessKey(e.target.value)}
-                          className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none"
+                          className="input"
                         />
                       </div>
                       <div>
@@ -292,7 +292,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
                           type="password"
                           value={secretKey}
                           onChange={(e) => setSecretKey(e.target.value)}
-                          className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none"
+                          className="input"
                         />
                       </div>
                       {error && (
@@ -306,13 +306,13 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
                         </div>
                       )}
                       <div className="flex gap-3 pt-4">
-                        <button onClick={handleAwsCancelEdit} className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition font-medium">
+                        <button onClick={handleAwsCancelEdit} className="flex-1 px-4 py-2 btn-secondary">
                           Cancel
                         </button>
                         <button
                           onClick={handleAwsSaveProfile}
                           disabled={isSaving || !accessKey.trim()}
-                          className={`flex-1 px-4 py-2 rounded-lg transition font-medium ${isSaving || !accessKey.trim() ? "bg-gray-600 text-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 text-white"}`}
+                          className="btn-primary flex-1 px-4 py-2 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-gray-600"
                         >
                           {isSaving ? (
                             <div className="flex items-center justify-center gap-2">
@@ -382,7 +382,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
               <div className="mt-4 pt-4 border-t border-gray-600">
                 <button
                   onClick={onNavigateToAddAccount}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-700 hover:bg-gray-600 border border-dashed border-gray-500 hover:border-gray-400 text-gray-300 hover:text-white rounded-lg transition font-medium"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-700 hover:bg-gray-600 border border-dashed border-gray-500 hover:border-gray-400 text-gray-300 hover:text-white rounded-lg transition-colors font-medium"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

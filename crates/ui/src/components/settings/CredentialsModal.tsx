@@ -82,7 +82,7 @@ export function CredentialsModal({
               type="text"
               value={accessKey}
               onChange={(e) => setAccessKey(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none"
+              className="input"
               placeholder="AKIA..."
             />
           </div>
@@ -95,7 +95,7 @@ export function CredentialsModal({
               type="password"
               value={secretKey}
               onChange={(e) => setSecretKey(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none"
+              className="input"
               placeholder="Enter your secret key..."
             />
           </div>
@@ -117,18 +117,14 @@ export function CredentialsModal({
           <div className="flex gap-3 pt-4">
             <button
               onClick={handleClose}
-              className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition"
+              className="flex-1 px-4 py-2 btn-secondary"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={isSaving || !accessKey.trim() || !secretKey.trim()}
-              className={`flex-1 px-4 py-2 rounded-lg transition ${
-                isSaving || !accessKey.trim() || !secretKey.trim()
-                  ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                  : "bg-blue-600 hover:bg-blue-700 text-white"
-              }`}
+              className="btn-primary flex-1 px-4 py-2 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-gray-600"
             >
               {isSaving ? (
                 <div className="flex items-center justify-center gap-2">

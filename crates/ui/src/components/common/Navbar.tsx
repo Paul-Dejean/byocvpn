@@ -38,17 +38,12 @@ export function Navbar({ currentPage, onNavigate }: NavbarProps) {
       <div className="flex flex-col items-center gap-1 mb-2">
         <div
           className={`w-2 h-2 rounded-full transition-all duration-500 ${
-            isConnected ? "bg-green-400" : "bg-gray-600"
+            isConnected ? "bg-green-400 glow-connected-indicator" : "bg-gray-600"
           }`}
-          style={
-            isConnected
-              ? { boxShadow: "0 0 6px rgba(74, 222, 128, 0.9), 0 0 12px rgba(74, 222, 128, 0.4)" }
-              : undefined
-          }
         />
         <span
           className={`text-[9px] font-bold tracking-widest uppercase transition-colors duration-500 ${
-            isConnected ? "text-green-500" : "text-gray-600"
+            isConnected ? "text-green-500" : "text-gray-400"
           }`}
         >
           {isConnected ? "ON" : "OFF"}

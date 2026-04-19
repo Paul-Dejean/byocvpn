@@ -183,7 +183,7 @@ export function RegionSelector({
         <div className="flex items-center gap-4">
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-700 rounded-lg transition"
+            className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
           >
             <svg
               className="w-6 h-6 text-gray-300"
@@ -299,7 +299,7 @@ export function RegionSelector({
                           ) : (
                             <button
                               onClick={(e) => handleEnableRegion(region, e)}
-                              className="ml-auto text-xs px-2.5 py-1 bg-gray-700 hover:bg-gray-600 text-gray-400 hover:text-white border border-gray-600 rounded transition flex items-center gap-1.5"
+                              className="ml-auto text-xs px-2.5 py-1 bg-gray-700 hover:bg-gray-600 text-gray-400 hover:text-white border border-gray-600 rounded-lg transition-colors flex items-center gap-1.5"
                             >
                               <svg
                                 className="w-3 h-3"
@@ -332,7 +332,7 @@ export function RegionSelector({
         <div className="border-t border-gray-700 p-6 flex-shrink-0">
           <button
             onClick={handleDeploy}
-            className="w-full px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-medium text-lg shadow-lg flex items-center justify-center gap-2"
+            className="btn-primary w-full px-6 py-4 text-lg flex items-center justify-center gap-2"
           >
             <svg
               className="w-5 h-5"

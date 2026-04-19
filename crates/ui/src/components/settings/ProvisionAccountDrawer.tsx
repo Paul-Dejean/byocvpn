@@ -214,7 +214,7 @@ export function ProvisionAccountDrawer({
           )}
           <button
             onClick={onClose}
-            className="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition font-medium"
+            className="w-full px-4 py-2 btn-secondary"
           >
             Close
           </button>

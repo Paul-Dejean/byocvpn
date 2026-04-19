@@ -86,7 +86,7 @@ export function ProviderSelector({
         <div className="flex items-center gap-4">
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-700 rounded-lg transition"
+            className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
           >
             <svg
               className="w-6 h-6 text-gray-300"

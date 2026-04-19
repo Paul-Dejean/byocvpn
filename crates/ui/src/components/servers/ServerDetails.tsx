@@ -182,8 +182,7 @@ export function ServerDetails({
                 <button
                   onClick={() => onConnect(instance)}
                   disabled={isConnecting}
-                  className="w-full px-6 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-all font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ boxShadow: "0 0 0 1px rgba(8,136,220,0.4), 0 0 24px rgba(8,136,220,0.35), 0 4px 12px rgba(0,0,0,0.4)" }}
+                  className="btn-primary w-full px-6 py-4 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isConnecting ? (
                     <div className="flex items-center justify-center gap-2">
@@ -198,7 +197,7 @@ export function ServerDetails({
                 <button
                   onClick={onTerminate}
                   disabled={isTerminating}
-                  className="w-full px-6 py-4 bg-red-600 hover:bg-red-700 text-white rounded-lg transition font-medium text-lg shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="btn-danger w-full px-6 py-4 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isTerminating ? (
                     <div className="flex items-center justify-center gap-2">

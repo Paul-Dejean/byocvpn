@@ -43,7 +43,7 @@ export function ServerCard({
   return (
     <button
       onClick={() => onSelect(instance)}
-      className={`w-full text-left p-3 rounded-lg transition-all border border-l-4 ${stripeColor} ${
+      className={`text-left p-3 rounded-lg transition-all border border-l-4 ${stripeColor} ${
         isSpawning
           ? isSelected
             ? "bg-blue-700/60 text-white glow-accent border-blue-500/40"
@@ -53,9 +53,9 @@ export function ServerCard({
             : "bg-gray-800 hover:bg-gray-700 text-gray-200 border-white/10"
       }`}
     >
-      <div className={`flex items-center justify-between ${isSpawning ? "mb-2" : ""}`}>
-        <div className="flex items-center gap-2">
-          <FlagIcon countryCode={regionInfo.countryCode} className="text-lg" />
+      <div className={`flex items-center justify-between gap-4 ${isSpawning ? "mb-2" : ""}`}>
+        <div className="flex items-center gap-3">
+          <FlagIcon countryCode={regionInfo.countryCode} className="text-xl flex-shrink-0" />
           <div>
             <p className="font-medium text-sm">
               {regionInfo.city || instance.name || "VPN Server"}

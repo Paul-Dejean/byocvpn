@@ -81,6 +81,11 @@ fn compute_location_index(location: &str) -> u8 {
         ("chilecentral", 102),
         ("eastus2euap", 103),
         ("westus2euap", 104),
+        ("austriaeast", 105),
+        ("belgiumcentral", 106),
+        ("denmarkeast", 107),
+        ("indonesiacentral", 108),
+        ("malaysiawest", 109),
     ];
 
     if let Some((_, index)) = LOCATIONS.iter().find(|(name, _)| *name == location) {
@@ -128,14 +133,14 @@ pub async fn list_regions(client: &AzureClient) -> Result<Vec<(String, String)>>
             })?;
 
     let continent_prefixes: &[(&str, &str)] = &[
-        ("eastus", "United States"),
-        ("westus", "United States"),
-        ("centralus", "United States"),
-        ("northcentralus", "United States"),
-        ("southcentralus", "United States"),
-        ("westcentralus", "United States"),
-        ("canadacentral", "Canada"),
-        ("canadaeast", "Canada"),
+        ("eastus", "North America"),
+        ("westus", "North America"),
+        ("centralus", "North America"),
+        ("northcentralus", "North America"),
+        ("southcentralus", "North America"),
+        ("westcentralus", "North America"),
+        ("canadacentral", "North America"),
+        ("canadaeast", "North America"),
         ("brazilsouth", "South America"),
         ("brazilsoutheast", "South America"),
         ("northeurope", "Europe"),
@@ -177,6 +182,13 @@ pub async fn list_regions(client: &AzureClient) -> Result<Vec<(String, String)>>
         ("southafricawest", "Africa"),
         ("mexicocentral", "North America"),
         ("chilecentral", "South America"),
+        ("austriaeast", "Europe"),
+        ("belgiumcentral", "Europe"),
+        ("denmarkeast", "Europe"),
+        ("indonesiacentral", "Asia Pacific"),
+        ("malaysiawest", "Asia Pacific"),
+        ("eastus2euap", "North America"),
+        ("westus2euap", "North America"),
     ];
 
     let regions = response

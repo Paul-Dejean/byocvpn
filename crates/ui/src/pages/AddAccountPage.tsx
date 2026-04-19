@@ -608,7 +608,7 @@ function AwsCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
           type="text"
           value={accessKeyId}
           onChange={(e) => setAccessKeyId(e.target.value)}
-          className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none font-mono text-sm"
+          className="input font-mono text-sm"
         />
       </div>
       <div>
@@ -617,7 +617,7 @@ function AwsCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
           type="password"
           value={secretAccessKey}
           onChange={(e) => setSecretAccessKey(e.target.value)}
-          className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none"
+          className="input"
         />
       </div>
     </CredentialsFormShell>
@@ -675,7 +675,7 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
           type="text"
           value={tenancyOcid}
           onChange={(e) => setTenancyOcid(e.target.value)}
-          className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none font-mono text-sm"
+          className="input font-mono text-sm"
         />
       </div>
       <div>
@@ -685,7 +685,7 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
           type="text"
           value={userOcid}
           onChange={(e) => setUserOcid(e.target.value)}
-          className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none font-mono text-sm"
+          className="input font-mono text-sm"
         />
       </div>
       <div>
@@ -695,7 +695,7 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
           type="text"
           value={fingerprint}
           onChange={(e) => setFingerprint(e.target.value)}
-          className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none font-mono text-sm"
+          className="input font-mono text-sm"
         />
       </div>
       <div>
@@ -705,7 +705,7 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
           type="text"
           value={homeRegion}
           onChange={(e) => setHomeRegion(e.target.value)}
-          className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none font-mono text-sm"
+          className="input font-mono text-sm"
         />
       </div>
       <div>
@@ -714,7 +714,7 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
           <button
             type="button"
             onClick={() => pemFileInputRef.current?.click()}
-            className="text-xs px-3 py-1 bg-gray-600 hover:bg-gray-500 text-gray-300 rounded-lg transition"
+            className="text-xs px-3 py-1 bg-gray-600 hover:bg-gray-500 text-gray-300 rounded-lg transition-colors"
           >
             Load from file
           </button>
@@ -731,7 +731,7 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
           onChange={(e) => setPrivateKeyPem(e.target.value)}
           rows={5}
           placeholder="-----BEGIN RSA PRIVATE KEY-----"
-          className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none font-mono text-xs resize-none"
+          className="input font-mono text-xs resize-none"
         />
       </div>
     </CredentialsFormShell>
@@ -789,7 +789,7 @@ function GcpCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
           type="text"
           value={projectId}
           onChange={(e) => setProjectId(e.target.value)}
-          className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none font-mono text-sm"
+          className="input font-mono text-sm"
         />
       </div>
       <div>
@@ -798,7 +798,7 @@ function GcpCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="text-xs px-3 py-1 bg-gray-600 hover:bg-gray-500 text-gray-300 rounded-lg transition"
+            className="text-xs px-3 py-1 bg-gray-600 hover:bg-gray-500 text-gray-300 rounded-lg transition-colors"
           >
             Load from file
           </button>
@@ -815,7 +815,7 @@ function GcpCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
           onChange={(e) => setServiceAccountJson(e.target.value)}
           rows={6}
           placeholder='{"type":"service_account","project_id":"..."}'
-          className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none font-mono text-xs resize-none"
+          className="input font-mono text-xs resize-none"
         />
       </div>
     </CredentialsFormShell>
@@ -858,7 +858,7 @@ function AzureCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
           type="text"
           value={subscriptionId}
           onChange={(e) => setSubscriptionId(e.target.value)}
-          className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none font-mono text-sm"
+          className="input font-mono text-sm"
           placeholder="00000000-0000-0000-0000-000000000000"
         />
       </div>
@@ -869,7 +869,7 @@ function AzureCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
           type="text"
           value={tenantId}
           onChange={(e) => setTenantId(e.target.value)}
-          className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none font-mono text-sm"
+          className="input font-mono text-sm"
           placeholder="00000000-0000-0000-0000-000000000000"
         />
       </div>
@@ -880,7 +880,7 @@ function AzureCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
           type="text"
           value={clientId}
           onChange={(e) => setClientId(e.target.value)}
-          className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none font-mono text-sm"
+          className="input font-mono text-sm"
           placeholder="00000000-0000-0000-0000-000000000000"
         />
       </div>
@@ -891,7 +891,7 @@ function AzureCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
           type="password"
           value={clientSecret}
           onChange={(e) => setClientSecret(e.target.value)}
-          className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none font-mono text-sm"
+          className="input font-mono text-sm"
         />
       </div>
     </CredentialsFormShell>
@@ -930,7 +930,7 @@ function PolicyBox({ policy }: PolicyBoxProps) {
         <div className="flex items-center gap-2">
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white rounded-lg transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white rounded-lg transition-colors"
           >
             {copied ? (
               <>
@@ -950,7 +950,7 @@ function PolicyBox({ policy }: PolicyBoxProps) {
           </button>
           <button
             onClick={handleDownload}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white rounded-lg transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white rounded-lg transition-colors"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -1000,18 +1000,14 @@ function CredentialsFormShell({
         <div className="flex gap-3 pt-2">
           <button
             onClick={onCancel}
-            className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition font-medium"
+            className="flex-1 px-4 py-2 btn-secondary"
           >
             Back
           </button>
           <button
             onClick={onSubmit}
             disabled={isSaving || !isFormValid}
-            className={`flex-1 px-4 py-2 rounded-lg transition font-medium ${
-              isSaving || !isFormValid
-                ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                : "bg-blue-600 hover:bg-blue-700 text-white"
-            }`}
+            className="btn-primary flex-1 px-4 py-2 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-gray-600"
           >
             {isSaving ? (
               <div className="flex items-center justify-center gap-2">

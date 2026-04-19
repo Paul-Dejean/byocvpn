@@ -21,26 +21,11 @@ export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
       <div className="container relative z-10 px-4 md:px-0">
         <div className="flex flex-col items-center max-w-3xl mx-auto">
           <div className="relative flex items-center justify-center mb-8">
-            <div
-              className="absolute w-44 h-44 rounded-full border border-blue-400/10 animate-ping"
-              style={{ animationDuration: "4s" }}
-            />
-            <div
-              className="absolute w-32 h-32 rounded-full border border-blue-400/15 animate-ping"
-              style={{ animationDuration: "3s", animationDelay: "0.75s" }}
-            />
-            <div
-              className="absolute w-24 h-24 rounded-full border border-blue-400/25 animate-ping"
-              style={{ animationDuration: "2.5s", animationDelay: "1.25s" }}
-            />
-            <div
-              className="absolute w-20 h-20 rounded-full border border-blue-400/30"
-              style={{ boxShadow: "0 0 24px rgba(32, 180, 250, 0.12)" }}
-            />
-            <div
-              className="w-16 h-16 rounded-full bg-blue-500/20 backdrop-blur-sm flex items-center justify-center relative z-10 border border-blue-400/30"
-              style={{ boxShadow: "0 0 32px rgba(32, 180, 250, 0.2)" }}
-            >
+            <div className="absolute w-44 h-44 rounded-full border border-blue-400/10 animate-ping [animation-duration:4s]" />
+            <div className="absolute w-32 h-32 rounded-full border border-blue-400/15 animate-ping [animation-duration:3s] [animation-delay:0.75s]" />
+            <div className="absolute w-24 h-24 rounded-full border border-blue-400/25 animate-ping [animation-duration:2.5s] [animation-delay:1.25s]" />
+            <div className="absolute w-20 h-20 rounded-full border border-blue-400/30 glow-blue-ring" />
+            <div className="w-16 h-16 rounded-full bg-blue-500/20 backdrop-blur-sm flex items-center justify-center relative z-10 border border-blue-400/30 glow-blue-core">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 className="h-8 w-8 text-blue-300"
@@ -80,7 +65,7 @@ export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
             {}
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
-                className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-all duration-300 transform hover:scale-105 font-medium flex items-center justify-center shadow-lg shadow-blue-600/30"
+                className="px-8 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-all font-semibold text-lg flex items-center justify-center"
                 onClick={handleGetStarted}
               >
                 <span>Get Started</span>

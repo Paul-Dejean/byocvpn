@@ -10,14 +10,11 @@ export function RegionCard({ region, isSelected, onSelect }: RegionCardProps) {
   return (
     <div
       onClick={() => onSelect(region)}
-      className={`p-4 rounded-lg cursor-pointer transition-all border ${
+      className={`p-4 rounded-lg cursor-pointer transition-all border origin-center ${
         isSelected
           ? "bg-blue-600/80 glow-accent text-white transform scale-102"
           : "bg-gray-800 card-border hover:glow-accent-sm text-gray-300"
       }`}
-      style={{
-        transformOrigin: "center",
-      }}
     >
       <div className="flex items-center justify-between mb-2">
         <h4 className="font-semibold text-base">{region.name}</h4>

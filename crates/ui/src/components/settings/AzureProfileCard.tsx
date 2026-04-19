@@ -124,12 +124,12 @@ export function AzureProfileCard({
                   Azure Profile
                 </h3>
                 {hasCredentials && isProvisioned && (
-                  <span className="text-xs px-2 py-0.5 bg-green-900 text-green-400 rounded-full border border-green-700">
+                  <span className="text-xs px-2 py-0.5 bg-green-900/50 text-green-400 rounded-full border border-green-700/50">
                     Provisioned
                   </span>
                 )}
                 {showNotProvisionedWarning && (
-                  <span className="text-xs px-2 py-0.5 bg-amber-900 text-amber-400 rounded-full border border-amber-700">
+                  <span className="text-xs px-2 py-0.5 bg-yellow-900/50 text-yellow-300 rounded-full border border-yellow-700/50">
                     Not provisioned
                   </span>
                 )}
@@ -149,13 +149,13 @@ export function AzureProfileCard({
                   <span className="text-sm text-gray-300">Delete?</span>
                   <button
                     onClick={() => setIsConfirmingDelete(false)}
-                    className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition text-sm"
+                    className="px-3 py-1.5 btn-secondary text-sm"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleDeleteCredentials}
-                    className="px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white rounded-lg transition text-sm"
+                    className="px-3 py-1.5 btn-danger text-sm"
                   >
                     Confirm
                   </button>
@@ -165,7 +165,7 @@ export function AzureProfileCard({
                   {isProvisioned ? (
                     <button
                       onClick={() => onProvisionRequested("azure")}
-                      className="p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded-lg transition"
+                      className="p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded-lg transition-colors"
                       title="Re-provision"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -175,7 +175,7 @@ export function AzureProfileCard({
                   ) : (
                     <button
                       onClick={() => onProvisionRequested("azure")}
-                      className="p-2 text-amber-400 hover:text-amber-300 hover:bg-gray-600 rounded-lg transition"
+                      className="p-2 text-amber-400 hover:text-amber-300 hover:bg-gray-600 rounded-lg transition-colors"
                       title="Provision"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -185,7 +185,7 @@ export function AzureProfileCard({
                   )}
                   <button
                     onClick={() => setIsConfirmingDelete(true)}
-                    className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-600 rounded-lg transition"
+                    className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-600 rounded-lg transition-colors"
                     title="Delete credentials"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -194,7 +194,7 @@ export function AzureProfileCard({
                   </button>
                   <button
                     onClick={handleEditOpen}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-medium flex items-center gap-2"
+                    className="px-4 py-2 btn-primary font-medium flex items-center gap-2"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -207,7 +207,7 @@ export function AzureProfileCard({
           ) : (
             <button
               onClick={handleEditOpen}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-medium flex items-center gap-2"
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium flex items-center gap-2"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -244,7 +244,7 @@ export function AzureProfileCard({
                 type="text"
                 value={subscriptionId}
                 onChange={(e) => setSubscriptionId(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none font-mono text-sm"
+                className="input font-mono text-sm"
                 placeholder="00000000-0000-0000-0000-000000000000"
               />
             </div>
@@ -260,7 +260,7 @@ export function AzureProfileCard({
                 type="text"
                 value={tenantId}
                 onChange={(e) => setTenantId(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none font-mono text-sm"
+                className="input font-mono text-sm"
                 placeholder="00000000-0000-0000-0000-000000000000"
               />
             </div>
@@ -276,7 +276,7 @@ export function AzureProfileCard({
                 type="text"
                 value={clientId}
                 onChange={(e) => setClientId(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none font-mono text-sm"
+                className="input font-mono text-sm"
                 placeholder="00000000-0000-0000-0000-000000000000"
               />
             </div>
@@ -300,7 +300,7 @@ export function AzureProfileCard({
                 type="password"
                 value={clientSecret}
                 onChange={(e) => setClientSecret(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:border-blue-500 focus:outline-none font-mono text-sm"
+                className="input font-mono text-sm"
                 placeholder={secretAlreadySet ? "Enter new secret to replace" : ""}
               />
             </div>
@@ -320,18 +320,14 @@ export function AzureProfileCard({
             <div className="flex gap-3 pt-4">
               <button
                 onClick={handleCancel}
-                className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition font-medium"
+                className="flex-1 px-4 py-2 btn-secondary"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSave}
                 disabled={isSaving || !isFormValid}
-                className={`flex-1 px-4 py-2 rounded-lg transition font-medium ${
-                  isSaving || !isFormValid
-                    ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                    : "bg-blue-600 hover:bg-blue-700 text-white"
-                }`}
+                className="btn-primary flex-1 px-4 py-2 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-gray-600"
               >
                 {isSaving ? (
                   <div className="flex items-center justify-center gap-2">

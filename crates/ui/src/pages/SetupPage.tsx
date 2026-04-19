@@ -158,7 +158,7 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
               {awsIamPolicy}
             </pre>
             <button
-              className="absolute top-2 right-2 px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
+              className="absolute top-2 right-2 px-2 py-1 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-500 transition-colors"
               onClick={() => {
                 navigator.clipboard.writeText(awsIamPolicy);
               }}
@@ -189,7 +189,7 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
                 name="accessKeyId"
                 value={credentials.accessKeyId}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="input"
                 placeholder="AKIAIOSFODNN7EXAMPLE"
               />
             </div>
@@ -207,7 +207,7 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
                 name="secretAccessKey"
                 value={credentials.secretAccessKey}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="input"
                 placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
               />
             </div>
@@ -223,13 +223,7 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
       )}
 
       <button
-        className={`px-6 py-2 text-white rounded transition ${
-          selectedProvider &&
-          credentials.accessKeyId &&
-          credentials.secretAccessKey
-            ? "bg-blue-600 hover:bg-blue-500 cursor-pointer"
-            : "bg-gray-700 text-gray-400 cursor-not-allowed"
-        }`}
+        className="btn-primary px-6 py-4 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-gray-600"
         onClick={handleSetupClick}
         disabled={
           !selectedProvider ||

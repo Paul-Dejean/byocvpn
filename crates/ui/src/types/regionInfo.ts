@@ -80,6 +80,8 @@ const GCP_REGION_INFO: Record<string, RegionInfo> = {
   "me-central1": { city: "Doha", countryCode: "qa" },
   "me-central2": { city: "Dammam", countryCode: "sa" },
   "africa-south1": { city: "Johannesburg", countryCode: "za" },
+  "europe-north2": { city: "Stockholm", countryCode: "se" },
+  "asia-southeast3": { city: "Bangkok", countryCode: "th" },
 };
 
 const AZURE_REGION_INFO: Record<string, RegionInfo> = {
@@ -135,6 +137,14 @@ const AZURE_REGION_INFO: Record<string, RegionInfo> = {
   "qatarcentral": { city: "Doha", countryCode: "qa" },
   "mexicocentral": { city: "Querétaro", countryCode: "mx" },
   "newzealandnorth": { city: "Auckland", countryCode: "nz" },
+  "austriaeast": { city: "Vienna", countryCode: "at" },
+  "belgiumcentral": { city: "Brussels", countryCode: "be" },
+  "denmarkeast": { city: "Copenhagen", countryCode: "dk" },
+  "indonesiacentral": { city: "Jakarta", countryCode: "id" },
+  "malaysiawest": { city: "Kuala Lumpur", countryCode: "my" },
+  "chilecentral": { city: "Santiago", countryCode: "cl" },
+  "eastus2euap": { city: "Virginia", countryCode: "us" },
+  "westus2euap": { city: "Washington", countryCode: "us" },
 };
 
 const ORACLE_REGION_INFO: Record<string, RegionInfo> = {
@@ -181,6 +191,12 @@ const ORACLE_REGION_INFO: Record<string, RegionInfo> = {
   "il-jerusalem-1": { city: "Jerusalem", countryCode: "il" },
   "mx-queretaro-1": { city: "Querétaro", countryCode: "mx" },
   "mx-monterrey-1": { city: "Monterrey", countryCode: "mx" },
+  "ap-batam-1": { city: "Batam", countryCode: "id" },
+  "ap-kulai-2": { city: "Kulai", countryCode: "my" },
+  "eu-madrid-3": { city: "Madrid", countryCode: "es" },
+  "eu-turin-1": { city: "Turin", countryCode: "it" },
+  "me-riyadh-1": { city: "Riyadh", countryCode: "sa" },
+  "sa-valparaiso-1": { city: "Valparaíso", countryCode: "cl" },
 };
 
 const REGION_INFO_BY_PROVIDER: Record<string, Record<string, RegionInfo>> = {

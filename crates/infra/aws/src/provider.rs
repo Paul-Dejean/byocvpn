@@ -421,11 +421,11 @@ impl CloudProvider for AwsProvider {
     async fn get_regions(&self) -> Result<Vec<Region>> {
         let ec2_client = self.create_ec2_client(None).await;
         let regions_map = HashMap::from([
-            ("us", "United States"),
+            ("us", "North America"),
             ("eu", "Europe"),
             ("ap", "Asia Pacific"),
             ("sa", "South America"),
-            ("ca", "Canada"),
+            ("ca", "North America"),
             ("me", "Middle East"),
             ("af", "Africa"),
         ]);

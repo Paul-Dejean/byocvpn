@@ -43,7 +43,7 @@ export function MonthFilter({
           <button
             key={`${month.year}-${month.month}`}
             onClick={() => onSelectMonth(month)}
-            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+            className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
               isSelected
                 ? "bg-blue-500 text-white"
                 : "bg-gray-700 text-gray-300 hover:bg-gray-600"

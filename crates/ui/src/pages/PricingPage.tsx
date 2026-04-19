@@ -94,7 +94,7 @@ export function PricingPage() {
         </p>
         <button
           onClick={refetch}
-          className="self-start px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm transition-colors"
+          className="btn-primary self-start px-4 py-2 text-sm"
         >
           Retry
         </button>
@@ -104,7 +104,7 @@ export function PricingPage() {
 
   return (
     <div className="flex flex-col h-full bg-gray-900 text-white overflow-hidden">
-      <div className="px-6 py-3 border-b border-gray-700/40 flex-shrink-0 space-y-2">
+      <div className="px-6 py-3 border-b border-gray-700/40 flex-shrink-0 space-y-4">
         <div className="flex items-center justify-between gap-4">
           <span className="text-sm font-semibold text-gray-300">Expenses</span>
         </div>
@@ -130,7 +130,7 @@ export function PricingPage() {
                 setSelectedMonth(availableMonths[selectedMonthIndex + 1])
               }
               disabled={selectedMonthIndex >= availableMonths.length - 1}
-              className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -144,7 +144,7 @@ export function PricingPage() {
                 setSelectedMonth(availableMonths[selectedMonthIndex - 1])
               }
               disabled={selectedMonthIndex <= 0}
-              className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

@@ -515,15 +515,16 @@ pub async fn list_all_regions(client: &OciClient) -> Result<Vec<(String, String)
                 reason: error.to_string(),
             })?;
     let region_geography = [
-        ("us-", "United States"),
+        ("us-", "North America"),
         ("eu-", "Europe"),
+        ("uk-", "Europe"),
         ("ap-", "Asia Pacific"),
         ("sa-", "South America"),
-        ("ca-", "Canada"),
+        ("ca-", "North America"),
         ("me-", "Middle East"),
         ("af-", "Africa"),
-        ("il-", "Israel"),
-        ("mx-", "Mexico"),
+        ("il-", "Middle East"),
+        ("mx-", "North America"),
     ];
     Ok(regions
         .into_iter()
@@ -548,15 +549,16 @@ pub async fn list_regions(client: &OciClient, tenancy_ocid: &str) -> Result<Vec<
                 reason: error.to_string(),
             })?;
     let region_geography = [
-        ("us-", "United States"),
+        ("us-", "North America"),
         ("eu-", "Europe"),
+        ("uk-", "Europe"),
         ("ap-", "Asia Pacific"),
         ("sa-", "South America"),
-        ("ca-", "Canada"),
+        ("ca-", "North America"),
         ("me-", "Middle East"),
         ("af-", "Africa"),
-        ("il-", "Israel"),
-        ("mx-", "Mexico"),
+        ("il-", "Middle East"),
+        ("mx-", "North America"),
     ];
     Ok(subscriptions
         .into_iter()

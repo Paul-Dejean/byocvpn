@@ -15,14 +15,11 @@ export function InstanceCard({
   return (
     <div
       onClick={() => onSelect(instance)}
-      className={`p-4 rounded-lg cursor-pointer transition-all border ${
+      className={`p-4 rounded-lg cursor-pointer transition-all border origin-center ${
         isSelected
           ? "bg-blue-600/80 glow-accent text-white transform scale-102"
           : "bg-gray-800 card-border hover:glow-accent-sm"
       }`}
-      style={{
-        transformOrigin: "center",
-      }}
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
