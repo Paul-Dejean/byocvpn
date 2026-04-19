@@ -18,6 +18,7 @@ pub struct TunnelHandle {
     pub route_monitor_shutdown: watch::Sender<()>,
     pub dns_override_guard: Option<DnsOverrideGuard>,
     pub server_ip: String,
+    pub interface_index: u32,
     pub instance: Option<ConnectedInstance>,
 }
 

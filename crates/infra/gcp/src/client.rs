@@ -123,6 +123,8 @@ async fn parse_response<T: DeserializeOwned>(method: &str, url: &str, response: 
             }
             .into()
         })
+    } else if status == StatusCode::NOT_FOUND {
+        Err(NetworkProvisioningError::ResourceNotFound { url: url.to_string() }.into())
     } else {
         error!("[GCP] {} {} → {} — {}", method, url, status, body);
         Err(NetworkProvisioningError::NetworkQueryFailed {

@@ -1,7 +1,7 @@
 use aws_sdk_ssm::error::{ProvideErrorMetadata, SdkError};
 use byocvpn_core::error::Error;
 
-pub fn sdk_error_message<E>(error: &SdkError<E>) -> String
+pub fn extract_error_message<E>(error: &SdkError<E>) -> String
 where
     E: ProvideErrorMetadata,
 {

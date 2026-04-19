@@ -1,10 +1,7 @@
 use byocvpn_core::error::{Result, SystemError};
 use log::*;
 
-use crate::{
-    constants::get_interface_name, routing::routes::remove_vpn_routes,
-    tunnel_manager::TUNNEL_MANAGER,
-};
+use crate::{routing::routes::remove_vpn_routes, tunnel_manager::TUNNEL_MANAGER};
 
 pub async fn disconnect_vpn() -> Result<()> {
     info!("[VPN Disconnect] Disconnecting VPN tunnel...");
@@ -32,7 +29,7 @@ pub async fn disconnect_vpn() -> Result<()> {
         ),
     }
 
-    remove_vpn_routes(get_interface_name(), &handle.server_ip).await;
+    remove_vpn_routes(handle.interface_index, &handle.server_ip).await;
     info!("[VPN Disconnect] Removed VPN routes.");
 
     if let Some(mut dns_override_guard) =

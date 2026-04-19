@@ -1,18 +1,31 @@
-use std::{collections::HashMap, io, process::Command};
+use std::collections::HashMap;
+use std::ffi::CStr;
+use std::io;
+use std::os::windows::ffi::OsStrExt;
+use std::ptr;
 
 use byocvpn_core::error::{ConfigurationError, Result};
 use log::*;
 
+use windows_sys::Win32::Foundation::FreeLibrary;
+use windows_sys::Win32::NetworkManagement::IpHelper::*;
+use windows_sys::Win32::NetworkManagement::Ndis::IfOperStatusUp;
+use windows_sys::Win32::System::LibraryLoader::*;
+use windows_sys::Win32::System::Registry::*;
+
+const DNS_REG_KEY_V4: &str = r"SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces";
+const DNS_REG_KEY_V6: &str = r"SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters\Interfaces";
+
 #[derive(Debug)]
-enum OriginalDnsState {
-    Dhcp,
-    Static(Vec<String>),
-    Unconfigured,
+struct OriginalDnsConfig {
+    ipv4_nameserver: String,
+    ipv6_nameserver: String,
 }
 
 #[derive(Debug)]
 pub struct DnsOverrideGuard {
-    previous_dns_configuration: HashMap<String, OriginalDnsState>,
+    /// Map from adapter GUID to (friendly_name, original_config)
+    previous: HashMap<String, (String, OriginalDnsConfig)>,
     dns_override_active: bool,
 }
 
@@ -25,37 +38,66 @@ impl DnsOverrideGuard {
             .into());
         }
 
-        let interface_names: Vec<String> = list_connected_interfaces()?
-            .into_iter()
-            .filter(|name| name != "byocvpn")
-            .collect();
+        let adapters = list_connected_adapters().map_err(|e| {
+            ConfigurationError::DnsConfiguration {
+                reason: format!("failed to list network adapters: {}", e),
+            }
+        })?;
+
         info!(
-            "Storing previous dns configuration for network interfaces: {:?}",
-            interface_names
+            "Storing previous DNS configuration for {} interfaces",
+            adapters.len()
         );
 
-        let mut previous_dns_configuration = HashMap::new();
-        for interface_name in &interface_names {
-            let state = get_dns_state_for_interface(interface_name).map_err(|error| {
+        let mut previous = HashMap::new();
+        for adapter in &adapters {
+            let config = read_dns_config(&adapter.adapter_guid).map_err(|e| {
                 ConfigurationError::DnsConfiguration {
-                    reason: error.to_string(),
+                    reason: format!(
+                        "failed to read DNS for {} ({}): {}",
+                        adapter.friendly_name, adapter.adapter_guid, e
+                    ),
                 }
             })?;
-            debug!("Original DNS for {}: {:?}", interface_name, state);
-            previous_dns_configuration.insert(interface_name.clone(), state);
+            debug!(
+                "Original DNS for {} ({}): {:?}",
+                adapter.friendly_name, adapter.adapter_guid, config
+            );
+            previous.insert(
+                adapter.adapter_guid.clone(),
+                (adapter.friendly_name.clone(), config),
+            );
         }
 
-        info!("Setting new DNS servers: {:?}", new_dns_servers);
-        for interface_name in &interface_names {
-            set_dns_servers_for_interface(interface_name, new_dns_servers).map_err(|error| {
+        let ipv4_dns: Vec<&str> = new_dns_servers
+            .iter()
+            .copied()
+            .filter(|s| !s.contains(':'))
+            .collect();
+        let ipv6_dns: Vec<&str> = new_dns_servers
+            .iter()
+            .copied()
+            .filter(|s| s.contains(':'))
+            .collect();
+
+        info!("Setting DNS servers: IPv4={:?}, IPv6={:?}", ipv4_dns, ipv6_dns);
+
+        for adapter in &adapters {
+            write_dns_config(&adapter.adapter_guid, &ipv4_dns, &ipv6_dns).map_err(|e| {
                 ConfigurationError::DnsConfiguration {
-                    reason: error.to_string(),
+                    reason: format!(
+                        "failed to set DNS for {} ({}): {}",
+                        adapter.friendly_name, adapter.adapter_guid, e
+                    ),
                 }
             })?;
+            notify_adapter_config_change(&adapter.adapter_guid);
         }
+
+        flush_dns_resolver_cache();
 
         Ok(Self {
-            previous_dns_configuration,
+            previous,
             dns_override_active: true,
         })
     }
@@ -66,19 +108,13 @@ impl DnsOverrideGuard {
         }
 
         info!("Restoring original DNS settings...");
-        for (interface_name, original_state) in &self.previous_dns_configuration {
-            info!("Restoring DNS for interface: {}", interface_name);
-            match original_state {
-                OriginalDnsState::Dhcp | OriginalDnsState::Unconfigured => {
-                    restore_dhcp_dns(interface_name)?;
-                }
-                OriginalDnsState::Static(servers) => {
-                    let as_refs: Vec<&str> = servers.iter().map(|string| string.as_str()).collect();
-                    set_dns_servers_for_interface(interface_name, &as_refs)?;
-                }
-            }
+        for (guid, (name, config)) in &self.previous {
+            info!("Restoring DNS for {} ({})", name, guid);
+            restore_dns_config(guid, config)?;
+            notify_adapter_config_change(guid);
         }
 
+        flush_dns_resolver_cache();
         self.dns_override_active = false;
         info!("DNS restoration completed");
         Ok(())
@@ -93,222 +129,249 @@ impl Drop for DnsOverrideGuard {
     }
 }
 
-fn list_connected_interfaces() -> Result<Vec<String>> {
-    let output = Command::new("powershell")
-        .args([
-            "-NoProfile",
-            "-Command",
-            "Get-NetAdapter | Where-Object Status -eq 'Up' | Select-Object -ExpandProperty Name",
-        ])
-        .output()
-        .map_err(|error| ConfigurationError::DnsConfiguration {
-            reason: format!("failed to run PowerShell to list interfaces: {}", error),
-        })?;
+// --- Adapter enumeration via GetAdaptersAddresses ---
 
-    if !output.status.success() {
-        return Err(ConfigurationError::DnsConfiguration {
-            reason: format!(
-                "Get-NetAdapter failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            ),
-        }
-        .into());
-    }
-
-    let interfaces = String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .map(|line| line.trim().to_string())
-        .filter(|line| !line.is_empty())
-        .collect();
-
-    Ok(interfaces)
+struct AdapterInfo {
+    friendly_name: String,
+    adapter_guid: String,
 }
 
-fn get_dns_state_for_interface(interface_name: &str) -> io::Result<OriginalDnsState> {
-    let output = Command::new("netsh")
-        .args([
-            "interface",
-            "ip",
-            "show",
-            "dns",
-            &format!("name={}", interface_name),
-        ])
-        .output()?;
+fn list_connected_adapters() -> io::Result<Vec<AdapterInfo>> {
+    let flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER;
 
-    let text = String::from_utf8_lossy(&output.stdout);
+    let mut size = 0u32;
+    let result = unsafe {
+        GetAdaptersAddresses(0, flags, ptr::null(), ptr::null_mut(), &mut size)
+    };
 
-    if text.contains("DNS servers configured through DHCP") {
-        return Ok(OriginalDnsState::Dhcp);
+    if result != windows_sys::Win32::Foundation::ERROR_BUFFER_OVERFLOW {
+        return Err(io::Error::from_raw_os_error(result as i32));
     }
 
-    if text.contains("Statically Configured DNS Servers") {
-        let servers = parse_dns_server_ips_from_netsh_output(&text);
-        return Ok(OriginalDnsState::Static(servers));
+    let mut buffer = vec![0u8; size as usize];
+    let addresses = buffer.as_mut_ptr() as *mut IP_ADAPTER_ADDRESSES_LH;
+
+    let result = unsafe {
+        GetAdaptersAddresses(0, flags, ptr::null(), addresses, &mut size)
+    };
+
+    if result != 0 {
+        return Err(io::Error::from_raw_os_error(result as i32));
     }
 
-    Ok(OriginalDnsState::Unconfigured)
-}
+    let mut adapters = Vec::new();
+    let mut current = addresses;
 
-fn parse_dns_server_ips_from_netsh_output(text: &str) -> Vec<String> {
-    let mut servers = Vec::new();
-    let mut in_dns_block = false;
+    while !current.is_null() {
+        let addr = unsafe { &*current };
 
-    for line in text.lines() {
-        if line.contains("DNS Servers") || line.contains("DNS servers") {
-            in_dns_block = true;
-            if let Some(ip) = extract_ip_from_line(line) {
-                servers.push(ip);
-            }
-        } else if in_dns_block {
-            let trimmed = line.trim();
-            if trimmed.is_empty() || line.contains(':') {
-                in_dns_block = false;
-            } else if let Some(ip) = extract_ip_from_line(line) {
-                servers.push(ip);
+        if addr.OperStatus == IfOperStatusUp {
+            let friendly_name = unsafe { wide_ptr_to_string(addr.FriendlyName) };
+            let adapter_guid = unsafe { ansi_ptr_to_string(addr.AdapterName) };
+
+            if !adapter_guid.is_empty() {
+                adapters.push(AdapterInfo {
+                    friendly_name,
+                    adapter_guid,
+                });
             }
         }
+
+        current = addr.Next;
     }
 
-    servers
+    Ok(adapters)
 }
 
-fn extract_ip_from_line(line: &str) -> Option<String> {
-    for token in line.split_whitespace() {
-        let is_ipv4 = token.contains('.') && token.split('.').count() == 4;
-        let is_ipv6 = token.contains(':');
-        if is_ipv4 || is_ipv6 {
-            return Some(token.to_string());
-        }
+// --- DNS config via registry ---
+
+fn read_dns_config(adapter_guid: &str) -> io::Result<OriginalDnsConfig> {
+    let ipv4 = read_registry_nameserver(DNS_REG_KEY_V4, adapter_guid)?;
+    let ipv6 = read_registry_nameserver(DNS_REG_KEY_V6, adapter_guid)?;
+    Ok(OriginalDnsConfig {
+        ipv4_nameserver: ipv4,
+        ipv6_nameserver: ipv6,
+    })
+}
+
+fn write_dns_config(adapter_guid: &str, ipv4: &[&str], ipv6: &[&str]) -> io::Result<()> {
+    write_registry_nameserver(DNS_REG_KEY_V4, adapter_guid, &ipv4.join(","))?;
+    write_registry_nameserver(DNS_REG_KEY_V6, adapter_guid, &ipv6.join(","))?;
+    Ok(())
+}
+
+fn restore_dns_config(adapter_guid: &str, config: &OriginalDnsConfig) -> io::Result<()> {
+    write_registry_nameserver(DNS_REG_KEY_V4, adapter_guid, &config.ipv4_nameserver)?;
+    write_registry_nameserver(DNS_REG_KEY_V6, adapter_guid, &config.ipv6_nameserver)?;
+    Ok(())
+}
+
+fn read_registry_nameserver(base_key: &str, adapter_guid: &str) -> io::Result<String> {
+    let key_path = format!("{}\\{}", base_key, adapter_guid);
+    let key_path_w = to_wide(&key_path);
+
+    let mut hkey = ptr::null_mut();
+    let result = unsafe {
+        RegOpenKeyExW(HKEY_LOCAL_MACHINE, key_path_w.as_ptr(), 0, KEY_READ, &mut hkey)
+    };
+
+    if result != 0 {
+        return Ok(String::new());
     }
-    None
+
+    let value_name = to_wide("NameServer");
+    let mut data_size = 0u32;
+    let mut data_type = 0u32;
+
+    let result = unsafe {
+        RegQueryValueExW(
+            hkey,
+            value_name.as_ptr(),
+            ptr::null(),
+            &mut data_type,
+            ptr::null_mut(),
+            &mut data_size,
+        )
+    };
+
+    if result != 0 || data_size == 0 {
+        unsafe { RegCloseKey(hkey) };
+        return Ok(String::new());
+    }
+
+    let mut data = vec![0u16; (data_size as usize) / 2];
+    let result = unsafe {
+        RegQueryValueExW(
+            hkey,
+            value_name.as_ptr(),
+            ptr::null(),
+            &mut data_type,
+            data.as_mut_ptr() as *mut u8,
+            &mut data_size,
+        )
+    };
+
+    unsafe { RegCloseKey(hkey) };
+
+    if result != 0 {
+        return Ok(String::new());
+    }
+
+    while data.last() == Some(&0) {
+        data.pop();
+    }
+
+    Ok(String::from_utf16_lossy(&data))
 }
 
-fn set_dns_servers_for_interface(interface_name: &str, servers: &[&str]) -> io::Result<()> {
-    if servers.is_empty() {
+fn write_registry_nameserver(base_key: &str, adapter_guid: &str, value: &str) -> io::Result<()> {
+    let key_path = format!("{}\\{}", base_key, adapter_guid);
+    let key_path_w = to_wide(&key_path);
+
+    let mut hkey = ptr::null_mut();
+    let result = unsafe {
+        RegOpenKeyExW(
+            HKEY_LOCAL_MACHINE,
+            key_path_w.as_ptr(),
+            0,
+            KEY_SET_VALUE,
+            &mut hkey,
+        )
+    };
+
+    if result != 0 {
         return Ok(());
     }
 
-    // Split servers into IPv4 and IPv6
-    let ipv4_servers: Vec<&str> = servers
-        .iter()
-        .copied()
-        .filter(|s| !s.contains(':'))
-        .collect();
-    let ipv6_servers: Vec<&str> = servers
-        .iter()
-        .copied()
-        .filter(|s| s.contains(':'))
-        .collect();
+    let value_name = to_wide("NameServer");
+    let value_w = to_wide(value);
+    let data_size = (value_w.len() * 2) as u32;
 
-    // Set IPv4 DNS
-    if let Some(first) = ipv4_servers.first() {
-        let output = Command::new("netsh")
-            .args([
-                "interface",
-                "ip",
-                "set",
-                "dns",
-                &format!("name={}", interface_name),
-                "static",
-                first,
-            ])
-            .output()?;
+    let result = unsafe {
+        RegSetValueExW(
+            hkey,
+            value_name.as_ptr(),
+            0,
+            REG_SZ,
+            value_w.as_ptr() as *const u8,
+            data_size,
+        )
+    };
 
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            error!("netsh ip set dns failed for {}: {}", interface_name, stderr);
-        }
+    unsafe { RegCloseKey(hkey) };
 
-        for (index, server) in ipv4_servers[1..].iter().enumerate() {
-            let output = Command::new("netsh")
-                .args([
-                    "interface",
-                    "ip",
-                    "add",
-                    "dns",
-                    &format!("name={}", interface_name),
-                    &format!("addr={}", server),
-                    &format!("index={}", index + 2),
-                ])
-                .output()?;
-
-            if !output.status.success() {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                error!("netsh ip add dns failed for {}: {}", interface_name, stderr);
-            }
-        }
-    }
-
-    // Set IPv6 DNS
-    if let Some(first) = ipv6_servers.first() {
-        let output = Command::new("netsh")
-            .args([
-                "interface",
-                "ipv6",
-                "set",
-                "dns",
-                &format!("name={}", interface_name),
-                "static",
-                first,
-            ])
-            .output()?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            error!(
-                "netsh ipv6 set dns failed for {}: {}",
-                interface_name, stderr
-            );
-        }
-
-        for (index, server) in ipv6_servers[1..].iter().enumerate() {
-            let output = Command::new("netsh")
-                .args([
-                    "interface",
-                    "ipv6",
-                    "add",
-                    "dns",
-                    &format!("name={}", interface_name),
-                    &format!("addr={}", server),
-                    &format!("index={}", index + 2),
-                ])
-                .output()?;
-
-            if !output.status.success() {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                error!(
-                    "netsh ipv6 add dns failed for {}: {}",
-                    interface_name, stderr
-                );
-            }
-        }
+    if result != 0 {
+        return Err(io::Error::from_raw_os_error(result as i32));
     }
 
     Ok(())
 }
 
-fn restore_dhcp_dns(interface_name: &str) -> io::Result<()> {
-    let output = Command::new("netsh")
-        .args([
-            "interface",
-            "ip",
-            "set",
-            "dns",
-            &format!("name={}", interface_name),
-            "dhcp",
-        ])
-        .output()?;
+// --- System notifications ---
 
-    if !output.status.success() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!(
-                "netsh restore dhcp dns failed for {}: {}",
-                interface_name,
-                String::from_utf8_lossy(&output.stderr)
-            ),
-        ));
+fn notify_adapter_config_change(adapter_guid: &str) {
+    type DhcpNotifyFn =
+        unsafe extern "system" fn(*const u16, *const u16, i32, u32, u32, u32, i32) -> u32;
+
+    unsafe {
+        let lib = LoadLibraryW(to_wide("dhcpcsvc.dll").as_ptr());
+        if lib.is_null() {
+            debug!("Failed to load dhcpcsvc.dll");
+            return;
+        }
+
+        if let Some(func) = GetProcAddress(lib, b"DhcpNotifyConfigChange\0".as_ptr()) {
+            let notify: DhcpNotifyFn = std::mem::transmute(func);
+            let guid_w = to_wide(adapter_guid);
+            notify(ptr::null(), guid_w.as_ptr(), 0, 0, 0, 0, 0);
+        }
+
+        FreeLibrary(lib);
     }
+}
 
-    Ok(())
+fn flush_dns_resolver_cache() {
+    type DnsFlushFn = unsafe extern "system" fn() -> i32;
+
+    unsafe {
+        let lib = LoadLibraryW(to_wide("dnsapi.dll").as_ptr());
+        if lib.is_null() {
+            debug!("Failed to load dnsapi.dll");
+            return;
+        }
+
+        if let Some(func) = GetProcAddress(lib, b"DnsFlushResolverCache\0".as_ptr()) {
+            let flush: DnsFlushFn = std::mem::transmute(func);
+            flush();
+            debug!("DNS resolver cache flushed");
+        }
+
+        FreeLibrary(lib);
+    }
+}
+
+// --- String helpers ---
+
+fn to_wide(s: &str) -> Vec<u16> {
+    std::ffi::OsStr::new(s)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
+}
+
+unsafe fn wide_ptr_to_string(ptr: *const u16) -> String {
+    if ptr.is_null() {
+        return String::new();
+    }
+    let len = (0..).take_while(|&i| unsafe { *ptr.add(i) != 0 }).count();
+    String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(ptr, len) })
+}
+
+unsafe fn ansi_ptr_to_string(ptr: *const u8) -> String {
+    if ptr.is_null() {
+        return String::new();
+    }
+    unsafe { CStr::from_ptr(ptr as *const std::ffi::c_char) }
+        .to_string_lossy()
+        .into_owned()
 }
