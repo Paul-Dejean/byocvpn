@@ -64,7 +64,7 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
         .into());
     }
 
-    let (tun, created_interface_name, interface_index) = setup_tun_device(private_ipv4, private_ipv6)?;
+    let (tun, interface_index) = setup_tun_device(private_ipv4, private_ipv6)?;
     let wireguard_tunnel = create_wireguard_tunnel(private_key, public_key)?;
     let udp = connect_udp_socket(server_endpoint).await?;
 
@@ -118,7 +118,7 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
     Ok(())
 }
 
-fn setup_tun_device(private_ipv4: IpNet, private_ipv6: IpNet) -> Result<(AsyncDevice, String, u32)> {
+fn setup_tun_device(private_ipv4: IpNet, private_ipv6: IpNet) -> Result<(AsyncDevice, u32)> {
     let tun = DeviceBuilder::new()
         .name(constants::get_interface_name())
         .ipv4(private_ipv4.addr(), private_ipv4.prefix_len(), None)
@@ -129,20 +129,14 @@ fn setup_tun_device(private_ipv4: IpNet, private_ipv6: IpNet) -> Result<(AsyncDe
             reason: format!("Failed to create TUN device: {}", error),
         })?;
 
-    let created_interface_name =
-        tun.name()
-            .map_err(|error| ConfigurationError::TunnelConfiguration {
-                reason: format!("Failed to get TUN name: {}", error),
-            })?;
-
     let interface_index =
         tun.if_index()
             .map_err(|error| ConfigurationError::TunnelConfiguration {
                 reason: format!("Failed to get TUN interface index: {}", error),
             })?;
 
-    info!("Created TUN device: {} (index: {})", created_interface_name, interface_index);
-    Ok((tun, created_interface_name, interface_index))
+    info!("Created TUN device: {} (index: {})", constants::get_interface_name(), interface_index);
+    Ok((tun, interface_index))
 }
 
 fn create_wireguard_tunnel(private_key: Vec<u8>, public_key: Vec<u8>) -> Result<Tunn> {

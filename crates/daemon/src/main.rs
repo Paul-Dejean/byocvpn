@@ -1,3 +1,4 @@
+#[cfg(not(windows))]
 use byocvpn_core::error::Result;
 use byocvpn_daemon::daemon::run_daemon;
 #[cfg(not(windows))]
