@@ -16,6 +16,7 @@ const ARM_BASE: &str = "https://management.azure.com";
 
 const REQUEST_TIMEOUT_SECS: u64 = 90;
 
+#[derive(Clone)]
 pub struct AzureClient {
     http: HttpClient,
     credential: Arc<ClientSecretCredential>,

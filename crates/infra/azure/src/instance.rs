@@ -282,7 +282,12 @@ pub async fn terminate_instance(client: &AzureClient, instance_id: &str) -> Resu
 
     info!("[Azure] VM '{}' deleted.", vm_name);
 
-    cleanup_vm_resources(client, location, vm_name).await;
+    let client_clone = client.clone();
+    let location_owned = location.to_string();
+    let vm_name_owned = vm_name.to_string();
+    tokio::spawn(async move {
+        cleanup_vm_resources(&client_clone, &location_owned, &vm_name_owned).await;
+    });
 
     Ok(())
 }

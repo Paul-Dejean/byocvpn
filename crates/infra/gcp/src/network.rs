@@ -1,12 +1,15 @@
+use std::collections::HashSet;
+
 use byocvpn_core::error::{Error, NetworkProvisioningError, Result};
 use byocvpn_core::retry::retry;
 use tokio::time::Duration;
 
 use crate::client::GcpClient;
 use crate::models::{
-    CreateFirewallRuleRequest, CreateSubnetRequest, CreateVpcRequest, EmptyRequest,
-    FirewallAllowed, FirewallRuleResponse, ImageResponse, Operation, PatchFirewallRuleRequest,
-    PatchSubnetRequest, RegionListResponse, ServiceResponse, SubnetResponse, VpcResponse,
+    AggregatedSubnetListResponse, CreateFirewallRuleRequest, CreateSubnetRequest, CreateVpcRequest,
+    EmptyRequest, FirewallAllowed, FirewallRuleResponse, ImageResponse, Operation,
+    PatchFirewallRuleRequest, PatchSubnetRequest, RegionListResponse, ServiceResponse,
+    SubnetResponse, VpcResponse,
 };
 use log::*;
 
@@ -216,63 +219,35 @@ pub async fn ensure_firewall_rules(client: &GcpClient) -> Result<()> {
     Ok(())
 }
 
-fn compute_subnet_cidr_for_region(region: &str) -> String {
-    const REGION_CIDRS: &[(&str, u8)] = &[
-        ("africa-south1", 100),
-        ("asia-east1", 101),
-        ("asia-east2", 102),
-        ("asia-northeast1", 103),
-        ("asia-northeast2", 104),
-        ("asia-northeast3", 105),
-        ("asia-south1", 106),
-        ("asia-south2", 107),
-        ("asia-southeast1", 108),
-        ("asia-southeast2", 109),
-        ("australia-southeast1", 110),
-        ("australia-southeast2", 111),
-        ("europe-central2", 112),
-        ("europe-north1", 113),
-        ("europe-southwest1", 114),
-        ("europe-west1", 115),
-        ("europe-west10", 116),
-        ("europe-west12", 117),
-        ("europe-west2", 118),
-        ("europe-west3", 119),
-        ("europe-west4", 120),
-        ("europe-west6", 121),
-        ("europe-west8", 122),
-        ("europe-west9", 123),
-        ("me-central1", 124),
-        ("me-central2", 125),
-        ("me-west1", 126),
-        ("northamerica-northeast1", 127),
-        ("northamerica-northeast2", 128),
-        ("northamerica-south1", 129),
-        ("southamerica-east1", 130),
-        ("southamerica-west1", 131),
-        ("us-central1", 132),
-        ("us-east1", 133),
-        ("us-east4", 134),
-        ("us-east5", 135),
-        ("us-south1", 136),
-        ("us-west1", 137),
-        ("us-west2", 138),
-        ("us-west3", 139),
-        ("us-west4", 140),
-    ];
+async fn find_available_subnet_cidr(client: &GcpClient) -> Result<String> {
+    let url = format!(
+        "https://compute.googleapis.com/compute/v1/projects/{}/aggregated/subnetworks",
+        client.project_id
+    );
+    let response: AggregatedSubnetListResponse = client.get(&url).await?;
 
-    if let Some((_, octet)) = REGION_CIDRS.iter().find(|(name, _)| *name == region) {
-        return format!("10.{}.0.0/20", octet);
+    let used_cidrs: HashSet<String> = response
+        .items
+        .unwrap_or_default()
+        .into_values()
+        .flat_map(|region| region.subnetworks.unwrap_or_default())
+        .filter_map(|subnet| subnet.ip_cidr_range)
+        .collect();
+
+    for second_octet in 0u16..=255 {
+        for block in 0u16..16 {
+            let third_octet = block * 16;
+            let candidate = format!("10.{}.{}.0/20", second_octet, third_octet);
+            if !used_cidrs.contains(&candidate) {
+                return Ok(candidate);
+            }
+        }
     }
 
-    let hash: u8 = region
-        .bytes()
-        .enumerate()
-        .fold(0u32, |acc, (index, byte)| {
-            acc.wrapping_add((byte as u32).wrapping_mul((index + 1) as u32))
-        })
-        .wrapping_rem(40) as u8;
-    format!("10.{}.0.0/20", 200 + hash)
+    Err(NetworkProvisioningError::SubnetCreationFailed {
+        reason: "no available /20 CIDR block in 10.0.0.0/8".to_string(),
+    }
+    .into())
 }
 
 async fn get_subnet(client: &GcpClient, region: &str) -> Result<Option<SubnetResponse>> {
@@ -298,7 +273,7 @@ async fn create_subnet(client: &GcpClient, region: &str) -> Result<String> {
             "https://www.googleapis.com/compute/v1/projects/{}/regions/{}",
             client.project_id, region
         ),
-        ip_cidr_range: compute_subnet_cidr_for_region(region),
+        ip_cidr_range: find_available_subnet_cidr(client).await?,
         description: "byocvpn WireGuard subnet".to_string(),
         private_ip_google_access: false,
         stack_type: "IPV4_IPV6".to_string(),

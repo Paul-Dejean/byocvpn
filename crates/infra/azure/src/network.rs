@@ -24,99 +24,10 @@ const NSG_NAME: &str = "byocvpn-nsg";
 
 // ── CIDR helpers ─────────────────────────────────────────────────────────────
 
-fn compute_location_index(location: &str) -> u8 {
-    const LOCATIONS: &[(&str, u8)] = &[
-        ("eastus", 50),
-        ("eastus2", 51),
-        ("westus", 52),
-        ("westus2", 53),
-        ("westus3", 54),
-        ("centralus", 55),
-        ("northcentralus", 56),
-        ("southcentralus", 57),
-        ("westcentralus", 58),
-        ("canadacentral", 59),
-        ("canadaeast", 60),
-        ("brazilsouth", 61),
-        ("brazilsoutheast", 62),
-        ("northeurope", 63),
-        ("westeurope", 64),
-        ("uksouth", 65),
-        ("ukwest", 66),
-        ("francecentral", 67),
-        ("francesouth", 68),
-        ("germanywestcentral", 69),
-        ("germanynorth", 70),
-        ("norwayeast", 71),
-        ("norwaywest", 72),
-        ("swedencentral", 73),
-        ("switzerlandnorth", 74),
-        ("switzerlandwest", 75),
-        ("polandcentral", 76),
-        ("italynorth", 77),
-        ("spaincentral", 78),
-        ("eastasia", 79),
-        ("southeastasia", 80),
-        ("australiaeast", 81),
-        ("australiasoutheast", 82),
-        ("australiacentral", 83),
-        ("australiacentral2", 84),
-        ("japaneast", 85),
-        ("japanwest", 86),
-        ("koreacentral", 87),
-        ("koreasouth", 88),
-        ("centralindia", 89),
-        ("southindia", 90),
-        ("westindia", 91),
-        ("jioindiacentral", 92),
-        ("jioindiawest", 93),
-        ("newzealandnorth", 94),
-        ("uaenorth", 95),
-        ("uaecentral", 96),
-        ("qatarcentral", 97),
-        ("israelcentral", 98),
-        ("southafricanorth", 99),
-        ("southafricawest", 100),
-        ("mexicocentral", 101),
-        ("chilecentral", 102),
-        ("eastus2euap", 103),
-        ("westus2euap", 104),
-        ("austriaeast", 105),
-        ("belgiumcentral", 106),
-        ("denmarkeast", 107),
-        ("indonesiacentral", 108),
-        ("malaysiawest", 109),
-    ];
-
-    if let Some((_, index)) = LOCATIONS.iter().find(|(name, _)| *name == location) {
-        return *index;
-    }
-
-    let hash: u8 = location
-        .bytes()
-        .enumerate()
-        .fold(0u32, |acc, (i, b)| {
-            acc.wrapping_add((b as u32).wrapping_mul((i as u32).wrapping_add(1)))
-        })
-        .wrapping_rem(50) as u8;
-    150 + hash
-}
-
-fn build_vnet_cidr_for_location(location: &str) -> String {
-    format!("10.{}.0.0/16", compute_location_index(location))
-}
-
-fn build_subnet_cidr_for_location(location: &str) -> String {
-    format!("10.{}.0.0/24", compute_location_index(location))
-}
-
-fn build_vnet_ipv6_cidr_for_location(location: &str) -> String {
-    format!("fd{:02x}::/48", compute_location_index(location))
-}
-
-fn build_subnet_ipv6_cidr_for_location(location: &str) -> String {
-    format!("fd{:02x}::/64", compute_location_index(location))
-}
+const VNET_CIDR: &str = "10.0.0.0/16";
+const SUBNET_CIDR: &str = "10.0.0.0/24";
+const VNET_IPV6_CIDR: &str = "fd00::/48";
+const SUBNET_IPV6_CIDR: &str = "fd00::/64";
 
 // ── Regions ──────────────────────────────────────────────────────────────────
 
@@ -624,8 +535,8 @@ async fn create_vnet(client: &AzureClient, location: &str) -> Result<String> {
         properties: VnetProperties {
             address_space: AddressSpace {
                 address_prefixes: vec![
-                    build_vnet_cidr_for_location(location),
-                    build_vnet_ipv6_cidr_for_location(location),
+                    VNET_CIDR.to_string(),
+                    VNET_IPV6_CIDR.to_string(),
                 ],
             },
         },
@@ -708,12 +619,12 @@ async fn create_subnet(client: &AzureClient, location: &str, nsg_id: &str) -> Re
     ));
     let url = client.build_arm_url(&path, API_VERSION_NETWORK);
 
-    let cidr = build_subnet_cidr_for_location(location);
-    let cidr_ipv6 = build_subnet_ipv6_cidr_for_location(location);
+    let cidr = SUBNET_CIDR;
+    let cidr_ipv6 = SUBNET_IPV6_CIDR;
 
     let body = SubnetRequest {
         properties: SubnetRequestProperties {
-            address_prefixes: vec![cidr.clone(), cidr_ipv6.clone()],
+            address_prefixes: vec![cidr.to_string(), cidr_ipv6.to_string()],
             network_security_group: ResourceReference {
                 id: nsg_id.to_string(),
             },

@@ -107,6 +107,22 @@ pub struct SubnetResponse {
 }
 
 #[derive(Deserialize)]
+pub struct AggregatedSubnetListResponse {
+    pub items: Option<HashMap<String, RegionSubnets>>,
+}
+
+#[derive(Deserialize)]
+pub struct RegionSubnets {
+    pub subnetworks: Option<Vec<SubnetSummary>>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubnetSummary {
+    pub ip_cidr_range: Option<String>,
+}
+
+#[derive(Deserialize)]
 pub struct RegionListResponse {
     pub items: Option<Vec<RegionItem>>,
 }
