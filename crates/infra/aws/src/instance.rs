@@ -13,12 +13,16 @@ use chrono::{DateTime, Utc};
 use log::*;
 use tokio::time::Duration;
 
-use crate::aws_error::extract_error_message;
-use crate::constants::{SECURITY_GROUP_NAME, SUBNET_CIDR_BLOCK, SUBNET_NAME, VPC_CIDR_BLOCK, VPC_NAME};
-use crate::{config, network, startup_script, state::Ec2InstanceState};
+use crate::{
+    aws_error::extract_error_message,
+    config,
+    constants::{SECURITY_GROUP_NAME, SUBNET_CIDR_BLOCK, SUBNET_NAME, VPC_CIDR_BLOCK, VPC_NAME},
+    network, startup_script,
+    state::Ec2InstanceState,
+};
 
 const SERVER_INSTANCE_NAME: &str = "byocvpn-server";
-const SERVER_INSTANCE_TYPE: &str = "t2.micro";
+const SERVER_INSTANCE_TYPE: &str = "t3.micro";
 
 pub(super) async fn spawn_instance(
     ec2_client: &Ec2Client,
@@ -29,7 +33,8 @@ pub(super) async fn spawn_instance(
 ) -> Result<InstanceInfo> {
     let vpc_id = network::ensure_vpc(ec2_client, VPC_CIDR_BLOCK, VPC_NAME).await?;
 
-    let subnet_id = network::ensure_subnet(ec2_client, &vpc_id, SUBNET_CIDR_BLOCK, SUBNET_NAME).await?;
+    let subnet_id =
+        network::ensure_subnet(ec2_client, &vpc_id, SUBNET_CIDR_BLOCK, SUBNET_NAME).await?;
 
     let user_data =
         startup_script::generate_server_startup_script(server_private_key, client_public_key)?;
@@ -40,13 +45,9 @@ pub(super) async fn spawn_instance(
     let ami_id = config::get_al2023_ami(&ssm_client).await?;
     debug!("Resolved AL2023 AMI: {}", ami_id);
 
-    let security_group_id = network::ensure_security_group(
-        ec2_client,
-        &vpc_id,
-        SECURITY_GROUP_NAME,
-        "BYOC VPN server",
-    )
-    .await?;
+    let security_group_id =
+        network::ensure_security_group(ec2_client, &vpc_id, SECURITY_GROUP_NAME, "BYOC VPN server")
+            .await?;
 
     debug!("Resolved security group: {}", security_group_id);
 
@@ -64,7 +65,7 @@ pub(super) async fn spawn_instance(
         .subnet_id(subnet_id)
         .image_id(ami_id)
         .security_group_ids(security_group_id)
-        .instance_type(aws_sdk_ec2::types::InstanceType::T2Micro)
+        .instance_type(aws_sdk_ec2::types::InstanceType::from(SERVER_INSTANCE_TYPE))
         .user_data(encoded_user_data)
         .min_count(1)
         .max_count(1)
