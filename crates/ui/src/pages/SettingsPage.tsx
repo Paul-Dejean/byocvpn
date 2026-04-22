@@ -101,7 +101,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
       ({ payload }) => {
         if (activeJobIdRef.current === payload.jobId) {
           setProvisionError(payload.error);
-          toast.error("Provisioning failed");
+          toast.error(payload.error || "Provisioning failed");
         }
       },
     );
@@ -134,10 +134,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
       setProvisionError(null);
       setIsProvisionDrawerOpen(true);
     } catch (invocationError) {
-      const message =
-        invocationError instanceof Error
-          ? invocationError.message
-          : "Failed to start provisioning";
+      const message = typeof invocationError === "string" ? invocationError : "Failed to start provisioning";
       toast.error(message);
     }
   };

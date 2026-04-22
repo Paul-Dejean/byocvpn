@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import toast from "react-hot-toast";
 import { AwsRegion, RegionGroup } from "../types";
+import { useErrorLogContext } from "../contexts";
 
 const PROVIDERS = ["aws", "oracle", "gcp", "azure"] as const;
 
@@ -56,6 +57,7 @@ export const useRegions = () => {
   const [groupedRegions, setGroupedRegions] = useState<RegionGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { addEntry } = useErrorLogContext();
 
   const loadRegions = async () => {
     setError(null);
@@ -72,10 +74,10 @@ export const useRegions = () => {
       })) as AwsRegion[];
       setRegions(fetchedRegions);
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to load regions";
+      const errorMessage = typeof err === "string" ? err : "Failed to load regions";
       setError(errorMessage);
       toast.error(errorMessage);
+      addEntry(errorMessage, "load regions");
     } finally {
       setIsLoading(false);
     }

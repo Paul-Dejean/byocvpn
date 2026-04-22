@@ -354,7 +354,7 @@ export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPag
       ({ payload }) => {
         if (activeJobIdRef.current === payload.jobId) {
           setProvisionError(payload.error);
-          toast.error("Account setup failed");
+          toast.error(payload.error || "Account setup failed");
         }
       },
     );
@@ -386,8 +386,7 @@ export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPag
       setProvisionError(null);
       setIsProvisionDrawerOpen(true);
     } catch (invocationError) {
-      const message =
-        invocationError instanceof Error ? invocationError.message : "Failed to start setup";
+      const message = typeof invocationError === "string" ? invocationError : "Failed to start setup";
       toast.error(message);
     }
   };

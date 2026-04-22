@@ -10,6 +10,7 @@ import {
   SpawnProgressEvent,
   SpawnCompleteEvent,
 } from "../types";
+import { useErrorLogContext } from "../contexts";
 
 export const useInstances = (regions: AwsRegion[]) => {
   const [instances, setInstances] = useState<Instance[]>([]);
@@ -20,6 +21,7 @@ export const useInstances = (regions: AwsRegion[]) => {
   const [error, setError] = useState<string | null>(null);
 
   const [spawnJobs, setSpawnJobs] = useState<Record<string, SpawnJobState>>({});
+  const { addEntry } = useErrorLogContext();
 
   const tempToJob = useRef<Record<string, string>>({});
 
@@ -84,7 +86,9 @@ export const useInstances = (regions: AwsRegion[]) => {
           const { [jobId]: _, ...rest } = prev;
           return rest;
         });
-        toast.error(error ?? "Server deployment failed");
+        const deploymentError = error ?? "Server deployment failed";
+        toast.error(deploymentError);
+        addEntry(deploymentError, "deploy server");
       },
     );
 
@@ -102,10 +106,10 @@ export const useInstances = (regions: AwsRegion[]) => {
       const fetched = await invoke<Instance[]>("list_instances");
       setInstances(fetched);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to fetch instances";
+      const message = typeof err === "string" ? err : "Failed to fetch instances";
       console.error("Failed to fetch existing instances:", err);
       setError(message);
+      addEntry(message, "fetch instances");
     } finally {
       setIsLoading(false);
     }
@@ -148,12 +152,11 @@ export const useInstances = (regions: AwsRegion[]) => {
         },
       }));
     } catch (err) {
-
       setInstances((prev) => prev.filter((inst) => inst.id !== tempId));
-      const message =
-        err instanceof Error ? err.message : "Failed to start deployment";
+      const message = typeof err === "string" ? err : "Failed to start deployment";
       setError(message);
       toast.error(message);
+      addEntry(message, "deploy server");
     }
 
     return placeholder;
@@ -171,11 +174,11 @@ export const useInstances = (regions: AwsRegion[]) => {
       setInstances((prev) => prev.filter((i) => i.id !== instanceId));
       toast.success("Server terminated successfully!");
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to terminate instance";
+      const message = typeof err === "string" ? err : "Failed to terminate instance";
       setError(message);
       toast.error(message);
       console.error("Failed to terminate instance:", err);
+      addEntry(message, "terminate instance");
       throw err;
     } finally {
       setTerminatingInstanceId(null);

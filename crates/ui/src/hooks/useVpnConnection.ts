@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import toast from "react-hot-toast";
 import { Instance } from "../types";
+import { useErrorLogContext } from "../contexts";
 
 export enum ServerStatus {
   IDLE = "idle",
@@ -36,6 +37,7 @@ export const useVpnConnection = () => {
   const [vpnStatus, setVpnStatus] = useState<VpnStatus>(initialVpnStatus);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { addEntry } = useErrorLogContext();
 
   useEffect(() => {
     checkVpnStatus();
@@ -86,11 +88,11 @@ export const useVpnConnection = () => {
       console.log("VPN connected:", response);
       toast.success("Connected to VPN successfully!");
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to connect to VPN";
+      const errorMessage = typeof error === "string" ? error : "Failed to connect to VPN";
       setError(errorMessage);
       console.error("Failed to connect to VPN:", error);
       toast.error(errorMessage);
+      addEntry(errorMessage, "connect to VPN");
     } finally {
       setIsConnecting(false);
     }
@@ -104,13 +106,11 @@ export const useVpnConnection = () => {
       console.log("VPN disconnected:", response);
       toast.success("Disconnected from VPN");
     } catch (error) {
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Failed to disconnect from VPN";
+      const errorMessage = typeof error === "string" ? error : "Failed to disconnect from VPN";
       setError(errorMessage);
       toast.error(errorMessage);
       console.error("Failed to disconnect from VPN:", error);
+      addEntry(errorMessage, "disconnect from VPN");
     }
   };
 

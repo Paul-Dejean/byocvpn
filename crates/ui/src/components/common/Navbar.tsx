@@ -1,5 +1,6 @@
 import { Page } from "../../types/pages";
 import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
+import { useErrorLogContext } from "../../contexts";
 
 interface NavbarProps {
   currentPage: Page;
@@ -31,6 +32,7 @@ function NavItem({ icon, label, isActive, onClick }: NavItemProps) {
 
 export function Navbar({ currentPage, onNavigate }: NavbarProps) {
   const { vpnStatus } = useVpnConnectionContext();
+  const { entries } = useErrorLogContext();
   const isConnected = vpnStatus.connected;
 
   return (
@@ -68,6 +70,20 @@ export function Navbar({ currentPage, onNavigate }: NavbarProps) {
         isActive={currentPage === Page.SETTINGS}
         onClick={() => onNavigate(Page.SETTINGS)}
       />
+      <button
+        onClick={() => onNavigate(Page.LOGS)}
+        title="Logs"
+        className={`relative flex flex-col items-center justify-center w-10 h-10 rounded-lg transition-colors ${
+          currentPage === Page.LOGS
+            ? "bg-blue-600 text-white"
+            : "text-gray-400 hover:bg-gray-700 hover:text-white"
+        }`}
+      >
+        <LogIcon />
+        {entries.length > 0 && (
+          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+        )}
+      </button>
     </nav>
   );
 }
@@ -104,6 +120,14 @@ function DollarIcon() {
         strokeWidth={1.5}
         d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
       />
+    </svg>
+  );
+}
+
+function LogIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
     </svg>
   );
 }

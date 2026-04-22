@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import toast from "react-hot-toast";
+import { useErrorLogContext } from "../contexts";
 
 export interface AwsCredentials {
   accessKeyId: string;
@@ -31,6 +32,7 @@ export const useCredentials = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const { addEntry } = useErrorLogContext();
 
   const loadCredentials = async (
     provider: "aws" | "oracle" | "gcp" | "azure",
@@ -67,11 +69,11 @@ export const useCredentials = () => {
       toast.success(message);
       return true;
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to save credentials";
+      const message = typeof err === "string" ? err : "Failed to save credentials";
       setError(message);
       toast.error(message);
       console.error("Failed to save credentials:", err);
+      addEntry(message, "save credentials");
       return false;
     } finally {
       setIsSaving(false);
@@ -86,10 +88,10 @@ export const useCredentials = () => {
       toast.success("Credentials deleted successfully!");
       return true;
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to delete credentials";
+      const message = typeof err === "string" ? err : "Failed to delete credentials";
       toast.error(message);
       console.error("Failed to delete credentials:", err);
+      addEntry(message, "delete credentials");
       return false;
     }
   };

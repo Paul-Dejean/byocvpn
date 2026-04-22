@@ -9,10 +9,12 @@ import {
   SettingsPage,
   PricingPage,
   AddAccountPage,
+  ErrorLogPage,
 } from "./pages";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { Navbar } from "./components/common/Navbar";
 import { VpnConnectionProvider } from "./contexts/VpnConnectionContext";
+import { ErrorLogProvider } from "./contexts";
 import { Page } from "./types/pages";
 export { Page };
 function App() {
@@ -21,6 +23,7 @@ function App() {
   return (
     <main className="bg-grid">
       <ErrorBoundary>
+      <ErrorLogProvider>
         <Toaster
           position="top-right"
           toastOptions={{
@@ -54,7 +57,7 @@ function App() {
         )}
 
         {}
-        {(page === Page.VPN || page === Page.PRICING || page === Page.SETTINGS) && (
+        {(page === Page.VPN || page === Page.PRICING || page === Page.SETTINGS || page === Page.LOGS) && (
           <VpnConnectionProvider>
             <div className="flex h-screen">
               <Navbar currentPage={page} onNavigate={setPage} />
@@ -70,10 +73,12 @@ function App() {
                     onNavigateToAddAccount={() => setPage(Page.ADD_ACCOUNT)}
                   />
                 )}
+                {page === Page.LOGS && <ErrorLogPage />}
               </div>
             </div>
           </VpnConnectionProvider>
         )}
+      </ErrorLogProvider>
       </ErrorBoundary>
     </main>
   );

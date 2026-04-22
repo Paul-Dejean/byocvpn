@@ -3,3 +3,4 @@ export { SettingsPage } from "./SettingsPage";
 export { LandingPage } from "./LandingPage";
 export { PricingPage } from "./PricingPage";
 export { AddAccountPage } from "./AddAccountPage";
+export { ErrorLogPage } from "./ErrorLogPage";
