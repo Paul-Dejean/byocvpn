@@ -94,6 +94,16 @@ impl LedgerStore {
         }
     }
 
+    pub fn running_entries(&self) -> Vec<LedgerEntry> {
+        self.0
+            .keys()
+            .into_iter()
+            .filter(|key| key.starts_with("ledger/"))
+            .filter_map(|key| self.deserialize_entry_by_key(&key))
+            .filter(|entry| entry.terminated_at.is_none())
+            .collect()
+    }
+
     pub fn all_entries(&self) -> Vec<Value> {
         self.0
             .keys()

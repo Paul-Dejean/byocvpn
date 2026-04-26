@@ -34,6 +34,7 @@ sha2 = "0.10"
 uuid = { version = "1", features = ["v4"] }
 hex = "0.4"
 chrono = { version = "0.4", features = ["serde"] }
+humantime = "2"
 strum = { version = "0.27", features = ["derive"] }
 
 

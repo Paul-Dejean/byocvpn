@@ -1,7 +1,9 @@
 mod commands;
 mod ledger_store;
 mod provider_store;
+mod settings_store;
 mod tray;
+mod uptime_notifier;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -10,11 +12,13 @@ pub fn run() {
         .init();
 
     let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .setup(|app| {
             tray::build_tray(app.handle())?;
+            uptime_notifier::start_uptime_check_loop(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -42,6 +46,8 @@ pub fn run() {
             commands::get_instance_pricing,
             commands::get_ledger,
             commands::save_file,
+            settings_store::get_notification_settings,
+            settings_store::save_notification_settings,
         ]);
 
     builder

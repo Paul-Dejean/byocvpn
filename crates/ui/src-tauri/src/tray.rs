@@ -1,7 +1,8 @@
 use std::{
     sync::{Mutex, atomic::{AtomicBool, Ordering}},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH},
 };
+use humantime::format_duration;
 
 use byocvpn_core::tunnel::VpnStatus;
 use log::warn;
@@ -67,8 +68,8 @@ pub fn update_tray(app: &AppHandle, vpn_status: &VpnStatus) {
             let _ = tray.set_menu(Some(menu));
         }
     } else if vpn_status.connected {
-        if let Some(duration_text) = vpn_status.connected_at.map(format_connected_duration) {
-            let label = format!("Connected · {duration_text}");
+        if let Some(elapsed) = vpn_status.connected_at.and_then(|ts| get_elapsed_duration(ts).ok()) {
+            let label = format!("Connected · {}", format_duration(elapsed));
             if let Ok(guard) = STATUS_MENU_ITEM.lock() {
                 if let Some(ref item) = *guard {
                     let _ = item.set_text(&label);
@@ -85,7 +86,8 @@ fn build_tray_menu(
     let status_label = if vpn_status.connected {
         vpn_status
             .connected_at
-            .map(|timestamp| format!("Connected · {}", format_connected_duration(timestamp)))
+            .and_then(|timestamp| get_elapsed_duration(timestamp).ok())
+            .map(|elapsed| format!("Connected · {}", format_duration(elapsed)))
             .unwrap_or_else(|| "Connected".to_string())
     } else {
         "ByocVPN — Disconnected".to_string()
@@ -134,28 +136,16 @@ fn build_tooltip(vpn_status: &VpnStatus) -> String {
     if vpn_status.connected {
         vpn_status
             .connected_at
-            .map(|timestamp| format!("ByocVPN — Connected · {}", format_connected_duration(timestamp)))
+            .and_then(|timestamp| get_elapsed_duration(timestamp).ok())
+            .map(|elapsed| format!("ByocVPN — Connected · {}", format_duration(elapsed)))
             .unwrap_or_else(|| "ByocVPN — Connected".to_string())
     } else {
         "ByocVPN — Disconnected".to_string()
     }
 }
 
-fn format_connected_duration(connected_at_unix_secs: u64) -> String {
-    let now_secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or(Duration::ZERO)
-        .as_secs();
-
-    let elapsed = now_secs.saturating_sub(connected_at_unix_secs);
-
-    if elapsed < 60 {
-        format!("{elapsed}s")
-    } else if elapsed < 3600 {
-        format!("{}m {}s", elapsed / 60, elapsed % 60)
-    } else {
-        format!("{}h {}m", elapsed / 3600, (elapsed % 3600) / 60)
-    }
+pub fn get_elapsed_duration(unix_secs: u64) -> Result<Duration, SystemTimeError> {
+    SystemTime::now().duration_since(UNIX_EPOCH + Duration::from_secs(unix_secs))
 }
 
 fn disconnected_vpn_status() -> VpnStatus {
