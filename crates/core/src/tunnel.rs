@@ -41,6 +41,7 @@ pub struct VpnStatus {
     pub connected: bool,
     pub instance: Option<ConnectedInstance>,
     pub metrics: Option<TunnelMetrics>,
+    pub connected_at: Option<u64>,
 }
 
 pub struct Tunnel {

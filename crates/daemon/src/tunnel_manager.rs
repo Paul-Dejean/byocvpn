@@ -1,4 +1,5 @@
 use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 
 use byocvpn_core::tunnel::{ConnectedInstance, TunnelMetrics};
 use tokio::{
@@ -20,6 +21,7 @@ pub struct TunnelHandle {
     pub server_ip: String,
     pub interface_index: u32,
     pub instance: Option<ConnectedInstance>,
+    pub connected_at: SystemTime,
 }
 
 pub static TUNNEL_MANAGER: Mutex<Option<TunnelHandle>> = Mutex::new(None);

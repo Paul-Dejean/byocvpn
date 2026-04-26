@@ -112,6 +112,7 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
             region,
             provider,
         }),
+        connected_at: std::time::SystemTime::now(),
     });
 
     info!("VPN setup complete.");

@@ -27,6 +27,7 @@ use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter};
 
 use crate::ledger_store::LedgerStore;
+use crate::tray;
 
 async fn create_cloud_provider(provider_name: CloudProviderName) -> Result<Box<dyn CloudProvider>> {
     debug!("Creating {} cloud provider", provider_name);
@@ -494,10 +495,13 @@ pub async fn connect(
 
     if let Some(ref connected_instance) = vpn_status.instance {
         let emit_handle = app_handle.clone();
+        let tray_handle = app_handle.clone();
         if let Err(error) = metrics_stream::start(
             byocvpn_daemon::constants::metrics_socket_path(),
             connected_instance.clone(),
+            vpn_status.connected_at,
             move |status| {
+                tray::update_tray(&tray_handle, &status);
                 let _ = emit_handle.emit("vpn-status", &status);
             },
         )
@@ -507,6 +511,7 @@ pub async fn connect(
         }
     }
 
+    tray::update_tray(&app_handle, &vpn_status);
     if let Err(error) = app_handle.emit("vpn-status", &vpn_status) {
         warn!("Failed to emit vpn-status: {}", error);
     }
@@ -524,14 +529,14 @@ pub async fn disconnect(app_handle: AppHandle) -> Result<String> {
     let daemon_client = UnixDaemonClient;
     commands::disconnect::disconnect(&daemon_client).await?;
 
-    if let Err(error) = app_handle.emit(
-        "vpn-status",
-        &VpnStatus {
-            connected: false,
-            instance: None,
-            metrics: None,
-        },
-    ) {
+    let disconnected_status = VpnStatus {
+        connected: false,
+        instance: None,
+        metrics: None,
+        connected_at: None,
+    };
+    tray::update_tray(&app_handle, &disconnected_status);
+    if let Err(error) = app_handle.emit("vpn-status", &disconnected_status) {
         warn!("Failed to emit vpn-status: {}", error);
     }
 
@@ -556,12 +561,15 @@ pub async fn subscribe_to_vpn_status(app_handle: AppHandle) -> Result<()> {
 
     let instance_id = connected_instance.instance_id.clone();
     let emit_handle = app_handle.clone();
+    let tray_handle = app_handle.clone();
     let ledger_handle = app_handle;
 
     commands::subscribe::start_metrics_subscription(
         byocvpn_daemon::constants::metrics_socket_path(),
         connected_instance,
+        status.connected_at,
         move |vpn_status| {
+            tray::update_tray(&tray_handle, &vpn_status);
             let _ = emit_handle.emit("vpn-status", &vpn_status);
         },
         move |bytes_sent, bytes_received| {

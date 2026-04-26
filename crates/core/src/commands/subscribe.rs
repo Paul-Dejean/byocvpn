@@ -11,6 +11,7 @@ use crate::{
 pub async fn start_metrics_subscription<F, G>(
     socket_path: PathBuf,
     connected_instance: ConnectedInstance,
+    connected_at: Option<u64>,
     on_status_update: F,
     on_metrics_persist: G,
 ) -> Result<()>
@@ -22,7 +23,7 @@ where
         "Starting metrics subscription via socket: {}",
         socket_path.display()
     );
-    metrics_stream::start(socket_path, connected_instance, move |vpn_status| {
+    metrics_stream::start(socket_path, connected_instance, connected_at, move |vpn_status| {
         thread_local! {
             static LAST_PERSIST: Cell<Option<Instant>> = const { Cell::new(None) };
         }

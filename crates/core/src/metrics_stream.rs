@@ -7,11 +7,12 @@ use crate::{
 };
 use log::*;
 
-static STREAM_STATE: StdMutex<Option<ConnectedInstance>> = StdMutex::new(None);
+static STREAM_STATE: StdMutex<Option<(ConnectedInstance, Option<u64>)>> = StdMutex::new(None);
 
 pub async fn start<F>(
     socket_path: PathBuf,
     connected_instance: ConnectedInstance,
+    connected_at: Option<u64>,
     on_update: F,
 ) -> Result<()>
 where
@@ -27,7 +28,7 @@ where
             return Ok(());
         }
 
-        *state = Some(connected_instance);
+        *state = Some((connected_instance, connected_at));
     }
 
     tokio::spawn(async move {
@@ -63,7 +64,7 @@ where
         let mut stopped_cleanly = false;
 
         loop {
-            let connected_instance = {
+            let (connected_instance, connected_at) = {
                 let state_guard = match STREAM_STATE.lock() {
                     Ok(guard) => guard,
                     Err(error) => {
@@ -76,7 +77,7 @@ where
                         stopped_cleanly = true;
                         break;
                     }
-                    Some(instance) => instance.clone(),
+                    Some((instance, timestamp)) => (instance.clone(), *timestamp),
                 }
             };
 
@@ -87,6 +88,7 @@ where
                             connected: true,
                             instance: Some(connected_instance),
                             metrics: Some(metrics),
+                            connected_at,
                         });
                     } else {
                         error!("Failed to parse metrics: {}", line);
@@ -115,6 +117,7 @@ where
                 connected: false,
                 instance: None,
                 metrics: None,
+                connected_at: None,
             });
         }
     });
