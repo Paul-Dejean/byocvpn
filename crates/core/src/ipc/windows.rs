@@ -4,6 +4,10 @@ use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::windows::named_pipe::{ClientOptions, NamedPipeClient, NamedPipeServer, ServerOptions},
 };
+use windows_sys::Win32::Security::{
+    ACL, InitializeSecurityDescriptor, PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES,
+    SECURITY_DESCRIPTOR, SetSecurityDescriptorDacl,
+};
 
 use crate::error::{DaemonError, Result};
 
@@ -23,16 +27,7 @@ impl IpcSocket {
             let _ = tokio::fs::remove_file(&path).await;
         }
 
-        let server = ServerOptions::new()
-            .first_pipe_instance(true)
-            .create(&path)
-            .map_err(|error| DaemonError::SocketError {
-                reason: format!(
-                    "failed to create named pipe at {}: {}",
-                    path.display(),
-                    error
-                ),
-            })?;
+        let server = create_pipe_server_with_null_dacl(&path, true)?;
 
         Ok(Self {
             pipe_server: server,
@@ -47,12 +42,7 @@ impl IpcSocket {
             .map_err(|error| DaemonError::SocketError {
                 reason: format!("failed to accept named pipe connection: {}", error),
             })?;
-        let next_server =
-            ServerOptions::new()
-                .create(&self.path)
-                .map_err(|error| DaemonError::SocketError {
-                    reason: format!("failed to create next named pipe instance: {}", error),
-                })?;
+        let next_server = create_pipe_server_with_null_dacl(&self.path, false)?;
         let connected = std::mem::replace(&mut self.pipe_server, next_server);
         Ok(IpcStream {
             stream: NamedPipeStream::Server(connected),
@@ -67,6 +57,39 @@ impl IpcSocket {
 impl Drop for IpcSocket {
     fn drop(&mut self) {
         let _ = std::fs::remove_file(&self.path);
+    }
+}
+
+fn create_pipe_server_with_null_dacl(path: &PathBuf, first_instance: bool) -> Result<NamedPipeServer> {
+    unsafe {
+        let mut security_descriptor: SECURITY_DESCRIPTOR = std::mem::zeroed();
+        let security_descriptor_ptr: PSECURITY_DESCRIPTOR =
+            std::ptr::addr_of_mut!(security_descriptor).cast();
+        InitializeSecurityDescriptor(security_descriptor_ptr, 1);
+        SetSecurityDescriptorDacl(security_descriptor_ptr, 1i32, std::ptr::null::<ACL>(), 0i32);
+
+        let mut security_attributes = SECURITY_ATTRIBUTES {
+            nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as u32,
+            lpSecurityDescriptor: security_descriptor_ptr,
+            bInheritHandle: 0,
+        };
+
+        ServerOptions::new()
+            .first_pipe_instance(first_instance)
+            .create_with_security_attributes_raw(
+                path,
+                std::ptr::addr_of_mut!(security_attributes).cast(),
+            )
+            .map_err(|error| {
+                DaemonError::SocketError {
+                    reason: format!(
+                        "failed to create named pipe at {}: {}",
+                        path.display(),
+                        error
+                    ),
+                }
+                .into()
+            })
     }
 }
 
