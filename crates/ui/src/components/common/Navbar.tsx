@@ -1,3 +1,4 @@
+import { version } from "../../../package.json";
 import { Page } from "../../types/pages";
 import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
 
@@ -32,7 +33,6 @@ function NavItem({ icon, label, isActive, onClick }: NavItemProps) {
 export function Navbar({ currentPage, onNavigate }: NavbarProps) {
   const { vpnStatus } = useVpnConnectionContext();
   const isConnected = vpnStatus.connected;
-
   return (
     <nav className="flex flex-col items-center pt-4 pb-4 gap-2 w-14 bg-gray-800 border-r border-gray-700/50 flex-shrink-0">
       <div className="flex flex-col items-center gap-1 mb-2">
@@ -68,6 +68,9 @@ export function Navbar({ currentPage, onNavigate }: NavbarProps) {
         isActive={currentPage === Page.SETTINGS}
         onClick={() => onNavigate(Page.SETTINGS)}
       />
+      <span className="mt-auto text-[11px] text-gray-400 tracking-wide">
+        v{version}
+      </span>
     </nav>
   );
 }
