@@ -3,5 +3,6 @@ export enum Page {
   VPN = "VPN",
   PRICING = "PRICING",
   SETTINGS = "SETTINGS",
+  ERRORS = "ERRORS",
   ADD_ACCOUNT = "ADD_ACCOUNT",
 }

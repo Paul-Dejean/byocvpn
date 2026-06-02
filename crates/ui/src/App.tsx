@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Toaster } from "react-hot-toast";
+import { subscribeToCommandErrors } from "./lib/commandErrorStore";
 
 import "./App.css";
 import "flag-icons/css/flag-icons.min.css";
 import {
   VpnPage,
   LandingPage,
+  ErrorsPage,
   SettingsPage,
   PricingPage,
   AddAccountPage,
@@ -17,6 +19,18 @@ import { Page } from "./types/pages";
 export { Page };
 function App() {
   const [page, setPage] = useState(Page.LANDING);
+  const [hasPendingErrors, setHasPendingErrors] = useState(false);
+
+  useEffect(() => {
+    return subscribeToCommandErrors(() => setHasPendingErrors(true));
+  }, []);
+
+  const handleNavigate = (destination: Page) => {
+    if (destination === Page.ERRORS) {
+      setHasPendingErrors(false);
+    }
+    setPage(destination);
+  };
 
   return (
     <main className="bg-grid">
@@ -54,10 +68,10 @@ function App() {
         )}
 
         {}
-        {(page === Page.VPN || page === Page.PRICING || page === Page.SETTINGS) && (
+        {(page === Page.VPN || page === Page.PRICING || page === Page.SETTINGS || page === Page.ERRORS) && (
           <VpnConnectionProvider>
             <div className="flex h-screen">
-              <Navbar currentPage={page} onNavigate={setPage} />
+              <Navbar currentPage={page} onNavigate={handleNavigate} hasPendingErrors={hasPendingErrors} />
               <div className="flex-1 min-w-0 overflow-hidden">
                 {page === Page.VPN && (
                   <VpnPage
@@ -70,6 +84,7 @@ function App() {
                     onNavigateToAddAccount={() => setPage(Page.ADD_ACCOUNT)}
                   />
                 )}
+                {page === Page.ERRORS && <ErrorsPage />}
               </div>
             </div>
           </VpnConnectionProvider>

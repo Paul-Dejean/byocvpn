@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { invokeCommand } from "../lib/invokeCommand";
 import toast from "react-hot-toast";
 
 export interface AwsCredentials {
@@ -61,7 +62,7 @@ export const useCredentials = () => {
     setSuccessMessage(null);
 
     try {
-      await invoke("save_credentials", { provider, creds });
+      await invokeCommand("save_credentials", { provider, creds });
       const message = "Credentials saved successfully!";
       setSuccessMessage(message);
       toast.success(message);
@@ -82,7 +83,7 @@ export const useCredentials = () => {
     provider: "aws" | "oracle" | "gcp" | "azure",
   ): Promise<boolean> => {
     try {
-      await invoke("delete_credentials", { provider });
+      await invokeCommand("delete_credentials", { provider });
       toast.success("Credentials deleted successfully!");
       return true;
     } catch (err) {

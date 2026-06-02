@@ -1,10 +1,12 @@
 import { version } from "../../../package.json";
 import { Page } from "../../types/pages";
+
 import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
 
 interface NavbarProps {
   currentPage: Page;
   onNavigate: (page: Page) => void;
+  hasPendingErrors: boolean;
 }
 
 interface NavItemProps {
@@ -12,25 +14,29 @@ interface NavItemProps {
   label: string;
   isActive: boolean;
   onClick: () => void;
+  badge?: boolean;
 }
 
-function NavItem({ icon, label, isActive, onClick }: NavItemProps) {
+function NavItem({ icon, label, isActive, onClick, badge }: NavItemProps) {
   return (
     <button
       onClick={onClick}
       title={label}
-      className={`flex flex-col items-center justify-center w-10 h-10 rounded-lg transition-colors ${
+      className={`relative flex flex-col items-center justify-center w-10 h-10 rounded-lg transition-colors ${
         isActive
           ? "bg-blue-600 text-white"
           : "text-gray-400 hover:bg-gray-700 hover:text-white"
       }`}
     >
       {icon}
+      {badge && (
+        <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
+      )}
     </button>
   );
 }
 
-export function Navbar({ currentPage, onNavigate }: NavbarProps) {
+export function Navbar({ currentPage, onNavigate, hasPendingErrors }: NavbarProps) {
   const { vpnStatus } = useVpnConnectionContext();
   const isConnected = vpnStatus.connected;
   return (
@@ -67,6 +73,13 @@ export function Navbar({ currentPage, onNavigate }: NavbarProps) {
         label="Settings"
         isActive={currentPage === Page.SETTINGS}
         onClick={() => onNavigate(Page.SETTINGS)}
+      />
+      <NavItem
+        icon={<LogsIcon />}
+        label="Errors"
+        isActive={currentPage === Page.ERRORS}
+        onClick={() => onNavigate(Page.ERRORS)}
+        badge={hasPendingErrors}
       />
       <span className="mt-auto text-[11px] text-gray-400 tracking-wide">
         v{version}
@@ -106,6 +119,24 @@ function DollarIcon() {
         strokeLinejoin="round"
         strokeWidth={1.5}
         d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+      />
+    </svg>
+  );
+}
+
+function LogsIcon() {
+  return (
+    <svg
+      className="w-5 h-5"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={1.5}
+        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
       />
     </svg>
   );

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invokeCommand } from "../../lib/invokeCommand";
 import { isPermissionGranted, requestPermission } from "@tauri-apps/plugin-notification";
 
 interface NotificationSettings {
@@ -17,14 +17,14 @@ export function NotificationSettingsCard() {
   const [permissionError, setPermissionError] = useState<string | null>(null);
 
   useEffect(() => {
-    invoke<NotificationSettings>("get_notification_settings")
+    invokeCommand<NotificationSettings>("get_notification_settings")
       .then(setSettings)
       .catch((error) => console.error("Failed to load notification settings:", error));
   }, []);
 
   const updateSettings = (updated: NotificationSettings) => {
     setSettings(updated);
-    invoke("save_notification_settings", { settings: updated }).catch((error) =>
+    invokeCommand("save_notification_settings", { settings: updated }).catch((error) =>
       console.error("Failed to save notification settings:", error),
     );
   };

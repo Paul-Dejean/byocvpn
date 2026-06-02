@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { invokeCommand } from "../lib/invokeCommand";
 import toast from "react-hot-toast";
 import { AwsRegion, RegionGroup } from "../types";
 
@@ -67,7 +68,7 @@ export const useRegions = () => {
       }
 
       const primaryProvider = configuredProviders[0];
-      const fetchedRegions = (await invoke("get_regions", {
+      const fetchedRegions = (await invokeCommand("get_regions", {
         provider: primaryProvider,
       })) as AwsRegion[];
       setRegions(fetchedRegions);

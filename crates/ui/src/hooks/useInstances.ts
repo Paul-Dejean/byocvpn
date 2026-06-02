@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invokeCommand } from "../lib/invokeCommand";
 import { listen } from "@tauri-apps/api/event";
 import toast from "react-hot-toast";
 import {
@@ -99,7 +99,7 @@ export const useInstances = (regions: AwsRegion[]) => {
     setIsLoading(true);
     setError(null);
     try {
-      const fetched = await invoke<Instance[]>("list_instances");
+      const fetched = await invokeCommand<Instance[]>("list_instances");
       setInstances(fetched);
     } catch (err) {
       const message =
@@ -130,7 +130,7 @@ export const useInstances = (regions: AwsRegion[]) => {
     setInstances((prev) => [...prev, placeholder]);
 
     try {
-      const job = await invoke<SpawnJob>("spawn_instance", {
+      const job = await invokeCommand<SpawnJob>("spawn_instance", {
         region: regionName,
         provider,
       });
@@ -167,7 +167,7 @@ export const useInstances = (regions: AwsRegion[]) => {
     setTerminatingInstanceId(instanceId);
     setError(null);
     try {
-      await invoke("terminate_instance", { instanceId, region, provider });
+      await invokeCommand("terminate_instance", { instanceId, region, provider });
       setInstances((prev) => prev.filter((i) => i.id !== instanceId));
       toast.success("Server terminated successfully!");
     } catch (err) {
