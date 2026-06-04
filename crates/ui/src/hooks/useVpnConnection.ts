@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invokeCommand } from "../lib/invokeCommand";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import toast from "react-hot-toast";
@@ -56,10 +56,10 @@ export const useVpnConnection = () => {
 
   const checkVpnStatus = async () => {
     try {
-      const status = await invoke<VpnStatus>("get_vpn_status");
+      const status = await invokeCommand<VpnStatus>("get_vpn_status");
       setVpnStatus(status);
       if (status.connected) {
-        invoke("subscribe_to_vpn_status").catch((error) =>
+        invokeCommand("subscribe_to_vpn_status").catch((error) =>
           console.error("Failed to resume metrics stream:", error),
         );
       }
@@ -75,7 +75,7 @@ export const useVpnConnection = () => {
     setError(null);
 
     try {
-      const response = await invoke("connect", {
+      const response = await invokeCommand("connect", {
         instanceId: selectedInstance.id,
         region: selectedInstance.region,
         provider: selectedInstance.provider,
@@ -100,7 +100,7 @@ export const useVpnConnection = () => {
     setError(null);
 
     try {
-      const response = await invoke("disconnect");
+      const response = await invokeCommand("disconnect");
       console.log("VPN disconnected:", response);
       toast.success("Disconnected from VPN");
     } catch (error) {

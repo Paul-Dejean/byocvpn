@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invokeCommand } from "../lib/invokeCommand";
 import { listen } from "@tauri-apps/api/event";
 import { save } from "@tauri-apps/plugin-dialog";
 import toast from "react-hot-toast";
@@ -369,7 +369,7 @@ export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPag
   const startProvisioning = async (provider: string) => {
     try {
       earlyProgressEventsRef.current = [];
-      const job = await invoke<ProvisionAccountJob>("provision_account", { provider });
+      const job = await invokeCommand<ProvisionAccountJob>("provision_account", { provider });
       const bufferedEvents = earlyProgressEventsRef.current.filter((event) => event.jobId === job.jobId);
       earlyProgressEventsRef.current = [];
       const initialSteps: SpawnStepState[] = job.steps.map((provisionStep) => {
@@ -914,7 +914,7 @@ function PolicyBox({ policy }: PolicyBoxProps) {
   const handleDownload = async () => {
     const savePath = await save({ defaultPath: policy.filename });
     if (savePath) {
-      await invoke("save_file", { path: savePath, content: policy.content });
+      await invokeCommand("save_file", { path: savePath, content: policy.content });
     }
   };
 

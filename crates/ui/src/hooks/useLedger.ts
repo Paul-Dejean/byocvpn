@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invokeCommand } from "../lib/invokeCommand";
 import { LedgerEntry, LedgerEntryWithCost, PricingInfo } from "../types/ledger";
 
 
@@ -22,14 +22,14 @@ export const useLedger = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const rawEntries = await invoke<LedgerEntry[]>("get_ledger");
+      const rawEntries = await invokeCommand<LedgerEntry[]>("get_ledger");
 
       const pricingCache = new Map<string, PricingInfo>();
       for (const entry of rawEntries) {
         const key = `${entry.provider}::${entry.instanceType}`;
         if (!pricingCache.has(key)) {
           try {
-            const pricing = await invoke<PricingInfo>("get_instance_pricing", {
+            const pricing = await invokeCommand<PricingInfo>("get_instance_pricing", {
               provider: entry.provider,
               instanceType: entry.instanceType,
             });
