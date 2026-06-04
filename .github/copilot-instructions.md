@@ -180,7 +180,7 @@ pub async fn spawn_server(&self, region: &str) -> Result<ServerInfo> {
 2. Mark with `#[tauri::command]`
 3. Return `Result<T, String>` for errors
 4. Register in `main.rs`
-5. Call from React with `invoke('command_name', { args })`
+5. Call from React with `invokeCommand('command_name', { args })`
 
 ### Adding a New Hook
 
