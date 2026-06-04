@@ -121,7 +121,6 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
 
 fn setup_tun_device(private_ipv4: IpNet, private_ipv6: IpNet) -> Result<(AsyncDevice, u32)> {
     let tun = DeviceBuilder::new()
-        .name(constants::get_interface_name())
         .ipv4(private_ipv4.addr(), private_ipv4.prefix_len(), None)
         .ipv6(private_ipv6.addr(), private_ipv6.prefix_len())
         .mtu(constants::TUNNEL_MTU)
@@ -136,7 +135,8 @@ fn setup_tun_device(private_ipv4: IpNet, private_ipv6: IpNet) -> Result<(AsyncDe
                 reason: format!("Failed to get TUN interface index: {}", error),
             })?;
 
-    info!("Created TUN device: {} (index: {})", constants::get_interface_name(), interface_index);
+    let interface_name = tun.name().unwrap_or_else(|_| "unknown".to_string());
+    info!("Created TUN device: {} (index: {})", interface_name, interface_index);
     Ok((tun, interface_index))
 }
 
