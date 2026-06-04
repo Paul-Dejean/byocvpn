@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invokeCommand } from "../lib/invokeCommand";
 import { listen } from "@tauri-apps/api/event";
 import { load as loadStore } from "@tauri-apps/plugin-store";
 import toast from "react-hot-toast";
@@ -116,7 +116,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
 
   const startProvisionAccount = async (provider: string) => {
     try {
-      const job = await invoke<ProvisionAccountJob>("provision_account", {
+      const job = await invokeCommand<ProvisionAccountJob>("provision_account", {
         provider,
       });
 

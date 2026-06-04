@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invokeCommand } from "../lib/invokeCommand";
 import toast from "react-hot-toast";
 
 export const useProfile = () => {
@@ -11,7 +11,7 @@ export const useProfile = () => {
     setError(null);
 
     try {
-      const hasProfile = (await invoke("has_profile")) as boolean;
+      const hasProfile = (await invokeCommand("has_profile")) as boolean;
       return hasProfile;
     } catch (error) {
       const errorMessage =

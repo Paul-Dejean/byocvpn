@@ -2,7 +2,7 @@ import { useInstancesContext } from "../../contexts";
 import { getRegionInfo } from "../../types/regionInfo";
 import { FlagIcon } from "../FlagIcon";
 import { useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invokeCommand } from "../../lib/invokeCommand";
 import { listen } from "@tauri-apps/api/event";
 import { load as loadStore } from "@tauri-apps/plugin-store";
 import toast from "react-hot-toast";
@@ -58,7 +58,7 @@ export function RegionSelector({
   useEffect(() => {
     setIsLoadingRegions(true);
     setSelectedRegion(null);
-    invoke<SimpleRegion[]>("get_regions", { provider })
+    invokeCommand<SimpleRegion[]>("get_regions", { provider })
       .then(async (regions) => {
         const groups: Record<string, SimpleRegion[]> = {};
         regions.forEach((region) => {
@@ -142,7 +142,7 @@ export function RegionSelector({
   ) => {
     event.stopPropagation();
     try {
-      const job = await invoke<EnableRegionJob>("enable_region", {
+      const job = await invokeCommand<EnableRegionJob>("enable_region", {
         region: region.name,
         provider,
       });

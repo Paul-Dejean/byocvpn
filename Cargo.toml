@@ -11,6 +11,9 @@ members = [
     "crates/infra/azure",
 ]
 
+[workspace.package]
+version = "0.1.11"
+
 [workspace.dependencies]
 tokio = { version = "1.48.0", features = ["full"] }
 async-trait = "0.1.89"

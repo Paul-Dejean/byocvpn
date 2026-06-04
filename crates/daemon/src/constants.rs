@@ -2,15 +2,6 @@ use std::path::PathBuf;
 
 pub const TUNNEL_MTU: u16 = 1280;
 
-pub fn get_interface_name() -> &'static str {
-    #[cfg(target_os = "macos")]
-    return "utun4";
-    #[cfg(windows)]
-    return "byocvpn";
-    #[cfg(not(any(target_os = "macos", windows)))]
-    return "tun0";
-}
-
 #[cfg(unix)]
 fn socket_dir() -> PathBuf {
     if cfg!(debug_assertions) {
