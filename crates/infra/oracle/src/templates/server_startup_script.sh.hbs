@@ -28,9 +28,17 @@ python3 - <<'PYEOF' &
 {{{status_server_script}}}
 PYEOF
 
+write_error_status() {
+    python3 -c "
+import json, sys
+reason = sys.argv[1] if len(sys.argv) > 1 else 'unknown error'
+open('/tmp/byocvpn-status', 'w').write(json.dumps({'status': 'error', 'reason': reason}))
+" "$1"
+}
+
 # If the script exits for any reason before reaching the end, write status:error
-# so the client receives a definitive failure response instead of status:pending.
-trap 'grep -qF "ready" /tmp/byocvpn-status || echo '"'"'{"status":"error"}'"'"' > /tmp/byocvpn-status' EXIT
+# with the last few log lines so the client can show a real error reason.
+trap 'grep -qF "ready" /tmp/byocvpn-status || write_error_status "$(tail -5 /var/log/byocvpn-setup.log 2>/dev/null | tr "\n" " ")"' EXIT
 
 apt-get update -y
 apt-get install -y wireguard iptables
@@ -59,3 +67,12 @@ wg show || true
 
 echo '{"status":"ready"}' > /tmp/byocvpn-status
 echo "[byocvpn] Setup complete."
+
+while true; do
+    sleep 30
+    if systemctl is-active --quiet wg-quick@wg0; then
+        echo '{"status":"ready"}' > /tmp/byocvpn-status
+    else
+        write_error_status "$(systemctl status wg-quick@wg0 2>&1 | tail -10 | tr '\n' ' ')"
+    fi
+done &

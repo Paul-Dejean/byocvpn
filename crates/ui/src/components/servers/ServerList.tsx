@@ -46,16 +46,19 @@ export function ServerList({
         ) : (
           <div className="flex flex-col gap-2">
             {}
-            {instances.map((instance) => (
-              <ServerCard
-                key={instance.id}
-                instance={instance}
-                isSelected={selectedInstance?.id === instance.id}
-                groupedRegions={groupedRegions}
-                spawnJob={getSpawnJobForInstance(instance.id)}
-                onSelect={onSelectInstance}
-              />
-            ))}
+            {instances.map((instance) => {
+              const spawnJob = getSpawnJobForInstance(instance.id);
+              return (
+                <ServerCard
+                  key={spawnJob?.jobId ?? instance.id}
+                  instance={instance}
+                  isSelected={selectedInstance?.id === instance.id}
+                  groupedRegions={groupedRegions}
+                  spawnJob={spawnJob}
+                  onSelect={onSelectInstance}
+                />
+              );
+            })}
           </div>
         )}
       </div>

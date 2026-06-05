@@ -3,12 +3,14 @@ import { invokeCommand } from "../lib/invokeCommand";
 import { listen } from "@tauri-apps/api/event";
 import toast from "react-hot-toast";
 import {
+  ActiveSpawnJob,
   AwsRegion,
   Instance,
+  SpawnCompleteEvent,
+  SpawnInstanceLaunchedEvent,
   SpawnJob,
   SpawnJobState,
   SpawnProgressEvent,
-  SpawnCompleteEvent,
 } from "../types";
 
 export const useInstances = (regions: AwsRegion[]) => {
@@ -18,7 +20,6 @@ export const useInstances = (regions: AwsRegion[]) => {
     string | null
   >(null);
   const [error, setError] = useState<string | null>(null);
-
   const [spawnJobs, setSpawnJobs] = useState<Record<string, SpawnJobState>>({});
 
   const tempToJob = useRef<Record<string, string>>({});
@@ -32,11 +33,11 @@ export const useInstances = (regions: AwsRegion[]) => {
       "spawn-progress",
       ({ payload }) => {
         const { jobId, stepId, status, error } = payload;
-        setSpawnJobs((prev) => {
-          const job = prev[jobId];
-          if (!job) return prev;
+        setSpawnJobs((previous) => {
+          const job = previous[jobId];
+          if (!job) return previous;
           return {
-            ...prev,
+            ...previous,
             [jobId]: {
               ...job,
               steps: job.steps.map((step) =>
@@ -48,21 +49,42 @@ export const useInstances = (regions: AwsRegion[]) => {
       },
     );
 
-    const completeUnlisten = listen<SpawnCompleteEvent>(
-      "spawn-complete",
+    const launchedUnlisten = listen<SpawnInstanceLaunchedEvent>(
+      "spawn-instance-launched",
       ({ payload }) => {
         const { jobId, instance } = payload;
         const tempId = Object.entries(tempToJob.current).find(
           ([, jid]) => jid === jobId,
         )?.[0];
         if (tempId) {
-          setInstances((prev) =>
-            prev.map((inst) => (inst.id === tempId ? instance : inst)),
+          setInstances((previous) =>
+            previous.map((existing) =>
+              existing.id === tempId ? instance : existing,
+            ),
           );
           delete tempToJob.current[tempId];
+          tempToJob.current[instance.id] = jobId;
         }
-        setSpawnJobs((prev) => {
-          const { [jobId]: _, ...rest } = prev;
+      },
+    );
+
+    const completeUnlisten = listen<SpawnCompleteEvent>(
+      "spawn-complete",
+      ({ payload }) => {
+        const { jobId, instance } = payload;
+        const trackedId = Object.entries(tempToJob.current).find(
+          ([, jid]) => jid === jobId,
+        )?.[0];
+        if (trackedId) {
+          setInstances((previous) =>
+            previous.map((existing) =>
+              existing.id === trackedId ? instance : existing,
+            ),
+          );
+          delete tempToJob.current[trackedId];
+        }
+        setSpawnJobs((previous) => {
+          const { [jobId]: _, ...rest } = previous;
           return rest;
         });
         toast.success("Server deployed successfully!");
@@ -73,15 +95,17 @@ export const useInstances = (regions: AwsRegion[]) => {
       "spawn-failed",
       ({ payload }) => {
         const { jobId, error } = payload;
-        const tempId = Object.entries(tempToJob.current).find(
+        const trackedId = Object.entries(tempToJob.current).find(
           ([, jid]) => jid === jobId,
         )?.[0];
-        if (tempId) {
-          setInstances((prev) => prev.filter((inst) => inst.id !== tempId));
-          delete tempToJob.current[tempId];
+        if (trackedId) {
+          setInstances((previous) =>
+            previous.filter((existing) => existing.id !== trackedId),
+          );
+          delete tempToJob.current[trackedId];
         }
-        setSpawnJobs((prev) => {
-          const { [jobId]: _, ...rest } = prev;
+        setSpawnJobs((previous) => {
+          const { [jobId]: _, ...rest } = previous;
           return rest;
         });
         toast.error(error ?? "Server deployment failed");
@@ -89,9 +113,10 @@ export const useInstances = (regions: AwsRegion[]) => {
     );
 
     return () => {
-      progressUnlisten.then((u) => u());
-      completeUnlisten.then((u) => u());
-      failedUnlisten.then((u) => u());
+      progressUnlisten.then((unlisten) => unlisten());
+      launchedUnlisten.then((unlisten) => unlisten());
+      completeUnlisten.then((unlisten) => unlisten());
+      failedUnlisten.then((unlisten) => unlisten());
     };
   }, []);
 
@@ -99,12 +124,53 @@ export const useInstances = (regions: AwsRegion[]) => {
     setIsLoading(true);
     setError(null);
     try {
-      const fetched = await invokeCommand<Instance[]>("list_instances");
-      setInstances(fetched);
+      const [fetched, activeJobs] = await Promise.all([
+        invokeCommand<Instance[]>("list_instances"),
+        invokeCommand<ActiveSpawnJob[]>("list_active_spawn_jobs"),
+      ]);
+
+      const newSpawnJobs: Record<string, SpawnJobState> = {};
+      const spawningPlaceholders: Instance[] = [];
+
+      for (const activeJob of activeJobs) {
+        newSpawnJobs[activeJob.jobId] = {
+          jobId: activeJob.jobId,
+          steps: activeJob.steps.map((step) => ({
+            ...step,
+            status: activeJob.stepStatuses[step.id] ?? ("pending" as const),
+          })),
+        };
+
+        if (activeJob.instanceId) {
+          tempToJob.current[activeJob.instanceId] = activeJob.jobId;
+        } else {
+          const tempId = `spawning-recovered-${activeJob.jobId}`;
+          tempToJob.current[tempId] = activeJob.jobId;
+          spawningPlaceholders.push({
+            id: tempId,
+            name: "Deploying…",
+            state: "spawning",
+            publicIpV4: "",
+            publicIpV6: "",
+            region: activeJob.region,
+            provider: activeJob.provider,
+          });
+        }
+      }
+
+      if (Object.keys(newSpawnJobs).length > 0) {
+        setSpawnJobs((previous) => ({ ...previous, ...newSpawnJobs }));
+      }
+
+      const installingFirst = [
+        ...fetched.filter((instance) => instance.state === "installing"),
+        ...fetched.filter((instance) => instance.state !== "installing"),
+      ];
+      setInstances([...spawningPlaceholders, ...installingFirst]);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to fetch instances";
-      console.error("Failed to fetch existing instances:", err);
+      console.error("Failed to fetch instances:", err);
       setError(message);
     } finally {
       setIsLoading(false);
@@ -127,7 +193,7 @@ export const useInstances = (regions: AwsRegion[]) => {
       provider,
     };
 
-    setInstances((prev) => [...prev, placeholder]);
+    setInstances((previous) => [placeholder, ...previous]);
 
     try {
       const job = await invokeCommand<SpawnJob>("spawn_instance", {
@@ -137,8 +203,8 @@ export const useInstances = (regions: AwsRegion[]) => {
 
       tempToJob.current[tempId] = job.jobId;
 
-      setSpawnJobs((prev) => ({
-        ...prev,
+      setSpawnJobs((previous) => ({
+        ...previous,
         [job.jobId]: {
           jobId: job.jobId,
           steps: job.steps.map((step, index) => ({
@@ -148,8 +214,9 @@ export const useInstances = (regions: AwsRegion[]) => {
         },
       }));
     } catch (err) {
-
-      setInstances((prev) => prev.filter((inst) => inst.id !== tempId));
+      setInstances((previous) =>
+        previous.filter((instance) => instance.id !== tempId),
+      );
       const message =
         err instanceof Error ? err.message : "Failed to start deployment";
       setError(message);
@@ -168,7 +235,9 @@ export const useInstances = (regions: AwsRegion[]) => {
     setError(null);
     try {
       await invokeCommand("terminate_instance", { instanceId, region, provider });
-      setInstances((prev) => prev.filter((i) => i.id !== instanceId));
+      setInstances((previous) =>
+        previous.filter((instance) => instance.id !== instanceId),
+      );
       toast.success("Server terminated successfully!");
     } catch (err) {
       const message =

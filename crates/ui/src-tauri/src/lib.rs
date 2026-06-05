@@ -2,6 +2,7 @@ mod commands;
 mod ledger_store;
 mod provider_store;
 mod settings_store;
+mod spawn_job_registry;
 mod tray;
 mod uptime_notifier;
 
@@ -16,6 +17,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .manage(spawn_job_registry::SpawnJobRegistry::new())
         .setup(|app| {
             tray::build_tray(app.handle())?;
             uptime_notifier::start_uptime_check_loop(app.handle().clone());
@@ -46,6 +48,7 @@ pub fn run() {
             commands::get_instance_pricing,
             commands::get_ledger,
             commands::save_file,
+            commands::list_active_spawn_jobs,
             settings_store::get_notification_settings,
             settings_store::save_notification_settings,
         ]);

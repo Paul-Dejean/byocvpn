@@ -6,12 +6,13 @@ use byocvpn_azure::{AzureProvider, credentials::AzureCredentials, pricing as azu
 use byocvpn_core::{
     cloud_provider::{
         CloudProvider, CloudProviderName, EnableRegionCompleteEvent, EnableRegionJob,
-        EnableRegionProgressEvent, InstanceInfo, PricingInfo, ProvisionAccountCompleteEvent,
-        ProvisionAccountJob, ProvisionAccountProgressEvent, SpawnCompleteEvent, SpawnJob,
-        SpawnProgressEvent,
+        EnableRegionProgressEvent, InstanceInfo, InstanceState, PricingInfo,
+        ProvisionAccountCompleteEvent, ProvisionAccountJob, ProvisionAccountProgressEvent,
+        SpawnCompleteEvent, SpawnJob, SpawnProgressEvent,
     },
     commands,
     commands::setup::Region,
+    connectivity::{self, ProbeStatus},
     credentials::CredentialStore,
     crypto::generate_keypair,
     error::{ConfigurationError, Error, Result},
@@ -25,9 +26,10 @@ use byocvpn_oracle::{credentials::OracleCredentials, pricing as oracle_pricing};
 use chrono::Utc;
 use log::*;
 use serde_json::{Value, json};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::ledger_store::LedgerStore;
+use crate::spawn_job_registry::SpawnJobRegistry;
 use crate::tray;
 
 async fn create_cloud_provider(provider_name: CloudProviderName) -> Result<Box<dyn CloudProvider>> {
@@ -152,9 +154,16 @@ pub async fn spawn_instance(
     let job_id = job.job_id.clone();
     let steps = job.steps.clone();
 
+    app_handle.state::<SpawnJobRegistry>().register(job.clone());
+
     tauri::async_runtime::spawn(async move {
         let job_id_for_progress = job_id.clone();
+        let job_id_for_launched = job_id.clone();
         let progress_handle = app_handle.clone();
+        let launched_handle = app_handle.clone();
+        let region_for_launched = region.clone();
+        let provider_name_for_launched = provider_name.clone();
+
         let result = commands::spawn::run_spawn_steps(
             &*cloud_provider,
             &steps,
@@ -164,6 +173,10 @@ pub async fn spawn_instance(
             &client_public_key,
             &server_public_key,
             move |step_id, status, error| {
+                progress_handle
+                    .state::<SpawnJobRegistry>()
+                    .update_step_status(&job_id_for_progress, step_id, status.clone());
+
                 if let Err(error) = progress_handle.emit(
                     "spawn-progress",
                     SpawnProgressEvent {
@@ -176,27 +189,46 @@ pub async fn spawn_instance(
                     warn!("Failed to emit spawn-progress: {}", error);
                 }
             },
-        )
-        .await
-        .and_then(|instance| {
-            let entry = LedgerEntry {
-                instance_id: instance.id.clone(),
-                provider: provider_name.clone(),
-                region: region.clone(),
-                instance_type: instance.instance_type.clone(),
-                launched_at: instance.launched_at.unwrap_or_else(Utc::now),
-                terminated_at: None,
-                bytes_sent: 0,
-                bytes_received: 0,
-            };
-            Ok((instance, entry))
-        });
+            move |instance| {
+                launched_handle
+                    .state::<SpawnJobRegistry>()
+                    .set_instance_id(&job_id_for_launched, instance.id.clone());
 
-        match result {
-            Ok((instance, entry)) => {
-                if let Some(ledger) = LedgerStore::open(&app_handle) {
+                if let Some(ledger) = LedgerStore::open(&launched_handle) {
+                    let entry = LedgerEntry {
+                        instance_id: instance.id.clone(),
+                        provider: provider_name_for_launched.clone(),
+                        region: region_for_launched.clone(),
+                        instance_type: instance.instance_type.clone(),
+                        launched_at: instance.launched_at.unwrap_or_else(Utc::now),
+                        terminated_at: None,
+                        setup_complete: false,
+                        bytes_sent: 0,
+                        bytes_received: 0,
+                    };
                     ledger.set_entry(&entry);
                 }
+
+                let mut installing_instance = instance.clone();
+                installing_instance.state = InstanceState::Installing;
+                if let Err(error) = launched_handle.emit(
+                    "spawn-instance-launched",
+                    json!({ "jobId": &job_id_for_launched, "instance": installing_instance }),
+                ) {
+                    warn!("Failed to emit spawn-instance-launched: {}", error);
+                }
+            },
+        )
+        .await;
+
+        app_handle.state::<SpawnJobRegistry>().deregister(&job_id);
+
+        match result {
+            Ok(mut instance) => {
+                if let Some(ledger) = LedgerStore::open(&app_handle) {
+                    ledger.mark_setup_complete(&instance.id);
+                }
+                instance.state = InstanceState::Running;
                 if let Err(error) =
                     app_handle.emit("spawn-complete", SpawnCompleteEvent { job_id, instance })
                 {
@@ -215,6 +247,13 @@ pub async fn spawn_instance(
     });
 
     Ok(job)
+}
+
+#[tauri::command]
+pub async fn list_active_spawn_jobs(
+    app_handle: AppHandle,
+) -> Result<Vec<crate::spawn_job_registry::ActiveSpawnJob>> {
+    Ok(app_handle.state::<SpawnJobRegistry>().list())
 }
 
 #[tauri::command]
@@ -280,6 +319,50 @@ pub async fn list_instances(
     if let Some(ledger) = LedgerStore::open(&app_handle) {
         let running_ids: HashSet<&str> = all_instances.iter().map(|i| i.id.as_str()).collect();
         ledger.reconcile_terminated(&running_ids, &queried_provider_names);
+
+        let in_progress_ids = app_handle.state::<SpawnJobRegistry>().instance_ids_in_progress();
+
+        let mut probe_handles = Vec::new();
+        for instance in &all_instances {
+            if instance.state != InstanceState::Running {
+                continue;
+            }
+            if in_progress_ids.contains(&instance.id) {
+                continue;
+            }
+            let instance_id = instance.id.clone();
+            let instance_ip = instance.public_ip_v4.clone();
+            probe_handles.push(tokio::spawn(async move {
+                (instance_id, connectivity::probe_status(&instance_ip).await)
+            }));
+        }
+
+        let mut probe_results = std::collections::HashMap::new();
+        for handle in probe_handles {
+            if let Ok((instance_id, status)) = handle.await {
+                probe_results.insert(instance_id, status);
+            }
+        }
+
+        for instance in &mut all_instances {
+            if in_progress_ids.contains(&instance.id) {
+                instance.state = InstanceState::Installing;
+            } else if let Some(probe_status) = probe_results.remove(&instance.id) {
+                match probe_status {
+                    ProbeStatus::Ready => {
+                        ledger.mark_setup_complete(&instance.id);
+                        instance.state = InstanceState::Running;
+                    }
+                    ProbeStatus::Error(reason) => {
+                        instance.state = InstanceState::Error;
+                        instance.error_reason = Some(reason);
+                    }
+                    ProbeStatus::Installing => {
+                        instance.state = InstanceState::Installing;
+                    }
+                }
+            }
+        }
     }
 
     Ok(all_instances)

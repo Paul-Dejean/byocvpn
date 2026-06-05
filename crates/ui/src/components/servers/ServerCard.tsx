@@ -7,14 +7,13 @@ interface ServerCardProps {
   instance: Instance;
   isSelected: boolean;
   groupedRegions: RegionGroup[];
-
   spawnJob?: SpawnJobState;
   onSelect: (instance: Instance) => void;
 }
 
 function MiniSpinner() {
   return (
-    <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
   );
 }
 
@@ -23,6 +22,21 @@ const PROVIDER_STRIPE: Record<string, string> = {
   oracle: "border-l-red-500",
   gcp: "border-l-blue-500",
   azure: "border-l-sky-500",
+};
+
+const STATE_BADGE: Record<
+  string,
+  { className: string; label: string; spinner?: boolean }
+> = {
+  spawning:   { className: "bg-blue-900/50 text-blue-300",    label: "spawning",   spinner: true },
+  installing: { className: "bg-yellow-900/50 text-yellow-300", label: "installing", spinner: true },
+  error:      { className: "bg-red-900/50 text-red-400",      label: "error" },
+  running:    { className: "bg-green-900/50 text-green-300",  label: "running" },
+  creating:   { className: "bg-yellow-900/50 text-yellow-300", label: "creating" },
+  stopping:   { className: "bg-red-900/50 text-red-300",      label: "stopping" },
+  deleting:   { className: "bg-red-900/50 text-red-300",      label: "deleting" },
+  stopped:    { className: "bg-gray-700/50 text-gray-500",    label: "stopped" },
+  deleted:    { className: "bg-gray-700/50 text-gray-500",    label: "deleted" },
 };
 
 export function ServerCard({
@@ -35,16 +49,22 @@ export function ServerCard({
   const regionInfo = getRegionInfo(instance.provider, instance.region ?? "");
   const stripeColor = PROVIDER_STRIPE[instance.provider] ?? "border-l-gray-600";
 
-  const isSpawning = instance.state === "spawning";
+  const isInProgress =
+    instance.state === "spawning" || instance.state === "installing";
 
-  const runningStep = spawnJob?.steps.find((s) => s.status === "running");
-  const stepLabel = runningStep?.label ?? (isSpawning ? "Starting…" : null);
+  const badge = STATE_BADGE[instance.state] ?? {
+    className: "bg-gray-900/50 text-gray-400",
+    label: instance.state,
+  };
+
+  const runningStep = spawnJob?.steps.find((step) => step.status === "running");
+  const stepLabel = runningStep?.label ?? (isInProgress ? "Starting…" : null);
 
   return (
     <button
       onClick={() => onSelect(instance)}
       className={`text-left p-3 rounded-lg transition-all border border-l-4 ${stripeColor} ${
-        isSpawning
+        isInProgress
           ? isSelected
             ? "bg-blue-700/60 text-white glow-accent border-blue-500/40"
             : "bg-gray-800 text-gray-300 hover:bg-gray-750 border-white/10"
@@ -53,7 +73,7 @@ export function ServerCard({
             : "bg-gray-800 hover:bg-gray-700 text-gray-200 border-white/10"
       }`}
     >
-      <div className={`flex items-center justify-between gap-4 ${isSpawning ? "mb-2" : ""}`}>
+      <div className={`flex items-center justify-between gap-4 ${isInProgress ? "mb-2" : ""}`}>
         <div className="flex items-center gap-3">
           <FlagIcon countryCode={regionInfo.countryCode} className="text-xl flex-shrink-0" />
           <div>
@@ -65,31 +85,18 @@ export function ServerCard({
         </div>
         <div className="flex items-center gap-1.5">
           <ProviderIcon provider={instance.provider} className="w-6 h-6" />
-          <span
-            className={`px-2 py-1 rounded text-xs font-medium ${
-              isSpawning
-                ? "bg-blue-900/50 text-blue-300 flex items-center gap-1"
-                : instance.state === "running"
-                  ? "bg-green-900/50 text-green-300"
-                  : instance.state === "creating"
-                    ? "bg-yellow-900/50 text-yellow-300"
-                    : instance.state === "stopping" ||
-                        instance.state === "deleting"
-                      ? "bg-red-900/50 text-red-300"
-                      : instance.state === "stopped" ||
-                          instance.state === "deleted"
-                        ? "bg-gray-700/50 text-gray-500"
-                        : "bg-gray-900/50 text-gray-400"
-            }`}
-          >
-            {isSpawning && <MiniSpinner />}
-            {isSpawning ? "deploying" : instance.state}
+          <span className={`px-2 py-1 rounded text-xs font-medium flex items-center gap-1 ${badge.className}`}>
+            {badge.spinner && <MiniSpinner />}
+            {badge.label}
           </span>
         </div>
       </div>
-      {isSpawning && (
-        <p className="text-xs font-mono opacity-75 truncate">
-          {stepLabel ?? "Starting…"}
+      {isInProgress && stepLabel && (
+        <p className="text-xs font-mono opacity-75 truncate">{stepLabel}</p>
+      )}
+      {instance.state === "error" && instance.errorReason && (
+        <p className="text-xs font-mono text-red-400/75 truncate mt-1">
+          {instance.errorReason}
         </p>
       )}
     </button>

@@ -94,6 +94,27 @@ impl LedgerStore {
         }
     }
 
+    pub fn get_entry(&self, instance_id: &str) -> Option<LedgerEntry> {
+        self.deserialize_entry(instance_id)
+    }
+
+    pub fn mark_setup_complete(&self, instance_id: &str) {
+        let key = LedgerEntry::build_store_key(instance_id);
+        if let Some(mut entry) = self.deserialize_entry(instance_id) {
+            entry.mark_setup_complete();
+            self.0.set(
+                key,
+                serde_json::to_value(&entry).unwrap_or_else(|error| {
+                    warn!("Failed to serialize ledger entry: {}", error);
+                    serde_json::Value::Null
+                }),
+            );
+            if let Err(error) = self.0.save() {
+                warn!("Failed to save ledger store: {}", error);
+            }
+        }
+    }
+
     pub fn running_entries(&self) -> Vec<LedgerEntry> {
         self.0
             .keys()

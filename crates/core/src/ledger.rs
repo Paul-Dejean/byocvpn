@@ -12,6 +12,8 @@ pub struct LedgerEntry {
     pub instance_type: String,
     pub launched_at: DateTime<Utc>,
     pub terminated_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub setup_complete: bool,
     pub bytes_sent: u64,
     pub bytes_received: u64,
 }
@@ -23,6 +25,10 @@ impl LedgerEntry {
 
     pub fn mark_terminated(&mut self) {
         self.terminated_at = Some(Utc::now());
+    }
+
+    pub fn mark_setup_complete(&mut self) {
+        self.setup_complete = true;
     }
 
     pub fn update_metrics(&mut self, bytes_sent: u64, bytes_received: u64) {

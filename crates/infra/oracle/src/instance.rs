@@ -274,5 +274,6 @@ fn build_instance_info(instance: &InstanceResponse, region: &str) -> InstanceInf
             .as_deref()
             .and_then(|timestamp| DateTime::parse_from_rfc3339(timestamp).ok())
             .map(|datetime| datetime.with_timezone(&Utc)),
+        error_reason: None,
     }
 }

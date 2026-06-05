@@ -52,6 +52,9 @@ pub enum CloudProviderName {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum InstanceState {
+    Spawning,
+    Installing,
+    Error,
     Running,
     Creating,
     Stopping,
@@ -68,6 +71,7 @@ pub struct InstanceInfo {
     pub name: Option<String>,
     pub region: String,
     pub state: InstanceState,
+    pub error_reason: Option<String>,
     pub public_ip_v4: String,
     pub public_ip_v6: String,
     pub provider: CloudProviderName,

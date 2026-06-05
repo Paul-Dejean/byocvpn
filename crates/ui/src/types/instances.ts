@@ -1,4 +1,7 @@
 export type InstanceState =
+  | "spawning"
+  | "installing"
+  | "error"
   | "running"
   | "creating"
   | "stopping"
@@ -11,6 +14,7 @@ export interface Instance {
   id: string;
   name: string;
   state: InstanceState | string;
+  errorReason?: string;
   publicIpV4: string;
   publicIpV6: string;
   region: string;
@@ -52,9 +56,19 @@ export interface SpawnProgressEvent {
   error?: string;
 }
 
+export interface SpawnInstanceLaunchedEvent {
+  jobId: string;
+  instance: Instance;
+}
+
 export interface SpawnCompleteEvent {
   jobId: string;
   instance: Instance;
+}
+
+export interface ActiveSpawnJob extends SpawnJob {
+  instanceId: string | null;
+  stepStatuses: Record<string, SpawnStepStatus>;
 }
 
 export interface SpawnJobState {

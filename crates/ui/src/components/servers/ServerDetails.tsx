@@ -71,6 +71,7 @@ export function ServerDetails({
 }: ServerDetailsProps) {
   const regionInfo = getRegionInfo(instance.provider, instance.region ?? "");
   const isSpawning = instance.state === "spawning";
+  const isInProgress = isSpawning || instance.state === "installing";
 
   return (
     <div className="flex-1 min-w-0 flex flex-col bg-gray-900">
@@ -122,7 +123,7 @@ export function ServerDetails({
 
           {}
           <div className="space-y-3">
-            {isSpawning ? (
+            {isInProgress ? (
               <div className="bg-gray-800 rounded-lg overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-700/50">
                   <p className="text-sm font-medium text-blue-400">

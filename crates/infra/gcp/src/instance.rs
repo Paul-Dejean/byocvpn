@@ -132,6 +132,7 @@ pub async fn spawn_instance(
         provider: CloudProviderName::Gcp,
         instance_type: MACHINE_TYPE.to_string(),
         launched_at: Some(Utc::now()),
+        error_reason: None,
     })
 }
 
@@ -298,6 +299,7 @@ fn parse_instance_info(
         provider: CloudProviderName::Gcp,
         instance_type,
         launched_at,
+        error_reason: None,
     })
 }
 

@@ -14,7 +14,7 @@ use crate::{
     error::{ComputeProvisioningError, ConfigurationError, Result},
 };
 
-pub async fn run_spawn_steps<F>(
+pub async fn run_spawn_steps<F1, F2>(
     provider: &dyn CloudProvider,
     steps: &[SpawnStep],
     region: &str,
@@ -22,10 +22,12 @@ pub async fn run_spawn_steps<F>(
     server_private_key: &str,
     client_public_key: &str,
     server_public_key: &str,
-    on_step_progress: F,
+    on_step_progress: F1,
+    on_instance_launched: F2,
 ) -> Result<InstanceInfo>
 where
-    F: Fn(&str, SpawnStepStatus, Option<String>),
+    F1: Fn(&str, SpawnStepStatus, Option<String>),
+    F2: Fn(&InstanceInfo),
 {
     let mut spawned_instance: Option<InstanceInfo> = None;
 
@@ -46,6 +48,7 @@ where
                             server_public_key,
                         )
                         .await?;
+                        on_instance_launched(&instance);
                         spawned_instance = Some(instance);
                     }
                     Err(error) => {

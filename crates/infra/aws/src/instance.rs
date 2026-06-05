@@ -136,6 +136,7 @@ pub(super) async fn spawn_instance(
         provider: CloudProviderName::Aws,
         instance_type: SERVER_INSTANCE_TYPE.to_string(),
         launched_at: Some(Utc::now()),
+        error_reason: None,
     })
 }
 
@@ -218,6 +219,7 @@ pub(super) async fn list_instances_in_region(
                 provider: CloudProviderName::Aws,
                 instance_type,
                 launched_at,
+                error_reason: None,
             })
         })
         .collect::<Vec<InstanceInfo>>();

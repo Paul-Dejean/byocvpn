@@ -244,6 +244,7 @@ pub async fn spawn_instance(
         provider: CloudProviderName::Azure,
         instance_type: used_vm_size.to_string(),
         launched_at: Some(Utc::now()),
+        error_reason: None,
     })
 }
 
@@ -406,6 +407,7 @@ async fn resolve_vm_info(
         provider: CloudProviderName::Azure,
         instance_type,
         launched_at,
+        error_reason: None,
     }))
 }
 
