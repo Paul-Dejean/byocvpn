@@ -35,7 +35,6 @@ export function PricingAccordion({ provider, entries }: PricingAccordionProps) {
 
   return (
     <div className="bg-gray-800 rounded-lg overflow-hidden">
-      {}
       <button
         onClick={() => setIsOpen((prev) => !prev)}
         className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-700/50 transition-colors text-left"
@@ -72,7 +71,6 @@ export function PricingAccordion({ provider, entries }: PricingAccordionProps) {
         </div>
       </button>
 
-      {}
       {isOpen && (
         <div className="border-t border-gray-700 overflow-x-auto">
           <table className="w-full min-w-[640px]">

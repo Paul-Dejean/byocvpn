@@ -53,7 +53,6 @@ export function MetricsDetails({ metrics }: { metrics: VpnMetrics | null }) {
 
   return (
     <>
-      {}
       <div className="mb-4">
         <h4 className="text-sm font-medium text-gray-300 mb-3">
           Total Data Transferred
@@ -75,7 +74,6 @@ export function MetricsDetails({ metrics }: { metrics: VpnMetrics | null }) {
         </div>
       </div>
 
-      {}
       <div>
         <h4 className="text-sm font-medium text-gray-300 mb-3">
           Packet Statistics

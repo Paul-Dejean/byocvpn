@@ -77,7 +77,6 @@ export function ServerDetails({
     <div className="flex-1 min-w-0 flex flex-col bg-gray-900">
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-2xl space-y-6">
-          {}
           {!isSpawning && (
             <div className="bg-gray-800 rounded-lg p-6">
               <div className="flex items-center gap-3 mb-4">
@@ -121,7 +120,6 @@ export function ServerDetails({
             </div>
           )}
 
-          {}
           <div className="space-y-3">
             {isInProgress ? (
               <div className="bg-gray-800 rounded-lg overflow-hidden">
@@ -213,7 +211,6 @@ export function ServerDetails({
             )}
           </div>
 
-          {}
           {vpnError && (
             <div className="p-4 bg-red-900/20 border border-red-500/50 rounded-lg">
               <p className="text-red-300 text-sm">{vpnError}</p>

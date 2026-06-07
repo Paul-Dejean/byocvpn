@@ -157,7 +157,6 @@ export function ServerManagementView({
       ) : (
         <>
           <div className="flex-1 flex min-h-0">
-            {}
             <ServerList
               instances={instances}
               selectedInstance={selectedInstance}
@@ -168,7 +167,6 @@ export function ServerManagementView({
               onAddNewServer={() => setCreationStep("selecting-provider")}
             />
 
-            {}
             {selectedInstance ? (
               <ServerDetails
                 instance={selectedInstance}

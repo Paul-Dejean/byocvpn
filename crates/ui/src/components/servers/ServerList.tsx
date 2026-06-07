@@ -45,7 +45,6 @@ export function ServerList({
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {}
             {instances.map((instance) => {
               const spawnJob = getSpawnJobForInstance(instance.id);
               return (
@@ -63,7 +62,6 @@ export function ServerList({
         )}
       </div>
 
-      {}
       <div className="p-4 border-t border-gray-700/50">
         <button
           onClick={onAddNewServer}

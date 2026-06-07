@@ -14,10 +14,8 @@ export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
 
   return (
     <div className="relative bg-[url('/landing-page-bg.png')] bg-cover bg-center h-screen flex items-center justify-center overflow-hidden">
-      {}
       <div className="absolute inset-0 bg-gradient-to-br from-black/50 to-transparent"></div>
 
-      {}
       <div className="container relative z-10 px-4 md:px-0">
         <div className="flex flex-col items-center max-w-3xl mx-auto">
           <div className="relative flex items-center justify-center mb-8">
@@ -43,7 +41,6 @@ export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
             </div>
           </div>
 
-          {}
           <div
             className={`flex flex-col text-center transition-opacity duration-1000 ease-in-out ${isVisible ? "opacity-100" : "opacity-0"}`}
           >
@@ -62,7 +59,6 @@ export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
               infrastructure, your rules.
             </p>
 
-            {}
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
                 className="px-8 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-all font-semibold text-lg flex items-center justify-center"

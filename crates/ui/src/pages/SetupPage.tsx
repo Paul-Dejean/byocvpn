@@ -93,7 +93,6 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
           Select a Cloud Provider
         </h2>
         <div className="flex flex-wrap justify-center gap-6">
-          {}
           <div
             className={`w-52 p-6 border rounded-lg shadow-md cursor-pointer transition-all ${
               selectedProvider === CloudProviderName.Aws
@@ -110,11 +109,9 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
             </div>
           </div>
 
-          {}
           <div
             className={`w-52 p-6 border rounded-lg shadow-md relative opacity-75 bg-gray-800 border-gray-700`}
           >
-            {}
             <div className="absolute -top-2 -right-2 bg-amber-600 text-xs text-white font-bold px-2 py-1 rounded-md shadow-md">
               COMING SOON
             </div>
@@ -126,11 +123,9 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
             </div>
           </div>
 
-          {}
           <div
             className={`w-52 p-6 border rounded-lg shadow-md relative opacity-75 bg-gray-800 border-gray-700`}
           >
-            {}
             <div className="absolute -top-2 -right-2 bg-amber-600 text-xs text-white font-bold px-2 py-1 rounded-md shadow-md">
               COMING SOON
             </div>
@@ -214,7 +209,6 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
             </div>
           </div>
 
-          {}
           {error && (
             <div className="mt-4 p-3 bg-red-900 border border-red-700 rounded-lg">
               <p className="text-red-300 text-sm">{error}</p>

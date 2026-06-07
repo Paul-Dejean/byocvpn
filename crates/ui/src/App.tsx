@@ -53,8 +53,9 @@ function App() {
           />
         )}
 
-        {}
-        {(page === Page.VPN || page === Page.PRICING || page === Page.SETTINGS) && (
+        {(page === Page.VPN ||
+          page === Page.PRICING ||
+          page === Page.SETTINGS) && (
           <VpnConnectionProvider>
             <div className="flex h-screen">
               <Navbar currentPage={page} onNavigate={setPage} />

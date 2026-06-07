@@ -101,14 +101,12 @@ export function CredentialsModal({
             />
           </div>
 
-          {}
           {error && (
             <div className="p-3 bg-red-900 border border-red-700 rounded-lg">
               <p className="text-red-300 text-sm">{error}</p>
             </div>
           )}
 
-          {}
           {successMessage && (
             <div className="p-3 bg-green-900 border border-green-700 rounded-lg">
               <p className="text-green-300 text-sm">{successMessage}</p>
