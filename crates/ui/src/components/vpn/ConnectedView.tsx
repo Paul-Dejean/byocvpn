@@ -3,14 +3,7 @@ import { Instance } from "../../types";
 import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
 import { getRegionInfo } from "../../types/regionInfo";
 import { FlagIcon } from "../FlagIcon";
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
-}
+import { formatBytes } from "../../lib/bytes";
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
