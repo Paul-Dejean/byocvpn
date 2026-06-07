@@ -20,12 +20,9 @@ export interface VpnMetrics {
   downloadRate: number;
 }
 
-export interface VpnStatus {
-  connected: boolean;
-  instance: Instance | null;
-  metrics: VpnMetrics | null;
-  connectionError: string | null;
-}
+export type VpnStatus =
+  | { connected: true; instance: Instance; metrics: VpnMetrics | null; connectionError: string | null }
+  | { connected: false; instance: null; metrics: null; connectionError: string | null };
 
 const initialVpnStatus: VpnStatus = {
   connected: false,
