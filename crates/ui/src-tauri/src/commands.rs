@@ -75,7 +75,7 @@ pub async fn get_credentials(provider: String) -> Result<Value> {
 }
 
 #[tauri::command]
-pub async fn save_credentials(provider: String, creds: Value) -> Result<()> {
+pub async fn save_credentials(provider: String, credentials: Value) -> Result<()> {
     fn deserialize<T: serde::de::DeserializeOwned>(value: Value) -> Result<T> {
         serde_json::from_value(value).map_err(|error| {
             ConfigurationError::MissingField {
@@ -89,13 +89,13 @@ pub async fn save_credentials(provider: String, creds: Value) -> Result<()> {
     let provider_name = CloudProviderName::from_str(&provider)?;
 
     match provider_name {
-        CloudProviderName::Aws => deserialize::<AwsCredentials>(creds)?.write_to_store(&mut store),
+        CloudProviderName::Aws => deserialize::<AwsCredentials>(credentials)?.write_to_store(&mut store),
         CloudProviderName::Oracle => {
-            deserialize::<OracleCredentials>(creds)?.write_to_store(&mut store)
+            deserialize::<OracleCredentials>(credentials)?.write_to_store(&mut store)
         }
-        CloudProviderName::Gcp => deserialize::<GcpCredentials>(creds)?.write_to_store(&mut store),
+        CloudProviderName::Gcp => deserialize::<GcpCredentials>(credentials)?.write_to_store(&mut store),
         CloudProviderName::Azure => {
-            deserialize::<AzureCredentials>(creds)?.write_to_store(&mut store)
+            deserialize::<AzureCredentials>(credentials)?.write_to_store(&mut store)
         }
     }
 
