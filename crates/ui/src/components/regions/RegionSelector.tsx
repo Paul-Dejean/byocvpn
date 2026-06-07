@@ -12,6 +12,7 @@ import {
   EnableRegionProgressEvent,
   EnableRegionCompleteEvent,
   SpawnStepState,
+  CloudProviderName,
 } from "../../types";
 import { ProvisionAccountDrawer } from "../settings/ProvisionAccountDrawer";
 
@@ -26,7 +27,7 @@ interface SimpleRegionGroup {
 }
 
 interface RegionSelectorProps {
-  provider: string;
+  provider: CloudProviderName;
   onClose: () => void;
   onSpawned?: (instance: Instance) => void;
 }

@@ -21,7 +21,7 @@ export function ServerManagementView({
   onNavigateToAddAccount,
 }: ServerManagementViewProps) {
   const [creationStep, setCreationStep] = useState<CreationStep>("idle");
-  const [selectedProvider, setSelectedProvider] = useState<string>("aws");
+  const [selectedProvider, setSelectedProvider] = useState<CloudProviderName>(CloudProviderName.Aws);
   const [hasAnyAccount, setHasAnyAccount] = useState<boolean | null>(null);
 
   const [selectedInstance, setSelectedInstance] = useState<Instance | null>(
@@ -103,7 +103,7 @@ export function ServerManagementView({
     }
   };
 
-  const handleSelectProvider = (provider: string) => {
+  const handleSelectProvider = (provider: CloudProviderName) => {
     setSelectedProvider(provider);
     setCreationStep("selecting-region");
   };

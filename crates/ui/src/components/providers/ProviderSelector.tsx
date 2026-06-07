@@ -3,12 +3,12 @@ import { useCredentials } from "../../hooks/useCredentials";
 import { CloudProviderName } from "../../types";
 
 interface ProviderSelectorProps {
-  onSelectProvider: (provider: string) => void;
+  onSelectProvider: (provider: CloudProviderName) => void;
   onClose: () => void;
 }
 
 interface ProviderOption {
-  id: string;
+  name: CloudProviderName;
   label: string;
   description: string;
   badge: React.ReactNode;
@@ -16,7 +16,7 @@ interface ProviderOption {
 
 const providers: ProviderOption[] = [
   {
-    id: "aws",
+    name: CloudProviderName.Aws,
     label: "Amazon Web Services",
     description: "Deploy on EC2 — available in 30+ regions worldwide",
     badge: (
@@ -26,7 +26,7 @@ const providers: ProviderOption[] = [
     ),
   },
   {
-    id: "oracle",
+    name: CloudProviderName.Oracle,
     label: "Oracle Cloud Infrastructure",
     description: "Deploy on OCI Compute — includes an Always Free tier",
     badge: (
@@ -36,7 +36,7 @@ const providers: ProviderOption[] = [
     ),
   },
   {
-    id: "gcp",
+    name: CloudProviderName.Gcp,
     label: "Google Cloud Platform",
     description:
       "Deploy on GCP Compute Engine — available in 40+ regions worldwide",
@@ -47,7 +47,7 @@ const providers: ProviderOption[] = [
     ),
   },
   {
-    id: "azure",
+    name: CloudProviderName.Azure,
     label: "Microsoft Azure",
     description: "Deploy on Azure VMs — available in 60+ regions worldwide",
     badge: (
@@ -70,7 +70,7 @@ export function ProviderSelector({
     const loadConfiguredProviders = async () => {
       const configured: ProviderOption[] = [];
       for (const provider of providers) {
-        const existing = await loadCredentials(provider.id as CloudProviderName);
+        const existing = await loadCredentials(provider.name);
         if (existing !== null) {
           configured.push(provider);
         }
@@ -122,8 +122,8 @@ export function ProviderSelector({
         ) : (
           configuredProviders.map((provider) => (
             <button
-              key={provider.id}
-              onClick={() => onSelectProvider(provider.id)}
+              key={provider.name}
+              onClick={() => onSelectProvider(provider.name)}
               className="w-full flex items-center gap-5 p-5 bg-gray-800 card-border rounded-xl hover:glow-accent-sm transition-all text-left group"
             >
               {provider.badge}

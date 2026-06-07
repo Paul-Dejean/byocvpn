@@ -22,7 +22,7 @@ interface AddAccountPageProps {
 type AddAccountStep = "selecting-provider" | "entering-credentials";
 
 interface ProviderOption {
-  id: string;
+  name: CloudProviderName;
   label: string;
   description: string;
   badge: React.ReactNode;
@@ -30,7 +30,7 @@ interface ProviderOption {
 
 const ALL_PROVIDERS: ProviderOption[] = [
   {
-    id: "aws",
+    name: CloudProviderName.Aws,
     label: "Amazon Web Services",
     description: "Deploy on EC2 — available in 30+ regions worldwide",
     badge: (
@@ -40,7 +40,7 @@ const ALL_PROVIDERS: ProviderOption[] = [
     ),
   },
   {
-    id: "oracle",
+    name: CloudProviderName.Oracle,
     label: "Oracle Cloud Infrastructure",
     description: "Deploy on OCI Compute — includes an Always Free tier",
     badge: (
@@ -50,7 +50,7 @@ const ALL_PROVIDERS: ProviderOption[] = [
     ),
   },
   {
-    id: "gcp",
+    name: CloudProviderName.Gcp,
     label: "Google Cloud Platform",
     description: "Deploy on Compute Engine using a service account — available in 40+ regions worldwide",
     badge: (
@@ -60,7 +60,7 @@ const ALL_PROVIDERS: ProviderOption[] = [
     ),
   },
   {
-    id: "azure",
+    name: CloudProviderName.Azure,
     label: "Microsoft Azure",
     description: "Deploy on Azure VMs — available in 60+ regions worldwide",
     badge: (
@@ -290,7 +290,7 @@ const PROVIDER_SETUP_INSTRUCTIONS: Record<string, { title: string; steps: SetupS
 
 export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPageProps) {
   const [step, setStep] = useState<AddAccountStep>("selecting-provider");
-  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<CloudProviderName | null>(null);
   const [unconfiguredProviders, setUnconfiguredProviders] = useState<ProviderOption[]>([]);
   const [isLoadingProviders, setIsLoadingProviders] = useState(true);
 
@@ -307,7 +307,7 @@ export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPag
     const loadUnconfiguredProviders = async () => {
       const unconfigured: ProviderOption[] = [];
       for (const provider of ALL_PROVIDERS) {
-        const existing = await loadCredentials(provider.id as CloudProviderName);
+        const existing = await loadCredentials(provider.name);
         if (existing === null) {
           unconfigured.push(provider);
         }
@@ -393,8 +393,8 @@ export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPag
     }
   };
 
-  const handleProviderSelected = (providerId: string) => {
-    setSelectedProvider(providerId);
+  const handleProviderSelected = (providerName: CloudProviderName) => {
+    setSelectedProvider(providerName);
     setStep("entering-credentials");
   };
 
@@ -415,7 +415,7 @@ export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPag
     }
   };
 
-  const selectedProviderOption = ALL_PROVIDERS.find((p) => p.id === selectedProvider) ?? null;
+  const selectedProviderOption = ALL_PROVIDERS.find((p) => p.name === selectedProvider) ?? null;
   const instructions = selectedProvider ? PROVIDER_SETUP_INSTRUCTIONS[selectedProvider] : null;
 
   return (
@@ -474,7 +474,7 @@ export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPag
 interface ProviderSelectionStepProps {
   providers: ProviderOption[];
   isLoading: boolean;
-  onSelectProvider: (providerId: string) => void;
+  onSelectProvider: (providerName: CloudProviderName) => void;
 }
 
 function ProviderSelectionStep({ providers, isLoading, onSelectProvider }: ProviderSelectionStepProps) {
@@ -499,8 +499,8 @@ function ProviderSelectionStep({ providers, isLoading, onSelectProvider }: Provi
     <div className="p-6 flex flex-col gap-4 max-w-lg mx-auto w-full">
       {providers.map((provider) => (
         <button
-          key={provider.id}
-          onClick={() => onSelectProvider(provider.id)}
+          key={provider.name}
+          onClick={() => onSelectProvider(provider.name)}
           className="w-full flex items-center gap-5 p-5 bg-gray-800 card-border rounded-xl hover:glow-accent-sm transition-all text-left group"
         >
           {provider.badge}
@@ -525,9 +525,9 @@ function ProviderSelectionStep({ providers, isLoading, onSelectProvider }: Provi
 }
 
 interface CredentialsStepProps {
-  provider: string;
+  provider: CloudProviderName;
   instructions: { title: string; steps: SetupStep[] };
-  onCredentialsSaved: (provider: string) => void;
+  onCredentialsSaved: (provider: CloudProviderName) => void;
   onCancel: () => void;
 }
 
@@ -555,17 +555,17 @@ function CredentialsStep({ provider, instructions, onCredentialsSaved, onCancel 
         </div>
 
         <div className="w-96 flex-shrink-0">
-          {provider === "aws" && (
-            <AwsCredentialsForm onSaved={() => onCredentialsSaved("aws")} onCancel={onCancel} />
+          {provider === CloudProviderName.Aws && (
+            <AwsCredentialsForm onSaved={() => onCredentialsSaved(CloudProviderName.Aws)} onCancel={onCancel} />
           )}
-          {provider === "oracle" && (
-            <OracleCredentialsForm onSaved={() => onCredentialsSaved("oracle")} onCancel={onCancel} />
+          {provider === CloudProviderName.Oracle && (
+            <OracleCredentialsForm onSaved={() => onCredentialsSaved(CloudProviderName.Oracle)} onCancel={onCancel} />
           )}
-          {provider === "gcp" && (
-            <GcpCredentialsForm onSaved={() => onCredentialsSaved("gcp")} onCancel={onCancel} />
+          {provider === CloudProviderName.Gcp && (
+            <GcpCredentialsForm onSaved={() => onCredentialsSaved(CloudProviderName.Gcp)} onCancel={onCancel} />
           )}
-          {provider === "azure" && (
-            <AzureCredentialsForm onSaved={() => onCredentialsSaved("azure")} onCancel={onCancel} />
+          {provider === CloudProviderName.Azure && (
+            <AzureCredentialsForm onSaved={() => onCredentialsSaved(CloudProviderName.Azure)} onCancel={onCancel} />
           )}
         </div>
       </div>
