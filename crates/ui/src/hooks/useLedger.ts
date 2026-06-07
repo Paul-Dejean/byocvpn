@@ -1,16 +1,7 @@
 import { useState, useEffect } from "react";
 import { invokeCommand } from "../lib/invokeCommand";
+import { computeElapsedHours } from "../lib/time";
 import { LedgerEntry, LedgerEntryWithCost, PricingInfo } from "../types/ledger";
-
-
-function computeUptimeHours(
-  launchedAt: string,
-  terminatedAt: string | null,
-): number {
-  const start = new Date(launchedAt).getTime();
-  const end = terminatedAt ? new Date(terminatedAt).getTime() : Date.now();
-  return Math.max(0, (end - start) / (1000 * 3600));
-}
 
 
 export const useLedger = () => {
@@ -50,7 +41,7 @@ export const useLedger = () => {
       const enriched: LedgerEntryWithCost[] = rawEntries.map((entry) => {
         const key = `${entry.provider}::${entry.instanceType}`;
         const pricing = pricingCache.get(key)!;
-        const uptimeHours = computeUptimeHours(
+        const uptimeHours = computeElapsedHours(
           entry.launchedAt,
           entry.terminatedAt,
         );
