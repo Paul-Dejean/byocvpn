@@ -19,13 +19,25 @@ import {
 export const useInstances = (regions: Region[]) => {
   const [instances, setInstances] = useState<Instance[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [terminatingInstanceId, setTerminatingInstanceId] = useState<
-    string | null
-  >(null);
+  const [terminatingInstanceId, setTerminatingInstanceId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [spawnJobs, setSpawnJobs] = useState<Record<string, SpawnJobState>>({});
 
   const tempToJob = useRef<Record<string, string>>({});
+  const jobToTemp = useRef<Record<string, string>>({});
+
+  const trackJob = (tempId: string, jobId: string) => {
+    tempToJob.current[tempId] = jobId;
+    jobToTemp.current[jobId] = tempId;
+  };
+
+  const untrackJob = (jobId: string) => {
+    const tempId = jobToTemp.current[jobId];
+    if (tempId) {
+      delete tempToJob.current[tempId];
+      delete jobToTemp.current[jobId];
+    }
+  };
 
   useEffect(() => {
     if (regions.length > 0) fetchInstances();
@@ -56,17 +68,13 @@ export const useInstances = (regions: Region[]) => {
       "spawn-instance-launched",
       ({ payload }) => {
         const { jobId, instance } = payload;
-        const tempId = Object.entries(tempToJob.current).find(
-          ([, jid]) => jid === jobId,
-        )?.[0];
+        const tempId = jobToTemp.current[jobId];
         if (tempId) {
           setInstances((previous) =>
-            previous.map((existing) =>
-              existing.id === tempId ? instance : existing,
-            ),
+            previous.map((existing) => (existing.id === tempId ? instance : existing)),
           );
-          delete tempToJob.current[tempId];
-          tempToJob.current[instance.id] = jobId;
+          untrackJob(jobId);
+          trackJob(instance.id, jobId);
         }
       },
     );
@@ -75,16 +83,12 @@ export const useInstances = (regions: Region[]) => {
       "spawn-complete",
       ({ payload }) => {
         const { jobId, instance } = payload;
-        const trackedId = Object.entries(tempToJob.current).find(
-          ([, jid]) => jid === jobId,
-        )?.[0];
-        if (trackedId) {
+        const tempId = jobToTemp.current[jobId];
+        if (tempId) {
           setInstances((previous) =>
-            previous.map((existing) =>
-              existing.id === trackedId ? instance : existing,
-            ),
+            previous.map((existing) => (existing.id === tempId ? instance : existing)),
           );
-          delete tempToJob.current[trackedId];
+          untrackJob(jobId);
         }
         setSpawnJobs((previous) => {
           const { [jobId]: _, ...rest } = previous;
@@ -98,14 +102,12 @@ export const useInstances = (regions: Region[]) => {
       "spawn-failed",
       ({ payload }) => {
         const { jobId, error } = payload;
-        const trackedId = Object.entries(tempToJob.current).find(
-          ([, jid]) => jid === jobId,
-        )?.[0];
-        if (trackedId) {
+        const tempId = jobToTemp.current[jobId];
+        if (tempId) {
           setInstances((previous) =>
-            previous.filter((existing) => existing.id !== trackedId),
+            previous.filter((existing) => existing.id !== tempId),
           );
-          delete tempToJob.current[trackedId];
+          untrackJob(jobId);
         }
         setSpawnJobs((previous) => {
           const { [jobId]: _, ...rest } = previous;
@@ -140,15 +142,15 @@ export const useInstances = (regions: Region[]) => {
           jobId: activeJob.jobId,
           steps: activeJob.steps.map((step) => ({
             ...step,
-            status: activeJob.stepStatuses[step.id] ?? (SpawnStepStatus.Pending),
+            status: activeJob.stepStatuses[step.id] ?? SpawnStepStatus.Pending,
           })),
         };
 
         if (activeJob.instanceId) {
-          tempToJob.current[activeJob.instanceId] = activeJob.jobId;
+          trackJob(activeJob.instanceId, activeJob.jobId);
         } else {
           const tempId = `spawning-recovered-${activeJob.jobId}`;
-          tempToJob.current[tempId] = activeJob.jobId;
+          trackJob(tempId, activeJob.jobId);
           spawningPlaceholders.push({
             id: tempId,
             name: "Deploying…",
@@ -165,11 +167,12 @@ export const useInstances = (regions: Region[]) => {
         setSpawnJobs((previous) => ({ ...previous, ...newSpawnJobs }));
       }
 
-      const installingFirst = [
-        ...fetched.filter((instance) => instance.state === InstanceState.Installing),
-        ...fetched.filter((instance) => instance.state !== InstanceState.Installing),
-      ];
-      setInstances([...spawningPlaceholders, ...installingFirst]);
+      const sorted = [...fetched].sort((a, b) => {
+        const aInstalling = a.state === InstanceState.Installing ? 0 : 1;
+        const bInstalling = b.state === InstanceState.Installing ? 0 : 1;
+        return aInstalling - bInstalling;
+      });
+      setInstances([...spawningPlaceholders, ...sorted]);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to fetch instances";
@@ -204,7 +207,7 @@ export const useInstances = (regions: Region[]) => {
         provider,
       });
 
-      tempToJob.current[tempId] = job.jobId;
+      trackJob(tempId, job.jobId);
 
       setSpawnJobs((previous) => ({
         ...previous,
@@ -212,7 +215,7 @@ export const useInstances = (regions: Region[]) => {
           jobId: job.jobId,
           steps: job.steps.map((step, index) => ({
             ...step,
-            status: index === 0 ? (SpawnStepStatus.Running) : (SpawnStepStatus.Pending),
+            status: index === 0 ? SpawnStepStatus.Running : SpawnStepStatus.Pending,
           })),
         },
       }));
@@ -254,9 +257,7 @@ export const useInstances = (regions: Region[]) => {
     }
   };
 
-  const getSpawnJobForInstance = (
-    instanceId: string,
-  ): SpawnJobState | undefined => {
+  const getSpawnJobForInstance = (instanceId: string): SpawnJobState | undefined => {
     const jobId = tempToJob.current[instanceId];
     return jobId ? spawnJobs[jobId] : undefined;
   };
