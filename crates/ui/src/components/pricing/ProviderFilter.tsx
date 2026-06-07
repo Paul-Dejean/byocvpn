@@ -1,10 +1,11 @@
 import { ProviderIcon } from "../providers/ProviderIcon";
+import { CloudProviderName } from "../../types";
 
-const PROVIDER_SHORT_LABELS: Record<string, string> = {
-  aws: "AWS",
-  azure: "Azure",
-  gcp: "GCP",
-  oracle: "Oracle",
+const PROVIDER_SHORT_LABELS: Record<CloudProviderName, string> = {
+  [CloudProviderName.Aws]: "AWS",
+  [CloudProviderName.Azure]: "Azure",
+  [CloudProviderName.Gcp]: "GCP",
+  [CloudProviderName.Oracle]: "Oracle",
 };
 
 interface ProviderFilterProps {
