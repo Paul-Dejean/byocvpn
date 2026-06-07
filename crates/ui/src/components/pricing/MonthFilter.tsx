@@ -1,6 +1,5 @@
-export interface SelectedMonth {
+export interface CalendarMonth {
   year: number;
-
   month: number;
 }
 
@@ -20,25 +19,24 @@ const MONTH_NAMES = [
 ];
 
 interface MonthFilterProps {
+  availableMonths: CalendarMonth[];
 
-  availableMonths: SelectedMonth[];
+  calendarMonth: CalendarMonth;
 
-  selectedMonth: SelectedMonth;
-
-  onSelectMonth: (month: SelectedMonth) => void;
+  onSelectMonth: (month: CalendarMonth) => void;
 }
 
 export function MonthFilter({
   availableMonths,
-  selectedMonth,
+  calendarMonth,
   onSelectMonth,
 }: MonthFilterProps) {
   return (
     <div className="flex items-center gap-2 flex-wrap">
       {availableMonths.map((month) => {
         const isSelected =
-          month.year === selectedMonth.year &&
-          month.month === selectedMonth.month;
+          month.year === calendarMonth.year &&
+          month.month === calendarMonth.month;
         return (
           <button
             key={`${month.year}-${month.month}`}

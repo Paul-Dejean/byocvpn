@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useLedger } from "../hooks/useLedger";
-import { SelectedMonth } from "../components/pricing/MonthFilter";
+import { CalendarMonth } from "../components/pricing/MonthFilter";
 import { ProviderFilter } from "../components/pricing/ProviderFilter";
 import { InstanceCostRow } from "../components/pricing/InstanceCostRow";
 import { LoadingSpinner } from "../components/common/LoadingSpinner";
@@ -12,7 +12,7 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-function getCurrentMonth(): SelectedMonth {
+function getCurrentMonth(): CalendarMonth {
   const now = new Date();
   return { year: now.getFullYear(), month: now.getMonth() + 1 };
 }
@@ -22,12 +22,12 @@ function monthKeyFromEntry(entry: LedgerEntryWithCost): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function parseMonthKey(key: string): SelectedMonth {
+function parseMonthKey(key: string): CalendarMonth {
   const [year, month] = key.split("-").map(Number);
   return { year, month };
 }
 
-function formatMonthKey(month: SelectedMonth): string {
+function formatMonthKey(month: CalendarMonth): string {
   return `${month.year}-${String(month.month).padStart(2, "0")}`;
 }
 
@@ -44,28 +44,28 @@ function sortEntries(entries: LedgerEntryWithCost[]): LedgerEntryWithCost[] {
 export function PricingPage() {
   const { entries, isLoading, error, refetch } = useLedger();
 
-  const availableMonths = useMemo<SelectedMonth[]>(() => {
+  const availableMonths = useMemo<CalendarMonth[]>(() => {
     const monthSet = new Set<string>();
     monthSet.add(formatMonthKey(getCurrentMonth()));
     entries.forEach((entry) => monthSet.add(monthKeyFromEntry(entry)));
     return Array.from(monthSet).sort().reverse().map(parseMonthKey);
   }, [entries]);
 
-  const [selectedMonth, setSelectedMonth] =
-    useState<SelectedMonth>(getCurrentMonth);
+  const [calendarMonth, setCalendarMonth] =
+    useState<CalendarMonth>(getCurrentMonth);
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
 
-  const selectedMonthIndex = availableMonths.findIndex(
+  const calendarMonthIndex = availableMonths.findIndex(
     (month) =>
-      month.year === selectedMonth.year && month.month === selectedMonth.month,
+      month.year === calendarMonth.year && month.month === calendarMonth.month,
   );
 
   const filteredByMonth = useMemo(
     () =>
       entries.filter(
-        (entry) => monthKeyFromEntry(entry) === formatMonthKey(selectedMonth),
+        (entry) => monthKeyFromEntry(entry) === formatMonthKey(calendarMonth),
       ),
-    [entries, selectedMonth],
+    [entries, calendarMonth],
   );
 
   const availableProviders = useMemo(
@@ -127,9 +127,9 @@ export function PricingPage() {
           <div className="flex items-center gap-1 flex-shrink-0">
             <button
               onClick={() =>
-                setSelectedMonth(availableMonths[selectedMonthIndex + 1])
+                setCalendarMonth(availableMonths[calendarMonthIndex + 1])
               }
-              disabled={selectedMonthIndex >= availableMonths.length - 1}
+              disabled={calendarMonthIndex >= availableMonths.length - 1}
               className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -137,13 +137,13 @@ export function PricingPage() {
               </svg>
             </button>
             <span className="text-sm font-medium text-gray-200 w-36 text-center">
-              {MONTH_NAMES[selectedMonth.month - 1]} {selectedMonth.year}
+              {MONTH_NAMES[calendarMonth.month - 1]} {calendarMonth.year}
             </span>
             <button
               onClick={() =>
-                setSelectedMonth(availableMonths[selectedMonthIndex - 1])
+                setCalendarMonth(availableMonths[calendarMonthIndex - 1])
               }
-              disabled={selectedMonthIndex <= 0}
+              disabled={calendarMonthIndex <= 0}
               className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
