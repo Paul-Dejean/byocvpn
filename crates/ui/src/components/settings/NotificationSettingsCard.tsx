@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invokeCommand } from "../../lib/invokeCommand";
-import { isPermissionGranted, requestPermission } from "@tauri-apps/plugin-notification";
+import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 interface NotificationSettings {
   notificationEnabled: boolean;
@@ -53,6 +54,22 @@ export function NotificationSettingsCard() {
     updateSettings({ ...settings, notificationEnabled: enabling });
   };
 
+  const sendTestNotification = () => {
+    sendNotification({
+      title: "ByocVPN",
+      body: "Notifications are working!",
+    });
+  };
+
+  const openNotificationSettings = async () => {
+    try {
+      await openUrl("x-apple.systempreferences:com.apple.preference.notifications");
+    } catch (error) {
+      console.error("Failed to open notification settings:", error);
+      setPermissionError(`Could not open System Settings: ${error}`);
+    }
+  };
+
   const onThresholdChange = (raw: string) => {
     const minutes = parseInt(raw, 10);
     if (!isNaN(minutes) && minutes >= 1) {
@@ -91,21 +108,42 @@ export function NotificationSettingsCard() {
       </div>
 
       {settings.notificationEnabled && (
-        <div className="mt-3 flex items-center gap-2 pl-11">
-          <span className="text-xs text-gray-400">Notify after</span>
-          <input
-            type="number"
-            min={1}
-            value={settings.notificationThresholdMinutes}
-            onChange={(event) => onThresholdChange(event.target.value)}
-            className="w-14 px-2 py-1 text-xs bg-gray-700 text-white rounded-md border border-gray-600 focus:outline-none focus:border-blue-500 text-center"
-          />
-          <span className="text-xs text-gray-400">minutes of server uptime</span>
-        </div>
-      )}
+        <div className="mt-3 pl-11 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400">Notify after</span>
+            <input
+              type="number"
+              min={1}
+              value={settings.notificationThresholdMinutes}
+              onChange={(event) => onThresholdChange(event.target.value)}
+              className="w-14 px-2 py-1 text-xs bg-gray-700 text-white rounded-md border border-gray-600 focus:outline-none focus:border-blue-500 text-center"
+            />
+            <span className="text-xs text-gray-400">minutes of server uptime</span>
+          </div>
 
-      {permissionError && (
-        <p className="mt-2 text-xs text-red-400">{permissionError}</p>
+          <p className="text-xs text-gray-500">
+            To verify notifications work, open System Settings and allow notifications for this app. You can then send a test notification to confirm everything is set up correctly.
+          </p>
+
+          {permissionError && (
+            <p className="text-xs text-red-400">{permissionError}</p>
+          )}
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={openNotificationSettings}
+              className="text-xs text-gray-400 hover:text-white border border-gray-600 hover:border-gray-400 rounded-md px-2.5 py-1 transition-colors"
+            >
+              Open Settings
+            </button>
+            <button
+              onClick={sendTestNotification}
+              className="text-xs text-gray-400 hover:text-white border border-gray-600 hover:border-gray-400 rounded-md px-2.5 py-1 transition-colors"
+            >
+              Test Notification
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
