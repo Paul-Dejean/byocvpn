@@ -61,9 +61,16 @@ export function NotificationSettingsCard() {
     });
   };
 
+  const notificationSettingsUrl = (() => {
+    if (navigator.platform.startsWith("Mac")) return "x-apple.systempreferences:com.apple.preference.notifications";
+    if (navigator.platform.startsWith("Win")) return "ms-settings:notifications";
+    return null;
+  })();
+
   const openNotificationSettings = async () => {
+    if (!notificationSettingsUrl) return;
     try {
-      await openUrl("x-apple.systempreferences:com.apple.preference.notifications");
+      await openUrl(notificationSettingsUrl);
     } catch (error) {
       console.error("Failed to open notification settings:", error);
       setPermissionError(`Could not open System Settings: ${error}`);
@@ -130,12 +137,14 @@ export function NotificationSettingsCard() {
           )}
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={openNotificationSettings}
-              className="text-xs text-gray-400 hover:text-white border border-gray-600 hover:border-gray-400 rounded-md px-2.5 py-1 transition-colors"
-            >
-              Open Settings
-            </button>
+            {notificationSettingsUrl && (
+              <button
+                onClick={openNotificationSettings}
+                className="text-xs text-gray-400 hover:text-white border border-gray-600 hover:border-gray-400 rounded-md px-2.5 py-1 transition-colors"
+              >
+                Open Settings
+              </button>
+            )}
             <button
               onClick={sendTestNotification}
               className="text-xs text-gray-400 hover:text-white border border-gray-600 hover:border-gray-400 rounded-md px-2.5 py-1 transition-colors"
