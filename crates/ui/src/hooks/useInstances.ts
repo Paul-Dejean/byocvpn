@@ -154,9 +154,9 @@ export function useInstances(regions: Region[]) {
       }
 
       const sorted = [...fetched].sort((a, b) => {
-        const aInstalling = a.state === InstanceState.Installing ? 0 : 1;
-        const bInstalling = b.state === InstanceState.Installing ? 0 : 1;
-        return aInstalling - bInstalling;
+        const installingA = a.state === InstanceState.Installing ? 0 : 1;
+        const installingB = b.state === InstanceState.Installing ? 0 : 1;
+        return installingA - installingB;
       });
       setInstances([...spawningPlaceholders, ...sorted]);
     } catch (err) {

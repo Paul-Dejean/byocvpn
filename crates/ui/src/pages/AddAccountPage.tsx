@@ -1,21 +1,13 @@
 import { Spinner } from "../components/common/Spinner";
 import { useEffect, useRef, useState } from "react";
 import { invokeCommand } from "../lib/invokeCommand";
-import { listen } from "@tauri-apps/api/event";
 import { save } from "@tauri-apps/plugin-dialog";
 import toast from "react-hot-toast";
 import { useCredentials } from "../hooks/useCredentials";
+import { useAccounts } from "../hooks/useAccounts";
 import { CloudProviderName } from "../types";
 import { PROVIDER_METADATA } from "../constants/providers";
 import { ProvisionAccountDrawer } from "../components/settings/ProvisionAccountDrawer";
-import {
-  ProvisionAccountJob,
-  ProvisionAccountProgressEvent,
-  ProvisionAccountCompleteEvent,
-  ProvisionJobState,
-  SpawnStepState,
-  SpawnStepStatus,
-} from "../types";
 
 interface AddAccountPageProps {
   onNavigateBack: () => void;
@@ -297,12 +289,17 @@ export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPag
   const [unconfiguredProviders, setUnconfiguredProviders] = useState<ProviderOption[]>([]);
   const [isLoadingProviders, setIsLoadingProviders] = useState(true);
 
-  const [activeProvisionJob, setActiveProvisionJob] = useState<ProvisionJobState | null>(null);
-  const [isProvisionDrawerOpen, setIsProvisionDrawerOpen] = useState(false);
-  const [isProvisionComplete, setIsProvisionComplete] = useState(false);
-  const [provisionError, setProvisionError] = useState<string | null>(null);
-  const activeJobIdRef = useRef<string | null>(null);
-  const earlyProgressEventsRef = useRef<ProvisionAccountProgressEvent[]>([]);
+  const {
+    activeProvisionJob,
+    isProvisionDrawerOpen,
+    isProvisionComplete,
+    provisionError,
+    setupNewAccount,
+    closeProvisionDrawer,
+  } = useAccounts({
+    onComplete: () => toast.success("Account connected successfully!"),
+    onFailed: () => toast.error("Account setup failed"),
+  });
 
   const { loadCredentials } = useCredentials();
 
@@ -321,81 +318,6 @@ export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPag
     loadUnconfiguredProviders();
   }, []);
 
-  useEffect(() => {
-    const progressUnlisten = listen<ProvisionAccountProgressEvent>(
-      "provision-account-progress",
-      ({ payload }) => {
-        const { jobId, stepId, status, error: stepError } = payload;
-        setActiveProvisionJob((previous) => {
-          if (!previous || previous.jobId !== jobId) {
-            earlyProgressEventsRef.current.push(payload);
-            return previous;
-          }
-          return {
-            ...previous,
-            steps: previous.steps.map((provisionStep) =>
-              provisionStep.id === stepId
-                ? { ...provisionStep, status, error: stepError }
-                : provisionStep,
-            ),
-          };
-        });
-      },
-    );
-
-    const completeUnlisten = listen<ProvisionAccountCompleteEvent>(
-      "provision-account-complete",
-      ({ payload }) => {
-        if (activeJobIdRef.current === payload.jobId) {
-          setIsProvisionComplete(true);
-          toast.success("Account connected successfully!");
-        }
-      },
-    );
-
-    const failedUnlisten = listen<{ jobId: string; error: string }>(
-      "provision-account-failed",
-      ({ payload }) => {
-        if (activeJobIdRef.current === payload.jobId) {
-          setProvisionError(payload.error);
-          toast.error("Account setup failed");
-        }
-      },
-    );
-
-    return () => {
-      progressUnlisten.then((unlisten) => unlisten());
-      completeUnlisten.then((unlisten) => unlisten());
-      failedUnlisten.then((unlisten) => unlisten());
-    };
-  }, []);
-
-  const startProvisioning = async (provider: CloudProviderName) => {
-    try {
-      earlyProgressEventsRef.current = [];
-      const job = await invokeCommand<ProvisionAccountJob>("provision_account", { provider });
-      const bufferedEvents = earlyProgressEventsRef.current.filter((event) => event.jobId === job.jobId);
-      earlyProgressEventsRef.current = [];
-      const initialSteps: SpawnStepState[] = job.steps.map((provisionStep) => {
-        const latestBufferedEvent = [...bufferedEvents].reverse().find((event) => event.stepId === provisionStep.id);
-        return {
-          ...provisionStep,
-          status: latestBufferedEvent?.status ?? (SpawnStepStatus.Pending),
-          error: latestBufferedEvent?.error,
-        };
-      });
-      activeJobIdRef.current = job.jobId;
-      setActiveProvisionJob({ jobId: job.jobId, provider, steps: initialSteps });
-      setIsProvisionComplete(false);
-      setProvisionError(null);
-      setIsProvisionDrawerOpen(true);
-    } catch (invocationError) {
-      const message =
-        invocationError instanceof Error ? invocationError.message : "Failed to start setup";
-      toast.error(message);
-    }
-  };
-
   const handleProviderSelected = (providerName: CloudProviderName) => {
     setSelectedProvider(providerName);
     setStep("entering-credentials");
@@ -407,11 +329,11 @@ export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPag
   };
 
   const handleCredentialsSaved = (provider: CloudProviderName) => {
-    startProvisioning(provider);
+    setupNewAccount(provider);
   };
 
   const handleCloseProvisionDrawer = () => {
-    setIsProvisionDrawerOpen(false);
+    closeProvisionDrawer();
     const hasNoSteps = (activeProvisionJob?.steps ?? []).length === 0;
     if (isProvisionComplete || hasNoSteps) {
       onAccountAdded();

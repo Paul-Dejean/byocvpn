@@ -1,10 +1,9 @@
 import { Spinner } from "../components/common/Spinner";
-import { useEffect, useRef, useState } from "react";
-import { invokeCommand } from "../lib/invokeCommand";
-import { listen } from "@tauri-apps/api/event";
+import { useEffect, useState } from "react";
 import { load as loadStore } from "@tauri-apps/plugin-store";
 import toast from "react-hot-toast";
 import { useCredentials } from "../hooks/useCredentials";
+import { useAccounts } from "../hooks/useAccounts";
 import { CloudProviderName } from "../types";
 import { OracleProfileCard } from "../components/settings/OracleProfileCard";
 import { GcpProfileCard } from "../components/settings/GcpProfileCard";
@@ -12,14 +11,6 @@ import { AzureProfileCard } from "../components/settings/AzureProfileCard";
 import { ProvisionAccountDrawer } from "../components/settings/ProvisionAccountDrawer";
 import { NotificationSettingsCard } from "../components/settings/NotificationSettingsCard";
 import { KillSwitchSettingsCard } from "../components/settings/KillSwitchSettingsCard";
-import {
-  ProvisionAccountJob,
-  ProvisionAccountProgressEvent,
-  ProvisionAccountCompleteEvent,
-  ProvisionJobState,
-  SpawnStepState,
-  SpawnStepStatus,
-} from "../types";
 
 interface SettingsPageProps {
   onNavigateToAddAccount?: () => void;
@@ -36,18 +27,25 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
   const [accessKey, setAccessKey] = useState("");
   const [secretKey, setSecretKey] = useState("");
 
-  const [activeProvisionJob, setActiveProvisionJob] =
-    useState<ProvisionJobState | null>(null);
-  const [isProvisionDrawerOpen, setIsProvisionDrawerOpen] = useState(false);
-  const [isProvisionComplete, setIsProvisionComplete] = useState(false);
-  const [provisionError, setProvisionError] = useState<string | null>(null);
-
   const [provisionedProviders, setProvisionedProviders] = useState<Set<CloudProviderName>>(new Set());
-
-  const activeJobIdRef = useRef<string | null>(null);
 
   const { isSaving, error, successMessage, saveCredentials, deleteCredentials, loadCredentials } =
     useCredentials();
+
+  const {
+    activeProvisionJob,
+    isProvisionDrawerOpen,
+    isProvisionComplete,
+    provisionError,
+    setupNewAccount,
+    closeProvisionDrawer,
+  } = useAccounts({
+    onComplete: (provider) => {
+      setProvisionedProviders((previous) => new Set([...previous, provider]));
+      toast.success("Account provisioned successfully!");
+    },
+    onFailed: () => toast.error("Provisioning failed"),
+  });
 
   useEffect(() => {
     loadCredentials(CloudProviderName.Aws).then((existing) => setAwsHasCredentials(existing !== null));
@@ -70,82 +68,6 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
     };
     fetchProvisionedProviders();
   }, []);
-
-  useEffect(() => {
-    const progressUnlisten = listen<ProvisionAccountProgressEvent>(
-      "provision-account-progress",
-      ({ payload }) => {
-        const { jobId, stepId, status, error: stepError } = payload;
-        setActiveProvisionJob((previous) => {
-          if (!previous || previous.jobId !== jobId) return previous;
-          return {
-            ...previous,
-            steps: previous.steps.map((step) =>
-              step.id === stepId
-                ? { ...step, status, error: stepError }
-                : step,
-            ),
-          };
-        });
-      },
-    );
-
-    const completeUnlisten = listen<ProvisionAccountCompleteEvent>(
-      "provision-account-complete",
-      ({ payload }) => {
-        if (activeJobIdRef.current === payload.jobId) {
-          setIsProvisionComplete(true);
-          setProvisionedProviders((previous) => new Set([...previous, payload.provider]));
-          toast.success("Account provisioned successfully!");
-        }
-      },
-    );
-
-    const failedUnlisten = listen<{ jobId: string; error: string }>(
-      "provision-account-failed",
-      ({ payload }) => {
-        if (activeJobIdRef.current === payload.jobId) {
-          setProvisionError(payload.error);
-          toast.error("Provisioning failed");
-        }
-      },
-    );
-
-    return () => {
-      progressUnlisten.then((unlisten) => unlisten());
-      completeUnlisten.then((unlisten) => unlisten());
-      failedUnlisten.then((unlisten) => unlisten());
-    };
-  }, []);
-
-  const startProvisionAccount = async (provider: CloudProviderName) => {
-    try {
-      const job = await invokeCommand<ProvisionAccountJob>("provision_account", {
-        provider,
-      });
-
-      const initialSteps: SpawnStepState[] = job.steps.map((step) => ({
-        ...step,
-        status: SpawnStepStatus.Pending,
-      }));
-
-      activeJobIdRef.current = job.jobId;
-      setActiveProvisionJob({
-        jobId: job.jobId,
-        provider,
-        steps: initialSteps,
-      });
-      setIsProvisionComplete(false);
-      setProvisionError(null);
-      setIsProvisionDrawerOpen(true);
-    } catch (invocationError) {
-      const message =
-        invocationError instanceof Error
-          ? invocationError.message
-          : "Failed to start provisioning";
-      toast.error(message);
-    }
-  };
 
   const handleAwsEditOpen = async () => {
     const existing = await loadCredentials(CloudProviderName.Aws);
@@ -174,7 +96,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
       setSecretKey("");
       setIsAwsEditing(false);
       setAwsHasCredentials(true);
-      startProvisionAccount(CloudProviderName.Aws);
+      setupNewAccount(CloudProviderName.Aws);
     }
   };
 
@@ -192,9 +114,6 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
     }
   };
 
-  const handleCloseProvisionDrawer = () => {
-    setIsProvisionDrawerOpen(false);
-  };
 
   return (
     <div className="flex flex-col h-full bg-gray-900 text-white">
@@ -241,13 +160,13 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
                       ) : (
                         <>
                           {provisionedProviders.has(CloudProviderName.Aws) ? (
-                            <button onClick={() => startProvisionAccount(CloudProviderName.Aws)} className="p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded-lg transition-colors" title="Re-provision">
+                            <button onClick={() => setupNewAccount(CloudProviderName.Aws)} className="p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded-lg transition-colors" title="Re-provision">
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                               </svg>
                             </button>
                           ) : (
-                            <button onClick={() => startProvisionAccount(CloudProviderName.Aws)} className="p-2 text-amber-400 hover:text-amber-300 hover:bg-gray-600 rounded-lg transition-colors" title="Provision">
+                            <button onClick={() => setupNewAccount(CloudProviderName.Aws)} className="p-2 text-amber-400 hover:text-amber-300 hover:bg-gray-600 rounded-lg transition-colors" title="Provision">
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                               </svg>
@@ -337,8 +256,8 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
 
             {oracleHasCredentials === true && (
               <OracleProfileCard
-                onCredentialsSaved={startProvisionAccount}
-                onProvisionRequested={startProvisionAccount}
+                onCredentialsSaved={setupNewAccount}
+                onProvisionRequested={setupNewAccount}
                 isProvisioned={provisionedProviders.has(CloudProviderName.Oracle)}
                 onCredentialsDeleted={() => {
                   setOracleHasCredentials(false);
@@ -353,8 +272,8 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
 
             {gcpHasCredentials === true && (
               <GcpProfileCard
-                onCredentialsSaved={startProvisionAccount}
-                onProvisionRequested={startProvisionAccount}
+                onCredentialsSaved={setupNewAccount}
+                onProvisionRequested={setupNewAccount}
                 isProvisioned={provisionedProviders.has(CloudProviderName.Gcp)}
                 onCredentialsDeleted={() => {
                   setGcpHasCredentials(false);
@@ -369,8 +288,8 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
 
             {azureHasCredentials === true && (
               <AzureProfileCard
-                onCredentialsSaved={startProvisionAccount}
-                onProvisionRequested={startProvisionAccount}
+                onCredentialsSaved={setupNewAccount}
+                onProvisionRequested={setupNewAccount}
                 isProvisioned={provisionedProviders.has(CloudProviderName.Azure)}
                 onCredentialsDeleted={() => {
                   setAzureHasCredentials(false);
@@ -411,7 +330,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
 
       <ProvisionAccountDrawer
         isOpen={isProvisionDrawerOpen}
-        onClose={handleCloseProvisionDrawer}
+        onClose={closeProvisionDrawer}
         provider={activeProvisionJob?.provider ?? CloudProviderName.Aws}
         steps={activeProvisionJob?.steps ?? []}
         isComplete={isProvisionComplete}

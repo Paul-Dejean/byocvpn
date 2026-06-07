@@ -1,5 +1,12 @@
 import { CloudProviderName } from "./providers";
 
+export enum SpawnEvent {
+  Progress = "spawn-progress",
+  InstanceLaunched = "spawn-instance-launched",
+  Complete = "spawn-complete",
+  Failed = "spawn-failed",
+}
+
 export enum InstanceState {
   Spawning = "SPAWNING",
   Installing = "INSTALLING",
