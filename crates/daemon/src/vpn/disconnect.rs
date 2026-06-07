@@ -1,7 +1,7 @@
 use byocvpn_core::error::{Result, SystemError};
 use log::*;
 
-use crate::{routing::routes::remove_vpn_routes, tunnel_manager::TUNNEL_MANAGER};
+use crate::{firewall, routing::routes::remove_vpn_routes, tunnel_manager::TUNNEL_MANAGER};
 
 pub async fn disconnect_vpn() -> Result<()> {
     info!("[VPN Disconnect] Disconnecting VPN tunnel...");
@@ -69,6 +69,10 @@ pub async fn disconnect_vpn() -> Result<()> {
             "[VPN Disconnect] Metrics task panicked while shutting down: {:?}",
             error
         ),
+    }
+
+    if let Err(error) = firewall::remove() {
+        warn!("[VPN Disconnect] Kill switch removal failed: {}", error);
     }
 
     info!("[VPN Disconnect] VPN disconnected.");

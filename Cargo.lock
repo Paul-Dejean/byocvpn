@@ -930,7 +930,7 @@ checksum = "46c5e41b57b8bba42a04676d81cb89e9ee8e859a1a66f80a5a72e1cb76b34d43"
 
 [[package]]
 name = "byocvpn_aws"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "async-trait",
  "aws-config",
@@ -951,7 +951,7 @@ dependencies = [
 
 [[package]]
 name = "byocvpn_azure"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "async-trait",
  "azure_core",
@@ -972,7 +972,7 @@ dependencies = [
 
 [[package]]
 name = "byocvpn_cli"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "byocvpn_aws",
  "byocvpn_core",
@@ -985,7 +985,7 @@ dependencies = [
 
 [[package]]
 name = "byocvpn_core"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -1010,7 +1010,7 @@ dependencies = [
 
 [[package]]
 name = "byocvpn_daemon"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -1035,7 +1035,7 @@ dependencies = [
 
 [[package]]
 name = "byocvpn_gcp"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "async-trait",
  "byocvpn_core",
@@ -1055,7 +1055,7 @@ dependencies = [
 
 [[package]]
 name = "byocvpn_oracle"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -7080,7 +7080,7 @@ dependencies = [
 
 [[package]]
 name = "ui"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "byocvpn_aws",
  "byocvpn_azure",

@@ -24,6 +24,7 @@ pub async fn get_vpn_status() -> Result<VpnStatus> {
             instance: handle.instance.clone(),
             metrics: Some(handle.metrics.read().await.clone()),
             connected_at,
+            connection_error: None,
         })
     } else {
         Ok(VpnStatus {
@@ -31,6 +32,7 @@ pub async fn get_vpn_status() -> Result<VpnStatus> {
             instance: None,
             metrics: None,
             connected_at: None,
+            connection_error: None,
         })
     }
 }

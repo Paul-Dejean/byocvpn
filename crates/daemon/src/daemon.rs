@@ -8,6 +8,8 @@ use serde_json::Value;
 
 use crate::{
     constants,
+    firewall,
+    tunnel_manager::TUNNEL_MANAGER,
     vpn::{
         connect::connect_vpn, disconnect::disconnect_vpn, metrics::get_current_metrics,
         status::get_vpn_status,
@@ -115,6 +117,42 @@ async fn handle_command(command: DaemonCommand) -> DaemonResponse {
                 }
             }
         }
+        DaemonCommand::SetKillSwitch { enabled } => {
+            match handle_set_kill_switch(enabled) {
+                Ok(()) => DaemonResponse::Ok(Value::Null),
+                Err(error) => {
+                    error!("SetKillSwitch error: {}", error);
+                    DaemonResponse::Err(DaemonError::CommandFailed {
+                        command: error.to_string(),
+                    })
+                }
+            }
+        }
         DaemonCommand::HealthCheck => DaemonResponse::Ok(Value::Null),
     }
+}
+
+fn handle_set_kill_switch(enabled: bool) -> byocvpn_core::error::Result<()> {
+    if let Ok(mut state) = firewall::KILL_SWITCH.lock() {
+        state.enabled = enabled;
+    }
+
+    if !enabled {
+        return firewall::remove();
+    }
+
+    let tunnel_info = TUNNEL_MANAGER
+        .lock()
+        .ok()
+        .and_then(|guard| {
+            guard.as_ref().map(|handle| {
+                (handle.server_ip.clone(), handle.interface_name.clone())
+            })
+        });
+
+    if let Some((server_ip, tun_name)) = tunnel_info {
+        firewall::apply(&server_ip, &tun_name)?;
+    }
+
+    Ok(())
 }

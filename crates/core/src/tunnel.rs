@@ -42,6 +42,8 @@ pub struct VpnStatus {
     pub instance: Option<ConnectedInstance>,
     pub metrics: Option<TunnelMetrics>,
     pub connected_at: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub connection_error: Option<String>,
 }
 
 pub struct Tunnel {

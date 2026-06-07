@@ -24,12 +24,14 @@ export interface VpnStatus {
   connected: boolean;
   instance: Instance | null;
   metrics: VpnMetrics | null;
+  connectionError: string | null;
 }
 
 const initialVpnStatus: VpnStatus = {
   connected: false,
   instance: null,
   metrics: null,
+  connectionError: null,
 };
 
 export const useVpnConnection = () => {
@@ -57,7 +59,12 @@ export const useVpnConnection = () => {
   const checkVpnStatus = async () => {
     try {
       const status = await invokeCommand<VpnStatus>("get_vpn_status");
-      setVpnStatus(status);
+      setVpnStatus((current) => {
+        if (current.connectionError && !status.connected && !status.connectionError) {
+          return current;
+        }
+        return status;
+      });
       if (status.connected) {
         invokeCommand("subscribe_to_vpn_status").catch((error) =>
           console.error("Failed to resume metrics stream:", error),

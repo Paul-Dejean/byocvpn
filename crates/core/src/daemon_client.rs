@@ -30,6 +30,7 @@ pub struct VpnConnectParams {
 pub enum DaemonCommand {
     Connect(VpnConnectParams),
     Disconnect,
+    SetKillSwitch { enabled: bool },
     Status,
     Stats,
     HealthCheck,

@@ -9,6 +9,7 @@ import { GcpProfileCard } from "../components/settings/GcpProfileCard";
 import { AzureProfileCard } from "../components/settings/AzureProfileCard";
 import { ProvisionAccountDrawer } from "../components/settings/ProvisionAccountDrawer";
 import { NotificationSettingsCard } from "../components/settings/NotificationSettingsCard";
+import { KillSwitchSettingsCard } from "../components/settings/KillSwitchSettingsCard";
 import {
   ProvisionAccountJob,
   ProvisionAccountProgressEvent,
@@ -381,6 +382,10 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
 
             <div className="mt-4 pt-4 border-t border-gray-600">
               <NotificationSettingsCard />
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-gray-600">
+              <KillSwitchSettingsCard />
             </div>
 
             {onNavigateToAddAccount && (

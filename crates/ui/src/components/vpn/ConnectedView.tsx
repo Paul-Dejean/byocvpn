@@ -35,8 +35,20 @@ export function ConnectedView({ connectedInstance }: ConnectedViewProps) {
     return () => clearInterval(interval);
   }, []);
 
+  const connectionError = vpnStatus.connectionError;
+
   return (
     <div className="flex flex-col h-full text-white overflow-hidden">
+      {connectionError && (
+        <div className="px-4 pt-4">
+          <div className="flex items-start gap-2.5 bg-red-900/40 border border-red-700/60 rounded-lg px-3.5 py-3">
+            <svg className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <p className="text-xs text-red-300 leading-relaxed">{connectionError}</p>
+          </div>
+        </div>
+      )}
       <div className="flex-1 flex flex-col p-6 pb-2 overflow-y-auto">
 
         {/* Location + IPs */}

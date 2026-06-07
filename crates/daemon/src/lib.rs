@@ -1,3 +1,4 @@
+pub mod firewall;
 mod tunnel_manager;
 
 pub mod constants;

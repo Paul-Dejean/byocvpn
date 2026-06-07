@@ -154,6 +154,7 @@ fn disconnected_vpn_status() -> VpnStatus {
         instance: None,
         metrics: None,
         connected_at: None,
+        connection_error: None,
     }
 }
 

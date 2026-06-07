@@ -89,6 +89,7 @@ where
                             instance: Some(connected_instance),
                             metrics: Some(metrics),
                             connected_at,
+                            connection_error: None,
                         });
                     } else {
                         error!("Failed to parse metrics: {}", line);
@@ -118,6 +119,7 @@ where
                 instance: None,
                 metrics: None,
                 connected_at: None,
+                connection_error: None,
             });
         }
     });

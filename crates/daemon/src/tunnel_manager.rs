@@ -20,6 +20,7 @@ pub struct TunnelHandle {
     pub dns_override_guard: Option<DnsOverrideGuard>,
     pub server_ip: String,
     pub interface_index: u32,
+    pub interface_name: String,
     pub instance: Option<ConnectedInstance>,
     pub connected_at: SystemTime,
 }

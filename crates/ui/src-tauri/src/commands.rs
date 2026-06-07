@@ -15,6 +15,7 @@ use byocvpn_core::{
     connectivity::{self, ProbeStatus},
     credentials::CredentialStore,
     crypto::generate_keypair,
+    daemon_client::{DaemonClient, DaemonCommand},
     error::{ConfigurationError, Error, Result},
     ledger::LedgerEntry,
     metrics_stream,
@@ -565,6 +566,16 @@ pub async fn connect(
     let cloud_provider = create_cloud_provider(provider_name).await?;
     let daemon_client = UnixDaemonClient;
 
+    let kill_switch_enabled = crate::settings_store::SettingsStore::open(&app_handle)
+        .map(|store| store.load_kill_switch_settings().kill_switch_enabled)
+        .unwrap_or(false);
+    if let Err(error) = daemon_client
+        .send_command(DaemonCommand::SetKillSwitch { enabled: kill_switch_enabled })
+        .await
+    {
+        warn!("Failed to sync kill switch state before connect: {}", error);
+    }
+
     commands::connect::connect(
         &*cloud_provider,
         &daemon_client,
@@ -580,11 +591,29 @@ pub async fn connect(
     if let Some(ref connected_instance) = vpn_status.instance {
         let emit_handle = app_handle.clone();
         let tray_handle = app_handle.clone();
+        let settings_handle = app_handle.clone();
+        let last_connected = connected_instance.clone();
         if let Err(error) = metrics_stream::start(
             byocvpn_daemon::constants::metrics_socket_path(),
             connected_instance.clone(),
             vpn_status.connected_at,
-            move |status| {
+            move |mut status| {
+                if !status.connected {
+                    let kill_switch_active = crate::settings_store::SettingsStore::open(&settings_handle)
+                        .map(|store| store.load_kill_switch_settings().kill_switch_enabled)
+                        .unwrap_or(false);
+                    status = VpnStatus {
+                        connected: true,
+                        instance: Some(last_connected.clone()),
+                        metrics: None,
+                        connected_at: None,
+                        connection_error: Some(if kill_switch_active {
+                            "VPN tunnel dropped. Kill switch is blocking all traffic.".to_string()
+                        } else {
+                            "VPN connection lost. Please disconnect and reconnect.".to_string()
+                        }),
+                    };
+                }
                 tray::update_tray(&tray_handle, &status);
                 let _ = emit_handle.emit("vpn-status", &status);
             },
@@ -611,13 +640,20 @@ pub async fn disconnect(app_handle: AppHandle) -> Result<String> {
     metrics_stream::stop().await?;
 
     let daemon_client = UnixDaemonClient;
-    commands::disconnect::disconnect(&daemon_client).await?;
+    if daemon_client.is_daemon_running().await {
+        commands::disconnect::disconnect(&daemon_client).await?;
+    } else {
+        if let Err(error) = byocvpn_daemon::firewall::remove() {
+            warn!("Failed to remove firewall rules after daemon death: {}", error);
+        }
+    }
 
     let disconnected_status = VpnStatus {
         connected: false,
         instance: None,
         metrics: None,
         connected_at: None,
+        connection_error: None,
     };
     tray::update_tray(&app_handle, &disconnected_status);
     if let Err(error) = app_handle.emit("vpn-status", &disconnected_status) {
@@ -646,13 +682,31 @@ pub async fn subscribe_to_vpn_status(app_handle: AppHandle) -> Result<()> {
     let instance_id = connected_instance.instance_id.clone();
     let emit_handle = app_handle.clone();
     let tray_handle = app_handle.clone();
+    let settings_handle = app_handle.clone();
+    let last_connected = connected_instance.clone();
     let ledger_handle = app_handle;
 
     commands::subscribe::start_metrics_subscription(
         byocvpn_daemon::constants::metrics_socket_path(),
         connected_instance,
         status.connected_at,
-        move |vpn_status| {
+        move |mut vpn_status| {
+            if !vpn_status.connected {
+                let kill_switch_active = crate::settings_store::SettingsStore::open(&settings_handle)
+                    .map(|store| store.load_kill_switch_settings().kill_switch_enabled)
+                    .unwrap_or(false);
+                vpn_status = VpnStatus {
+                    connected: true,
+                    instance: Some(last_connected.clone()),
+                    metrics: None,
+                    connected_at: None,
+                    connection_error: Some(if kill_switch_active {
+                        "VPN tunnel dropped. Kill switch is blocking all traffic.".to_string()
+                    } else {
+                        "VPN connection lost. Please disconnect and reconnect.".to_string()
+                    }),
+                };
+            }
             tray::update_tray(&tray_handle, &vpn_status);
             let _ = emit_handle.emit("vpn-status", &vpn_status);
         },

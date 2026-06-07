@@ -13,4 +13,7 @@ pub enum SystemError {
 
     #[error("tunnel I/O failed: {reason}")]
     TunnelIoFailed { reason: String },
+
+    #[error("kill switch operation failed: {reason}")]
+    KillSwitchFailed { reason: String },
 }

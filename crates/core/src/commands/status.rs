@@ -11,6 +11,7 @@ pub async fn fetch_vpn_status(client: &impl DaemonClient) -> Result<VpnStatus> {
             instance: None,
             metrics: None,
             connected_at: None,
+            connection_error: None,
         });
     }
 

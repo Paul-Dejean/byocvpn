@@ -23,6 +23,7 @@ use tun_rs::{AsyncDevice, DeviceBuilder};
 
 use crate::{
     constants,
+    firewall,
     routing::{
         dns::DnsOverrideGuard,
         routes::{add_vpn_routes, update_server_host_route},
@@ -65,6 +66,7 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
     }
 
     let (tun, interface_index) = setup_tun_device(private_ipv4, private_ipv6)?;
+    let interface_name = tun.name().unwrap_or_else(|_| format!("tun{}", interface_index));
     let wireguard_tunnel = create_wireguard_tunnel(private_key, public_key)?;
     let udp = connect_udp_socket(server_endpoint).await?;
 
@@ -105,6 +107,7 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
         dns_override_guard,
         server_ip: server_endpoint.ip().to_string(),
         interface_index,
+        interface_name: interface_name.clone(),
         instance: Some(ConnectedInstance {
             instance_id,
             public_ip_v4,
@@ -114,6 +117,17 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
         }),
         connected_at: std::time::SystemTime::now(),
     });
+
+    let kill_switch_enabled = firewall::KILL_SWITCH
+        .lock()
+        .map(|state| state.enabled)
+        .unwrap_or(false);
+
+    if kill_switch_enabled {
+        if let Err(error) = firewall::apply(&server_endpoint.ip().to_string(), &interface_name) {
+            warn!("Kill switch apply failed: {}", error);
+        }
+    }
 
     info!("VPN setup complete.");
     Ok(())
