@@ -27,11 +27,13 @@ export function AzureProfileCard({
   const [isEditing, setIsEditing] = useState(false);
   const [hasCredentials, setHasCredentials] = useState<boolean | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-  const [subscriptionId, setSubscriptionId] = useState("");
-  const [tenantId, setTenantId] = useState("");
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
   const [secretAlreadySet, setSecretAlreadySet] = useState(false);
+  const [formFields, setFormFields] = useState({
+    subscriptionId: "",
+    tenantId: "",
+    clientId: "",
+    clientSecret: "",
+  });
 
   const {
     isSaving,
@@ -49,43 +51,41 @@ export function AzureProfileCard({
     });
   }, []);
 
+  const resetForm = () => {
+    setFormFields({ subscriptionId: "", tenantId: "", clientId: "", clientSecret: "" });
+    setSecretAlreadySet(false);
+  };
+
   const handleEditOpen = async () => {
     const existing = await loadCredentials(CloudProviderName.Azure);
     if (existing) {
-      setSubscriptionId(existing.subscriptionId);
-      setTenantId(existing.tenantId);
-      setClientId(existing.clientId);
-      if (existing.clientSecret) {
-        setSecretAlreadySet(true);
-      }
+      setFormFields({
+        subscriptionId: existing.subscriptionId,
+        tenantId: existing.tenantId,
+        clientId: existing.clientId,
+        clientSecret: "",
+      });
+      setSecretAlreadySet(!!existing.clientSecret);
     }
     setIsEditing(true);
   };
 
   const handleCancel = () => {
     setIsEditing(false);
-    setSubscriptionId("");
-    setTenantId("");
-    setClientId("");
-    setClientSecret("");
-    setSecretAlreadySet(false);
+    resetForm();
     clearError();
   };
 
   const handleSave = async () => {
     const success = await saveCredentials(CloudProviderName.Azure, {
-      subscriptionId: subscriptionId.trim(),
-      tenantId: tenantId.trim(),
-      clientId: clientId.trim(),
-      clientSecret: clientSecret.trim(),
+      subscriptionId: formFields.subscriptionId.trim(),
+      tenantId: formFields.tenantId.trim(),
+      clientId: formFields.clientId.trim(),
+      clientSecret: formFields.clientSecret.trim(),
     });
 
     if (success) {
-      setSubscriptionId("");
-      setTenantId("");
-      setClientId("");
-      setClientSecret("");
-      setSecretAlreadySet(false);
+      resetForm();
       setIsEditing(false);
       setHasCredentials(true);
       onCredentialsSaved(CloudProviderName.Azure);
@@ -102,10 +102,10 @@ export function AzureProfileCard({
   };
 
   const isFormValid =
-    subscriptionId.trim() &&
-    tenantId.trim() &&
-    clientId.trim() &&
-    (clientSecret.trim() || secretAlreadySet);
+    formFields.subscriptionId.trim() &&
+    formFields.tenantId.trim() &&
+    formFields.clientId.trim() &&
+    (formFields.clientSecret.trim() || secretAlreadySet);
 
   const showNotProvisionedWarning = hasCredentials === true && !isProvisioned;
 
@@ -245,8 +245,8 @@ export function AzureProfileCard({
               </p>
               <input
                 type="text"
-                value={subscriptionId}
-                onChange={(e) => setSubscriptionId(e.target.value)}
+                value={formFields.subscriptionId}
+                onChange={(e) => setFormFields((prev) => ({ ...prev, subscriptionId: e.target.value }))}
                 className="input font-mono text-sm"
                 placeholder="00000000-0000-0000-0000-000000000000"
               />
@@ -261,8 +261,8 @@ export function AzureProfileCard({
               </p>
               <input
                 type="text"
-                value={tenantId}
-                onChange={(e) => setTenantId(e.target.value)}
+                value={formFields.tenantId}
+                onChange={(e) => setFormFields((prev) => ({ ...prev, tenantId: e.target.value }))}
                 className="input font-mono text-sm"
                 placeholder="00000000-0000-0000-0000-000000000000"
               />
@@ -277,8 +277,8 @@ export function AzureProfileCard({
               </p>
               <input
                 type="text"
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
+                value={formFields.clientId}
+                onChange={(e) => setFormFields((prev) => ({ ...prev, clientId: e.target.value }))}
                 className="input font-mono text-sm"
                 placeholder="00000000-0000-0000-0000-000000000000"
               />
@@ -288,21 +288,21 @@ export function AzureProfileCard({
               <label className="block text-sm font-medium text-gray-300 mb-1">
                 Client Secret
               </label>
-              {secretAlreadySet && !clientSecret && (
+              {secretAlreadySet && !formFields.clientSecret && (
                 <p className="text-xs text-green-400 mb-2">
                   ✓ Client secret already configured — enter a new value to
                   replace it
                 </p>
               )}
-              {!secretAlreadySet && !clientSecret && (
+              {!secretAlreadySet && !formFields.clientSecret && (
                 <p className="text-xs text-gray-500 mb-2">
                   Secret value from your app registration
                 </p>
               )}
               <input
                 type="password"
-                value={clientSecret}
-                onChange={(e) => setClientSecret(e.target.value)}
+                value={formFields.clientSecret}
+                onChange={(e) => setFormFields((prev) => ({ ...prev, clientSecret: e.target.value }))}
                 className="input font-mono text-sm"
                 placeholder={secretAlreadySet ? "Enter new secret to replace" : ""}
               />

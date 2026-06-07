@@ -22,9 +22,8 @@ export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
   const [isEditing, setIsEditing] = useState(false);
   const [hasCredentials, setHasCredentials] = useState<boolean | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-  const [projectId, setProjectId] = useState("");
-  const [serviceAccountJson, setServiceAccountJson] = useState("");
   const [jsonAlreadySet, setJsonAlreadySet] = useState(false);
+  const [formFields, setFormFields] = useState({ projectId: "", serviceAccountJson: "" });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -44,35 +43,34 @@ export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
     });
   }, []);
 
+  const resetForm = () => {
+    setFormFields({ projectId: "", serviceAccountJson: "" });
+    setJsonAlreadySet(false);
+  };
+
   const handleEditOpen = async () => {
     const existing = await loadCredentials(CloudProviderName.Gcp);
     if (existing) {
-      setProjectId(existing.projectId);
-      if (existing.serviceAccountJson) {
-        setJsonAlreadySet(true);
-      }
+      setFormFields({ projectId: existing.projectId, serviceAccountJson: "" });
+      setJsonAlreadySet(!!existing.serviceAccountJson);
     }
     setIsEditing(true);
   };
 
   const handleCancel = () => {
     setIsEditing(false);
-    setProjectId("");
-    setServiceAccountJson("");
-    setJsonAlreadySet(false);
+    resetForm();
     clearError();
   };
 
   const handleSave = async () => {
     const success = await saveCredentials(CloudProviderName.Gcp, {
-      projectId: projectId.trim(),
-      serviceAccountJson: serviceAccountJson.trim(),
+      projectId: formFields.projectId.trim(),
+      serviceAccountJson: formFields.serviceAccountJson.trim(),
     });
 
     if (success) {
-      setProjectId("");
-      setServiceAccountJson("");
-      setJsonAlreadySet(false);
+      resetForm();
       setIsEditing(false);
       setHasCredentials(true);
       onCredentialsSaved(CloudProviderName.Gcp);
@@ -86,13 +84,14 @@ export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
     reader.onload = (loadEvent) => {
       const content = loadEvent.target?.result;
       if (typeof content === "string") {
-        setServiceAccountJson(content);
         try {
           const parsed = JSON.parse(content);
-          if (parsed.project_id && !projectId) {
-            setProjectId(parsed.project_id);
-          }
+          setFormFields((prev) => ({
+            serviceAccountJson: content,
+            projectId: parsed.project_id && !prev.projectId ? parsed.project_id : prev.projectId,
+          }));
         } catch {
+          setFormFields((prev) => ({ ...prev, serviceAccountJson: content }));
         }
       }
     };
@@ -110,7 +109,7 @@ export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
   };
 
   const isFormValid =
-    projectId.trim() && (serviceAccountJson.trim() || jsonAlreadySet);
+    formFields.projectId.trim() && (formFields.serviceAccountJson.trim() || jsonAlreadySet);
 
   const showNotProvisionedWarning = hasCredentials === true && !isProvisioned;
 
@@ -215,8 +214,8 @@ export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
               </p>
               <input
                 type="text"
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
+                value={formFields.projectId}
+                onChange={(e) => setFormFields((prev) => ({ ...prev, projectId: e.target.value }))}
                 className="input font-mono text-sm"
                 placeholder="my-gcp-project"
               />
@@ -256,21 +255,21 @@ export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
                   className="hidden"
                 />
               </div>
-              {jsonAlreadySet && !serviceAccountJson && (
+              {jsonAlreadySet && !formFields.serviceAccountJson && (
                 <p className="text-xs text-green-400 mb-2">
                   ✓ Service account key already configured — load a new file or
                   paste below to replace it
                 </p>
               )}
-              {!jsonAlreadySet && !serviceAccountJson && (
+              {!jsonAlreadySet && !formFields.serviceAccountJson && (
                 <p className="text-xs text-gray-500 mb-2">
                   Paste the contents of your service-account JSON key file or
                   use "Load from file"
                 </p>
               )}
               <textarea
-                value={serviceAccountJson}
-                onChange={(e) => setServiceAccountJson(e.target.value)}
+                value={formFields.serviceAccountJson}
+                onChange={(e) => setFormFields((prev) => ({ ...prev, serviceAccountJson: e.target.value }))}
                 rows={6}
                 className="input font-mono text-xs resize-none"
                 placeholder='{"type":"service_account","project_id":"..."}'

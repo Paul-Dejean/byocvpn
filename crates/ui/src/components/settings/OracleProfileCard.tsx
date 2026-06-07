@@ -22,12 +22,14 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
   const [isEditing, setIsEditing] = useState(false);
   const [hasCredentials, setHasCredentials] = useState<boolean | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-  const [tenancyOcid, setTenancyOcid] = useState("");
-  const [userOcid, setUserOcid] = useState("");
-  const [fingerprint, setFingerprint] = useState("");
-  const [privateKeyPem, setPrivateKeyPem] = useState("");
   const [pemAlreadySet, setPemAlreadySet] = useState(false);
-  const [region, setRegion] = useState("");
+  const [formFields, setFormFields] = useState({
+    tenancyOcid: "",
+    userOcid: "",
+    fingerprint: "",
+    privateKeyPem: "",
+    region: "",
+  });
 
   const pemFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -47,48 +49,43 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
     });
   }, []);
 
+  const resetForm = () => {
+    setFormFields({ tenancyOcid: "", userOcid: "", fingerprint: "", privateKeyPem: "", region: "" });
+    setPemAlreadySet(false);
+  };
+
   const handleEditOpen = async () => {
     const existing = await loadCredentials(CloudProviderName.Oracle);
     if (existing) {
-      setTenancyOcid(existing.tenancyOcid);
-      setUserOcid(existing.userOcid);
-      setFingerprint(existing.fingerprint);
-      setRegion(existing.region);
-      if (existing.privateKeyPem) {
-        setPrivateKeyPem(existing.privateKeyPem);
-        setPemAlreadySet(true);
-      }
+      setFormFields({
+        tenancyOcid: existing.tenancyOcid,
+        userOcid: existing.userOcid,
+        fingerprint: existing.fingerprint,
+        region: existing.region,
+        privateKeyPem: existing.privateKeyPem ?? "",
+      });
+      setPemAlreadySet(!!existing.privateKeyPem);
     }
     setIsEditing(true);
   };
 
   const handleCancel = () => {
     setIsEditing(false);
-    setTenancyOcid("");
-    setUserOcid("");
-    setFingerprint("");
-    setPrivateKeyPem("");
-    setPemAlreadySet(false);
-    setRegion("");
+    resetForm();
     clearError();
   };
 
   const handleSave = async () => {
     const success = await saveCredentials(CloudProviderName.Oracle, {
-      tenancyOcid: tenancyOcid.trim(),
-      userOcid: userOcid.trim(),
-      fingerprint: fingerprint.trim(),
-      privateKeyPem: privateKeyPem.trim(),
-      region: region.trim(),
+      tenancyOcid: formFields.tenancyOcid.trim(),
+      userOcid: formFields.userOcid.trim(),
+      fingerprint: formFields.fingerprint.trim(),
+      privateKeyPem: formFields.privateKeyPem.trim(),
+      region: formFields.region.trim(),
     });
 
     if (success) {
-      setTenancyOcid("");
-      setUserOcid("");
-      setFingerprint("");
-      setPrivateKeyPem("");
-      setPemAlreadySet(false);
-      setRegion("");
+      resetForm();
       setIsEditing(false);
       setHasCredentials(true);
       onCredentialsSaved(CloudProviderName.Oracle);
@@ -102,7 +99,7 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
     reader.onload = (loadEvent) => {
       const content = loadEvent.target?.result;
       if (typeof content === "string") {
-        setPrivateKeyPem(content);
+        setFormFields((prev) => ({ ...prev, privateKeyPem: content }));
       }
     };
     reader.readAsText(file);
@@ -119,11 +116,11 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
   };
 
   const isFormValid =
-    tenancyOcid.trim() &&
-    userOcid.trim() &&
-    fingerprint.trim() &&
-    (privateKeyPem.trim() || pemAlreadySet) &&
-    region.trim();
+    formFields.tenancyOcid.trim() &&
+    formFields.userOcid.trim() &&
+    formFields.fingerprint.trim() &&
+    (formFields.privateKeyPem.trim() || pemAlreadySet) &&
+    formFields.region.trim();
 
   const showNotProvisionedWarning = hasCredentials === true && !isProvisioned;
 
@@ -228,8 +225,8 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
               </p>
               <input
                 type="text"
-                value={tenancyOcid}
-                onChange={(e) => setTenancyOcid(e.target.value)}
+                value={formFields.tenancyOcid}
+                onChange={(e) => setFormFields((prev) => ({ ...prev, tenancyOcid: e.target.value }))}
                 className="input font-mono text-sm"
               />
             </div>
@@ -243,8 +240,8 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
               </p>
               <input
                 type="text"
-                value={userOcid}
-                onChange={(e) => setUserOcid(e.target.value)}
+                value={formFields.userOcid}
+                onChange={(e) => setFormFields((prev) => ({ ...prev, userOcid: e.target.value }))}
                 className="input font-mono text-sm"
               />
             </div>
@@ -258,8 +255,8 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
               </p>
               <input
                 type="text"
-                value={fingerprint}
-                onChange={(e) => setFingerprint(e.target.value)}
+                value={formFields.fingerprint}
+                onChange={(e) => setFormFields((prev) => ({ ...prev, fingerprint: e.target.value }))}
                 className="input font-mono text-sm"
               />
             </div>
@@ -271,8 +268,8 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
               <p className="text-xs text-gray-500 mb-2">e.g. us-ashburn-1</p>
               <input
                 type="text"
-                value={region}
-                onChange={(e) => setRegion(e.target.value)}
+                value={formFields.region}
+                onChange={(e) => setFormFields((prev) => ({ ...prev, region: e.target.value }))}
                 className="input font-mono text-sm"
               />
             </div>
@@ -311,20 +308,20 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
                   className="hidden"
                 />
               </div>
-              {pemAlreadySet && !privateKeyPem && (
+              {pemAlreadySet && !formFields.privateKeyPem && (
                 <p className="text-xs text-green-400 mb-2">
                   ✓ Private key already configured — load a new file or paste
                   below to replace it
                 </p>
               )}
-              {!pemAlreadySet && !privateKeyPem && (
+              {!pemAlreadySet && !formFields.privateKeyPem && (
                 <p className="text-xs text-gray-500 mb-2">
                   Paste the contents of your .pem file or use "Load from file"
                 </p>
               )}
               <textarea
-                value={privateKeyPem}
-                onChange={(e) => setPrivateKeyPem(e.target.value)}
+                value={formFields.privateKeyPem}
+                onChange={(e) => setFormFields((prev) => ({ ...prev, privateKeyPem: e.target.value }))}
                 rows={6}
                 className="input font-mono text-xs resize-none"
               />
