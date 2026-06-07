@@ -15,7 +15,7 @@ interface ProvisionAccountDrawerProps {
   error: string | null;
 }
 
-const StepStatusIcon = ({ status }: { status: SpawnStepStatus }) => {
+function StepStatusIcon({ status }: { status: SpawnStepStatus }) {
   switch (status) {
     case SpawnStepStatus.Running:
       return (
@@ -58,7 +58,7 @@ const StepStatusIcon = ({ status }: { status: SpawnStepStatus }) => {
         <div className="w-5 h-5 rounded-full border-2 border-gray-600 flex-shrink-0" />
       );
   }
-};
+}
 
 export function ProvisionAccountDrawer({
   isOpen,

@@ -16,7 +16,7 @@ import {
   SpawnStepStatus,
 } from "../types";
 
-export const useInstances = (regions: Region[]) => {
+export function useInstances(regions: Region[]) {
   const [instances, setInstances] = useState<Instance[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [terminatingInstanceId, setTerminatingInstanceId] = useState<string | null>(null);
@@ -276,4 +276,4 @@ export const useInstances = (regions: Region[]) => {
     refetch: fetchInstances,
     getSpawnJobForInstance,
   };
-};
+}

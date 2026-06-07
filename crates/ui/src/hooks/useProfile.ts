@@ -2,7 +2,7 @@ import { useState } from "react";
 import { invokeCommand } from "../lib/invokeCommand";
 import toast from "react-hot-toast";
 
-export const useProfile = () => {
+export function useProfile() {
   const [isChecking, setIsChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,4 +35,4 @@ export const useProfile = () => {
     checkProfile,
     clearError,
   };
-};
+}

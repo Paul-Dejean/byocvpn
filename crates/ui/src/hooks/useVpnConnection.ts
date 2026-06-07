@@ -31,7 +31,7 @@ const initialVpnStatus: VpnStatus = {
   connectionError: null,
 };
 
-export const useVpnConnection = () => {
+export function useVpnConnection() {
   const [vpnStatus, setVpnStatus] = useState<VpnStatus>(initialVpnStatus);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,4 +131,4 @@ export const useVpnConnection = () => {
     disconnectFromVpn,
     clearError,
   };
-};
+}

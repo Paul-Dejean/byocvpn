@@ -3,7 +3,7 @@ import { invokeCommand } from "../lib/invokeCommand";
 import toast from "react-hot-toast";
 import { CloudProviderName, Region, RegionGroup } from "../types";
 
-const groupRegionsByContinent = (regions: Region[]): RegionGroup[] => {
+function groupRegionsByContinent(regions: Region[]): RegionGroup[] {
   const continentMap: Record<string, string> = {
     us: "North America",
     ca: "North America",
@@ -31,9 +31,9 @@ const groupRegionsByContinent = (regions: Region[]): RegionGroup[] => {
       regions: regions.sort((a, b) => a.name.localeCompare(b.name)),
     }))
     .sort((a, b) => a.continent.localeCompare(b.continent));
-};
+}
 
-const fetchConfiguredProviders = async (): Promise<CloudProviderName[]> => {
+async function fetchConfiguredProviders(): Promise<CloudProviderName[]> {
   const checks = await Promise.all(
     Object.values(CloudProviderName).map(async (provider) => {
       try {
@@ -45,9 +45,9 @@ const fetchConfiguredProviders = async (): Promise<CloudProviderName[]> => {
     }),
   );
   return checks.filter((provider): provider is CloudProviderName => provider !== null);
-};
+}
 
-export const useRegions = () => {
+export function useRegions() {
   const [regions, setRegions] = useState<Region[]>([]);
   const [groupedRegions, setGroupedRegions] = useState<RegionGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -97,4 +97,4 @@ export const useRegions = () => {
     loadRegions,
     clearError,
   };
-};
+}

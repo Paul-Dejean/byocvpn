@@ -10,11 +10,13 @@ interface GcpProfileCardProps {
   isProvisioned: boolean;
 }
 
-const GcpIcon = () => (
-  <div className="w-12 h-12 bg-white/5 rounded-lg flex items-center justify-center flex-shrink-0 p-2">
-    <img src="/cloud-providers/google-cloud-icon.svg" alt="GCP" className="w-full h-full object-contain" />
-  </div>
-);
+function GcpIcon() {
+  return (
+    <div className="w-12 h-12 bg-white/5 rounded-lg flex items-center justify-center flex-shrink-0 p-2">
+      <img src="/cloud-providers/google-cloud-icon.svg" alt="GCP" className="w-full h-full object-contain" />
+    </div>
+  );
+}
 
 export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onProvisionRequested, isProvisioned }: GcpProfileCardProps) {
   const [isEditing, setIsEditing] = useState(false);

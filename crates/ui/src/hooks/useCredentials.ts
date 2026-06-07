@@ -35,7 +35,7 @@ type CredentialsMap = {
   [CloudProviderName.Azure]: AzureCredentials;
 };
 
-export const useCredentials = () => {
+export function useCredentials() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -105,4 +105,4 @@ export const useCredentials = () => {
     clearError,
     clearSuccessMessage,
   };
-};
+}

@@ -8,7 +8,7 @@ function buildPricingKey(provider: string, instanceType: string): string {
   return `${provider}::${instanceType}`;
 }
 
-export const useLedger = () => {
+export function useLedger() {
   const [entries, setEntries] = useState<LedgerEntryWithCost[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,4 +83,4 @@ export const useLedger = () => {
   }, []);
 
   return { entries, isLoading, error, refetch: fetchLedger };
-};
+}
