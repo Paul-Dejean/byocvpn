@@ -2,7 +2,7 @@ use std::{collections::HashSet, str::FromStr};
 
 
 use byocvpn_aws::{AwsCredentials, AwsProvider, pricing as aws_pricing};
-use byocvpn_azure::{AzureCredentials, AzureProvider, pricing as azure_pricing};
+use byocvpn_azure::{credentials::AzureCredentials, AzureProvider, pricing as azure_pricing};
 use byocvpn_core::{
     cloud_provider::{
         CloudProvider, CloudProviderName, EnableRegionCompleteEvent, EnableRegionJob,
@@ -22,7 +22,7 @@ use byocvpn_core::{
     tunnel::VpnStatus,
 };
 use byocvpn_daemon::daemon_client::UnixDaemonClient;
-use byocvpn_gcp::{GcpCredentials, GcpProvider, pricing as gcp_pricing};
+use byocvpn_gcp::{credentials::GcpCredentials, GcpProvider, pricing as gcp_pricing};
 use byocvpn_oracle::{credentials::OracleCredentials, pricing as oracle_pricing};
 use chrono::Utc;
 use log::*;

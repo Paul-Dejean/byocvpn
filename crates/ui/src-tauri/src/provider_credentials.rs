@@ -10,7 +10,7 @@ use byocvpn_oracle::credentials::OracleCredentials;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
-#[serde(tag = "provider", rename_all = "camelCase")]
+#[serde(tag = "provider", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ProviderCredentials {
     Aws(AwsCredentials),
     Oracle(OracleCredentials),
