@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { useLedger } from "../hooks/useLedger";
-import { CloudProviderName } from "../types";
-import { CalendarMonth } from "../components/pricing/MonthFilter";
+import { CalendarMonth, CloudProviderName } from "../types";
 import { ProviderFilter } from "../components/pricing/ProviderFilter";
 import { InstanceCostRow } from "../components/pricing/InstanceCostRow";
 import { LoadingScreen } from "../components/common/LoadingScreen";

@@ -4,10 +4,7 @@ import toast from "react-hot-toast";
 import { invokeCommand } from "../lib/invokeCommand";
 import {
   CloudProviderName,
-  ProvisionAccountCompleteEvent,
-  ProvisionAccountJob,
-  ProvisionAccountProgressEvent,
-  ProvisionJobState,
+  SpawnStep,
   SpawnStepState,
   SpawnStepStatus,
 } from "../types";
@@ -18,13 +15,38 @@ enum ProvisionEvent {
   Failed = "provision-account-failed",
 }
 
+interface ProvisionAccountJob {
+  jobId: string;
+  steps: SpawnStep[];
+  provider: CloudProviderName;
+}
+
+interface ProvisionAccountProgressEvent {
+  jobId: string;
+  stepId: string;
+  status: SpawnStepStatus;
+  error?: string;
+}
+
+interface ProvisionAccountCompleteEvent {
+  jobId: string;
+  provider: CloudProviderName;
+}
+
+export interface ProvisionJobState {
+  jobId: string;
+  provider: CloudProviderName;
+  steps: SpawnStepState[];
+}
+
 interface UseAccountsOptions {
   onComplete?: (provider: CloudProviderName) => void;
   onFailed?: (error: string) => void;
 }
 
 export function useAccounts({ onComplete, onFailed }: UseAccountsOptions = {}) {
-  const [activeProvisionJob, setActiveProvisionJob] = useState<ProvisionJobState | null>(null);
+  const [activeProvisionJob, setActiveProvisionJob] =
+    useState<ProvisionJobState | null>(null);
   const [isProvisionDrawerOpen, setIsProvisionDrawerOpen] = useState(false);
   const [isProvisionComplete, setIsProvisionComplete] = useState(false);
   const [provisionError, setProvisionError] = useState<string | null>(null);
@@ -78,14 +100,21 @@ export function useAccounts({ onComplete, onFailed }: UseAccountsOptions = {}) {
     };
   }, []);
 
-  const setupNewAccount = async (provider: CloudProviderName) => {
+  const provisionAccount = async (provider: CloudProviderName) => {
     try {
       earlyProgressEventsRef.current = [];
-      const job = await invokeCommand<ProvisionAccountJob>("provision_account", { provider });
-      const bufferedEvents = earlyProgressEventsRef.current.filter((event) => event.jobId === job.jobId);
+      const job = await invokeCommand<ProvisionAccountJob>(
+        "provision_account",
+        { provider },
+      );
+      const bufferedEvents = earlyProgressEventsRef.current.filter(
+        (event) => event.jobId === job.jobId,
+      );
       earlyProgressEventsRef.current = [];
       const initialSteps: SpawnStepState[] = job.steps.map((step) => {
-        const latestBufferedEvent = [...bufferedEvents].reverse().find((event) => event.stepId === step.id);
+        const latestBufferedEvent = [...bufferedEvents]
+          .reverse()
+          .find((event) => event.stepId === step.id);
         return {
           ...step,
           status: latestBufferedEvent?.status ?? SpawnStepStatus.Pending,
@@ -93,13 +122,19 @@ export function useAccounts({ onComplete, onFailed }: UseAccountsOptions = {}) {
         };
       });
       activeJobIdRef.current = job.jobId;
-      setActiveProvisionJob({ jobId: job.jobId, provider, steps: initialSteps });
+      setActiveProvisionJob({
+        jobId: job.jobId,
+        provider,
+        steps: initialSteps,
+      });
       setIsProvisionComplete(false);
       setProvisionError(null);
       setIsProvisionDrawerOpen(true);
     } catch (invocationError) {
       const message =
-        invocationError instanceof Error ? invocationError.message : "Failed to start provisioning";
+        invocationError instanceof Error
+          ? invocationError.message
+          : "Failed to start provisioning";
       toast.error(message);
     }
   };
@@ -111,7 +146,7 @@ export function useAccounts({ onComplete, onFailed }: UseAccountsOptions = {}) {
     isProvisionDrawerOpen,
     isProvisionComplete,
     provisionError,
-    setupNewAccount,
+    provisionAccount,
     closeProvisionDrawer,
   };
 }

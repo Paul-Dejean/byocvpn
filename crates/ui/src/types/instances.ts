@@ -1,12 +1,5 @@
 import { CloudProviderName } from "./providers";
 
-export enum SpawnEvent {
-  Progress = "spawn-progress",
-  InstanceLaunched = "spawn-instance-launched",
-  Complete = "spawn-complete",
-  Failed = "spawn-failed",
-}
-
 export enum InstanceState {
   Spawning = "SPAWNING",
   Installing = "INSTALLING",
@@ -43,86 +36,13 @@ export interface SpawnStep {
   label: string;
 }
 
-export interface SpawnJob {
-  jobId: string;
-  steps: SpawnStep[];
-  region: string;
-  provider: CloudProviderName;
-}
-
 export interface SpawnStepState extends SpawnStep {
   status: SpawnStepStatus;
   error?: string;
 }
 
-export interface SpawnProgressEvent {
-  jobId: string;
-  stepId: string;
-  status: SpawnStepStatus;
-  error?: string;
-}
-
-export interface SpawnInstanceLaunchedEvent {
-  jobId: string;
-  instance: Instance;
-}
-
-export interface SpawnCompleteEvent {
-  jobId: string;
-  instance: Instance;
-}
-
-export interface ActiveSpawnJob extends SpawnJob {
-  instanceId: string | null;
-  stepStatuses: Record<string, SpawnStepStatus>;
-}
-
 export interface SpawnJobState {
   jobId: string;
   instanceId: string;
-  steps: SpawnStepState[];
-}
-
-export interface ProvisionAccountJob {
-  jobId: string;
-  steps: SpawnStep[];
-  provider: CloudProviderName;
-}
-
-export interface ProvisionAccountProgressEvent {
-  jobId: string;
-  stepId: string;
-  status: SpawnStepStatus;
-  error?: string;
-}
-
-export interface ProvisionAccountCompleteEvent {
-  jobId: string;
-  provider: CloudProviderName;
-}
-
-export interface EnableRegionJob {
-  jobId: string;
-  steps: SpawnStep[];
-  region: string;
-  provider: CloudProviderName;
-}
-
-export interface EnableRegionProgressEvent {
-  jobId: string;
-  stepId: string;
-  status: SpawnStepStatus;
-  error?: string;
-}
-
-export interface EnableRegionCompleteEvent {
-  jobId: string;
-  region: string;
-  provider: CloudProviderName;
-}
-
-export interface ProvisionJobState {
-  jobId: string;
-  provider: CloudProviderName;
   steps: SpawnStepState[];
 }

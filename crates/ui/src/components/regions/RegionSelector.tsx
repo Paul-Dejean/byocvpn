@@ -2,20 +2,8 @@ import { Spinner } from "../common/Spinner";
 import { useInstancesContext } from "../../contexts";
 import { getRegionInfo } from "../../constants/regionInfo";
 import { FlagIcon } from "../FlagIcon";
-import { useEffect, useRef, useState } from "react";
-import { invokeCommand } from "../../lib/invokeCommand";
-import { listen } from "@tauri-apps/api/event";
-import toast from "react-hot-toast";
-import {
-  Instance,
-  EnableRegionJob,
-  EnableRegionProgressEvent,
-  EnableRegionCompleteEvent,
-  SpawnStepState,
-  SpawnStepStatus,
-  CloudProviderName,
-  Region,
-} from "../../types";
+import { useEffect, useState } from "react";
+import { Instance, CloudProviderName, Region } from "../../types";
 import { useProviderRegions } from "../../hooks/useProviderRegions";
 import { ProvisionAccountDrawer } from "../settings/ProvisionAccountDrawer";
 
@@ -31,99 +19,27 @@ export function RegionSelector({
   onSpawned,
 }: RegionSelectorProps) {
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
-  const { groupedRegions, enabledRegions, isLoading: isLoadingRegions, markRegionEnabled } = useProviderRegions(provider);
+  const {
+    groupedRegions,
+    enabledRegions,
+    isLoading: isLoadingRegions,
+    enableRegion,
+    activeEnableJob,
+    isEnableDrawerOpen,
+    isEnableComplete,
+    enableError,
+    closeEnableDrawer,
+  } = useProviderRegions(provider);
 
   useEffect(() => {
     setSelectedRegion(null);
   }, [provider]);
 
-  const [activeEnableJob, setActiveEnableJob] = useState<{
-    jobId: string;
-    region: string;
-    country: string;
-    steps: SpawnStepState[];
-  } | null>(null);
-  const [isEnableDrawerOpen, setIsEnableDrawerOpen] = useState(false);
-  const [isEnableComplete, setIsEnableComplete] = useState(false);
-  const [enableError, setEnableError] = useState<string | null>(null);
-
-  const activeEnableJobIdRef = useRef<string | null>(null);
-
   const { spawnInstance, instances } = useInstancesContext();
 
-  useEffect(() => {
-    const progressUnlisten = listen<EnableRegionProgressEvent>(
-      "enable-region-progress",
-      ({ payload }) => {
-        const { jobId, stepId, status, error } = payload;
-        setActiveEnableJob((previous) => {
-          if (!previous || previous.jobId !== jobId) return previous;
-          return {
-            ...previous,
-            steps: previous.steps.map((step) =>
-              step.id === stepId ? { ...step, status, error } : step,
-            ),
-          };
-        });
-      },
-    );
-
-    const completeUnlisten = listen<EnableRegionCompleteEvent>(
-      "enable-region-complete",
-      ({ payload }) => {
-        if (activeEnableJobIdRef.current === payload.jobId) {
-          setIsEnableComplete(true);
-          markRegionEnabled(payload.region);
-          toast.success(`${payload.region} enabled!`);
-        }
-      },
-    );
-
-    const failedUnlisten = listen<{ jobId: string; error: string }>(
-      "enable-region-failed",
-      ({ payload }) => {
-        if (activeEnableJobIdRef.current === payload.jobId) {
-          setEnableError(payload.error);
-        }
-      },
-    );
-
-    return () => {
-      progressUnlisten.then((unlisten) => unlisten());
-      completeUnlisten.then((unlisten) => unlisten());
-      failedUnlisten.then((unlisten) => unlisten());
-    };
-  }, []);
-
-  const handleEnableRegion = async (
-    region: Region,
-    event: React.MouseEvent,
-  ) => {
+  const handleEnableRegion = async (region: Region, event: React.MouseEvent) => {
     event.stopPropagation();
-    try {
-      const job = await invokeCommand<EnableRegionJob>("enable_region", {
-        region: region.name,
-        provider,
-      });
-      const initialSteps: SpawnStepState[] = job.steps.map((step) => ({
-        ...step,
-        status: SpawnStepStatus.Pending,
-      }));
-      activeEnableJobIdRef.current = job.jobId;
-      setActiveEnableJob({
-        jobId: job.jobId,
-        region: region.name,
-        country: region.country,
-        steps: initialSteps,
-      });
-      setIsEnableComplete(false);
-      setEnableError(null);
-      setIsEnableDrawerOpen(true);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to enable region";
-      toast.error(message);
-    }
+    await enableRegion(region);
   };
 
   const lookupRegionInfo = (regionName: string) => getRegionInfo(provider, regionName);
@@ -313,10 +229,14 @@ export function RegionSelector({
 
       <ProvisionAccountDrawer
         isOpen={isEnableDrawerOpen}
-        onClose={() => setIsEnableDrawerOpen(false)}
+        onClose={closeEnableDrawer}
         provider={provider}
         title={activeEnableJob ? `Enabling ${activeEnableJob.country}` : ""}
-        subtitle={activeEnableJob ? `Setting up regional infrastructure for ${activeEnableJob.region}` : undefined}
+        subtitle={
+          activeEnableJob
+            ? `Setting up regional infrastructure for ${activeEnableJob.region}`
+            : undefined
+        }
         successMessage={
           activeEnableJob
             ? `${activeEnableJob.country} is ready for deployment`

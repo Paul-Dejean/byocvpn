@@ -3,18 +3,50 @@ import { invokeCommand } from "../lib/invokeCommand";
 import { listen } from "@tauri-apps/api/event";
 import toast from "react-hot-toast";
 import {
-  ActiveSpawnJob,
   Region,
   CloudProviderName,
   Instance,
   InstanceState,
-  SpawnCompleteEvent,
-  SpawnInstanceLaunchedEvent,
-  SpawnJob,
   SpawnJobState,
-  SpawnProgressEvent,
+  SpawnStep,
   SpawnStepStatus,
 } from "../types";
+
+enum SpawnEvent {
+  Progress = "spawn-progress",
+  InstanceLaunched = "spawn-instance-launched",
+  Complete = "spawn-complete",
+  Failed = "spawn-failed",
+}
+
+interface SpawnJob {
+  jobId: string;
+  steps: SpawnStep[];
+  region: string;
+  provider: CloudProviderName;
+}
+
+interface SpawnProgressEvent {
+  jobId: string;
+  stepId: string;
+  status: SpawnStepStatus;
+  error?: string;
+}
+
+interface SpawnInstanceLaunchedEvent {
+  jobId: string;
+  instance: Instance;
+}
+
+interface SpawnCompleteEvent {
+  jobId: string;
+  instance: Instance;
+}
+
+interface ActiveSpawnJob extends SpawnJob {
+  instanceId: string | null;
+  stepStatuses: Record<string, SpawnStepStatus>;
+}
 
 export function useInstances(regions: Region[]) {
   const [instances, setInstances] = useState<Instance[]>([]);
@@ -33,77 +65,65 @@ export function useInstances(regions: Region[]) {
   }, [regions]);
 
   useEffect(() => {
-    const progressUnlisten = listen<SpawnProgressEvent>(
-      "spawn-progress",
-      ({ payload }) => {
-        const { jobId, stepId, status, error } = payload;
-        setSpawnJobs((previous) => {
-          const job = previous[jobId];
-          if (!job) return previous;
-          return {
-            ...previous,
-            [jobId]: {
-              ...job,
-              steps: job.steps.map((step) =>
-                step.id === stepId ? { ...step, status, error } : step,
-              ),
-            },
-          };
-        });
-      },
-    );
+    const progressUnlisten = listen<SpawnProgressEvent>(SpawnEvent.Progress, ({ payload }) => {
+      const { jobId, stepId, status, error: stepError } = payload;
+      setSpawnJobs((previous) => {
+        const job = previous[jobId];
+        if (!job) return previous;
+        return {
+          ...previous,
+          [jobId]: {
+            ...job,
+            steps: job.steps.map((step) =>
+              step.id === stepId ? { ...step, status, error: stepError } : step,
+            ),
+          },
+        };
+      });
+    });
 
-    const launchedUnlisten = listen<SpawnInstanceLaunchedEvent>(
-      "spawn-instance-launched",
-      ({ payload }) => {
-        const { jobId, instance } = payload;
-        const job = spawnJobsRef.current[jobId];
-        if (!job) return;
+    const launchedUnlisten = listen<SpawnInstanceLaunchedEvent>(SpawnEvent.InstanceLaunched, ({ payload }) => {
+      const { jobId, instance } = payload;
+      const job = spawnJobsRef.current[jobId];
+      if (!job) return;
+      setInstances((previous) =>
+        previous.map((existing) => (existing.id === job.instanceId ? instance : existing)),
+      );
+      setSpawnJobs((previous) => ({
+        ...previous,
+        [jobId]: { ...previous[jobId], instanceId: instance.id },
+      }));
+    });
+
+    const completeUnlisten = listen<SpawnCompleteEvent>(SpawnEvent.Complete, ({ payload }) => {
+      const { jobId, instance } = payload;
+      const job = spawnJobsRef.current[jobId];
+      if (job) {
         setInstances((previous) =>
           previous.map((existing) => (existing.id === job.instanceId ? instance : existing)),
         );
-        setSpawnJobs((previous) => ({
-          ...previous,
-          [jobId]: { ...previous[jobId], instanceId: instance.id },
-        }));
-      },
-    );
+      }
+      setSpawnJobs((previous) => {
+        const { [jobId]: _, ...rest } = previous;
+        return rest;
+      });
+      toast.success("Server deployed successfully!");
+    });
 
-    const completeUnlisten = listen<SpawnCompleteEvent>(
-      "spawn-complete",
-      ({ payload }) => {
-        const { jobId, instance } = payload;
-        const job = spawnJobsRef.current[jobId];
-        if (job) {
-          setInstances((previous) =>
-            previous.map((existing) => (existing.id === job.instanceId ? instance : existing)),
-          );
-        }
-        setSpawnJobs((previous) => {
-          const { [jobId]: _, ...rest } = previous;
-          return rest;
-        });
-        toast.success("Server deployed successfully!");
-      },
-    );
-
-    const failedUnlisten = listen<{ jobId: string; error: string }>(
-      "spawn-failed",
-      ({ payload }) => {
-        const { jobId, error } = payload;
-        const job = spawnJobsRef.current[jobId];
-        if (job) {
-          setInstances((previous) =>
-            previous.filter((existing) => existing.id !== job.instanceId),
-          );
-        }
-        setSpawnJobs((previous) => {
-          const { [jobId]: _, ...rest } = previous;
-          return rest;
-        });
-        toast.error(error ?? "Server deployment failed");
-      },
-    );
+    const failedUnlisten = listen<{ jobId: string; error: string }>(SpawnEvent.Failed, ({ payload }) => {
+      const { jobId, error: failureError } = payload;
+      const job = spawnJobsRef.current[jobId];
+      if (job) {
+        setInstances((previous) =>
+          previous.filter((existing) => existing.id !== job.instanceId),
+        );
+      }
+      setSpawnJobs((previous) => {
+        const { [jobId]: _, ...rest } = previous;
+        return rest;
+      });
+      toast.error(failureError ?? "Server deployment failed");
+    });
 
     return () => {
       progressUnlisten.then((unlisten) => unlisten());
@@ -159,10 +179,10 @@ export function useInstances(regions: Region[]) {
         return installingA - installingB;
       });
       setInstances([...spawningPlaceholders, ...sorted]);
-    } catch (err) {
+    } catch (fetchError) {
       const message =
-        err instanceof Error ? err.message : "Failed to fetch instances";
-      console.error("Failed to fetch instances:", err);
+        fetchError instanceof Error ? fetchError.message : "Failed to fetch instances";
+      console.error("Failed to fetch instances:", fetchError);
       setError(message);
     } finally {
       setIsLoading(false);
@@ -204,12 +224,12 @@ export function useInstances(regions: Region[]) {
           })),
         },
       }));
-    } catch (err) {
+    } catch (spawnError) {
       setInstances((previous) =>
         previous.filter((instance) => instance.id !== tempId),
       );
       const message =
-        err instanceof Error ? err.message : "Failed to start deployment";
+        spawnError instanceof Error ? spawnError.message : "Failed to start deployment";
       setError(message);
       toast.error(message);
     }
@@ -230,13 +250,13 @@ export function useInstances(regions: Region[]) {
         previous.filter((instance) => instance.id !== instanceId),
       );
       toast.success("Server terminated successfully!");
-    } catch (err) {
+    } catch (terminateError) {
       const message =
-        err instanceof Error ? err.message : "Failed to terminate instance";
+        terminateError instanceof Error ? terminateError.message : "Failed to terminate instance";
       setError(message);
       toast.error(message);
-      console.error("Failed to terminate instance:", err);
-      throw err;
+      console.error("Failed to terminate instance:", terminateError);
+      throw terminateError;
     } finally {
       setTerminatingInstanceId(null);
     }
