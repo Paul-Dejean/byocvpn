@@ -11,7 +11,7 @@ use crate::{
     },
     config::{generate_client_config, get_wireguard_config_file_path},
     connectivity,
-    error::{ComputeProvisioningError, ConfigurationError, Result},
+    error::{ConfigurationError, Result},
 };
 
 pub async fn run_spawn_steps<F1, F2>(
@@ -105,12 +105,7 @@ pub async fn launch_instance(
         client_public_key,
     };
 
-    let instance = provider.spawn_instance(&params).await.map_err(|error| {
-        ComputeProvisioningError::InstanceSpawnFailed {
-            region_name: region.to_string(),
-            reason: error.to_string(),
-        }
-    })?;
+    let instance = provider.spawn_instance(&params).await?;
 
     info!("Spawned instance: {}", instance.id);
     Ok(instance)

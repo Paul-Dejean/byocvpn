@@ -146,11 +146,6 @@ export function StepProgressDrawer({
                       {step.label}
                     </span>
                   </div>
-                  {step.error && (
-                    <p className="text-xs text-red-400 mt-1 ml-6 break-all">
-                      {step.error}
-                    </p>
-                  )}
                 </div>
               </div>
             ))}

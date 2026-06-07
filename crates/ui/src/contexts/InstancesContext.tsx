@@ -16,6 +16,7 @@ interface InstancesContextValue {
     provider: CloudProviderName,
   ) => Promise<void>;
   clearError: () => void;
+  dismissFailedInstance: (instanceId: string) => void;
   refetch: () => Promise<void>;
   getSpawnJobForInstance: (instanceId: string) => SpawnJobState | undefined;
 }

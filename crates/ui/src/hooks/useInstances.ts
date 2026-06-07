@@ -134,14 +134,14 @@ export function useInstances(regions: Region[]) {
         const job = spawnJobsRef.current[jobId];
         if (job) {
           setInstances((previous) =>
-            previous.filter((existing) => existing.id !== job.instanceId),
+            previous.map((existing) =>
+              existing.id === job.instanceId
+                ? { ...existing, state: InstanceState.Error, errorReason: failureError }
+                : existing,
+            ),
           );
         }
-        setSpawnJobs((previous) => {
-          const { [jobId]: _, ...rest } = previous;
-          return rest;
-        });
-        toast.error(failureError ?? "Server deployment failed");
+        toast.error("Server deployment failed");
       },
     );
 
@@ -171,6 +171,8 @@ export function useInstances(regions: Region[]) {
         newSpawnJobs[activeJob.jobId] = {
           jobId: activeJob.jobId,
           instanceId,
+          region: activeJob.region,
+          provider: activeJob.provider,
           steps: activeJob.steps.map((step) => ({
             ...step,
             status: activeJob.stepStatuses[step.id] ?? SpawnStepStatus.Pending,
@@ -241,6 +243,8 @@ export function useInstances(regions: Region[]) {
         [job.jobId]: {
           jobId: job.jobId,
           instanceId: tempId,
+          region: regionName,
+          provider,
           steps: job.steps.map((step, index) => ({
             ...step,
             status:
@@ -304,6 +308,17 @@ export function useInstances(regions: Region[]) {
 
   const clearError = () => setError(null);
 
+  const dismissFailedInstance = (instanceId: string) => {
+    const job = Object.values(spawnJobs).find((spawnJob) => spawnJob.instanceId === instanceId);
+    if (job) {
+      setSpawnJobs((previous) => {
+        const { [job.jobId]: _, ...rest } = previous;
+        return rest;
+      });
+    }
+    setInstances((previous) => previous.filter((instance) => instance.id !== instanceId));
+  };
+
   return {
     instances,
     isLoading,
@@ -313,6 +328,7 @@ export function useInstances(regions: Region[]) {
     spawnInstance,
     terminateInstance,
     clearError,
+    dismissFailedInstance,
     refetch: fetchInstances,
     getSpawnJobForInstance,
   };

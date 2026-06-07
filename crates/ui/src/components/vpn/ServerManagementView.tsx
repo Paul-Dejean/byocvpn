@@ -36,6 +36,7 @@ export function ServerManagementView({
     isLoading: instancesLoading,
     terminatingInstanceId,
     terminateInstance,
+    dismissFailedInstance,
     getSpawnJobForInstance,
   } = useInstancesContext();
 
@@ -100,6 +101,12 @@ export function ServerManagementView({
     } catch (error) {
       console.error("Failed to terminate server:", error);
     }
+  };
+
+  const onDismiss = () => {
+    if (!selectedInstance) return;
+    dismissFailedInstance(selectedInstance.id);
+    setSelectedInstance(null);
   };
 
   const handleSelectProvider = (provider: CloudProviderName) => {
@@ -175,6 +182,7 @@ export function ServerManagementView({
                 spawnJob={getSpawnJobForInstance(selectedInstance.id)}
                 onConnect={onConnect}
                 onTerminate={onTerminate}
+                onDismiss={onDismiss}
               />
             ) : (
               <EmptyState

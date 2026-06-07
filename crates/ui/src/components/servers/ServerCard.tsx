@@ -88,11 +88,6 @@ export function ServerCard({
       {isInProgress && stepLabel && (
         <p className="text-xs font-mono opacity-75 truncate">{stepLabel}</p>
       )}
-      {instance.state === InstanceState.Error && instance.errorReason && (
-        <p className="text-xs font-mono text-red-400/75 truncate mt-1">
-          {instance.errorReason}
-        </p>
-      )}
     </button>
   );
 }
