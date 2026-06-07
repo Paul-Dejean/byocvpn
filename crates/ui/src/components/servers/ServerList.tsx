@@ -34,7 +34,7 @@ export function ServerList({
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Servers</h2>
       </div>
       <div className="flex-1 overflow-y-auto p-4">
-        {isLoading && (
+        {isLoading && instances.length === 0 && (
           <div className="flex justify-center py-8">
             <Spinner size="w-8 h-8" color="border-blue-500" thickness="border-4" />
           </div>
@@ -46,6 +46,9 @@ export function ServerList({
           </div>
         ) : (
           <div className="flex flex-col gap-2">
+            {isLoading && instances.length > 0 && (
+              <p className="text-xs text-gray-500 text-center py-1">Refreshing server list…</p>
+            )}
             {instances.map((instance) => {
               const spawnJob = getSpawnJobForInstance(instance.id);
               return (

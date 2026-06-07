@@ -5,7 +5,7 @@ import { FlagIcon } from "../FlagIcon";
 import { useEffect, useState } from "react";
 import { Instance, CloudProviderName, Region } from "../../types";
 import { useProviderRegions } from "../../hooks/useProviderRegions";
-import { ProvisionAccountDrawer } from "../settings/ProvisionAccountDrawer";
+import { StepProgressDrawer } from "../settings/StepProgressDrawer";
 
 interface RegionSelectorProps {
   provider: CloudProviderName;
@@ -227,7 +227,7 @@ export function RegionSelector({
         </div>
       )}
 
-      <ProvisionAccountDrawer
+      <StepProgressDrawer
         isOpen={isEnableDrawerOpen}
         onClose={closeEnableDrawer}
         provider={provider}

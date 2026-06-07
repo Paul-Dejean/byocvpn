@@ -2,7 +2,7 @@ import { CloudProviderName, SpawnStepState, SpawnStepStatus } from "../../types"
 import { PROVIDER_METADATA } from "../../constants/providers";
 import { Spinner } from "../common/Spinner";
 
-interface ProvisionAccountDrawerProps {
+interface StepProgressDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   provider: CloudProviderName;
@@ -60,7 +60,7 @@ function StepStatusIcon({ status }: { status: SpawnStepStatus }) {
   }
 }
 
-export function ProvisionAccountDrawer({
+export function StepProgressDrawer({
   isOpen,
   onClose,
   provider,
@@ -71,7 +71,7 @@ export function ProvisionAccountDrawer({
   isComplete,
   successMessage,
   error,
-}: ProvisionAccountDrawerProps) {
+}: StepProgressDrawerProps) {
   return (
     <>
       <div
@@ -147,7 +147,7 @@ export function ProvisionAccountDrawer({
                     </span>
                   </div>
                   {step.error && (
-                    <p className="text-xs text-red-400 mt-1 ml-6">
+                    <p className="text-xs text-red-400 mt-1 ml-6 break-all">
                       {step.error}
                     </p>
                   )}
@@ -195,7 +195,7 @@ export function ProvisionAccountDrawer({
               </svg>
               <div>
                 <p className="text-red-300 text-sm font-medium">Provisioning failed</p>
-                <p className="text-xs text-red-400/70 mt-0.5">{error}</p>
+                <p className="text-xs text-red-400/70 mt-0.5 break-all">{error}</p>
               </div>
             </div>
           )}

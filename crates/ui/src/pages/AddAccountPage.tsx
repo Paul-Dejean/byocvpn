@@ -7,7 +7,7 @@ import { useCredentials } from "../hooks/useCredentials";
 import { useAccounts } from "../hooks/useAccounts";
 import { CloudProviderName } from "../types";
 import { PROVIDER_METADATA } from "../constants/providers";
-import { ProvisionAccountDrawer } from "../components/settings/ProvisionAccountDrawer";
+import { StepProgressDrawer } from "../components/settings/StepProgressDrawer";
 
 interface AddAccountPageProps {
   onNavigateBack: () => void;
@@ -471,7 +471,7 @@ export function AddAccountPage({
         )}
       </div>
 
-      <ProvisionAccountDrawer
+      <StepProgressDrawer
         isOpen={isProvisionDrawerOpen}
         onClose={handleCloseProvisionDrawer}
         provider={activeProvisionJob?.provider ?? CloudProviderName.Aws}
