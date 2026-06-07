@@ -111,13 +111,13 @@ export function useAccounts({ onComplete, onFailed }: UseAccountsOptions = {}) {
         (event) => event.jobId === job.jobId,
       );
       earlyProgressEventsRef.current = [];
-      const initialSteps: SpawnStepState[] = job.steps.map((step) => {
+      const initialSteps: SpawnStepState[] = job.steps.map((step, index) => {
         const latestBufferedEvent = [...bufferedEvents]
           .reverse()
           .find((event) => event.stepId === step.id);
         return {
           ...step,
-          status: latestBufferedEvent?.status ?? SpawnStepStatus.Pending,
+          status: latestBufferedEvent?.status ?? (index === 0 ? SpawnStepStatus.Running : SpawnStepStatus.Pending),
           error: latestBufferedEvent?.error,
         };
       });

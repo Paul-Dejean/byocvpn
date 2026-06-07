@@ -143,9 +143,9 @@ export function useProviderRegions(provider: CloudProviderName) {
         region: region.name,
         provider,
       });
-      const initialSteps: SpawnStepState[] = job.steps.map((step) => ({
+      const initialSteps: SpawnStepState[] = job.steps.map((step, index) => ({
         ...step,
-        status: SpawnStepStatus.Pending,
+        status: index === 0 ? SpawnStepStatus.Running : SpawnStepStatus.Pending,
       }));
       activeEnableJobIdRef.current = job.jobId;
       setActiveEnableJob({
