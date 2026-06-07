@@ -1,5 +1,6 @@
 import { Instance, RegionGroup, SpawnJobState } from "../../types";
 import { ServerCard } from "./ServerCard";
+import { Spinner } from "../common/Spinner";
 
 interface ServerListProps {
 
@@ -35,7 +36,7 @@ export function ServerList({
       <div className="flex-1 overflow-y-auto p-4">
         {isLoading && (
           <div className="flex justify-center py-8">
-            <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            <Spinner size="w-8 h-8" color="border-blue-500" thickness="border-4" />
           </div>
         )}
 

@@ -4,7 +4,7 @@ import { CloudProviderName } from "../types";
 import { CalendarMonth } from "../components/pricing/MonthFilter";
 import { ProviderFilter } from "../components/pricing/ProviderFilter";
 import { InstanceCostRow } from "../components/pricing/InstanceCostRow";
-import { LoadingSpinner } from "../components/common/LoadingSpinner";
+import { LoadingScreen } from "../components/common/LoadingScreen";
 import { EmptyState } from "../components/common/EmptyState";
 import { LedgerEntryWithCost } from "../types/ledger";
 
@@ -158,7 +158,7 @@ export function PricingPage() {
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (
           <div className="p-6">
-            <LoadingSpinner message="Loading expenses…" />
+            <LoadingScreen message="Loading expenses…" />
           </div>
         ) : visibleEntries.length === 0 ? (
           <div className="p-6">

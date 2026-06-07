@@ -1,3 +1,4 @@
+import { Spinner } from "../common/Spinner";
 import { useEffect, useRef, useState } from "react";
 import { useCredentials } from "../../hooks";
 import { CloudProviderName } from "../../types";
@@ -150,7 +151,7 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
             </div>
           </div>
           {hasCredentials === null ? (
-            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+            <Spinner color="border-gray-400" />
           ) : hasCredentials ? (
             <div className="flex items-center gap-2">
               {isConfirmingDelete ? (
@@ -353,7 +354,7 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
               >
                 {isSaving ? (
                   <div className="flex items-center justify-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <Spinner color="border-white" />
                     Saving...
                   </div>
                 ) : (

@@ -1,3 +1,4 @@
+import { Spinner } from "../components/common/Spinner";
 import { useEffect, useRef, useState } from "react";
 import { invokeCommand } from "../lib/invokeCommand";
 import { listen } from "@tauri-apps/api/event";
@@ -483,7 +484,7 @@ function ProviderSelectionStep({ providers, isLoading, onSelectProvider }: Provi
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+        <Spinner size="w-6 h-6" color="border-blue-400" />
       </div>
     );
   }
@@ -1014,7 +1015,7 @@ function CredentialsFormShell({
           >
             {isSaving ? (
               <div className="flex items-center justify-center gap-2">
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <Spinner color="border-white" />
                 Saving...
               </div>
             ) : (

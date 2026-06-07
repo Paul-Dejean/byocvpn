@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useCredentials } from "../../hooks";
 import { CloudProviderName } from "../../types";
+import { Spinner } from "../common/Spinner";
 
 interface CredentialsModalProps {
   isOpen: boolean;
@@ -127,7 +128,7 @@ export function CredentialsModal({
             >
               {isSaving ? (
                 <div className="flex items-center justify-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <Spinner color="border-white" />
                   Saving...
                 </div>
               ) : (

@@ -3,6 +3,7 @@ import { getRegionInfo } from "../../constants/regionInfo";
 import { FlagIcon } from "../FlagIcon";
 import { ProviderIcon } from "../providers/ProviderIcon";
 import { CloudProviderName } from "../../types";
+import { Spinner } from "../common/Spinner";
 
 interface ServerCardProps {
   instance: Instance;
@@ -10,12 +11,6 @@ interface ServerCardProps {
   groupedRegions: RegionGroup[];
   spawnJob?: SpawnJobState;
   onSelect: (instance: Instance) => void;
-}
-
-function MiniSpinner() {
-  return (
-    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-  );
 }
 
 const PROVIDER_STRIPE: Record<CloudProviderName, string> = {
@@ -85,7 +80,7 @@ export function ServerCard({
         <div className="flex items-center gap-1.5">
           <ProviderIcon provider={instance.provider} className="w-6 h-6" />
           <span className={`px-2 py-1 rounded text-xs font-medium flex items-center gap-1 ${badge.className}`}>
-            {badge.spinner && <MiniSpinner />}
+            {badge.spinner && <Spinner />}
             {badge.label}
           </span>
         </div>

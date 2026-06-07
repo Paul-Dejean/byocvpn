@@ -7,12 +7,11 @@ import {
 import { getRegionInfo } from "../../constants/regionInfo";
 import { FlagIcon } from "../FlagIcon";
 import { ProviderIcon } from "../providers/ProviderIcon";
+import { Spinner } from "../common/Spinner";
 
 function StepIndicator({ status }: { status: SpawnStepStatus }) {
   if (status === SpawnStepStatus.Running) {
-    return (
-      <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-    );
+    return <Spinner size="w-5 h-5" color="border-blue-400" />;
   }
   if (status === SpawnStepStatus.Completed) {
     return (
@@ -171,7 +170,7 @@ export function ServerDetails({
                     })
                   ) : (
                     <div className="flex items-center justify-center gap-2 py-4 text-blue-300">
-                      <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                      <Spinner size="w-5 h-5" color="border-blue-400" />
                       <span className="text-sm">Starting deployment…</span>
                     </div>
                   )}
@@ -186,7 +185,7 @@ export function ServerDetails({
                 >
                   {isConnecting ? (
                     <div className="flex items-center justify-center gap-2">
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <Spinner size="w-5 h-5" color="border-white" />
                       Connecting…
                     </div>
                   ) : (
@@ -201,7 +200,7 @@ export function ServerDetails({
                 >
                   {isTerminating ? (
                     <div className="flex items-center justify-center gap-2">
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <Spinner size="w-5 h-5" color="border-white" />
                       Terminating…
                     </div>
                   ) : (

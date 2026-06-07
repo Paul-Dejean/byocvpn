@@ -1,5 +1,6 @@
 import { CloudProviderName, SpawnStepState, SpawnStepStatus } from "../../types";
 import { PROVIDER_METADATA } from "../../constants/providers";
+import { Spinner } from "../common/Spinner";
 
 interface ProvisionAccountDrawerProps {
   isOpen: boolean;
@@ -18,7 +19,7 @@ const StepStatusIcon = ({ status }: { status: SpawnStepStatus }) => {
   switch (status) {
     case SpawnStepStatus.Running:
       return (
-        <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+        <Spinner size="w-5 h-5" color="border-blue-400" />
       );
     case SpawnStepStatus.Completed:
       return (

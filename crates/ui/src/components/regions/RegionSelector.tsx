@@ -1,3 +1,4 @@
+import { Spinner } from "../common/Spinner";
 import { useInstancesContext } from "../../contexts";
 import { getRegionInfo } from "../../constants/regionInfo";
 import { FlagIcon } from "../FlagIcon";
@@ -205,7 +206,7 @@ export function RegionSelector({
       <div className="flex-1 overflow-y-auto p-6 pb-0">
         {isLoadingRegions ? (
           <div className="flex justify-center items-center h-32">
-            <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+            <Spinner size="w-8 h-8" color="border-blue-400" />
           </div>
         ) : (
           <div className="space-y-6 pb-6">

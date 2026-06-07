@@ -1,3 +1,4 @@
+import { Spinner } from "../common/Spinner";
 import React, { useEffect, useState } from "react";
 import { useCredentials } from "../../hooks/useCredentials";
 import { CloudProviderName } from "../../types";
@@ -117,7 +118,7 @@ export function ProviderSelector({
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4 max-w-lg mx-auto w-full">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+            <Spinner size="w-6 h-6" color="border-blue-400" />
           </div>
         ) : (
           configuredProviders.map((provider) => (
