@@ -1,19 +1,19 @@
 import { CloudProviderName } from "./providers";
 
-export enum SpawnStepStatus {
+export enum JobStepStatus {
   Pending = "PENDING",
   Running = "RUNNING",
   Completed = "COMPLETED",
   Failed = "FAILED",
 }
 
-export interface SpawnStep {
+export interface JobStep {
   id: string;
   label: string;
 }
 
-export interface SpawnStepState extends SpawnStep {
-  status: SpawnStepStatus;
+export interface JobStepState extends JobStep {
+  status: JobStepStatus;
   error?: string;
 }
 
@@ -22,5 +22,5 @@ export interface SpawnJobState {
   instanceId: string;
   region: string;
   provider: CloudProviderName;
-  steps: SpawnStepState[];
+  steps: JobStepState[];
 }

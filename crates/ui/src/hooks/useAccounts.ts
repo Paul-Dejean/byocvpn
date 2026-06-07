@@ -4,9 +4,9 @@ import toast from "react-hot-toast";
 import { invokeCommand } from "../lib/invokeCommand";
 import {
   CloudProviderName,
-  SpawnStep,
-  SpawnStepState,
-  SpawnStepStatus,
+  JobStep,
+  JobStepState,
+  JobStepStatus,
 } from "../types";
 
 enum ProvisionEvent {
@@ -17,14 +17,14 @@ enum ProvisionEvent {
 
 interface ProvisionAccountJob {
   jobId: string;
-  steps: SpawnStep[];
+  steps: JobStep[];
   provider: CloudProviderName;
 }
 
 interface ProvisionAccountProgressEvent {
   jobId: string;
   stepId: string;
-  status: SpawnStepStatus;
+  status: JobStepStatus;
   error?: string;
 }
 
@@ -36,7 +36,7 @@ interface ProvisionAccountCompleteEvent {
 export interface ProvisionJobState {
   jobId: string;
   provider: CloudProviderName;
-  steps: SpawnStepState[];
+  steps: JobStepState[];
 }
 
 interface UseAccountsOptions {
@@ -111,13 +111,13 @@ export function useAccounts({ onComplete, onFailed }: UseAccountsOptions = {}) {
         (event) => event.jobId === job.jobId,
       );
       earlyProgressEventsRef.current = [];
-      const initialSteps: SpawnStepState[] = job.steps.map((step, index) => {
+      const initialSteps: JobStepState[] = job.steps.map((step, index) => {
         const latestBufferedEvent = [...bufferedEvents]
           .reverse()
           .find((event) => event.stepId === step.id);
         return {
           ...step,
-          status: latestBufferedEvent?.status ?? (index === 0 ? SpawnStepStatus.Running : SpawnStepStatus.Pending),
+          status: latestBufferedEvent?.status ?? (index === 0 ? JobStepStatus.Running : JobStepStatus.Pending),
           error: latestBufferedEvent?.error,
         };
       });

@@ -8,8 +8,8 @@ import {
   Instance,
   InstanceState,
   SpawnJobState,
-  SpawnStep,
-  SpawnStepStatus,
+  JobStep,
+  JobStepStatus,
 } from "../types";
 
 enum SpawnEvent {
@@ -21,7 +21,7 @@ enum SpawnEvent {
 
 interface SpawnJob {
   jobId: string;
-  steps: SpawnStep[];
+  steps: JobStep[];
   region: string;
   provider: CloudProviderName;
 }
@@ -29,7 +29,7 @@ interface SpawnJob {
 interface SpawnProgressEvent {
   jobId: string;
   stepId: string;
-  status: SpawnStepStatus;
+  status: JobStepStatus;
   error?: string;
 }
 
@@ -45,7 +45,7 @@ interface SpawnCompleteEvent {
 
 interface ActiveSpawnJob extends SpawnJob {
   instanceId: string | null;
-  stepStatuses: Record<string, SpawnStepStatus>;
+  stepStatuses: Record<string, JobStepStatus>;
 }
 
 export function useInstances(regions: Region[]) {
@@ -179,7 +179,7 @@ export function useInstances(regions: Region[]) {
           provider: activeJob.provider,
           steps: activeJob.steps.map((step) => ({
             ...step,
-            status: activeJob.stepStatuses[step.id] ?? SpawnStepStatus.Pending,
+            status: activeJob.stepStatuses[step.id] ?? JobStepStatus.Pending,
           })),
         };
 
@@ -252,7 +252,7 @@ export function useInstances(regions: Region[]) {
           steps: job.steps.map((step, index) => ({
             ...step,
             status:
-              index === 0 ? SpawnStepStatus.Running : SpawnStepStatus.Pending,
+              index === 0 ? JobStepStatus.Running : JobStepStatus.Pending,
           })),
         },
       }));

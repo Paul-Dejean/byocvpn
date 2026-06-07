@@ -2,18 +2,18 @@ import {
   Instance,
   InstanceState,
   SpawnJobState,
-  SpawnStepStatus,
+  JobStepStatus,
 } from "../../types";
 import { getRegionInfo } from "../../constants/regionInfo";
 import { FlagIcon } from "../FlagIcon";
 import { ProviderIcon } from "../providers/ProviderIcon";
 import { Spinner } from "../common/Spinner";
 
-function StepIndicator({ status }: { status: SpawnStepStatus }) {
-  if (status === SpawnStepStatus.Running) {
+function StepIndicator({ status }: { status: JobStepStatus }) {
+  if (status === JobStepStatus.Running) {
     return <Spinner size="w-5 h-5" color="border-blue-400" />;
   }
-  if (status === SpawnStepStatus.Completed) {
+  if (status === JobStepStatus.Completed) {
     return (
       <svg
         className="w-5 h-5 text-green-400 flex-shrink-0"
@@ -28,7 +28,7 @@ function StepIndicator({ status }: { status: SpawnStepStatus }) {
       </svg>
     );
   }
-  if (status === SpawnStepStatus.Failed) {
+  if (status === JobStepStatus.Failed) {
     return (
       <svg
         className="w-5 h-5 text-red-400 flex-shrink-0"
@@ -137,11 +137,11 @@ export function ServerDetails({
                         <div
                           key={step.id}
                           className={`flex items-center gap-3 p-2.5 rounded-lg ${
-                            step.status === SpawnStepStatus.Running
+                            step.status === JobStepStatus.Running
                               ? "bg-blue-900/30 border border-blue-700/40"
-                              : step.status === SpawnStepStatus.Completed
+                              : step.status === JobStepStatus.Completed
                                 ? "opacity-60"
-                                : step.status === SpawnStepStatus.Failed
+                                : step.status === JobStepStatus.Failed
                                   ? "bg-red-900/20 border border-red-700/40"
                                   : "opacity-40"
                           }`}
@@ -150,11 +150,11 @@ export function ServerDetails({
                           <div className="flex-1 min-w-0">
                             <p
                               className={`text-sm ${
-                                step.status === SpawnStepStatus.Running
+                                step.status === JobStepStatus.Running
                                   ? "text-blue-300 font-medium"
-                                  : step.status === SpawnStepStatus.Completed
+                                  : step.status === JobStepStatus.Completed
                                     ? "text-gray-400"
-                                    : step.status === SpawnStepStatus.Failed
+                                    : step.status === JobStepStatus.Failed
                                       ? "text-red-300"
                                       : "text-gray-500"
                               }`}

@@ -1,4 +1,4 @@
-import { Instance, InstanceState, RegionGroup, SpawnJobState, SpawnStepStatus } from "../../types";
+import { Instance, InstanceState, RegionGroup, SpawnJobState, JobStepStatus } from "../../types";
 import { getRegionInfo } from "../../constants/regionInfo";
 import { FlagIcon } from "../FlagIcon";
 import { ProviderIcon } from "../providers/ProviderIcon";
@@ -51,7 +51,7 @@ export function ServerCard({
     label: instance.state,
   };
 
-  const runningStep = spawnJob?.steps.find((step) => step.status === SpawnStepStatus.Running);
+  const runningStep = spawnJob?.steps.find((step) => step.status === JobStepStatus.Running);
   const stepLabel = runningStep?.label ?? (isInProgress ? "Starting…" : null);
 
   return (

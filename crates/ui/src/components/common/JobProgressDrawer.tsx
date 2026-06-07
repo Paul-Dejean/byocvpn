@@ -1,4 +1,4 @@
-import { CloudProviderName, SpawnStepState, SpawnStepStatus } from "../../types";
+import { CloudProviderName, JobStepState, JobStepStatus } from "../../types";
 import { PROVIDER_METADATA } from "../../constants/providers";
 import { Drawer } from "./Drawer";
 import { Spinner } from "./Spinner";
@@ -9,17 +9,17 @@ interface JobProgressDrawerProps {
   provider: CloudProviderName;
   title?: string;
   subtitle?: string;
-  steps: SpawnStepState[];
+  steps: JobStepState[];
   isComplete: boolean;
   successMessage?: string;
   error: string | null;
 }
 
-function StepStatusIcon({ status }: { status: SpawnStepStatus }) {
+function StepStatusIcon({ status }: { status: JobStepStatus }) {
   switch (status) {
-    case SpawnStepStatus.Running:
+    case JobStepStatus.Running:
       return <Spinner size="w-5 h-5" color="border-blue-400" />;
-    case SpawnStepStatus.Completed:
+    case JobStepStatus.Completed:
       return (
         <svg
           className="w-5 h-5 text-green-400 flex-shrink-0"
@@ -30,7 +30,7 @@ function StepStatusIcon({ status }: { status: SpawnStepStatus }) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
         </svg>
       );
-    case SpawnStepStatus.Failed:
+    case JobStepStatus.Failed:
       return (
         <svg
           className="w-5 h-5 text-red-400 flex-shrink-0"
@@ -82,11 +82,11 @@ export function JobProgressDrawer({
                 </span>
                 <span
                   className={`text-sm font-medium ${
-                    step.status === SpawnStepStatus.Completed
+                    step.status === JobStepStatus.Completed
                       ? "text-gray-300"
-                      : step.status === SpawnStepStatus.Running
+                      : step.status === JobStepStatus.Running
                         ? "text-white"
-                        : step.status === SpawnStepStatus.Failed
+                        : step.status === JobStepStatus.Failed
                           ? "text-red-300"
                           : "text-gray-500"
                   }`}

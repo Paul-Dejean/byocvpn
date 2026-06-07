@@ -7,14 +7,14 @@ import {
   CloudProviderName,
   Region,
   RegionGroup,
-  SpawnStep,
-  SpawnStepState,
-  SpawnStepStatus,
+  JobStep,
+  JobStepState,
+  JobStepStatus,
 } from "../types";
 
 interface EnableRegionJob {
   jobId: string;
-  steps: SpawnStep[];
+  steps: JobStep[];
   region: string;
   provider: CloudProviderName;
 }
@@ -22,7 +22,7 @@ interface EnableRegionJob {
 interface EnableRegionProgressEvent {
   jobId: string;
   stepId: string;
-  status: SpawnStepStatus;
+  status: JobStepStatus;
   error?: string;
 }
 
@@ -36,7 +36,7 @@ export interface EnableRegionJobState {
   jobId: string;
   region: string;
   country: string;
-  steps: SpawnStepState[];
+  steps: JobStepState[];
 }
 
 function groupRegionsByCountry(regions: Region[]): RegionGroup[] {
@@ -143,9 +143,9 @@ export function useProviderRegions(provider: CloudProviderName) {
         region: region.name,
         provider,
       });
-      const initialSteps: SpawnStepState[] = job.steps.map((step, index) => ({
+      const initialSteps: JobStepState[] = job.steps.map((step, index) => ({
         ...step,
-        status: index === 0 ? SpawnStepStatus.Running : SpawnStepStatus.Pending,
+        status: index === 0 ? JobStepStatus.Running : JobStepStatus.Pending,
       }));
       activeEnableJobIdRef.current = job.jobId;
       setActiveEnableJob({
