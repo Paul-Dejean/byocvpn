@@ -1,8 +1,8 @@
 use std::{collections::HashSet, str::FromStr};
 
 
-use byocvpn_aws::{AwsProvider, pricing as aws_pricing};
-use byocvpn_azure::{AzureProvider, pricing as azure_pricing};
+use byocvpn_aws::{AwsCredentials, AwsProvider, pricing as aws_pricing};
+use byocvpn_azure::{AzureCredentials, AzureProvider, pricing as azure_pricing};
 use byocvpn_core::{
     cloud_provider::{
         CloudProvider, CloudProviderName, EnableRegionCompleteEvent, EnableRegionJob,
@@ -16,14 +16,14 @@ use byocvpn_core::{
     credentials::CredentialStore,
     crypto::generate_keypair,
     daemon_client::{DaemonClient, DaemonCommand},
-    error::{Error, Result},
+    error::{ConfigurationError, Error, Result},
     ledger::LedgerEntry,
     metrics_stream,
     tunnel::VpnStatus,
 };
 use byocvpn_daemon::daemon_client::UnixDaemonClient;
-use byocvpn_gcp::{GcpProvider, pricing as gcp_pricing};
-use byocvpn_oracle::pricing as oracle_pricing;
+use byocvpn_gcp::{GcpCredentials, GcpProvider, pricing as gcp_pricing};
+use byocvpn_oracle::{credentials::OracleCredentials, pricing as oracle_pricing};
 use chrono::Utc;
 use log::*;
 use serde_json::{Value, json};
