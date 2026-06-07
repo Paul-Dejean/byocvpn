@@ -136,7 +136,11 @@ export function useInstances(regions: Region[]) {
           setInstances((previous) =>
             previous.map((existing) =>
               existing.id === job.instanceId
-                ? { ...existing, state: InstanceState.Error, errorReason: failureError }
+                ? {
+                    ...existing,
+                    state: InstanceState.Error,
+                    errorReason: failureError,
+                  }
                 : existing,
             ),
           );
@@ -309,14 +313,18 @@ export function useInstances(regions: Region[]) {
   const clearError = () => setError(null);
 
   const dismissFailedInstance = (instanceId: string) => {
-    const job = Object.values(spawnJobs).find((spawnJob) => spawnJob.instanceId === instanceId);
+    const job = Object.values(spawnJobs).find(
+      (spawnJob) => spawnJob.instanceId === instanceId,
+    );
     if (job) {
       setSpawnJobs((previous) => {
         const { [job.jobId]: _, ...rest } = previous;
         return rest;
       });
     }
-    setInstances((previous) => previous.filter((instance) => instance.id !== instanceId));
+    setInstances((previous) =>
+      previous.filter((instance) => instance.id !== instanceId),
+    );
   };
 
   return {

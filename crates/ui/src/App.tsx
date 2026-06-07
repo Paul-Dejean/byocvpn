@@ -20,31 +20,32 @@ function App() {
 
   return (
     <main className="bg-grid">
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: "var(--color-gray-800)",
+            color: "var(--color-gray-100)",
+            border: "1px solid var(--color-gray-500)",
+            fontFamily: "var(--font-sans)",
+          },
+          success: {
+            iconTheme: {
+              primary: "#10b981",
+              secondary: "var(--color-gray-800)",
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: "#ef4444",
+              secondary: "var(--color-gray-800)",
+            },
+          },
+        }}
+      />
+
       <ErrorBoundary>
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: "var(--color-gray-800)",
-              color: "var(--color-gray-100)",
-              border: "1px solid var(--color-gray-500)",
-              fontFamily: "var(--font-sans)",
-            },
-            success: {
-              iconTheme: {
-                primary: "#10b981",
-                secondary: "var(--color-gray-800)",
-              },
-            },
-            error: {
-              iconTheme: {
-                primary: "#ef4444",
-                secondary: "var(--color-gray-800)",
-              },
-            },
-          }}
-        />
         {page === Page.LANDING && <LandingPage setPage={setPage} />}
         {page === Page.ADD_ACCOUNT && (
           <AddAccountPage
