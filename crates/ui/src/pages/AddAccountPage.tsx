@@ -86,7 +86,7 @@ interface ProviderPolicy {
 }
 
 const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
-  aws: {
+  [CloudProviderName.Aws]: {
     filename: "byocvpn-aws-policy.json",
     language: "json",
     content: JSON.stringify(
@@ -131,7 +131,7 @@ const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
       2,
     ),
   },
-  oracle: {
+  [CloudProviderName.Oracle]: {
     filename: "byocvpn-oci-policy.txt",
     language: "text",
     content: [
@@ -149,7 +149,7 @@ const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
       "Allow group byocvpn-group to inspect regions in tenancy",
     ].join("\n"),
   },
-  gcp: {
+  [CloudProviderName.Gcp]: {
     filename: "byocvpn-gcp-role.yaml",
     language: "yaml",
     content: [
@@ -189,7 +189,7 @@ const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
       "- serviceusage.services.get",
     ].join("\n"),
   },
-  azure: {
+  [CloudProviderName.Azure]: {
     filename: "byocvpn-azure-role.json",
     language: "json",
     content: JSON.stringify(
@@ -245,7 +245,7 @@ const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
 };
 
 const PROVIDER_SETUP_INSTRUCTIONS: Record<string, { title: string; steps: SetupStep[] }> = {
-  aws: {
+  [CloudProviderName.Aws]: {
     title: "Set up AWS credentials",
     steps: [
       { number: 1, text: "Sign in to the AWS Console and navigate to IAM → Users." },
@@ -256,7 +256,7 @@ const PROVIDER_SETUP_INSTRUCTIONS: Record<string, { title: string; steps: SetupS
       { number: 6, text: "Paste both values into the form and click Connect." },
     ],
   },
-  oracle: {
+  [CloudProviderName.Oracle]: {
     title: "Set up Oracle Cloud credentials",
     steps: [
       { number: 1, text: "Sign in to the OCI Console at cloud.oracle.com." },
@@ -267,7 +267,7 @@ const PROVIDER_SETUP_INSTRUCTIONS: Record<string, { title: string; steps: SetupS
       { number: 6, text: "Paste your credentials and private key below, then click Connect." },
     ],
   },
-  gcp: {
+  [CloudProviderName.Gcp]: {
     title: "Set up Google Cloud credentials",
     steps: [
       { number: 1, text: "Sign in to the Google Cloud Console and select or create a project. Note the Project ID shown in the header." },
@@ -277,7 +277,7 @@ const PROVIDER_SETUP_INSTRUCTIONS: Record<string, { title: string; steps: SetupS
       { number: 5, text: "Upload the JSON key file below and click Connect." },
     ],
   },
-  azure: {
+  [CloudProviderName.Azure]: {
     title: "Set up Azure credentials",
     steps: [
       { number: 1, text: "Sign in to the Azure Portal and go to Microsoft Entra ID → App registrations → New registration." },
