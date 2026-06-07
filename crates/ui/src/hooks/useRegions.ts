@@ -3,22 +3,23 @@ import { invokeCommand } from "../lib/invokeCommand";
 import toast from "react-hot-toast";
 import { CloudProviderName, Region, RegionGroup } from "../types";
 
+const REGION_PREFIX_TO_CONTINENT: Record<string, string> = {
+  us: "North America",
+  ca: "North America",
+  eu: "Europe",
+  ap: "Asia Pacific",
+  sa: "South America",
+  me: "Middle East",
+  af: "Africa",
+};
+
 function groupRegionsByContinent(regions: Region[]): RegionGroup[] {
-  const continentMap: Record<string, string> = {
-    us: "North America",
-    ca: "North America",
-    eu: "Europe",
-    ap: "Asia Pacific",
-    sa: "South America",
-    me: "Middle East",
-    af: "Africa",
-  };
 
   const groups: Record<string, Region[]> = {};
 
   regions.forEach((region) => {
     const prefix = region.name.split("-")[0];
-    const continent = continentMap[prefix] || "Other";
+    const continent = REGION_PREFIX_TO_CONTINENT[prefix] ?? "Other";
     if (!groups[continent]) {
       groups[continent] = [];
     }
