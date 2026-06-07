@@ -150,11 +150,9 @@ export function StepProgressDrawer({
               </div>
             ))}
           </div>
-        </div>
 
-        <div className="p-6 border-t border-gray-700/50 flex-shrink-0">
           {isComplete && (
-            <div className="flex items-center gap-3 p-4 mb-4 bg-green-900/50 border border-green-700 rounded-lg">
+            <div className="flex items-center gap-3 p-4 mt-6 bg-green-900/50 border border-green-700 rounded-lg">
               <svg
                 className="w-5 h-5 text-green-400 flex-shrink-0"
                 fill="none"
@@ -173,8 +171,9 @@ export function StepProgressDrawer({
               </p>
             </div>
           )}
+
           {error && (
-            <div className="flex items-start gap-3 p-4 mb-4 bg-red-900/50 border border-red-700 rounded-lg">
+            <div className="flex items-start gap-3 p-4 mt-6 bg-red-900/50 border border-red-700 rounded-lg">
               <svg
                 className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5"
                 fill="none"
@@ -194,6 +193,9 @@ export function StepProgressDrawer({
               </div>
             </div>
           )}
+        </div>
+
+        <div className="p-6 border-t border-gray-700/50 flex-shrink-0">
           <button
             onClick={onClose}
             className="w-full px-4 py-2 btn-secondary"
