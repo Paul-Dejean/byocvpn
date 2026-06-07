@@ -4,14 +4,7 @@ import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
 import { getRegionInfo } from "../../constants/regionInfo";
 import { FlagIcon } from "../FlagIcon";
 import { formatBytes } from "../../lib/bytes";
-
-function formatDuration(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
+import { formatDuration } from "../../lib/time";
 
 interface ConnectedViewProps {
   connectedInstance: Instance;
@@ -19,14 +12,17 @@ interface ConnectedViewProps {
 
 export function ConnectedView({ connectedInstance }: ConnectedViewProps) {
   const { disconnectFromVpn, vpnStatus } = useVpnConnectionContext();
+  const [startTime] = useState(() => Date.now());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const regionInfo = getRegionInfo(connectedInstance.provider, connectedInstance.region ?? "");
   const metrics = vpnStatus.metrics;
 
   useEffect(() => {
-    const interval = setInterval(() => setElapsedSeconds(s => s + 1), 1000);
+    const interval = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [startTime]);
 
   const connectionError = vpnStatus.connectionError;
 
