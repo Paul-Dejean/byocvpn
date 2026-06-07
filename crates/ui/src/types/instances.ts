@@ -24,15 +24,6 @@ export interface Instance {
   provider: CloudProviderName;
 }
 
-export type ServerStatus =
-  | "idle"
-  | "spawning"
-  | "running"
-  | "error"
-  | "terminating"
-  | "connecting"
-  | "connected";
-
 export enum SpawnStepStatus {
   Pending = "PENDING",
   Running = "RUNNING",

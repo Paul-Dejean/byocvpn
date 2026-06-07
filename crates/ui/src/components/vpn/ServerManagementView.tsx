@@ -88,7 +88,6 @@ export function ServerManagementView({
 
   const onTerminate = async () => {
     if (!selectedInstance) return;
-    console.log({ selectedInstance });
 
     try {
       await terminateInstance(

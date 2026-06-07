@@ -5,7 +5,6 @@ export {
   ServerStatus,
   type VpnMetrics,
 } from "./useVpnConnection";
-export { useProfile } from "./useProfile";
 export { useCredentials } from "./useCredentials";
 export type {
   AwsCredentials,
