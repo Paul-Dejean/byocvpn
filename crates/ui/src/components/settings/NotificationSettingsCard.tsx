@@ -62,21 +62,22 @@ export function NotificationSettingsCard() {
 
   return (
     <div className="bg-gray-800 rounded-lg p-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
           <div className="w-8 h-8 rounded-lg bg-yellow-900/50 flex items-center justify-center flex-shrink-0">
             <BellIcon />
           </div>
-          <div>
+          <div className="min-w-0">
             <h3 className="text-sm font-medium text-white">Server Uptime Notifications</h3>
             <p className="text-xs text-gray-400 mt-0.5">
               Get notified when a server has been running too long
             </p>
           </div>
         </div>
+
         <button
           onClick={toggleEnabled}
-          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
             settings.notificationEnabled ? "bg-blue-600" : "bg-gray-600"
           }`}
           aria-label="Toggle notifications"
@@ -89,21 +90,22 @@ export function NotificationSettingsCard() {
         </button>
       </div>
 
-      {permissionError && (
-        <p className="mt-2 text-xs text-red-400">{permissionError}</p>
-      )}
-
       {settings.notificationEnabled && (
-        <div className="mt-4 pt-4 border-t border-gray-700">
-          <label className="text-xs text-gray-400 mb-2 block">Notify after (minutes)</label>
+        <div className="mt-3 flex items-center gap-2 pl-11">
+          <span className="text-xs text-gray-400">Notify after</span>
           <input
             type="number"
             min={1}
             value={settings.notificationThresholdMinutes}
             onChange={(event) => onThresholdChange(event.target.value)}
-            className="w-24 px-3 py-1.5 text-xs bg-gray-700 text-white rounded-md border border-gray-600 focus:outline-none focus:border-blue-500"
+            className="w-14 px-2 py-1 text-xs bg-gray-700 text-white rounded-md border border-gray-600 focus:outline-none focus:border-blue-500 text-center"
           />
+          <span className="text-xs text-gray-400">minutes of server uptime</span>
         </div>
+      )}
+
+      {permissionError && (
+        <p className="mt-2 text-xs text-red-400">{permissionError}</p>
       )}
     </div>
   );
