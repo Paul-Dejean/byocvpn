@@ -1,5 +1,5 @@
 import { useInstancesContext } from "../../contexts";
-import { getRegionInfo } from "../../types/regionInfo";
+import { getRegionInfo } from "../../constants/regionInfo";
 import { FlagIcon } from "../FlagIcon";
 import { useEffect, useRef, useState } from "react";
 import { invokeCommand } from "../../lib/invokeCommand";
@@ -13,18 +13,10 @@ import {
   EnableRegionCompleteEvent,
   SpawnStepState,
   CloudProviderName,
+  Region,
+  RegionGroup,
 } from "../../types";
 import { ProvisionAccountDrawer } from "../settings/ProvisionAccountDrawer";
-
-interface SimpleRegion {
-  name: string;
-  country: string;
-}
-
-interface SimpleRegionGroup {
-  continent: string;
-  regions: SimpleRegion[];
-}
 
 interface RegionSelectorProps {
   provider: CloudProviderName;
@@ -37,8 +29,8 @@ export function RegionSelector({
   onClose,
   onSpawned,
 }: RegionSelectorProps) {
-  const [selectedRegion, setSelectedRegion] = useState<SimpleRegion | null>(null);
-  const [groupedRegions, setGroupedRegions] = useState<SimpleRegionGroup[]>([]);
+  const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
+  const [groupedRegions, setGroupedRegions] = useState<RegionGroup[]>([]);
   const [isLoadingRegions, setIsLoadingRegions] = useState(true);
   const [enabledRegions, setEnabledRegions] = useState<Set<string>>(new Set());
 
@@ -59,9 +51,9 @@ export function RegionSelector({
   useEffect(() => {
     setIsLoadingRegions(true);
     setSelectedRegion(null);
-    invokeCommand<SimpleRegion[]>("get_regions", { provider })
+    invokeCommand<Region[]>("get_regions", { provider })
       .then(async (regions) => {
-        const groups: Record<string, SimpleRegion[]> = {};
+        const groups: Record<string, Region[]> = {};
         regions.forEach((region) => {
           if (!groups[region.country]) groups[region.country] = [];
           groups[region.country].push(region);
@@ -138,7 +130,7 @@ export function RegionSelector({
   }, []);
 
   const handleEnableRegion = async (
-    region: SimpleRegion,
+    region: Region,
     event: React.MouseEvent,
   ) => {
     event.stopPropagation();

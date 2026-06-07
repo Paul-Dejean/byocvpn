@@ -5,7 +5,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import toast from "react-hot-toast";
 import { useCredentials } from "../hooks/useCredentials";
 import { CloudProviderName } from "../types";
-import { PROVIDER_METADATA } from "../lib/providers";
+import { PROVIDER_METADATA } from "../constants/providers";
 import { ProvisionAccountDrawer } from "../components/settings/ProvisionAccountDrawer";
 import {
   ProvisionAccountJob,

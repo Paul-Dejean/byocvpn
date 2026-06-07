@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Instance } from "../../types";
 import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
-import { getRegionInfo } from "../../types/regionInfo";
+import { getRegionInfo } from "../../constants/regionInfo";
 import { FlagIcon } from "../FlagIcon";
 import { formatBytes } from "../../lib/bytes";
 

@@ -3,7 +3,7 @@ import { LedgerEntryWithCost } from "../../types/ledger";
 import { InstanceCostRow } from "./InstanceCostRow";
 import { ProviderIcon } from "../providers/ProviderIcon";
 import { CloudProviderName } from "../../types";
-import { PROVIDER_METADATA } from "../../lib/providers";
+import { PROVIDER_METADATA } from "../../constants/providers";
 
 interface PricingAccordionProps {
   provider: CloudProviderName;

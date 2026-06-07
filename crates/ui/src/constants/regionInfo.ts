@@ -1,4 +1,4 @@
-import { CloudProviderName } from "./providers";
+import { CloudProviderName } from "../types";
 
 interface RegionInfo {
   city: string;

@@ -1,4 +1,4 @@
-export * from "./aws";
+export * from "./regions";
 export * from "./providers";
 export * from "./instances";
 export * from "./settings";

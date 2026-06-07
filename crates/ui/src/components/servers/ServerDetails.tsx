@@ -3,7 +3,7 @@ import {
   SpawnJobState,
   SpawnStepStatus,
 } from "../../types";
-import { getRegionInfo } from "../../types/regionInfo";
+import { getRegionInfo } from "../../constants/regionInfo";
 import { FlagIcon } from "../FlagIcon";
 import { ProviderIcon } from "../providers/ProviderIcon";
 

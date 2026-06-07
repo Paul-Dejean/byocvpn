@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import { invokeCommand } from "../lib/invokeCommand";
 import toast from "react-hot-toast";
-import { AwsRegion, RegionGroup } from "../types";
+import { Region, RegionGroup } from "../types";
 
 const PROVIDERS = ["aws", "oracle", "gcp", "azure"] as const;
 
 type Provider = (typeof PROVIDERS)[number];
 
-const groupRegionsByContinent = (regions: AwsRegion[]): RegionGroup[] => {
+const groupRegionsByContinent = (regions: Region[]): RegionGroup[] => {
   const continentMap: Record<string, string> = {
     us: "North America",
     ca: "North America",
@@ -18,7 +18,7 @@ const groupRegionsByContinent = (regions: AwsRegion[]): RegionGroup[] => {
     af: "Africa",
   };
 
-  const groups: Record<string, AwsRegion[]> = {};
+  const groups: Record<string, Region[]> = {};
 
   regions.forEach((region) => {
     const prefix = region.name.split("-")[0];
@@ -52,7 +52,7 @@ const fetchConfiguredProviders = async (): Promise<Provider[]> => {
 };
 
 export const useRegions = () => {
-  const [regions, setRegions] = useState<AwsRegion[]>([]);
+  const [regions, setRegions] = useState<Region[]>([]);
   const [groupedRegions, setGroupedRegions] = useState<RegionGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +69,7 @@ export const useRegions = () => {
       const primaryProvider = configuredProviders[0];
       const fetchedRegions = (await invokeCommand("get_regions", {
         provider: primaryProvider,
-      })) as AwsRegion[];
+      })) as Region[];
       setRegions(fetchedRegions);
     } catch (err) {
       const errorMessage =

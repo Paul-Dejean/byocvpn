@@ -1,10 +1,10 @@
-import { RegionGroup, AwsRegion } from "../../types";
+import { RegionGroup, Region } from "../../types";
 import { RegionCard } from "./RegionCard";
 
 interface RegionGroupComponentProps {
   group: RegionGroup;
-  selectedRegion: AwsRegion | null;
-  onRegionSelect: (region: AwsRegion) => void;
+  selectedRegion: Region | null;
+  onRegionSelect: (region: Region) => void;
 }
 
 export function RegionGroupComponent({

@@ -1,5 +1,5 @@
 import { CloudProviderName, SpawnStepState, SpawnStepStatus } from "../../types";
-import { PROVIDER_METADATA } from "../../lib/providers";
+import { PROVIDER_METADATA } from "../../constants/providers";
 
 interface ProvisionAccountDrawerProps {
   isOpen: boolean;

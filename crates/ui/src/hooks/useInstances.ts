@@ -4,7 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import toast from "react-hot-toast";
 import {
   ActiveSpawnJob,
-  AwsRegion,
+  Region,
   CloudProviderName,
   Instance,
   SpawnCompleteEvent,
@@ -14,7 +14,7 @@ import {
   SpawnProgressEvent,
 } from "../types";
 
-export const useInstances = (regions: AwsRegion[]) => {
+export const useInstances = (regions: Region[]) => {
   const [instances, setInstances] = useState<Instance[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [terminatingInstanceId, setTerminatingInstanceId] = useState<
