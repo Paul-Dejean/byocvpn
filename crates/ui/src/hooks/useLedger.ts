@@ -4,6 +4,10 @@ import { computeElapsedHours } from "../lib/time";
 import { LedgerEntry, LedgerEntryWithCost, PricingInfo } from "../types/ledger";
 
 
+function buildPricingKey(provider: string, instanceType: string): string {
+  return `${provider}::${instanceType}`;
+}
+
 export const useLedger = () => {
   const [entries, setEntries] = useState<LedgerEntryWithCost[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -17,7 +21,7 @@ export const useLedger = () => {
 
       const pricingCache = new Map<string, PricingInfo>();
       for (const entry of rawEntries) {
-        const key = `${entry.provider}::${entry.instanceType}`;
+        const key = buildPricingKey(entry.provider, entry.instanceType);
         if (!pricingCache.has(key)) {
           try {
             const pricing = await invokeCommand<PricingInfo>("get_instance_pricing", {
@@ -39,7 +43,7 @@ export const useLedger = () => {
       }
 
       const pricedEntries: LedgerEntryWithCost[] = rawEntries.map((entry) => {
-        const key = `${entry.provider}::${entry.instanceType}`;
+        const key = buildPricingKey(entry.provider, entry.instanceType);
         const pricing = pricingCache.get(key)!;
         const uptimeHours = computeElapsedHours(
           entry.launchedAt,
