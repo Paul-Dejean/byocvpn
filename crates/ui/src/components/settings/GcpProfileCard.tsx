@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useCredentials, GcpCredentials } from "../../hooks";
+import { useCredentials, CloudProviderName } from "../../hooks";
 
 interface GcpProfileCardProps {
   onCredentialsSaved: (provider: string) => void;
@@ -35,17 +35,16 @@ export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
   } = useCredentials();
 
   useEffect(() => {
-    loadCredentials("gcp").then((existing) => {
+    loadCredentials(CloudProviderName.Gcp).then((existing) => {
       setHasCredentials(existing !== null);
     });
   }, []);
 
   const handleEditOpen = async () => {
-    const existing = await loadCredentials("gcp");
+    const existing = await loadCredentials(CloudProviderName.Gcp);
     if (existing) {
-      const gcpCredentials = existing as GcpCredentials;
-      setProjectId(gcpCredentials.projectId);
-      if (gcpCredentials.serviceAccountJson) {
+      setProjectId(existing.projectId);
+      if (existing.serviceAccountJson) {
         setJsonAlreadySet(true);
       }
     }
@@ -61,7 +60,7 @@ export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
   };
 
   const handleSave = async () => {
-    const success = await saveCredentials("gcp", {
+    const success = await saveCredentials(CloudProviderName.Gcp, {
       projectId: projectId.trim(),
       serviceAccountJson: serviceAccountJson.trim(),
     });
@@ -98,7 +97,7 @@ export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
   };
 
   const handleDeleteCredentials = async () => {
-    const success = await deleteCredentials("gcp");
+    const success = await deleteCredentials(CloudProviderName.Gcp);
     if (success) {
       setHasCredentials(false);
       setIsConfirmingDelete(false);

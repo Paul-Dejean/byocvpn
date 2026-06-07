@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useCredentials } from "../../hooks";
+import { useCredentials, CloudProviderName } from "../../hooks";
 
 interface CredentialsModalProps {
   isOpen: boolean;
@@ -23,7 +23,7 @@ export function CredentialsModal({
       return;
     }
 
-    const success = await saveCredentials("aws", {
+    const success = await saveCredentials(CloudProviderName.Aws, {
       accessKeyId: accessKey,
       secretAccessKey: secretKey,
     });

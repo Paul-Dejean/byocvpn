@@ -3,7 +3,7 @@ import { invokeCommand } from "../lib/invokeCommand";
 import { listen } from "@tauri-apps/api/event";
 import { save } from "@tauri-apps/plugin-dialog";
 import toast from "react-hot-toast";
-import { useCredentials } from "../hooks/useCredentials";
+import { useCredentials, CloudProviderName } from "../hooks/useCredentials";
 import { ProvisionAccountDrawer } from "../components/settings/ProvisionAccountDrawer";
 import {
   ProvisionAccountJob,
@@ -306,7 +306,7 @@ export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPag
     const loadUnconfiguredProviders = async () => {
       const unconfigured: ProviderOption[] = [];
       for (const provider of ALL_PROVIDERS) {
-        const existing = await loadCredentials(provider.id as "aws" | "oracle" | "gcp" | "azure");
+        const existing = await loadCredentials(provider.id as CloudProviderName);
         if (existing === null) {
           unconfigured.push(provider);
         }
@@ -583,7 +583,7 @@ function AwsCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
   const { isSaving, error, saveCredentials } = useCredentials();
 
   const handleSubmit = async () => {
-    const success = await saveCredentials("aws", {
+    const success = await saveCredentials(CloudProviderName.Aws, {
       accessKeyId: accessKeyId.trim(),
       secretAccessKey: secretAccessKey.trim(),
     });
@@ -646,7 +646,7 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
   };
 
   const handleSubmit = async () => {
-    const success = await saveCredentials("oracle", {
+    const success = await saveCredentials(CloudProviderName.Oracle, {
       tenancyOcid: tenancyOcid.trim(),
       userOcid: userOcid.trim(),
       fingerprint: fingerprint.trim(),
@@ -764,7 +764,7 @@ function GcpCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
   };
 
   const handleSubmit = async () => {
-    const success = await saveCredentials("gcp", {
+    const success = await saveCredentials(CloudProviderName.Gcp, {
       projectId: projectId.trim(),
       serviceAccountJson: serviceAccountJson.trim(),
     });
@@ -830,7 +830,7 @@ function AzureCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
   const { isSaving, error, saveCredentials } = useCredentials();
 
   const handleSubmit = async () => {
-    const success = await saveCredentials("azure", {
+    const success = await saveCredentials(CloudProviderName.Azure, {
       subscriptionId: subscriptionId.trim(),
       tenantId: tenantId.trim(),
       clientId: clientId.trim(),

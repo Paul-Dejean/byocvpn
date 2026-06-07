@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Page } from "../types/pages";
-import { useCredentials } from "../hooks";
+import { useCredentials, CloudProviderName } from "../hooks";
 
-type CloudProvider = "aws" | "gcp" | "azure" | null;
+type CloudProvider = CloudProviderName | null;
 
 interface CredentialsForm {
   accessKeyId: string;
@@ -22,7 +22,7 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
 
   const handleProviderSelect = (provider: CloudProvider) => {
 
-    if (provider === "aws") {
+    if (provider === CloudProviderName.Aws) {
       setSelectedProvider(provider);
       setShowPolicy(true);
     }
@@ -95,11 +95,11 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
           {}
           <div
             className={`w-52 p-6 border rounded-lg shadow-md cursor-pointer transition-all ${
-              selectedProvider === "aws"
+              selectedProvider === CloudProviderName.Aws
                 ? "bg-gray-700 border-blue-500"
                 : "bg-gray-800 hover:bg-gray-700 border-gray-700"
             }`}
-            onClick={() => handleProviderSelect("aws")}
+            onClick={() => handleProviderSelect(CloudProviderName.Aws)}
           >
             <div className="flex flex-col items-center">
               <div className="w-16 h-16 flex items-center justify-center mb-4 text-yellow-500 font-bold text-4xl">
@@ -143,7 +143,7 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
         </div>
       </div>
 
-      {showPolicy && selectedProvider === "aws" && (
+      {showPolicy && selectedProvider === CloudProviderName.Aws && (
         <div className="w-full max-w-4xl px-6 py-5 mb-8 bg-gray-800 rounded-lg shadow-lg">
           <h3 className="text-xl font-semibold mb-3 text-blue-400">
             Step 1: Create IAM Policy

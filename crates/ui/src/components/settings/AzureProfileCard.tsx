@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useCredentials, AzureCredentials } from "../../hooks";
+import { useCredentials, CloudProviderName } from "../../hooks";
 
 interface AzureProfileCardProps {
   onCredentialsSaved: (provider: string) => void;
@@ -40,19 +40,18 @@ export function AzureProfileCard({
   } = useCredentials();
 
   useEffect(() => {
-    loadCredentials("azure").then((existing) => {
+    loadCredentials(CloudProviderName.Azure).then((existing) => {
       setHasCredentials(existing !== null);
     });
   }, []);
 
   const handleEditOpen = async () => {
-    const existing = await loadCredentials("azure");
+    const existing = await loadCredentials(CloudProviderName.Azure);
     if (existing) {
-      const azure = existing as AzureCredentials;
-      setSubscriptionId(azure.subscriptionId);
-      setTenantId(azure.tenantId);
-      setClientId(azure.clientId);
-      if (azure.clientSecret) {
+      setSubscriptionId(existing.subscriptionId);
+      setTenantId(existing.tenantId);
+      setClientId(existing.clientId);
+      if (existing.clientSecret) {
         setSecretAlreadySet(true);
       }
     }
@@ -70,7 +69,7 @@ export function AzureProfileCard({
   };
 
   const handleSave = async () => {
-    const success = await saveCredentials("azure", {
+    const success = await saveCredentials(CloudProviderName.Azure, {
       subscriptionId: subscriptionId.trim(),
       tenantId: tenantId.trim(),
       clientId: clientId.trim(),
@@ -90,7 +89,7 @@ export function AzureProfileCard({
   };
 
   const handleDeleteCredentials = async () => {
-    const success = await deleteCredentials("azure");
+    const success = await deleteCredentials(CloudProviderName.Azure);
     if (success) {
       setHasCredentials(false);
       setIsConfirmingDelete(false);

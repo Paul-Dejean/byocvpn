@@ -3,7 +3,7 @@ import { invokeCommand } from "../lib/invokeCommand";
 import { listen } from "@tauri-apps/api/event";
 import { load as loadStore } from "@tauri-apps/plugin-store";
 import toast from "react-hot-toast";
-import { useCredentials } from "../hooks/useCredentials";
+import { useCredentials, CloudProviderName } from "../hooks/useCredentials";
 import { OracleProfileCard } from "../components/settings/OracleProfileCard";
 import { GcpProfileCard } from "../components/settings/GcpProfileCard";
 import { AzureProfileCard } from "../components/settings/AzureProfileCard";
@@ -47,10 +47,10 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
     useCredentials();
 
   useEffect(() => {
-    loadCredentials("aws").then((existing) => setAwsHasCredentials(existing !== null));
-    loadCredentials("oracle").then((existing) => setOracleHasCredentials(existing !== null));
-    loadCredentials("gcp").then((existing) => setGcpHasCredentials(existing !== null));
-    loadCredentials("azure").then((existing) => setAzureHasCredentials(existing !== null));
+    loadCredentials(CloudProviderName.Aws).then((existing) => setAwsHasCredentials(existing !== null));
+    loadCredentials(CloudProviderName.Oracle).then((existing) => setOracleHasCredentials(existing !== null));
+    loadCredentials(CloudProviderName.Gcp).then((existing) => setGcpHasCredentials(existing !== null));
+    loadCredentials(CloudProviderName.Azure).then((existing) => setAzureHasCredentials(existing !== null));
   }, []);
 
   useEffect(() => {
@@ -145,9 +145,9 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
   };
 
   const handleAwsEditOpen = async () => {
-    const existing = await loadCredentials("aws");
+    const existing = await loadCredentials(CloudProviderName.Aws);
     if (existing) {
-      setAccessKey((existing as { accessKeyId: string }).accessKeyId);
+      setAccessKey(existing.accessKeyId);
     }
     setIsAwsEditing(true);
   };
@@ -161,7 +161,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
   const handleAwsSaveProfile = async () => {
     if (!accessKey.trim()) return;
 
-    const success = await saveCredentials("aws", {
+    const success = await saveCredentials(CloudProviderName.Aws, {
       accessKeyId: accessKey.trim(),
       secretAccessKey: secretKey.trim(),
     });
@@ -176,7 +176,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
   };
 
   const handleAwsDeleteCredentials = async () => {
-    const success = await deleteCredentials("aws");
+    const success = await deleteCredentials(CloudProviderName.Aws);
     if (success) {
       setAwsHasCredentials(false);
       setIsAwsConfirmingDelete(false);

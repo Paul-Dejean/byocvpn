@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useCredentials } from "../../hooks/useCredentials";
+import { useCredentials, CloudProviderName } from "../../hooks/useCredentials";
 
 interface ProviderSelectorProps {
   onSelectProvider: (provider: string) => void;
@@ -69,7 +69,7 @@ export function ProviderSelector({
     const loadConfiguredProviders = async () => {
       const configured: ProviderOption[] = [];
       for (const provider of providers) {
-        const existing = await loadCredentials(provider.id as "aws" | "oracle" | "gcp" | "azure");
+        const existing = await loadCredentials(provider.id as CloudProviderName);
         if (existing !== null) {
           configured.push(provider);
         }

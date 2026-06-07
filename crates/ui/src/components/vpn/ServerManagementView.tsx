@@ -5,7 +5,7 @@ import { RegionSelector } from "../regions/RegionSelector";
 import { ServerDetails } from "../servers/ServerDetails";
 import { EmptyState } from "../common/EmptyState";
 import { ProviderSelector } from "../providers/ProviderSelector";
-import { useCredentials } from "../../hooks/useCredentials";
+import { useCredentials, CloudProviderName } from "../../hooks/useCredentials";
 
 import { useInstancesContext, useRegionsContext } from "../../contexts";
 import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
@@ -48,7 +48,7 @@ export function ServerManagementView({
 
   useEffect(() => {
     const checkAnyAccount = async () => {
-      for (const provider of ["aws", "oracle", "gcp", "azure"] as const) {
+      for (const provider of Object.values(CloudProviderName)) {
         const existing = await loadCredentials(provider);
         if (existing !== null) {
           setHasAnyAccount(true);

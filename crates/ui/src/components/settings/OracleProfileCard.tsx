@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useCredentials, OracleCredentials } from "../../hooks";
+import { useCredentials, CloudProviderName } from "../../hooks";
 
 interface OracleProfileCardProps {
   onCredentialsSaved: (provider: string) => void;
@@ -38,21 +38,20 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
   } = useCredentials();
 
   useEffect(() => {
-    loadCredentials("oracle").then((existing) => {
+    loadCredentials(CloudProviderName.Oracle).then((existing) => {
       setHasCredentials(existing !== null);
     });
   }, []);
 
   const handleEditOpen = async () => {
-    const existing = await loadCredentials("oracle");
+    const existing = await loadCredentials(CloudProviderName.Oracle);
     if (existing) {
-      const oracle = existing as OracleCredentials;
-      setTenancyOcid(oracle.tenancyOcid);
-      setUserOcid(oracle.userOcid);
-      setFingerprint(oracle.fingerprint);
-      setRegion(oracle.region);
-      if (oracle.privateKeyPem) {
-        setPrivateKeyPem(oracle.privateKeyPem);
+      setTenancyOcid(existing.tenancyOcid);
+      setUserOcid(existing.userOcid);
+      setFingerprint(existing.fingerprint);
+      setRegion(existing.region);
+      if (existing.privateKeyPem) {
+        setPrivateKeyPem(existing.privateKeyPem);
         setPemAlreadySet(true);
       }
     }
@@ -71,7 +70,7 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
   };
 
   const handleSave = async () => {
-    const success = await saveCredentials("oracle", {
+    const success = await saveCredentials(CloudProviderName.Oracle, {
       tenancyOcid: tenancyOcid.trim(),
       userOcid: userOcid.trim(),
       fingerprint: fingerprint.trim(),
@@ -107,7 +106,7 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
   };
 
   const handleDeleteCredentials = async () => {
-    const success = await deleteCredentials("oracle");
+    const success = await deleteCredentials(CloudProviderName.Oracle);
     if (success) {
       setHasCredentials(false);
       setIsConfirmingDelete(false);
