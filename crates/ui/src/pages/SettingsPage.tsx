@@ -17,12 +17,22 @@ interface SettingsPageProps {
 }
 
 export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
-  const [awsHasCredentials, setAwsHasCredentials] = useState<boolean | null>(null);
-  const [oracleHasCredentials, setOracleHasCredentials] = useState<boolean | null>(null);
-  const [gcpHasCredentials, setGcpHasCredentials] = useState<boolean | null>(null);
-  const [azureHasCredentials, setAzureHasCredentials] = useState<boolean | null>(null);
+  const [awsHasCredentials, setAwsHasCredentials] = useState<boolean | null>(
+    null,
+  );
+  const [oracleHasCredentials, setOracleHasCredentials] = useState<
+    boolean | null
+  >(null);
+  const [gcpHasCredentials, setGcpHasCredentials] = useState<boolean | null>(
+    null,
+  );
+  const [azureHasCredentials, setAzureHasCredentials] = useState<
+    boolean | null
+  >(null);
 
-  const [provisionedProviders, setProvisionedProviders] = useState<Set<CloudProviderName>>(new Set());
+  const [provisionedProviders, setProvisionedProviders] = useState<
+    Set<CloudProviderName>
+  >(new Set());
 
   const { loadCredentials } = useCredentials();
 
