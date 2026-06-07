@@ -19,19 +19,19 @@ export function useLedger() {
     try {
       const rawEntries = await invokeCommand<LedgerEntry[]>("get_ledger");
 
-      const pricingCache = new Map<string, PricingInfo>();
+      const instancePricingCache = new Map<string, PricingInfo>();
       for (const entry of rawEntries) {
         const key = buildPricingKey(entry.provider, entry.instanceType);
-        if (!pricingCache.has(key)) {
+        if (!instancePricingCache.has(key)) {
           try {
             const pricing = await invokeCommand<PricingInfo>("get_instance_pricing", {
               provider: entry.provider,
               instanceType: entry.instanceType,
             });
-            pricingCache.set(key, pricing);
+            instancePricingCache.set(key, pricing);
           } catch {
 
-            pricingCache.set(key, {
+            instancePricingCache.set(key, {
               hourlyRate: 0,
               ipHourlyRate: 0,
               egressRatePerGb: 0,
@@ -44,7 +44,7 @@ export function useLedger() {
 
       const pricedEntries: LedgerEntryWithCost[] = rawEntries.map((entry) => {
         const key = buildPricingKey(entry.provider, entry.instanceType);
-        const pricing = pricingCache.get(key)!;
+        const pricing = instancePricingCache.get(key)!;
         const uptimeHours = computeElapsedHours(
           entry.launchedAt,
           entry.terminatedAt,
