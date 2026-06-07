@@ -17,6 +17,7 @@ import {
   ProvisionAccountCompleteEvent,
   ProvisionJobState,
   SpawnStepState,
+  SpawnStepStatus,
 } from "../types";
 
 interface SettingsPageProps {
@@ -124,7 +125,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
 
       const initialSteps: SpawnStepState[] = job.steps.map((step) => ({
         ...step,
-        status: "pending" as const,
+        status: SpawnStepStatus.Pending,
       }));
 
       activeJobIdRef.current = job.jobId;

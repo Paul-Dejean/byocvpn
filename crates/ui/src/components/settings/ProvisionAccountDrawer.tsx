@@ -16,11 +16,11 @@ interface ProvisionAccountDrawerProps {
 
 const StepStatusIcon = ({ status }: { status: SpawnStepStatus }) => {
   switch (status) {
-    case "running":
+    case SpawnStepStatus.Running:
       return (
         <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
       );
-    case "completed":
+    case SpawnStepStatus.Completed:
       return (
         <svg
           className="w-5 h-5 text-green-400 flex-shrink-0"
@@ -36,7 +36,7 @@ const StepStatusIcon = ({ status }: { status: SpawnStepStatus }) => {
           />
         </svg>
       );
-    case "failed":
+    case SpawnStepStatus.Failed:
       return (
         <svg
           className="w-5 h-5 text-red-400 flex-shrink-0"
@@ -133,11 +133,11 @@ export function ProvisionAccountDrawer({
                     </span>
                     <span
                       className={`text-sm font-medium ${
-                        step.status === "completed"
+                        step.status === SpawnStepStatus.Completed
                           ? "text-gray-300"
-                          : step.status === "running"
+                          : step.status === SpawnStepStatus.Running
                             ? "text-white"
-                            : step.status === "failed"
+                            : step.status === SpawnStepStatus.Failed
                               ? "text-red-300"
                               : "text-gray-500"
                       }`}

@@ -202,10 +202,10 @@ const ORACLE_REGION_INFO: Record<string, RegionInfo> = {
 };
 
 const REGION_INFO_BY_PROVIDER: Record<CloudProviderName, Record<string, RegionInfo>> = {
-  aws: AWS_REGION_INFO,
-  gcp: GCP_REGION_INFO,
-  azure: AZURE_REGION_INFO,
-  oracle: ORACLE_REGION_INFO,
+  [CloudProviderName.Aws]: AWS_REGION_INFO,
+  [CloudProviderName.Gcp]: GCP_REGION_INFO,
+  [CloudProviderName.Azure]: AZURE_REGION_INFO,
+  [CloudProviderName.Oracle]: ORACLE_REGION_INFO,
 };
 
 export function getRegionInfo(

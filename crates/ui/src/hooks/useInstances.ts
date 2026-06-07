@@ -7,11 +7,13 @@ import {
   Region,
   CloudProviderName,
   Instance,
+  InstanceState,
   SpawnCompleteEvent,
   SpawnInstanceLaunchedEvent,
   SpawnJob,
   SpawnJobState,
   SpawnProgressEvent,
+  SpawnStepStatus,
 } from "../types";
 
 export const useInstances = (regions: Region[]) => {
@@ -138,7 +140,7 @@ export const useInstances = (regions: Region[]) => {
           jobId: activeJob.jobId,
           steps: activeJob.steps.map((step) => ({
             ...step,
-            status: activeJob.stepStatuses[step.id] ?? ("pending" as const),
+            status: activeJob.stepStatuses[step.id] ?? (SpawnStepStatus.Pending),
           })),
         };
 
@@ -150,7 +152,7 @@ export const useInstances = (regions: Region[]) => {
           spawningPlaceholders.push({
             id: tempId,
             name: "Deploying…",
-            state: "spawning",
+            state: InstanceState.Spawning,
             publicIpV4: "",
             publicIpV6: "",
             region: activeJob.region,
@@ -164,8 +166,8 @@ export const useInstances = (regions: Region[]) => {
       }
 
       const installingFirst = [
-        ...fetched.filter((instance) => instance.state === "installing"),
-        ...fetched.filter((instance) => instance.state !== "installing"),
+        ...fetched.filter((instance) => instance.state === InstanceState.Installing),
+        ...fetched.filter((instance) => instance.state !== InstanceState.Installing),
       ];
       setInstances([...spawningPlaceholders, ...installingFirst]);
     } catch (err) {
@@ -187,7 +189,7 @@ export const useInstances = (regions: Region[]) => {
     const placeholder: Instance = {
       id: tempId,
       name: "Deploying…",
-      state: "spawning",
+      state: InstanceState.Spawning,
       publicIpV4: "",
       publicIpV6: "",
       region: regionName,
@@ -210,7 +212,7 @@ export const useInstances = (regions: Region[]) => {
           jobId: job.jobId,
           steps: job.steps.map((step, index) => ({
             ...step,
-            status: index === 0 ? ("running" as const) : ("pending" as const),
+            status: index === 0 ? (SpawnStepStatus.Running) : (SpawnStepStatus.Pending),
           })),
         },
       }));

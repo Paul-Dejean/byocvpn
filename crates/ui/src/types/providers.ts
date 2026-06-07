@@ -1,6 +1,6 @@
 export enum CloudProviderName {
-  Aws = "aws",
-  Oracle = "oracle",
-  Gcp = "gcp",
-  Azure = "azure",
+  Aws = "AWS",
+  Oracle = "ORACLE",
+  Gcp = "GCP",
+  Azure = "AZURE",
 }

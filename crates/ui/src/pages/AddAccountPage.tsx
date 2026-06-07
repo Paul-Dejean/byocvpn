@@ -13,6 +13,7 @@ import {
   ProvisionAccountCompleteEvent,
   ProvisionJobState,
   SpawnStepState,
+  SpawnStepStatus,
 } from "../types";
 
 interface AddAccountPageProps {
@@ -378,7 +379,7 @@ export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPag
         const latestBufferedEvent = [...bufferedEvents].reverse().find((event) => event.stepId === provisionStep.id);
         return {
           ...provisionStep,
-          status: latestBufferedEvent?.status ?? ("pending" as const),
+          status: latestBufferedEvent?.status ?? (SpawnStepStatus.Pending),
           error: latestBufferedEvent?.error,
         };
       });

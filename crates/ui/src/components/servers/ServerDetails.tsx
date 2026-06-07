@@ -1,5 +1,6 @@
 import {
   Instance,
+  InstanceState,
   SpawnJobState,
   SpawnStepStatus,
 } from "../../types";
@@ -8,12 +9,12 @@ import { FlagIcon } from "../FlagIcon";
 import { ProviderIcon } from "../providers/ProviderIcon";
 
 function StepIndicator({ status }: { status: SpawnStepStatus }) {
-  if (status === "running") {
+  if (status === SpawnStepStatus.Running) {
     return (
       <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
     );
   }
-  if (status === "completed") {
+  if (status === SpawnStepStatus.Completed) {
     return (
       <svg
         className="w-5 h-5 text-green-400 flex-shrink-0"
@@ -28,7 +29,7 @@ function StepIndicator({ status }: { status: SpawnStepStatus }) {
       </svg>
     );
   }
-  if (status === "failed") {
+  if (status === SpawnStepStatus.Failed) {
     return (
       <svg
         className="w-5 h-5 text-red-400 flex-shrink-0"
@@ -70,8 +71,8 @@ export function ServerDetails({
   onTerminate,
 }: ServerDetailsProps) {
   const regionInfo = getRegionInfo(instance.provider, instance.region ?? "");
-  const isSpawning = instance.state === "spawning";
-  const isInProgress = isSpawning || instance.state === "installing";
+  const isSpawning = instance.state === InstanceState.Spawning;
+  const isInProgress = isSpawning || instance.state === InstanceState.Installing;
 
   return (
     <div className="flex-1 min-w-0 flex flex-col bg-gray-900">
@@ -135,11 +136,11 @@ export function ServerDetails({
                         <div
                           key={step.id}
                           className={`flex items-center gap-3 p-2.5 rounded-lg ${
-                            step.status === "running"
+                            step.status === SpawnStepStatus.Running
                               ? "bg-blue-900/30 border border-blue-700/40"
-                              : step.status === "completed"
+                              : step.status === SpawnStepStatus.Completed
                                 ? "opacity-60"
-                                : step.status === "failed"
+                                : step.status === SpawnStepStatus.Failed
                                   ? "bg-red-900/20 border border-red-700/40"
                                   : "opacity-40"
                           }`}
@@ -148,18 +149,18 @@ export function ServerDetails({
                           <div className="flex-1 min-w-0">
                             <p
                               className={`text-sm ${
-                                step.status === "running"
+                                step.status === SpawnStepStatus.Running
                                   ? "text-blue-300 font-medium"
-                                  : step.status === "completed"
+                                  : step.status === SpawnStepStatus.Completed
                                     ? "text-gray-400"
-                                    : step.status === "failed"
+                                    : step.status === SpawnStepStatus.Failed
                                       ? "text-red-300"
                                       : "text-gray-500"
                               }`}
                             >
                               {step.label}
                             </p>
-                            {step.status === "failed" && step.error && (
+                            {step.status === SpawnStepStatus.Failed && step.error && (
                               <p className="text-xs text-red-400 mt-0.5 truncate">
                                 {step.error}
                               </p>

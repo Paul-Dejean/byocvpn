@@ -1,4 +1,4 @@
-import { Instance } from "../../types";
+import { Instance, InstanceState } from "../../types";
 import { useState, useEffect } from "react";
 import { ServerList } from "../servers/ServerList";
 import { RegionSelector } from "../regions/RegionSelector";
@@ -67,13 +67,13 @@ export function ServerManagementView({
     if (live) {
 
       if (live !== selectedInstance) setSelectedInstance(live);
-    } else if (selectedInstance.state === "spawning") {
+    } else if (selectedInstance.state === InstanceState.Spawning) {
 
       const replacement = instances.find(
         (i) =>
           i.region === selectedInstance.region &&
           i.provider === selectedInstance.provider &&
-          i.state !== "spawning",
+          i.state !== InstanceState.Spawning,
       );
       if (replacement) setSelectedInstance(replacement);
     }

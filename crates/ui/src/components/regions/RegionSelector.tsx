@@ -12,6 +12,7 @@ import {
   EnableRegionProgressEvent,
   EnableRegionCompleteEvent,
   SpawnStepState,
+  SpawnStepStatus,
   CloudProviderName,
   Region,
   RegionGroup,
@@ -141,7 +142,7 @@ export function RegionSelector({
       });
       const initialSteps: SpawnStepState[] = job.steps.map((step) => ({
         ...step,
-        status: "pending" as const,
+        status: SpawnStepStatus.Pending,
       }));
       activeEnableJobIdRef.current = job.jobId;
       setActiveEnableJob({

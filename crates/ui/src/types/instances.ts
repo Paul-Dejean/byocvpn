@@ -1,21 +1,22 @@
 import { CloudProviderName } from "./providers";
 
-export type InstanceState =
-  | "spawning"
-  | "installing"
-  | "error"
-  | "running"
-  | "creating"
-  | "stopping"
-  | "stopped"
-  | "deleting"
-  | "deleted"
-  | "unknown";
+export enum InstanceState {
+  Spawning = "SPAWNING",
+  Installing = "INSTALLING",
+  Error = "ERROR",
+  Running = "RUNNING",
+  Creating = "CREATING",
+  Stopping = "STOPPING",
+  Stopped = "STOPPED",
+  Deleting = "DELETING",
+  Deleted = "DELETED",
+  Unknown = "UNKNOWN",
+}
 
 export interface Instance {
   id: string;
   name: string;
-  state: InstanceState | string;
+  state: InstanceState;
   errorReason?: string;
   publicIpV4: string;
   publicIpV6: string;
@@ -32,7 +33,12 @@ export type ServerStatus =
   | "connecting"
   | "connected";
 
-export type SpawnStepStatus = "pending" | "running" | "completed" | "failed";
+export enum SpawnStepStatus {
+  Pending = "PENDING",
+  Running = "RUNNING",
+  Completed = "COMPLETED",
+  Failed = "FAILED",
+}
 
 export interface SpawnStep {
   id: string;

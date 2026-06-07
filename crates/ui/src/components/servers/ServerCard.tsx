@@ -1,7 +1,8 @@
-import { Instance, RegionGroup, SpawnJobState } from "../../types";
+import { Instance, InstanceState, RegionGroup, SpawnJobState, SpawnStepStatus } from "../../types";
 import { getRegionInfo } from "../../constants/regionInfo";
 import { FlagIcon } from "../FlagIcon";
 import { ProviderIcon } from "../providers/ProviderIcon";
+import { CloudProviderName } from "../../types";
 
 interface ServerCardProps {
   instance: Instance;
@@ -17,26 +18,24 @@ function MiniSpinner() {
   );
 }
 
-const PROVIDER_STRIPE: Record<string, string> = {
-  aws: "border-l-orange-500",
-  oracle: "border-l-red-500",
-  gcp: "border-l-blue-500",
-  azure: "border-l-sky-500",
+const PROVIDER_STRIPE: Record<CloudProviderName, string> = {
+  [CloudProviderName.Aws]: "border-l-orange-500",
+  [CloudProviderName.Oracle]: "border-l-red-500",
+  [CloudProviderName.Gcp]: "border-l-blue-500",
+  [CloudProviderName.Azure]: "border-l-sky-500",
 };
 
-const STATE_BADGE: Record<
-  string,
-  { className: string; label: string; spinner?: boolean }
-> = {
-  spawning:   { className: "bg-blue-900/50 text-blue-300",    label: "spawning",   spinner: true },
-  installing: { className: "bg-yellow-900/50 text-yellow-300", label: "installing", spinner: true },
-  error:      { className: "bg-red-900/50 text-red-400",      label: "error" },
-  running:    { className: "bg-green-900/50 text-green-300",  label: "running" },
-  creating:   { className: "bg-yellow-900/50 text-yellow-300", label: "creating" },
-  stopping:   { className: "bg-red-900/50 text-red-300",      label: "stopping" },
-  deleting:   { className: "bg-red-900/50 text-red-300",      label: "deleting" },
-  stopped:    { className: "bg-gray-700/50 text-gray-500",    label: "stopped" },
-  deleted:    { className: "bg-gray-700/50 text-gray-500",    label: "deleted" },
+const STATE_BADGE: Record<InstanceState, { className: string; label: string; spinner?: boolean }> = {
+  [InstanceState.Spawning]:   { className: "bg-blue-900/50 text-blue-300",    label: "spawning",   spinner: true },
+  [InstanceState.Installing]: { className: "bg-yellow-900/50 text-yellow-300", label: "installing", spinner: true },
+  [InstanceState.Error]:      { className: "bg-red-900/50 text-red-400",      label: "error" },
+  [InstanceState.Running]:    { className: "bg-green-900/50 text-green-300",  label: "running" },
+  [InstanceState.Creating]:   { className: "bg-yellow-900/50 text-yellow-300", label: "creating" },
+  [InstanceState.Stopping]:   { className: "bg-red-900/50 text-red-300",      label: "stopping" },
+  [InstanceState.Deleting]:   { className: "bg-red-900/50 text-red-300",      label: "deleting" },
+  [InstanceState.Stopped]:    { className: "bg-gray-700/50 text-gray-500",    label: "stopped" },
+  [InstanceState.Deleted]:    { className: "bg-gray-700/50 text-gray-500",    label: "deleted" },
+  [InstanceState.Unknown]:    { className: "bg-gray-900/50 text-gray-400",    label: "unknown" },
 };
 
 export function ServerCard({
@@ -50,14 +49,14 @@ export function ServerCard({
   const stripeColor = PROVIDER_STRIPE[instance.provider] ?? "border-l-gray-600";
 
   const isInProgress =
-    instance.state === "spawning" || instance.state === "installing";
+    instance.state === InstanceState.Spawning || instance.state === InstanceState.Installing;
 
   const badge = STATE_BADGE[instance.state] ?? {
     className: "bg-gray-900/50 text-gray-400",
     label: instance.state,
   };
 
-  const runningStep = spawnJob?.steps.find((step) => step.status === "running");
+  const runningStep = spawnJob?.steps.find((step) => step.status === SpawnStepStatus.Running);
   const stepLabel = runningStep?.label ?? (isInProgress ? "Starting…" : null);
 
   return (
@@ -94,7 +93,7 @@ export function ServerCard({
       {isInProgress && stepLabel && (
         <p className="text-xs font-mono opacity-75 truncate">{stepLabel}</p>
       )}
-      {instance.state === "error" && instance.errorReason && (
+      {instance.state === InstanceState.Error && instance.errorReason && (
         <p className="text-xs font-mono text-red-400/75 truncate mt-1">
           {instance.errorReason}
         </p>
