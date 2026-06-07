@@ -3,7 +3,8 @@ import { invokeCommand } from "../lib/invokeCommand";
 import { listen } from "@tauri-apps/api/event";
 import { save } from "@tauri-apps/plugin-dialog";
 import toast from "react-hot-toast";
-import { useCredentials, CloudProviderName } from "../hooks/useCredentials";
+import { useCredentials } from "../hooks/useCredentials";
+import { CloudProviderName } from "../types";
 import { ProvisionAccountDrawer } from "../components/settings/ProvisionAccountDrawer";
 import {
   ProvisionAccountJob,

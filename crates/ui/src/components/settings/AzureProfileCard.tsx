@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { useCredentials, CloudProviderName } from "../../hooks";
+import { useCredentials } from "../../hooks";
+import { CloudProviderName } from "../../types";
 
 interface AzureProfileCardProps {
   onCredentialsSaved: (provider: string) => void;

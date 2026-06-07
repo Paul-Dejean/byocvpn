@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { useCredentials, CloudProviderName } from "../../hooks/useCredentials";
+import { useCredentials } from "../../hooks/useCredentials";
+import { CloudProviderName } from "../../types";
 
 interface ProviderSelectorProps {
   onSelectProvider: (provider: string) => void;

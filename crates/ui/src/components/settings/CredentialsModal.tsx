@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useCredentials, CloudProviderName } from "../../hooks";
+import { useCredentials } from "../../hooks";
+import { CloudProviderName } from "../../types";
 
 interface CredentialsModalProps {
   isOpen: boolean;

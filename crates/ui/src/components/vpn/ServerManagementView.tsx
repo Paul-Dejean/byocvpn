@@ -5,7 +5,8 @@ import { RegionSelector } from "../regions/RegionSelector";
 import { ServerDetails } from "../servers/ServerDetails";
 import { EmptyState } from "../common/EmptyState";
 import { ProviderSelector } from "../providers/ProviderSelector";
-import { useCredentials, CloudProviderName } from "../../hooks/useCredentials";
+import { useCredentials } from "../../hooks/useCredentials";
+import { CloudProviderName } from "../../types";
 
 import { useInstancesContext, useRegionsContext } from "../../contexts";
 import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";

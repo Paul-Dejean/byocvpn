@@ -6,7 +6,7 @@ export {
   type VpnMetrics,
 } from "./useVpnConnection";
 export { useProfile } from "./useProfile";
-export { useCredentials, CloudProviderName } from "./useCredentials";
+export { useCredentials } from "./useCredentials";
 export type {
   AwsCredentials,
   OracleCredentials,

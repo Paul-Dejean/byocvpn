@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { invokeCommand } from "../lib/invokeCommand";
 import toast from "react-hot-toast";
+import { CloudProviderName } from "../types";
 
 export interface AwsCredentials {
   accessKeyId: string;
@@ -25,13 +26,6 @@ export interface AzureCredentials {
   tenantId: string;
   clientId: string;
   clientSecret: string;
-}
-
-export enum CloudProviderName {
-  Aws = "aws",
-  Oracle = "oracle",
-  Gcp = "gcp",
-  Azure = "azure",
 }
 
 type CredentialsMap = {

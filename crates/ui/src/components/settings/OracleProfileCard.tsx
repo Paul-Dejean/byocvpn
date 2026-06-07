@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { useCredentials, CloudProviderName } from "../../hooks";
+import { useCredentials } from "../../hooks";
+import { CloudProviderName } from "../../types";
 
 interface OracleProfileCardProps {
   onCredentialsSaved: (provider: string) => void;

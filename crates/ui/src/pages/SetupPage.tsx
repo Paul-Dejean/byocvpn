@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Page } from "../types/pages";
-import { useCredentials, CloudProviderName } from "../hooks";
+import { useCredentials } from "../hooks";
+import { CloudProviderName } from "../types";
 
 type CloudProvider = CloudProviderName | null;
 
