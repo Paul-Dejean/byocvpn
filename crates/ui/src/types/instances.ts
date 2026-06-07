@@ -81,6 +81,7 @@ export interface ActiveSpawnJob extends SpawnJob {
 
 export interface SpawnJobState {
   jobId: string;
+  instanceId: string;
   steps: SpawnStepState[];
 }
 

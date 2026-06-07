@@ -22,22 +22,11 @@ export function useInstances(regions: Region[]) {
   const [terminatingInstanceId, setTerminatingInstanceId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [spawnJobs, setSpawnJobs] = useState<Record<string, SpawnJobState>>({});
+  const spawnJobsRef = useRef(spawnJobs);
 
-  const tempToJob = useRef<Record<string, string>>({});
-  const jobToTemp = useRef<Record<string, string>>({});
-
-  const trackJob = (tempId: string, jobId: string) => {
-    tempToJob.current[tempId] = jobId;
-    jobToTemp.current[jobId] = tempId;
-  };
-
-  const untrackJob = (jobId: string) => {
-    const tempId = jobToTemp.current[jobId];
-    if (tempId) {
-      delete tempToJob.current[tempId];
-      delete jobToTemp.current[jobId];
-    }
-  };
+  useEffect(() => {
+    spawnJobsRef.current = spawnJobs;
+  }, [spawnJobs]);
 
   useEffect(() => {
     if (regions.length > 0) fetchInstances();
@@ -68,14 +57,15 @@ export function useInstances(regions: Region[]) {
       "spawn-instance-launched",
       ({ payload }) => {
         const { jobId, instance } = payload;
-        const tempId = jobToTemp.current[jobId];
-        if (tempId) {
-          setInstances((previous) =>
-            previous.map((existing) => (existing.id === tempId ? instance : existing)),
-          );
-          untrackJob(jobId);
-          trackJob(instance.id, jobId);
-        }
+        const job = spawnJobsRef.current[jobId];
+        if (!job) return;
+        setInstances((previous) =>
+          previous.map((existing) => (existing.id === job.instanceId ? instance : existing)),
+        );
+        setSpawnJobs((previous) => ({
+          ...previous,
+          [jobId]: { ...previous[jobId], instanceId: instance.id },
+        }));
       },
     );
 
@@ -83,12 +73,11 @@ export function useInstances(regions: Region[]) {
       "spawn-complete",
       ({ payload }) => {
         const { jobId, instance } = payload;
-        const tempId = jobToTemp.current[jobId];
-        if (tempId) {
+        const job = spawnJobsRef.current[jobId];
+        if (job) {
           setInstances((previous) =>
-            previous.map((existing) => (existing.id === tempId ? instance : existing)),
+            previous.map((existing) => (existing.id === job.instanceId ? instance : existing)),
           );
-          untrackJob(jobId);
         }
         setSpawnJobs((previous) => {
           const { [jobId]: _, ...rest } = previous;
@@ -102,12 +91,11 @@ export function useInstances(regions: Region[]) {
       "spawn-failed",
       ({ payload }) => {
         const { jobId, error } = payload;
-        const tempId = jobToTemp.current[jobId];
-        if (tempId) {
+        const job = spawnJobsRef.current[jobId];
+        if (job) {
           setInstances((previous) =>
-            previous.filter((existing) => existing.id !== tempId),
+            previous.filter((existing) => existing.id !== job.instanceId),
           );
-          untrackJob(jobId);
         }
         setSpawnJobs((previous) => {
           const { [jobId]: _, ...rest } = previous;
@@ -138,21 +126,19 @@ export function useInstances(regions: Region[]) {
       const spawningPlaceholders: Instance[] = [];
 
       for (const activeJob of activeJobs) {
+        const instanceId = activeJob.instanceId ?? `spawning-recovered-${activeJob.jobId}`;
         newSpawnJobs[activeJob.jobId] = {
           jobId: activeJob.jobId,
+          instanceId,
           steps: activeJob.steps.map((step) => ({
             ...step,
             status: activeJob.stepStatuses[step.id] ?? SpawnStepStatus.Pending,
           })),
         };
 
-        if (activeJob.instanceId) {
-          trackJob(activeJob.instanceId, activeJob.jobId);
-        } else {
-          const tempId = `spawning-recovered-${activeJob.jobId}`;
-          trackJob(tempId, activeJob.jobId);
+        if (!activeJob.instanceId) {
           spawningPlaceholders.push({
-            id: tempId,
+            id: instanceId,
             name: "Deploying…",
             state: InstanceState.Spawning,
             publicIpV4: "",
@@ -207,12 +193,11 @@ export function useInstances(regions: Region[]) {
         provider,
       });
 
-      trackJob(tempId, job.jobId);
-
       setSpawnJobs((previous) => ({
         ...previous,
         [job.jobId]: {
           jobId: job.jobId,
+          instanceId: tempId,
           steps: job.steps.map((step, index) => ({
             ...step,
             status: index === 0 ? SpawnStepStatus.Running : SpawnStepStatus.Pending,
@@ -257,10 +242,9 @@ export function useInstances(regions: Region[]) {
     }
   };
 
-  const getSpawnJobForInstance = (instanceId: string): SpawnJobState | undefined => {
-    const jobId = tempToJob.current[instanceId];
-    return jobId ? spawnJobs[jobId] : undefined;
-  };
+  function getSpawnJobForInstance(instanceId: string): SpawnJobState | undefined {
+    return Object.values(spawnJobs).find((job) => job.instanceId === instanceId);
+  }
 
   const clearError = () => setError(null);
 
