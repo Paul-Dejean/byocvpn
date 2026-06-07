@@ -5,7 +5,6 @@ import { FlagIcon } from "../FlagIcon";
 import { useEffect, useRef, useState } from "react";
 import { invokeCommand } from "../../lib/invokeCommand";
 import { listen } from "@tauri-apps/api/event";
-import { load as loadStore } from "@tauri-apps/plugin-store";
 import toast from "react-hot-toast";
 import {
   Instance,
@@ -16,8 +15,8 @@ import {
   SpawnStepStatus,
   CloudProviderName,
   Region,
-  RegionGroup,
 } from "../../types";
+import { useProviderRegions } from "../../hooks/useProviderRegions";
 import { ProvisionAccountDrawer } from "../settings/ProvisionAccountDrawer";
 
 interface RegionSelectorProps {
@@ -32,9 +31,11 @@ export function RegionSelector({
   onSpawned,
 }: RegionSelectorProps) {
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
-  const [groupedRegions, setGroupedRegions] = useState<RegionGroup[]>([]);
-  const [isLoadingRegions, setIsLoadingRegions] = useState(true);
-  const [enabledRegions, setEnabledRegions] = useState<Set<string>>(new Set());
+  const { groupedRegions, enabledRegions, isLoading: isLoadingRegions, markRegionEnabled } = useProviderRegions(provider);
+
+  useEffect(() => {
+    setSelectedRegion(null);
+  }, [provider]);
 
   const [activeEnableJob, setActiveEnableJob] = useState<{
     jobId: string;
@@ -49,43 +50,6 @@ export function RegionSelector({
   const activeEnableJobIdRef = useRef<string | null>(null);
 
   const { spawnInstance, instances } = useInstancesContext();
-
-  useEffect(() => {
-    setIsLoadingRegions(true);
-    setSelectedRegion(null);
-    invokeCommand<Region[]>("get_regions", { provider })
-      .then(async (regions) => {
-        const groups: Record<string, Region[]> = {};
-        regions.forEach((region) => {
-          if (!groups[region.country]) groups[region.country] = [];
-          groups[region.country].push(region);
-        });
-        setGroupedRegions(
-          Object.entries(groups)
-            .map(([continent, continentRegions]) => ({
-              continent,
-              regions: continentRegions.sort((a, b) =>
-                a.name.localeCompare(b.name),
-              ),
-            }))
-            .sort((a, b) => a.continent.localeCompare(b.continent)),
-        );
-
-        const store = await loadStore("providers.json");
-        const enabled = new Set<string>();
-        for (const region of regions) {
-          const value = await store.get<boolean>(
-            `enabled_regions/${provider}/${region.name}`,
-          );
-          if (value === true) {
-            enabled.add(region.name);
-          }
-        }
-        setEnabledRegions(enabled);
-      })
-      .catch(console.error)
-      .finally(() => setIsLoadingRegions(false));
-  }, [provider]);
 
   useEffect(() => {
     const progressUnlisten = listen<EnableRegionProgressEvent>(
@@ -109,7 +73,7 @@ export function RegionSelector({
       ({ payload }) => {
         if (activeEnableJobIdRef.current === payload.jobId) {
           setIsEnableComplete(true);
-          setEnabledRegions((previous) => new Set([...previous, payload.region]));
+          markRegionEnabled(payload.region);
           toast.success(`${payload.region} enabled!`);
         }
       },
