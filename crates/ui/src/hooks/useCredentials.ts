@@ -42,7 +42,7 @@ export function useCredentials() {
 
   const loadCredentials = async <T extends CloudProviderName>(
     provider: T,
-  ): Promise<CredentialsMap[T] | null> => {
+  ): Promise<(CredentialsMap[T] & { provider: T }) | null> => {
     try {
       return await invokeCommand("get_credentials", { provider });
     } catch {
@@ -59,7 +59,7 @@ export function useCredentials() {
     setSuccessMessage(null);
 
     try {
-      await invokeCommand("save_credentials", { provider, credentials });
+      await invokeCommand("save_credentials", { credentials: { provider, ...credentials } });
       const message = "Credentials saved successfully!";
       setSuccessMessage(message);
       toast.success(message);
