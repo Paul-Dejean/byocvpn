@@ -5,6 +5,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import toast from "react-hot-toast";
 import { useCredentials } from "../hooks/useCredentials";
 import { CloudProviderName } from "../types";
+import { PROVIDER_METADATA } from "../lib/providers";
 import { ProvisionAccountDrawer } from "../components/settings/ProvisionAccountDrawer";
 import {
   ProvisionAccountJob,
@@ -31,8 +32,8 @@ interface ProviderOption {
 const ALL_PROVIDERS: ProviderOption[] = [
   {
     name: CloudProviderName.Aws,
-    label: "Amazon Web Services",
-    description: "Deploy on EC2 — available in 30+ regions worldwide",
+    label: PROVIDER_METADATA[CloudProviderName.Aws].label,
+    description: PROVIDER_METADATA[CloudProviderName.Aws].description,
     badge: (
       <div className="w-14 h-14 rounded-xl bg-orange-500/20 flex items-center justify-center flex-shrink-0">
         <span className="text-orange-400 font-black text-xl">AWS</span>
@@ -41,8 +42,8 @@ const ALL_PROVIDERS: ProviderOption[] = [
   },
   {
     name: CloudProviderName.Oracle,
-    label: "Oracle Cloud Infrastructure",
-    description: "Deploy on OCI Compute — includes an Always Free tier",
+    label: PROVIDER_METADATA[CloudProviderName.Oracle].label,
+    description: PROVIDER_METADATA[CloudProviderName.Oracle].description,
     badge: (
       <div className="w-14 h-14 rounded-xl bg-red-700/30 flex items-center justify-center flex-shrink-0">
         <span className="text-red-400 font-black text-xl">OCI</span>
@@ -51,8 +52,8 @@ const ALL_PROVIDERS: ProviderOption[] = [
   },
   {
     name: CloudProviderName.Gcp,
-    label: "Google Cloud Platform",
-    description: "Deploy on Compute Engine using a service account — available in 40+ regions worldwide",
+    label: PROVIDER_METADATA[CloudProviderName.Gcp].label,
+    description: PROVIDER_METADATA[CloudProviderName.Gcp].description,
     badge: (
       <div className="w-14 h-14 rounded-xl bg-blue-600/20 flex items-center justify-center flex-shrink-0">
         <span className="text-blue-400 font-black text-xl">GCP</span>
@@ -61,8 +62,8 @@ const ALL_PROVIDERS: ProviderOption[] = [
   },
   {
     name: CloudProviderName.Azure,
-    label: "Microsoft Azure",
-    description: "Deploy on Azure VMs — available in 60+ regions worldwide",
+    label: PROVIDER_METADATA[CloudProviderName.Azure].label,
+    description: PROVIDER_METADATA[CloudProviderName.Azure].description,
     badge: (
       <div className="w-14 h-14 rounded-xl bg-sky-600/20 flex items-center justify-center flex-shrink-0">
         <span className="text-sky-400 font-black text-xl">AZ</span>
@@ -367,7 +368,7 @@ export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPag
     };
   }, []);
 
-  const startProvisioning = async (provider: string) => {
+  const startProvisioning = async (provider: CloudProviderName) => {
     try {
       earlyProgressEventsRef.current = [];
       const job = await invokeCommand<ProvisionAccountJob>("provision_account", { provider });
@@ -403,7 +404,7 @@ export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPag
     setStep("selecting-provider");
   };
 
-  const handleCredentialsSaved = (provider: string) => {
+  const handleCredentialsSaved = (provider: CloudProviderName) => {
     startProvisioning(provider);
   };
 
@@ -462,7 +463,7 @@ export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPag
       <ProvisionAccountDrawer
         isOpen={isProvisionDrawerOpen}
         onClose={handleCloseProvisionDrawer}
-        provider={activeProvisionJob?.provider ?? ""}
+        provider={activeProvisionJob?.provider ?? CloudProviderName.Aws}
         steps={activeProvisionJob?.steps ?? []}
         isComplete={isProvisionComplete}
         error={provisionError}

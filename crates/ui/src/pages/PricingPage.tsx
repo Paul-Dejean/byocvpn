@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useLedger } from "../hooks/useLedger";
+import { CloudProviderName } from "../types";
 import { CalendarMonth } from "../components/pricing/MonthFilter";
 import { ProviderFilter } from "../components/pricing/ProviderFilter";
 import { InstanceCostRow } from "../components/pricing/InstanceCostRow";
@@ -53,7 +54,7 @@ export function PricingPage() {
 
   const [calendarMonth, setCalendarMonth] =
     useState<CalendarMonth>(getCurrentMonth);
-  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<CloudProviderName | null>(null);
 
   const calendarMonthIndex = availableMonths.findIndex(
     (month) =>

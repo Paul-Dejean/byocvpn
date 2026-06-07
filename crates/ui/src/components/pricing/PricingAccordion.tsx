@@ -2,19 +2,11 @@ import { useState } from "react";
 import { LedgerEntryWithCost } from "../../types/ledger";
 import { InstanceCostRow } from "./InstanceCostRow";
 import { ProviderIcon } from "../providers/ProviderIcon";
-
-const PROVIDER_LABELS: Record<string, string> = {
-  aws: "Amazon Web Services",
-  azure: "Microsoft Azure",
-  gcp: "Google Cloud Platform",
-  oracle: "Oracle Cloud",
-};
-
+import { CloudProviderName } from "../../types";
+import { PROVIDER_METADATA } from "../../lib/providers";
 
 interface PricingAccordionProps {
-
-  provider: string;
-
+  provider: CloudProviderName;
   entries: LedgerEntryWithCost[];
 }
 
@@ -42,7 +34,7 @@ export function PricingAccordion({ provider, entries }: PricingAccordionProps) {
         <div className="flex items-center gap-3">
           <ProviderIcon provider={provider} className="w-6 h-6" />
           <span className="text-white font-semibold">
-            {PROVIDER_LABELS[provider] ?? provider}
+            {PROVIDER_METADATA[provider].label}
           </span>
           <span className="text-sm text-gray-400">
             {entries.length} instance{entries.length !== 1 ? "s" : ""}

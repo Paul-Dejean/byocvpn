@@ -1,5 +1,5 @@
 import { createContext, useContext, ReactNode } from "react";
-import { Instance, SpawnJobState } from "../types";
+import { CloudProviderName, Instance, SpawnJobState } from "../types";
 import { useInstances } from "../hooks/useInstances";
 import { useRegionsContext } from "./RegionsContext";
 
@@ -9,11 +9,11 @@ interface InstancesContextValue {
   isSpawning: boolean;
   terminatingInstanceId: string | null;
   error: string | null;
-  spawnInstance: (regionName: string, provider: string) => Promise<Instance>;
+  spawnInstance: (regionName: string, provider: CloudProviderName) => Promise<Instance>;
   terminateInstance: (
     instanceId: string,
     region: string,
-    provider: string,
+    provider: CloudProviderName,
   ) => Promise<void>;
   clearError: () => void;
   refetch: () => Promise<void>;

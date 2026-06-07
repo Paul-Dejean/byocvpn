@@ -94,7 +94,7 @@ export function ServerManagementView({
       await terminateInstance(
         selectedInstance.id,
         selectedInstance.region || "",
-        selectedInstance.provider || "aws",
+        selectedInstance.provider || CloudProviderName.Aws,
       );
 
       setSelectedInstance(null);

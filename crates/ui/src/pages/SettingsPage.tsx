@@ -40,7 +40,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
   const [isProvisionComplete, setIsProvisionComplete] = useState(false);
   const [provisionError, setProvisionError] = useState<string | null>(null);
 
-  const [provisionedProviders, setProvisionedProviders] = useState<Set<string>>(new Set());
+  const [provisionedProviders, setProvisionedProviders] = useState<Set<CloudProviderName>>(new Set());
 
   const activeJobIdRef = useRef<string | null>(null);
 
@@ -57,8 +57,8 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
   useEffect(() => {
     const fetchProvisionedProviders = async () => {
       const store = await loadStore("providers.json");
-      const provisioned = new Set<string>();
-      for (const provider of ["aws", "oracle", "gcp", "azure"]) {
+      const provisioned = new Set<CloudProviderName>();
+      for (const provider of Object.values(CloudProviderName)) {
         const value = await store.get<boolean>(`provisioned/${provider}`);
         if (value === true) {
           provisioned.add(provider);
@@ -116,7 +116,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
     };
   }, []);
 
-  const startProvisionAccount = async (provider: string) => {
+  const startProvisionAccount = async (provider: CloudProviderName) => {
     try {
       const job = await invokeCommand<ProvisionAccountJob>("provision_account", {
         provider,
@@ -172,7 +172,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
       setSecretKey("");
       setIsAwsEditing(false);
       setAwsHasCredentials(true);
-      startProvisionAccount("aws");
+      startProvisionAccount(CloudProviderName.Aws);
     }
   };
 
@@ -184,7 +184,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
       setIsAwsEditing(false);
       setProvisionedProviders((previous) => {
         const next = new Set(previous);
-        next.delete("aws");
+        next.delete(CloudProviderName.Aws);
         return next;
       });
     }
@@ -204,7 +204,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
             </h2>
 
             {awsHasCredentials === true && (
-              <div className={`rounded-lg p-6 ${!provisionedProviders.has("aws") ? "bg-gray-700 border-l-4 border-amber-500" : "bg-gray-700"}`}>
+              <div className={`rounded-lg p-6 ${!provisionedProviders.has(CloudProviderName.Aws) ? "bg-gray-700 border-l-4 border-amber-500" : "bg-gray-700"}`}>
                 {!isAwsEditing ? (
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -214,7 +214,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
                       <div>
                         <div className="flex items-center gap-2">
                           <h3 className="font-semibold text-lg text-white">AWS Profile</h3>
-                          {provisionedProviders.has("aws") ? (
+                          {provisionedProviders.has(CloudProviderName.Aws) ? (
                             <span className="text-xs px-2 py-0.5 bg-green-900/50 text-green-400 rounded-full border border-green-700/50">
                               Provisioned
                             </span>
@@ -238,14 +238,14 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
                         </>
                       ) : (
                         <>
-                          {provisionedProviders.has("aws") ? (
-                            <button onClick={() => startProvisionAccount("aws")} className="p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded-lg transition-colors" title="Re-provision">
+                          {provisionedProviders.has(CloudProviderName.Aws) ? (
+                            <button onClick={() => startProvisionAccount(CloudProviderName.Aws)} className="p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded-lg transition-colors" title="Re-provision">
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                               </svg>
                             </button>
                           ) : (
-                            <button onClick={() => startProvisionAccount("aws")} className="p-2 text-amber-400 hover:text-amber-300 hover:bg-gray-600 rounded-lg transition-colors" title="Provision">
+                            <button onClick={() => startProvisionAccount(CloudProviderName.Aws)} className="p-2 text-amber-400 hover:text-amber-300 hover:bg-gray-600 rounded-lg transition-colors" title="Provision">
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                               </svg>
@@ -337,12 +337,12 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
               <OracleProfileCard
                 onCredentialsSaved={startProvisionAccount}
                 onProvisionRequested={startProvisionAccount}
-                isProvisioned={provisionedProviders.has("oracle")}
+                isProvisioned={provisionedProviders.has(CloudProviderName.Oracle)}
                 onCredentialsDeleted={() => {
                   setOracleHasCredentials(false);
                   setProvisionedProviders((previous) => {
                     const next = new Set(previous);
-                    next.delete("oracle");
+                    next.delete(CloudProviderName.Oracle);
                     return next;
                   });
                 }}
@@ -353,12 +353,12 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
               <GcpProfileCard
                 onCredentialsSaved={startProvisionAccount}
                 onProvisionRequested={startProvisionAccount}
-                isProvisioned={provisionedProviders.has("gcp")}
+                isProvisioned={provisionedProviders.has(CloudProviderName.Gcp)}
                 onCredentialsDeleted={() => {
                   setGcpHasCredentials(false);
                   setProvisionedProviders((previous) => {
                     const next = new Set(previous);
-                    next.delete("gcp");
+                    next.delete(CloudProviderName.Gcp);
                     return next;
                   });
                 }}
@@ -369,12 +369,12 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
               <AzureProfileCard
                 onCredentialsSaved={startProvisionAccount}
                 onProvisionRequested={startProvisionAccount}
-                isProvisioned={provisionedProviders.has("azure")}
+                isProvisioned={provisionedProviders.has(CloudProviderName.Azure)}
                 onCredentialsDeleted={() => {
                   setAzureHasCredentials(false);
                   setProvisionedProviders((previous) => {
                     const next = new Set(previous);
-                    next.delete("azure");
+                    next.delete(CloudProviderName.Azure);
                     return next;
                   });
                 }}
@@ -410,7 +410,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
       <ProvisionAccountDrawer
         isOpen={isProvisionDrawerOpen}
         onClose={handleCloseProvisionDrawer}
-        provider={activeProvisionJob?.provider ?? ""}
+        provider={activeProvisionJob?.provider ?? CloudProviderName.Aws}
         steps={activeProvisionJob?.steps ?? []}
         isComplete={isProvisionComplete}
         error={provisionError}

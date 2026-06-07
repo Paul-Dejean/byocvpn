@@ -1,3 +1,5 @@
+import { CloudProviderName } from "./providers";
+
 export type InstanceState =
   | "spawning"
   | "installing"
@@ -18,7 +20,7 @@ export interface Instance {
   publicIpV4: string;
   publicIpV6: string;
   region: string;
-  provider: string;
+  provider: CloudProviderName;
 }
 
 export type ServerStatus =
@@ -41,7 +43,7 @@ export interface SpawnJob {
   jobId: string;
   steps: SpawnStep[];
   region: string;
-  provider: string;
+  provider: CloudProviderName;
 }
 
 export interface SpawnStepState extends SpawnStep {
@@ -79,7 +81,7 @@ export interface SpawnJobState {
 export interface ProvisionAccountJob {
   jobId: string;
   steps: SpawnStep[];
-  provider: string;
+  provider: CloudProviderName;
 }
 
 export interface ProvisionAccountProgressEvent {
@@ -91,14 +93,14 @@ export interface ProvisionAccountProgressEvent {
 
 export interface ProvisionAccountCompleteEvent {
   jobId: string;
-  provider: string;
+  provider: CloudProviderName;
 }
 
 export interface EnableRegionJob {
   jobId: string;
   steps: SpawnStep[];
   region: string;
-  provider: string;
+  provider: CloudProviderName;
 }
 
 export interface EnableRegionProgressEvent {
@@ -111,11 +113,11 @@ export interface EnableRegionProgressEvent {
 export interface EnableRegionCompleteEvent {
   jobId: string;
   region: string;
-  provider: string;
+  provider: CloudProviderName;
 }
 
 export interface ProvisionJobState {
   jobId: string;
-  provider: string;
+  provider: CloudProviderName;
   steps: SpawnStepState[];
 }

@@ -1,6 +1,8 @@
+import { CloudProviderName } from "./providers";
+
 export interface LedgerEntry {
   instanceId: string;
-  provider: string;
+  provider: CloudProviderName;
   region: string;
   instanceType: string;
   launchedAt: string;

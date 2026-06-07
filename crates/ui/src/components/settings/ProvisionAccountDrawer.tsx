@@ -1,9 +1,10 @@
-import { SpawnStepState, SpawnStepStatus } from "../../types";
+import { CloudProviderName, SpawnStepState, SpawnStepStatus } from "../../types";
+import { PROVIDER_METADATA } from "../../lib/providers";
 
 interface ProvisionAccountDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  provider: string;
+  provider: CloudProviderName;
   title?: string;
   identifier?: string;
   subtitle?: string;
@@ -58,21 +59,6 @@ const StepStatusIcon = ({ status }: { status: SpawnStepStatus }) => {
   }
 };
 
-const formatProviderLabel = (provider: string): string => {
-  switch (provider) {
-    case "aws":
-      return "AWS";
-    case "azure":
-      return "Azure";
-    case "gcp":
-      return "Google Cloud";
-    case "oracle":
-      return "Oracle Cloud";
-    default:
-      return provider;
-  }
-};
-
 export function ProvisionAccountDrawer({
   isOpen,
   onClose,
@@ -104,7 +90,7 @@ export function ProvisionAccountDrawer({
         <div className="flex items-center justify-between p-6 border-b border-gray-700/50 flex-shrink-0">
           <div>
             <h2 className="text-lg font-semibold text-white">
-              {title ?? `Provisioning ${formatProviderLabel(provider)}`}
+              {title ?? `Provisioning ${PROVIDER_METADATA[provider].shortLabel}`}
             </h2>
             {identifier && (
               <p className="text-xs text-gray-500 font-mono mt-0.5">{identifier}</p>

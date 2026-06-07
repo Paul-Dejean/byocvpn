@@ -3,16 +3,14 @@ import { Page } from "../types/pages";
 import { useCredentials } from "../hooks";
 import { CloudProviderName } from "../types";
 
-type CloudProvider = CloudProviderName | null;
-
 interface CredentialsForm {
   accessKeyId: string;
   secretAccessKey: string;
 }
 
 export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
-
-  const [selectedProvider, setSelectedProvider] = useState<CloudProvider>(null);
+  const [selectedProvider, setSelectedProvider] =
+    useState<CloudProviderName | null>(null);
   const [showPolicy, setShowPolicy] = useState(false);
   const [credentials, setCredentials] = useState<CredentialsForm>({
     accessKeyId: "",
@@ -21,8 +19,7 @@ export function SetupPage({ setPage }: { setPage: (page: Page) => void }) {
 
   const { isSaving, error, saveCredentials } = useCredentials();
 
-  const handleProviderSelect = (provider: CloudProvider) => {
-
+  const handleProviderSelect = (provider: CloudProviderName | null) => {
     if (provider === CloudProviderName.Aws) {
       setSelectedProvider(provider);
       setShowPolicy(true);

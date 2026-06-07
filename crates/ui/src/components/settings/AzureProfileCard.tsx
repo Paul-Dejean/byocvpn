@@ -3,9 +3,9 @@ import { useCredentials } from "../../hooks";
 import { CloudProviderName } from "../../types";
 
 interface AzureProfileCardProps {
-  onCredentialsSaved: (provider: string) => void;
+  onCredentialsSaved: (provider: CloudProviderName) => void;
   onCredentialsDeleted: () => void;
-  onProvisionRequested: (provider: string) => void;
+  onProvisionRequested: (provider: CloudProviderName) => void;
   isProvisioned: boolean;
 }
 
@@ -85,7 +85,7 @@ export function AzureProfileCard({
       setSecretAlreadySet(false);
       setIsEditing(false);
       setHasCredentials(true);
-      onCredentialsSaved("azure");
+      onCredentialsSaved(CloudProviderName.Azure);
     }
   };
 
@@ -164,7 +164,7 @@ export function AzureProfileCard({
                 <>
                   {isProvisioned ? (
                     <button
-                      onClick={() => onProvisionRequested("azure")}
+                      onClick={() => onProvisionRequested(CloudProviderName.Azure)}
                       className="p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded-lg transition-colors"
                       title="Re-provision"
                     >
@@ -174,7 +174,7 @@ export function AzureProfileCard({
                     </button>
                   ) : (
                     <button
-                      onClick={() => onProvisionRequested("azure")}
+                      onClick={() => onProvisionRequested(CloudProviderName.Azure)}
                       className="p-2 text-amber-400 hover:text-amber-300 hover:bg-gray-600 rounded-lg transition-colors"
                       title="Provision"
                     >

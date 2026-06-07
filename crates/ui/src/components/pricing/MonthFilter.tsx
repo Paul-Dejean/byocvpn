@@ -20,9 +20,7 @@ const MONTH_NAMES = [
 
 interface MonthFilterProps {
   availableMonths: CalendarMonth[];
-
   calendarMonth: CalendarMonth;
-
   onSelectMonth: (month: CalendarMonth) => void;
 }
 

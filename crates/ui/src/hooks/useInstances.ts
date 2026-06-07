@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import {
   ActiveSpawnJob,
   AwsRegion,
+  CloudProviderName,
   Instance,
   SpawnCompleteEvent,
   SpawnInstanceLaunchedEvent,
@@ -179,7 +180,7 @@ export const useInstances = (regions: AwsRegion[]) => {
 
   const spawnInstance = async (
     regionName: string,
-    provider: string,
+    provider: CloudProviderName,
   ): Promise<Instance> => {
     const tempId = `spawning-${Date.now()}`;
 
@@ -229,7 +230,7 @@ export const useInstances = (regions: AwsRegion[]) => {
   const terminateInstance = async (
     instanceId: string,
     region: string,
-    provider: string,
+    provider: CloudProviderName,
   ): Promise<void> => {
     setTerminatingInstanceId(instanceId);
     setError(null);

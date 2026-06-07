@@ -1,7 +1,7 @@
 import { CloudProviderName } from "../../types";
 
 interface ProviderIconProps {
-  provider: string;
+  provider: CloudProviderName;
   className?: string;
 }
 
@@ -13,7 +13,7 @@ const PROVIDER_ICONS: Record<CloudProviderName, { src: string; alt: string }> = 
 };
 
 export function ProviderIcon({ provider, className = "w-8 h-8" }: ProviderIconProps) {
-  const icon = PROVIDER_ICONS[provider as CloudProviderName];
+  const icon = PROVIDER_ICONS[provider];
   if (!icon) return null;
   return (
     <img src={icon.src} alt={icon.alt} className={`object-contain ${className}`} />
