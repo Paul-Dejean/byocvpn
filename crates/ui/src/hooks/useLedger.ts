@@ -38,7 +38,7 @@ export const useLedger = () => {
         }
       }
 
-      const enriched: LedgerEntryWithCost[] = rawEntries.map((entry) => {
+      const pricedEntries: LedgerEntryWithCost[] = rawEntries.map((entry) => {
         const key = `${entry.provider}::${entry.instanceType}`;
         const pricing = pricingCache.get(key)!;
         const uptimeHours = computeElapsedHours(
@@ -64,7 +64,7 @@ export const useLedger = () => {
         };
       });
 
-      setEntries(enriched);
+      setEntries(pricedEntries);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to load cost ledger",

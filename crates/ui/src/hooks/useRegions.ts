@@ -1,11 +1,7 @@
 import { useState, useEffect } from "react";
 import { invokeCommand } from "../lib/invokeCommand";
 import toast from "react-hot-toast";
-import { Region, RegionGroup } from "../types";
-
-const PROVIDERS = ["aws", "oracle", "gcp", "azure"] as const;
-
-type Provider = (typeof PROVIDERS)[number];
+import { CloudProviderName, Region, RegionGroup } from "../types";
 
 const groupRegionsByContinent = (regions: Region[]): RegionGroup[] => {
   const continentMap: Record<string, string> = {
@@ -37,9 +33,9 @@ const groupRegionsByContinent = (regions: Region[]): RegionGroup[] => {
     .sort((a, b) => a.continent.localeCompare(b.continent));
 };
 
-const fetchConfiguredProviders = async (): Promise<Provider[]> => {
+const fetchConfiguredProviders = async (): Promise<CloudProviderName[]> => {
   const checks = await Promise.all(
-    PROVIDERS.map(async (provider) => {
+    Object.values(CloudProviderName).map(async (provider) => {
       try {
         const credentials = await invokeCommand("get_credentials", { provider });
         return credentials !== null ? provider : null;
@@ -48,7 +44,7 @@ const fetchConfiguredProviders = async (): Promise<Provider[]> => {
       }
     }),
   );
-  return checks.filter((provider): provider is Provider => provider !== null);
+  return checks.filter((provider): provider is CloudProviderName => provider !== null);
 };
 
 export const useRegions = () => {

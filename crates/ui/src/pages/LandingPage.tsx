@@ -1,14 +1,8 @@
-import { useState, useEffect } from "react";
 import { Page } from "../types/pages";
 
 export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
-  const [isVisible, setIsVisible] = useState(false);
 
-  useEffect(() => {
-    setIsVisible(true);
-  }, []);
-
-  const handleGetStarted = () => {
+  const navigateToVpnPage = () => {
     setPage(Page.VPN);
   };
 
@@ -41,9 +35,7 @@ export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
             </div>
           </div>
 
-          <div
-            className={`flex flex-col text-center transition-opacity duration-1000 ease-in-out ${isVisible ? "opacity-100" : "opacity-0"}`}
-          >
+          <div className="flex flex-col text-center animate-fade-in">
             <h1 className="text-5xl font-bold mb-6 text-gradient">
               Bring Your Own Cloud VPN
             </h1>
@@ -62,7 +54,7 @@ export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
                 className="px-8 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-all font-semibold text-lg flex items-center justify-center"
-                onClick={handleGetStarted}
+                onClick={navigateToVpnPage}
               >
                 <span>Get Started</span>
                 <svg
