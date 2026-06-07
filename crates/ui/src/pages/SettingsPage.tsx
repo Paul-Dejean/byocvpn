@@ -8,7 +8,7 @@ import { AwsProfileCard } from "../components/settings/AwsProfileCard";
 import { OracleProfileCard } from "../components/settings/OracleProfileCard";
 import { GcpProfileCard } from "../components/settings/GcpProfileCard";
 import { AzureProfileCard } from "../components/settings/AzureProfileCard";
-import { StepProgressDrawer } from "../components/settings/StepProgressDrawer";
+import { JobProgressDrawer } from "../components/common/JobProgressDrawer";
 import { NotificationSettingsCard } from "../components/settings/NotificationSettingsCard";
 import { KillSwitchSettingsCard } from "../components/settings/KillSwitchSettingsCard";
 
@@ -184,7 +184,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
         </div>
       </div>
 
-      <StepProgressDrawer
+      <JobProgressDrawer
         isOpen={isProvisionDrawerOpen}
         onClose={closeProvisionDrawer}
         provider={activeProvisionJob?.provider ?? CloudProviderName.Aws}
