@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { invokeCommand } from "../lib/invokeCommand";
 import { listen } from "@tauri-apps/api/event";
 import toast from "react-hot-toast";
@@ -48,10 +49,22 @@ interface ActiveSpawnJob extends SpawnJob {
   stepStatuses: Record<string, JobStepStatus>;
 }
 
-export function useInstances(regions: Region[]) {
+interface RawInstanceData {
+  fetched: Instance[];
+  activeJobs: ActiveSpawnJob[];
+}
+
+async function fetchRawInstanceData(): Promise<RawInstanceData> {
+  const [fetched, activeJobs] = await Promise.all([
+    invokeCommand<Instance[]>("list_instances"),
+    invokeCommand<ActiveSpawnJob[]>("list_active_spawn_jobs"),
+  ]);
+  return { fetched, activeJobs };
+}
+
+export function useInstances(_regions: Region[]) {
+  const queryClient = useQueryClient();
   const [instances, setInstances] = useState<Instance[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [terminatingInstanceId, setTerminatingInstanceId] = useState<
     string | null
   >(null);
@@ -68,9 +81,84 @@ export function useInstances(regions: Region[]) {
     instancesRef.current = instances;
   }, [instances]);
 
+  const { data: rawData, isLoading, isFetching } = useQuery({
+    queryKey: ["instances"],
+    queryFn: fetchRawInstanceData,
+    staleTime: 0,
+  });
+
   useEffect(() => {
-    if (regions.length > 0) refetch();
-  }, [regions]);
+    if (!rawData) return;
+
+    const { fetched, activeJobs } = rawData;
+    const newSpawnJobs: Record<string, SpawnJobState> = {};
+    const recoveredSpawningPlaceholders: Instance[] = [];
+
+    for (const activeJob of activeJobs) {
+      const existingLocalJob = spawnJobsRef.current[activeJob.jobId];
+      const instanceId =
+        existingLocalJob?.instanceId ??
+        activeJob.instanceId ??
+        `spawning-recovered-${activeJob.jobId}`;
+
+      newSpawnJobs[activeJob.jobId] = {
+        jobId: activeJob.jobId,
+        instanceId,
+        region: activeJob.region,
+        provider: activeJob.provider,
+        steps: activeJob.steps.map((step) => ({
+          ...step,
+          status: activeJob.stepStatuses[step.id] ?? JobStepStatus.Pending,
+        })),
+      };
+
+      if (!activeJob.instanceId && !existingLocalJob) {
+        recoveredSpawningPlaceholders.push({
+          id: instanceId,
+          name: "Deploying…",
+          state: InstanceState.Spawning,
+          publicIpV4: "",
+          publicIpV6: "",
+          region: activeJob.region,
+          provider: activeJob.provider,
+        });
+      }
+    }
+
+    if (Object.keys(newSpawnJobs).length > 0) {
+      setSpawnJobs((previous) => ({ ...previous, ...newSpawnJobs }));
+    }
+
+    const spawnIdsWithPlaceholder = new Set(
+      [
+        ...Object.values(newSpawnJobs),
+        ...Object.values(spawnJobsRef.current),
+      ]
+        .filter((job) => job.instanceId.startsWith("spawning-"))
+        .map((job) => job.jobId),
+    );
+
+    const sorted = [...fetched]
+      .filter(
+        (instance) =>
+          !instance.spawnId ||
+          !spawnIdsWithPlaceholder.has(instance.spawnId),
+      )
+      .sort((a, b) => {
+        const installingA = a.state === InstanceState.Installing ? 0 : 1;
+        const installingB = b.state === InstanceState.Installing ? 0 : 1;
+        return installingA - installingB;
+      });
+
+    setInstances((previous) => {
+      const recoveredIds = new Set(recoveredSpawningPlaceholders.map((p) => p.id));
+      const localSpawningInstances = previous.filter(
+        (instance) =>
+          instance.id.startsWith("spawning-") && !recoveredIds.has(instance.id),
+      );
+      return [...recoveredSpawningPlaceholders, ...localSpawningInstances, ...sorted];
+    });
+  }, [rawData]);
 
   useEffect(() => {
     const progressUnlisten = listen<SpawnProgressEvent>(
@@ -163,89 +251,8 @@ export function useInstances(regions: Region[]) {
     };
   }, []);
 
-  const refetch = async () => {
-    const isBackgroundLoad = instancesRef.current.length > 0;
-    if (isBackgroundLoad) {
-      setIsRefreshing(true);
-    } else {
-      setIsLoading(true);
-      setError(null);
-    }
-    try {
-      const [fetched, activeJobs] = await Promise.all([
-        invokeCommand<Instance[]>("list_instances"),
-        invokeCommand<ActiveSpawnJob[]>("list_active_spawn_jobs"),
-      ]);
-
-      const newSpawnJobs: Record<string, SpawnJobState> = {};
-      const spawningPlaceholders: Instance[] = [];
-
-      for (const activeJob of activeJobs) {
-        const instanceId =
-          activeJob.instanceId ?? `spawning-recovered-${activeJob.jobId}`;
-        newSpawnJobs[activeJob.jobId] = {
-          jobId: activeJob.jobId,
-          instanceId,
-          region: activeJob.region,
-          provider: activeJob.provider,
-          steps: activeJob.steps.map((step) => ({
-            ...step,
-            status: activeJob.stepStatuses[step.id] ?? JobStepStatus.Pending,
-          })),
-        };
-
-        if (!activeJob.instanceId) {
-          spawningPlaceholders.push({
-            id: instanceId,
-            name: "Deploying…",
-            state: InstanceState.Spawning,
-            publicIpV4: "",
-            publicIpV6: "",
-            region: activeJob.region,
-            provider: activeJob.provider,
-          });
-        }
-      }
-
-      if (Object.keys(newSpawnJobs).length > 0) {
-        setSpawnJobs((previous) => ({ ...previous, ...newSpawnJobs }));
-      }
-
-      const spawnIdsWithPlaceholder = new Set(
-        [
-          ...Object.values(newSpawnJobs),
-          ...Object.values(spawnJobsRef.current),
-        ]
-          .filter((job) => job.instanceId.startsWith("spawning-"))
-          .map((job) => job.jobId),
-      );
-
-      const sorted = [...fetched]
-        .filter(
-          (instance) =>
-            !instance.spawnId ||
-            !spawnIdsWithPlaceholder.has(instance.spawnId),
-        )
-        .sort((a, b) => {
-          const installingA = a.state === InstanceState.Installing ? 0 : 1;
-          const installingB = b.state === InstanceState.Installing ? 0 : 1;
-          return installingA - installingB;
-        });
-      setInstances([...spawningPlaceholders, ...sorted]);
-    } catch (fetchError) {
-      if (!isBackgroundLoad) {
-        const message =
-          fetchError instanceof Error
-            ? fetchError.message
-            : "Failed to fetch instances";
-        console.error("Failed to fetch instances:", fetchError);
-        setError(message);
-      }
-    } finally {
-      if (isBackgroundLoad) setIsRefreshing(false);
-      else setIsLoading(false);
-    }
-  };
+  const refetch = () =>
+    queryClient.invalidateQueries({ queryKey: ["instances"] });
 
   const spawnInstance = async (
     regionName: string,
@@ -359,7 +366,7 @@ export function useInstances(regions: Region[]) {
   return {
     instances,
     isLoading,
-    isRefreshing,
+    isRefreshing: isFetching && !isLoading,
     isSpawning: Object.keys(spawnJobs).length > 0,
     terminatingInstanceId,
     error,

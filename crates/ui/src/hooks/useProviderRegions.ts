@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { load as loadStore } from "@tauri-apps/plugin-store";
 import { listen } from "@tauri-apps/api/event";
 import { invokeCommand } from "../lib/invokeCommand";
@@ -39,6 +40,11 @@ export interface EnableRegionJobState {
   steps: JobStepState[];
 }
 
+interface ProviderRegionsData {
+  groupedRegions: RegionGroup[];
+  enabledRegions: Set<string>;
+}
+
 function groupRegionsByCountry(regions: Region[]): RegionGroup[] {
   const groups: Record<string, Region[]> = {};
   for (const region of regions) {
@@ -53,25 +59,23 @@ function groupRegionsByCountry(regions: Region[]): RegionGroup[] {
     .sort((a, b) => a.continent.localeCompare(b.continent));
 }
 
-async function fetchEnabledRegions(
+async function fetchProviderRegions(
   provider: CloudProviderName,
-  regions: Region[],
-): Promise<Set<string>> {
+): Promise<ProviderRegionsData> {
+  const regions = await invokeCommand<Region[]>("get_regions", { provider });
   const store = await loadStore("providers.json");
-  const enabled = new Set<string>();
+  const enabledRegions = new Set<string>();
   for (const region of regions) {
     const value = await store.get<boolean>(
       `enabled_regions/${provider}/${region.name}`,
     );
-    if (value === true) enabled.add(region.name);
+    if (value === true) enabledRegions.add(region.name);
   }
-  return enabled;
+  return { groupedRegions: groupRegionsByCountry(regions), enabledRegions };
 }
 
 export function useProviderRegions(provider: CloudProviderName) {
-  const [groupedRegions, setGroupedRegions] = useState<RegionGroup[]>([]);
-  const [enabledRegions, setEnabledRegions] = useState<Set<string>>(new Set());
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [activeEnableJob, setActiveEnableJob] =
     useState<EnableRegionJobState | null>(null);
   const [isEnableDrawerOpen, setIsEnableDrawerOpen] = useState(false);
@@ -79,63 +83,82 @@ export function useProviderRegions(provider: CloudProviderName) {
   const [enableError, setEnableError] = useState<string | null>(null);
   const activeEnableJobIdRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    setIsLoading(true);
-    setGroupedRegions([]);
-    setEnabledRegions(new Set());
-
-    invokeCommand<Region[]>("get_regions", { provider })
-      .then(async (regions) => {
-        setGroupedRegions(groupRegionsByCountry(regions));
-        setEnabledRegions(await fetchEnabledRegions(provider, regions));
-      })
-      .catch(console.error)
-      .finally(() => setIsLoading(false));
-  }, [provider]);
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ["regions", provider],
+    queryFn: () => fetchProviderRegions(provider),
+    staleTime: 30_000,
+  });
 
   useEffect(() => {
-    const progressUnlisten = listen<EnableRegionProgressEvent>(
-      "enable-region-progress",
-      ({ payload }) => {
-        const { jobId, stepId, status, error } = payload;
-        setActiveEnableJob((previous) => {
-          if (!previous || previous.jobId !== jobId) return previous;
-          return {
-            ...previous,
-            steps: previous.steps.map((step) =>
-              step.id === stepId ? { ...step, status, error } : step,
-            ),
-          };
-        });
-      },
-    );
+    let canceled = false;
+    const registeredUnlisteners: Array<() => void> = [];
 
-    const completeUnlisten = listen<EnableRegionCompleteEvent>(
-      "enable-region-complete",
-      ({ payload }) => {
-        if (activeEnableJobIdRef.current === payload.jobId) {
+    const registerListeners = async () => {
+      const unlistenProgress = await listen<EnableRegionProgressEvent>(
+        "enable-region-progress",
+        ({ payload }) => {
+          const { jobId, stepId, status, error } = payload;
+          setActiveEnableJob((previous) => {
+            if (!previous || previous.jobId !== jobId) return previous;
+            return {
+              ...previous,
+              steps: previous.steps.map((step) =>
+                step.id === stepId ? { ...step, status, error } : step,
+              ),
+            };
+          });
+        },
+      );
+
+      const unlistenComplete = await listen<EnableRegionCompleteEvent>(
+        "enable-region-complete",
+        ({ payload }) => {
+          if (activeEnableJobIdRef.current !== payload.jobId) return;
           setIsEnableComplete(true);
-          setEnabledRegions((previous) => new Set([...previous, payload.region]));
+          queryClient.setQueryData<ProviderRegionsData>(
+            ["regions", provider],
+            (previous) => {
+              if (!previous) return previous;
+              const enabledRegions = new Set([
+                ...previous.enabledRegions,
+                payload.region,
+              ]);
+              return { ...previous, enabledRegions };
+            },
+          );
           toast.success(`${payload.region} enabled!`);
-        }
-      },
-    );
+        },
+      );
 
-    const failedUnlisten = listen<{ jobId: string; error: string }>(
-      "enable-region-failed",
-      ({ payload }) => {
-        if (activeEnableJobIdRef.current === payload.jobId) {
-          setEnableError(payload.error);
-        }
-      },
-    );
+      const unlistenFailed = await listen<{ jobId: string; error: string }>(
+        "enable-region-failed",
+        ({ payload }) => {
+          if (activeEnableJobIdRef.current === payload.jobId) {
+            setEnableError(payload.error);
+          }
+        },
+      );
+
+      if (canceled) {
+        unlistenProgress();
+        unlistenComplete();
+        unlistenFailed();
+      } else {
+        registeredUnlisteners.push(
+          unlistenProgress,
+          unlistenComplete,
+          unlistenFailed,
+        );
+      }
+    };
+
+    registerListeners();
 
     return () => {
-      progressUnlisten.then((unlisten) => unlisten());
-      completeUnlisten.then((unlisten) => unlisten());
-      failedUnlisten.then((unlisten) => unlisten());
+      canceled = true;
+      registeredUnlisteners.forEach((unlisten) => unlisten());
     };
-  }, []);
+  }, [provider]);
 
   const enableRegion = async (region: Region) => {
     try {
@@ -167,9 +190,10 @@ export function useProviderRegions(provider: CloudProviderName) {
   const closeEnableDrawer = () => setIsEnableDrawerOpen(false);
 
   return {
-    groupedRegions,
-    enabledRegions,
+    groupedRegions: data?.groupedRegions ?? [],
+    enabledRegions: data?.enabledRegions ?? new Set<string>(),
     isLoading,
+    isRefetching: isFetching && !isLoading,
     enableRegion,
     activeEnableJob,
     isEnableDrawerOpen,
