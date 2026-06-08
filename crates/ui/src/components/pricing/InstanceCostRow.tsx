@@ -1,33 +1,13 @@
 import { useState } from "react";
 import { LedgerEntryWithCost } from "../../types/ledger";
 import { ProviderIcon } from "../providers/ProviderIcon";
+import { formatDate, formatUptime } from "../../lib/time";
 
 interface InstanceCostRowProps {
   entry: LedgerEntryWithCost;
 }
 
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function formatUptime(hours: number): string {
-  if (hours < 1) return `${Math.round(hours * 60)}m`;
-  if (hours < 24) return `${hours.toFixed(1)}h`;
-  return `${(hours / 24).toFixed(1)}d`;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(2)} KB`;
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(2)} MB`;
-  return `${(bytes / 1024 ** 3).toFixed(3)} GB`;
-}
+import { formatBytes } from "../../lib/bytes";
 
 export function InstanceCostRow({ entry }: InstanceCostRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -46,7 +26,7 @@ export function InstanceCostRow({ entry }: InstanceCostRowProps) {
     <>
       <tr
         onClick={() => setIsExpanded((prev) => !prev)}
-        className="border-b border-gray-700/60 hover:bg-gray-700/30 transition-colors cursor-pointer"
+        className="border-b border-gray-700/50 hover:bg-gray-700/30 transition-colors cursor-pointer"
       >
         <td className="py-3 px-4 w-14">
           <ProviderIcon provider={entry.provider} className="w-9 h-9 shrink-0" />
@@ -100,7 +80,7 @@ export function InstanceCostRow({ entry }: InstanceCostRowProps) {
         </td>
       </tr>
       {isExpanded && (
-        <tr className="border-b border-gray-700/60 bg-gray-900/40">
+        <tr className="border-b border-gray-700/50 bg-gray-900/40">
           <td colSpan={8} className="px-6 py-4">
             <div className="max-w-lg">
               <table className="w-full text-sm">

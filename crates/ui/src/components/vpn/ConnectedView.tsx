@@ -1,24 +1,10 @@
 import { useState, useEffect } from "react";
 import { Instance } from "../../types";
 import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
-import { getRegionInfo } from "../../types/regionInfo";
+import { getRegionInfo } from "../../constants/regionInfo";
 import { FlagIcon } from "../FlagIcon";
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
-}
-
-function formatDuration(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
+import { formatBytes } from "../../lib/bytes";
+import { formatDuration } from "../../lib/time";
 
 interface ConnectedViewProps {
   connectedInstance: Instance;
@@ -26,14 +12,20 @@ interface ConnectedViewProps {
 
 export function ConnectedView({ connectedInstance }: ConnectedViewProps) {
   const { disconnectFromVpn, vpnStatus } = useVpnConnectionContext();
+  const [startTime] = useState(() => Date.now());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const regionInfo = getRegionInfo(connectedInstance.provider, connectedInstance.region ?? "");
+  const regionInfo = getRegionInfo(
+    connectedInstance.provider,
+    connectedInstance.region ?? "",
+  );
   const metrics = vpnStatus.metrics;
 
   useEffect(() => {
-    const interval = setInterval(() => setElapsedSeconds(s => s + 1), 1000);
+    const interval = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [startTime]);
 
   const connectionError = vpnStatus.connectionError;
 
@@ -42,32 +34,54 @@ export function ConnectedView({ connectedInstance }: ConnectedViewProps) {
       {connectionError && (
         <div className="px-4 pt-4">
           <div className="flex items-start gap-2.5 bg-red-900/40 border border-red-700/60 rounded-lg px-3.5 py-3">
-            <svg className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            <svg
+              className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+              />
             </svg>
-            <p className="text-xs text-red-300 leading-relaxed">{connectionError}</p>
+            <p className="text-xs text-red-300 leading-relaxed">
+              {connectionError}
+            </p>
           </div>
         </div>
       )}
       <div className="flex-1 flex flex-col p-6 pb-2 overflow-y-auto">
-
         {/* Location + IPs */}
         <div className="space-y-2 mb-2">
           <div className="flex items-center gap-2.5">
-            <FlagIcon countryCode={regionInfo.countryCode} className="text-xl" />
+            <FlagIcon
+              countryCode={regionInfo.countryCode}
+              className="text-xl"
+            />
             <div>
-              <div className="text-sm font-medium text-white leading-tight">{regionInfo.city}</div>
-              <div className="text-xs text-gray-400 font-mono">{connectedInstance.region}</div>
+              <div className="text-sm font-medium text-white leading-tight">
+                {regionInfo.city}
+              </div>
+              <div className="text-xs text-gray-400 font-mono">
+                {connectedInstance.region}
+              </div>
             </div>
           </div>
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-400 font-mono">IPv4</span>
-              <span className="text-xs font-mono text-gray-400">{connectedInstance.publicIpV4 || "—"}</span>
+              <span className="text-xs font-mono text-gray-400">
+                {connectedInstance.publicIpV4 || "—"}
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-400 font-mono">IPv6</span>
-              <span className="text-xs font-mono text-gray-400 truncate ml-6 text-right">{connectedInstance.publicIpV6 || "—"}</span>
+              <span className="text-xs font-mono text-gray-400 truncate ml-6 text-right">
+                {connectedInstance.publicIpV6 || "—"}
+              </span>
             </div>
           </div>
         </div>
@@ -81,8 +95,19 @@ export function ConnectedView({ connectedInstance }: ConnectedViewProps) {
               <div className="absolute w-24 h-24 rounded-full border border-green-400/25 animate-ping [animation-duration:2.5s] [animation-delay:1.25s]" />
               <div className="absolute w-20 h-20 rounded-full border border-green-400/30 glow-green-ring" />
               <div className="w-16 h-16 rounded-full bg-green-500/20 backdrop-blur-sm flex items-center justify-center relative z-10 border border-green-400/30 glow-green-core">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-green-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-7 w-7 text-green-300"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                  />
                 </svg>
               </div>
             </div>
@@ -91,48 +116,85 @@ export function ConnectedView({ connectedInstance }: ConnectedViewProps) {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-60" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400" />
               </span>
-              <span className="text-xs font-mono text-green-400 uppercase tracking-widest">Connected</span>
+              <span className="text-xs font-mono text-green-400 uppercase tracking-widest">
+                Connected
+              </span>
             </div>
           </div>
         </div>
 
         {/* Uptime */}
         <div className="flex items-center justify-between mb-3">
-          <span className="text-xs text-gray-400 uppercase tracking-widest font-mono">Uptime</span>
-          <span className="text-sm font-mono font-bold text-white tabular-nums">{formatDuration(elapsedSeconds)}</span>
+          <span className="text-xs text-gray-400 uppercase tracking-widest font-mono">
+            Uptime
+          </span>
+          <span className="text-sm font-mono font-bold text-white tabular-nums">
+            {formatDuration(elapsedSeconds)}
+          </span>
         </div>
 
         {/* Upload / Download */}
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-lg px-4 py-3 bg-green-400/6 border border-green-400/12">
             <div className="flex items-center gap-1.5 mb-1.5">
-              <svg className="w-3 h-3 text-green-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M7 11l5-5m0 0l5 5m-5-5v12" />
+              <svg
+                className="w-3 h-3 text-green-500 flex-shrink-0"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2.5}
+                  d="M7 11l5-5m0 0l5 5m-5-5v12"
+                />
               </svg>
-              <span className="text-xs text-gray-500 uppercase tracking-wide">Upload</span>
+              <span className="text-xs text-gray-500 uppercase tracking-wide">
+                Upload
+              </span>
             </div>
             <div className="font-mono font-bold text-green-400 tabular-nums">
-              <span className="text-xl">{formatBytes(metrics?.uploadRate ?? 0)}</span>
+              <span className="text-xl">
+                {formatBytes(metrics?.uploadRate ?? 0)}
+              </span>
               <span className="text-xs text-green-600 ml-0.5">/s</span>
             </div>
-            <div className="text-xs text-gray-500 font-mono mt-1">{formatBytes(metrics?.bytesSent ?? 0)} total</div>
+            <div className="text-xs text-gray-500 font-mono mt-1">
+              {formatBytes(metrics?.bytesSent ?? 0)} total
+            </div>
           </div>
 
           <div className="rounded-lg px-4 py-3 bg-blue-400/6 border border-blue-400/12">
             <div className="flex items-center gap-1.5 mb-1.5">
-              <svg className="w-3 h-3 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 13l-5 5m0 0l-5-5m5 5V6" />
+              <svg
+                className="w-3 h-3 text-blue-500 flex-shrink-0"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2.5}
+                  d="M17 13l-5 5m0 0l-5-5m5 5V6"
+                />
               </svg>
-              <span className="text-xs text-gray-500 uppercase tracking-wide">Download</span>
+              <span className="text-xs text-gray-500 uppercase tracking-wide">
+                Download
+              </span>
             </div>
             <div className="font-mono font-bold text-blue-400 tabular-nums">
-              <span className="text-xl">{formatBytes(metrics?.downloadRate ?? 0)}</span>
+              <span className="text-xl">
+                {formatBytes(metrics?.downloadRate ?? 0)}
+              </span>
               <span className="text-xs text-blue-600 ml-0.5">/s</span>
             </div>
-            <div className="text-xs text-gray-500 font-mono mt-1">{formatBytes(metrics?.bytesReceived ?? 0)} total</div>
+            <div className="text-xs text-gray-500 font-mono mt-1">
+              {formatBytes(metrics?.bytesReceived ?? 0)} total
+            </div>
           </div>
         </div>
-
       </div>
 
       {/* Disconnect — pinned bottom */}

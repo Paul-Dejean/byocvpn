@@ -2,7 +2,7 @@ use std::{collections::HashSet, str::FromStr};
 
 
 use byocvpn_aws::{AwsCredentials, AwsProvider, pricing as aws_pricing};
-use byocvpn_azure::{AzureProvider, credentials::AzureCredentials, pricing as azure_pricing};
+use byocvpn_azure::{credentials::AzureCredentials, AzureProvider, pricing as azure_pricing};
 use byocvpn_core::{
     cloud_provider::{
         CloudProvider, CloudProviderName, EnableRegionCompleteEvent, EnableRegionJob,
@@ -22,7 +22,7 @@ use byocvpn_core::{
     tunnel::VpnStatus,
 };
 use byocvpn_daemon::daemon_client::UnixDaemonClient;
-use byocvpn_gcp::{GcpProvider, credentials::GcpCredentials, pricing as gcp_pricing};
+use byocvpn_gcp::{credentials::GcpCredentials, GcpProvider, pricing as gcp_pricing};
 use byocvpn_oracle::{credentials::OracleCredentials, pricing as oracle_pricing};
 use chrono::Utc;
 use log::*;
@@ -30,7 +30,10 @@ use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::ledger_store::LedgerStore;
-use crate::spawn_job_registry::SpawnJobRegistry;
+use crate::provider_credentials::ProviderCredentials;
+use crate::provider_store::ProviderStore;
+use crate::settings_store::SettingsStore;
+use crate::spawn_job_registry::{ActiveSpawnJob, SpawnJobRegistry};
 use crate::tray;
 
 async fn create_cloud_provider(provider_name: CloudProviderName) -> Result<Box<dyn CloudProvider>> {
@@ -54,52 +57,19 @@ async fn create_cloud_provider(provider_name: CloudProviderName) -> Result<Box<d
 }
 
 #[tauri::command]
-pub async fn get_credentials(provider: String) -> Result<Value> {
+pub async fn get_credentials(provider: String) -> Result<Option<ProviderCredentials>> {
     let store = match CredentialStore::load().await {
         Ok(store) => store,
-        Err(_) => return Ok(Value::Null),
+        Err(_) => return Ok(None),
     };
-    fn serialize_or_null<T: serde::Serialize>(result: Result<T>) -> Value {
-        result
-            .ok()
-            .and_then(|value| serde_json::to_value(value).ok())
-            .unwrap_or(Value::Null)
-    }
     let provider_name = CloudProviderName::from_str(&provider)?;
-    Ok(match provider_name {
-        CloudProviderName::Aws => serialize_or_null(AwsCredentials::from_store(&store)),
-        CloudProviderName::Oracle => serialize_or_null(OracleCredentials::from_store(&store)),
-        CloudProviderName::Gcp => serialize_or_null(GcpCredentials::from_store(&store)),
-        CloudProviderName::Azure => serialize_or_null(AzureCredentials::from_store(&store)),
-    })
+    Ok(ProviderCredentials::load(provider_name, &store).ok())
 }
 
 #[tauri::command]
-pub async fn save_credentials(provider: String, creds: Value) -> Result<()> {
-    fn deserialize<T: serde::de::DeserializeOwned>(value: Value) -> Result<T> {
-        serde_json::from_value(value).map_err(|error| {
-            ConfigurationError::MissingField {
-                field: error.to_string(),
-            }
-            .into()
-        })
-    }
-
+pub async fn save_credentials(credentials: ProviderCredentials) -> Result<()> {
     let mut store = CredentialStore::load().await?;
-    let provider_name = CloudProviderName::from_str(&provider)?;
-
-    match provider_name {
-        CloudProviderName::Aws => deserialize::<AwsCredentials>(creds)?.write_to_store(&mut store),
-        CloudProviderName::Oracle => {
-            deserialize::<OracleCredentials>(creds)?.write_to_store(&mut store)
-        }
-        CloudProviderName::Gcp => deserialize::<GcpCredentials>(creds)?.write_to_store(&mut store),
-        CloudProviderName::Azure => {
-            deserialize::<AzureCredentials>(creds)?.write_to_store(&mut store)
-        }
-    }
-
-    info!("Credentials saved for provider: {}", provider_name);
+    credentials.write_to_store(&mut store);
     store.save()
 }
 
@@ -115,7 +85,7 @@ pub async fn delete_credentials(provider: String, app_handle: AppHandle) -> Resu
     };
     store.delete_section(section);
     store.save()?;
-    if let Some(provider_store) = crate::provider_store::ProviderStore::open(&app_handle) {
+    if let Some(provider_store) = ProviderStore::open(&app_handle) {
         provider_store.clear_provisioned(&provider_name.to_string());
     } else {
         debug!(
@@ -169,6 +139,7 @@ pub async fn spawn_instance(
             &*cloud_provider,
             &steps,
             &region,
+            &job_id,
             &client_private_key,
             &server_private_key,
             &client_public_key,
@@ -253,7 +224,7 @@ pub async fn spawn_instance(
 #[tauri::command]
 pub async fn list_active_spawn_jobs(
     app_handle: AppHandle,
-) -> Result<Vec<crate::spawn_job_registry::ActiveSpawnJob>> {
+) -> Result<Vec<ActiveSpawnJob>> {
     Ok(app_handle.state::<SpawnJobRegistry>().list())
 }
 
@@ -424,7 +395,7 @@ pub async fn provision_account(
         match result {
             Ok(()) => {
                 if let Some(provider_store) =
-                    crate::provider_store::ProviderStore::open(&app_handle)
+                    ProviderStore::open(&app_handle)
                 {
                     provider_store.mark_provisioned(&provider);
                 } else {
@@ -508,7 +479,7 @@ pub async fn enable_region(
         match result {
             Ok(()) => {
                 if let Some(provider_store) =
-                    crate::provider_store::ProviderStore::open(&app_handle)
+                    ProviderStore::open(&app_handle)
                 {
                     provider_store.mark_region_enabled(&provider, &region);
                 } else {
@@ -566,7 +537,7 @@ pub async fn connect(
     let cloud_provider = create_cloud_provider(provider_name).await?;
     let daemon_client = UnixDaemonClient;
 
-    let kill_switch_enabled = crate::settings_store::SettingsStore::open(&app_handle)
+    let kill_switch_enabled = SettingsStore::open(&app_handle)
         .map(|store| store.load_kill_switch_settings().kill_switch_enabled)
         .unwrap_or(false);
     if let Err(error) = daemon_client
@@ -599,7 +570,7 @@ pub async fn connect(
             vpn_status.connected_at,
             move |mut status| {
                 if !status.connected {
-                    let kill_switch_active = crate::settings_store::SettingsStore::open(&settings_handle)
+                    let kill_switch_active = SettingsStore::open(&settings_handle)
                         .map(|store| store.load_kill_switch_settings().kill_switch_enabled)
                         .unwrap_or(false);
                     status = VpnStatus {
@@ -692,7 +663,7 @@ pub async fn subscribe_to_vpn_status(app_handle: AppHandle) -> Result<()> {
         status.connected_at,
         move |mut vpn_status| {
             if !vpn_status.connected {
-                let kill_switch_active = crate::settings_store::SettingsStore::open(&settings_handle)
+                let kill_switch_active = SettingsStore::open(&settings_handle)
                     .map(|store| store.load_kill_switch_settings().kill_switch_enabled)
                     .unwrap_or(false);
                 vpn_status = VpnStatus {

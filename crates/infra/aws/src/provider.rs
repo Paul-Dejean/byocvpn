@@ -377,6 +377,7 @@ impl CloudProvider for AwsProvider {
             &ec2_client,
             &ssm_client,
             params.region,
+            params.spawn_id,
             params.server_private_key,
             params.client_public_key,
         )
@@ -428,6 +429,8 @@ impl CloudProvider for AwsProvider {
             ("ca", "North America"),
             ("me", "Middle East"),
             ("af", "Africa"),
+            ("il", "Middle East"),
+            ("mx", "North America"),
         ]);
         info!("Fetching regions...");
 

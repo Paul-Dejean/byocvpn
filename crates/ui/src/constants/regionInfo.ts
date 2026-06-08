@@ -1,3 +1,5 @@
+import { CloudProviderName } from "../types";
+
 interface RegionInfo {
   city: string;
   countryCode: string;
@@ -19,6 +21,7 @@ const AWS_REGION_INFO: Record<string, RegionInfo> = {
   "eu-south-1": { city: "Milan", countryCode: "it" },
   "eu-south-2": { city: "Spain", countryCode: "es" },
   "ap-east-1": { city: "Hong Kong", countryCode: "hk" },
+  "ap-east-2": { city: "Taipei", countryCode: "tw" },
   "ap-northeast-1": { city: "Tokyo", countryCode: "jp" },
   "ap-northeast-2": { city: "Seoul", countryCode: "kr" },
   "ap-northeast-3": { city: "Osaka", countryCode: "jp" },
@@ -27,6 +30,7 @@ const AWS_REGION_INFO: Record<string, RegionInfo> = {
   "ap-southeast-3": { city: "Jakarta", countryCode: "id" },
   "ap-southeast-4": { city: "Melbourne", countryCode: "au" },
   "ap-southeast-5": { city: "Kuala Lumpur", countryCode: "my" },
+  "ap-southeast-6": { city: "Auckland", countryCode: "nz" },
   "ap-southeast-7": { city: "Bangkok", countryCode: "th" },
   "ap-south-1": { city: "Mumbai", countryCode: "in" },
   "ap-south-2": { city: "Hyderabad", countryCode: "in" },
@@ -199,15 +203,15 @@ const ORACLE_REGION_INFO: Record<string, RegionInfo> = {
   "sa-valparaiso-1": { city: "Valparaíso", countryCode: "cl" },
 };
 
-const REGION_INFO_BY_PROVIDER: Record<string, Record<string, RegionInfo>> = {
-  aws: AWS_REGION_INFO,
-  gcp: GCP_REGION_INFO,
-  azure: AZURE_REGION_INFO,
-  oracle: ORACLE_REGION_INFO,
+const REGION_INFO_BY_PROVIDER: Record<CloudProviderName, Record<string, RegionInfo>> = {
+  [CloudProviderName.Aws]: AWS_REGION_INFO,
+  [CloudProviderName.Gcp]: GCP_REGION_INFO,
+  [CloudProviderName.Azure]: AZURE_REGION_INFO,
+  [CloudProviderName.Oracle]: ORACLE_REGION_INFO,
 };
 
 export function getRegionInfo(
-  provider: string,
+  provider: CloudProviderName,
   regionName: string,
 ): RegionInfo {
   const providerMap = REGION_INFO_BY_PROVIDER[provider] ?? {};

@@ -1,19 +1,14 @@
 import { useState, useEffect } from "react";
 import { invokeCommand } from "../lib/invokeCommand";
+import { computeElapsedHours } from "../lib/time";
 import { LedgerEntry, LedgerEntryWithCost, PricingInfo } from "../types/ledger";
 
 
-function computeUptimeHours(
-  launchedAt: string,
-  terminatedAt: string | null,
-): number {
-  const start = new Date(launchedAt).getTime();
-  const end = terminatedAt ? new Date(terminatedAt).getTime() : Date.now();
-  return Math.max(0, (end - start) / (1000 * 3600));
+function buildPricingKey(provider: string, instanceType: string): string {
+  return `${provider}::${instanceType}`;
 }
 
-
-export const useLedger = () => {
+export function useLedger() {
   const [entries, setEntries] = useState<LedgerEntryWithCost[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,19 +19,19 @@ export const useLedger = () => {
     try {
       const rawEntries = await invokeCommand<LedgerEntry[]>("get_ledger");
 
-      const pricingCache = new Map<string, PricingInfo>();
+      const instancePricingCache = new Map<string, PricingInfo>();
       for (const entry of rawEntries) {
-        const key = `${entry.provider}::${entry.instanceType}`;
-        if (!pricingCache.has(key)) {
+        const key = buildPricingKey(entry.provider, entry.instanceType);
+        if (!instancePricingCache.has(key)) {
           try {
             const pricing = await invokeCommand<PricingInfo>("get_instance_pricing", {
               provider: entry.provider,
               instanceType: entry.instanceType,
             });
-            pricingCache.set(key, pricing);
+            instancePricingCache.set(key, pricing);
           } catch {
 
-            pricingCache.set(key, {
+            instancePricingCache.set(key, {
               hourlyRate: 0,
               ipHourlyRate: 0,
               egressRatePerGb: 0,
@@ -47,10 +42,10 @@ export const useLedger = () => {
         }
       }
 
-      const enriched: LedgerEntryWithCost[] = rawEntries.map((entry) => {
-        const key = `${entry.provider}::${entry.instanceType}`;
-        const pricing = pricingCache.get(key)!;
-        const uptimeHours = computeUptimeHours(
+      const pricedEntries: LedgerEntryWithCost[] = rawEntries.map((entry) => {
+        const key = buildPricingKey(entry.provider, entry.instanceType);
+        const pricing = instancePricingCache.get(key)!;
+        const uptimeHours = computeElapsedHours(
           entry.launchedAt,
           entry.terminatedAt,
         );
@@ -73,7 +68,7 @@ export const useLedger = () => {
         };
       });
 
-      setEntries(enriched);
+      setEntries(pricedEntries);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to load cost ledger",
@@ -88,4 +83,4 @@ export const useLedger = () => {
   }, []);
 
   return { entries, isLoading, error, refetch: fetchLedger };
-};
+}

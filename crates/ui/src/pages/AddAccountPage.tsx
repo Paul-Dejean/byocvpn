@@ -1,17 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { Spinner } from "../components/common/Spinner";
+import { useRef, useState } from "react";
 import { invokeCommand } from "../lib/invokeCommand";
-import { listen } from "@tauri-apps/api/event";
 import { save } from "@tauri-apps/plugin-dialog";
 import toast from "react-hot-toast";
 import { useCredentials } from "../hooks/useCredentials";
-import { ProvisionAccountDrawer } from "../components/settings/ProvisionAccountDrawer";
-import {
-  ProvisionAccountJob,
-  ProvisionAccountProgressEvent,
-  ProvisionAccountCompleteEvent,
-  ProvisionJobState,
-  SpawnStepState,
-} from "../types";
+import { useAccounts } from "../hooks/useAccounts";
+import { CloudProviderName } from "../types";
+import { PROVIDER_METADATA } from "../constants/providers";
+import { JobProgressDrawer } from "../components/common/JobProgressDrawer";
+import { ProviderSelector } from "../components/providers/ProviderSelector";
 
 interface AddAccountPageProps {
   onNavigateBack: () => void;
@@ -20,55 +17,6 @@ interface AddAccountPageProps {
 
 type AddAccountStep = "selecting-provider" | "entering-credentials";
 
-interface ProviderOption {
-  id: string;
-  label: string;
-  description: string;
-  badge: React.ReactNode;
-}
-
-const ALL_PROVIDERS: ProviderOption[] = [
-  {
-    id: "aws",
-    label: "Amazon Web Services",
-    description: "Deploy on EC2 — available in 30+ regions worldwide",
-    badge: (
-      <div className="w-14 h-14 rounded-xl bg-orange-500/20 flex items-center justify-center flex-shrink-0">
-        <span className="text-orange-400 font-black text-xl">AWS</span>
-      </div>
-    ),
-  },
-  {
-    id: "oracle",
-    label: "Oracle Cloud Infrastructure",
-    description: "Deploy on OCI Compute — includes an Always Free tier",
-    badge: (
-      <div className="w-14 h-14 rounded-xl bg-red-700/30 flex items-center justify-center flex-shrink-0">
-        <span className="text-red-400 font-black text-xl">OCI</span>
-      </div>
-    ),
-  },
-  {
-    id: "gcp",
-    label: "Google Cloud Platform",
-    description: "Deploy on Compute Engine using a service account — available in 40+ regions worldwide",
-    badge: (
-      <div className="w-14 h-14 rounded-xl bg-blue-600/20 flex items-center justify-center flex-shrink-0">
-        <span className="text-blue-400 font-black text-xl">GCP</span>
-      </div>
-    ),
-  },
-  {
-    id: "azure",
-    label: "Microsoft Azure",
-    description: "Deploy on Azure VMs — available in 60+ regions worldwide",
-    badge: (
-      <div className="w-14 h-14 rounded-xl bg-sky-600/20 flex items-center justify-center flex-shrink-0">
-        <span className="text-sky-400 font-black text-xl">AZ</span>
-      </div>
-    ),
-  },
-];
 
 interface SetupStep {
   number: number;
@@ -82,7 +30,7 @@ interface ProviderPolicy {
 }
 
 const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
-  aws: {
+  [CloudProviderName.Aws]: {
     filename: "byocvpn-aws-policy.json",
     language: "json",
     content: JSON.stringify(
@@ -127,7 +75,7 @@ const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
       2,
     ),
   },
-  oracle: {
+  [CloudProviderName.Oracle]: {
     filename: "byocvpn-oci-policy.txt",
     language: "text",
     content: [
@@ -145,7 +93,7 @@ const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
       "Allow group byocvpn-group to inspect regions in tenancy",
     ].join("\n"),
   },
-  gcp: {
+  [CloudProviderName.Gcp]: {
     filename: "byocvpn-gcp-role.yaml",
     language: "yaml",
     content: [
@@ -185,7 +133,7 @@ const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
       "- serviceusage.services.get",
     ].join("\n"),
   },
-  azure: {
+  [CloudProviderName.Azure]: {
     filename: "byocvpn-azure-role.json",
     language: "json",
     content: JSON.stringify(
@@ -240,160 +188,140 @@ const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
   },
 };
 
-const PROVIDER_SETUP_INSTRUCTIONS: Record<string, { title: string; steps: SetupStep[] }> = {
-  aws: {
+const PROVIDER_SETUP_INSTRUCTIONS: Record<
+  string,
+  { title: string; steps: SetupStep[] }
+> = {
+  [CloudProviderName.Aws]: {
     title: "Set up AWS credentials",
     steps: [
-      { number: 1, text: "Sign in to the AWS Console and navigate to IAM → Users." },
-      { number: 2, text: "Click Create user and give it a name (e.g. byocvpn), then proceed to permissions." },
-      { number: 3, text: "For a quick setup, attach the AmazonEC2FullAccess and AmazonSSMReadOnlyAccess managed policies. For fine-grained access, choose Attach policies directly → Create policy, paste the JSON policy below into the JSON editor, save it, and attach it to the user." },
-      { number: 4, text: "After the user is created, open it and go to the Security credentials tab." },
-      { number: 5, text: "Click Create access key, select Application running outside AWS, then copy the Access Key ID and Secret Access Key." },
+      {
+        number: 1,
+        text: "Sign in to the AWS Console and navigate to IAM → Users.",
+      },
+      {
+        number: 2,
+        text: "Click Create user and give it a name (e.g. byocvpn), then proceed to permissions.",
+      },
+      {
+        number: 3,
+        text: "For a quick setup, attach the AmazonEC2FullAccess and AmazonSSMReadOnlyAccess managed policies. For fine-grained access, choose Attach policies directly → Create policy, paste the JSON policy below into the JSON editor, save it, and attach it to the user.",
+      },
+      {
+        number: 4,
+        text: "After the user is created, open it and go to the Security credentials tab.",
+      },
+      {
+        number: 5,
+        text: "Click Create access key, select Application running outside AWS, then copy the Access Key ID and Secret Access Key.",
+      },
       { number: 6, text: "Paste both values into the form and click Connect." },
     ],
   },
-  oracle: {
+  [CloudProviderName.Oracle]: {
     title: "Set up Oracle Cloud credentials",
     steps: [
       { number: 1, text: "Sign in to the OCI Console at cloud.oracle.com." },
-      { number: 2, text: "Click your profile icon → Tenancy to find your Tenancy OCID and home region (e.g. us-ashburn-1)." },
-      { number: 3, text: "Click your profile icon → My profile to find your User OCID." },
-      { number: 4, text: "Still in My profile, open the API keys section and click Add API key. Choose Generate API key pair, download the private key (.pem file), and copy the fingerprint shown after upload." },
-      { number: 5, text: "If your user has administrator privileges, skip to the next step — no policies are needed. Otherwise, go to Identity & Domains → Policies, create a policy in the root compartment, and paste the policy statements below." },
-      { number: 6, text: "Paste your credentials and private key below, then click Connect." },
+      {
+        number: 2,
+        text: "Click your profile icon → Tenancy to find your Tenancy OCID and home region (e.g. us-ashburn-1).",
+      },
+      {
+        number: 3,
+        text: "Click your profile icon → My profile to find your User OCID.",
+      },
+      {
+        number: 4,
+        text: "Still in My profile, open the API keys section and click Add API key. Choose Generate API key pair, download the private key (.pem file), and copy the fingerprint shown after upload.",
+      },
+      {
+        number: 5,
+        text: "If your user has administrator privileges, skip to the next step — no policies are needed. Otherwise, go to Identity & Domains → Policies, create a policy in the root compartment, and paste the policy statements below.",
+      },
+      {
+        number: 6,
+        text: "Paste your credentials and private key below, then click Connect.",
+      },
     ],
   },
-  gcp: {
+  [CloudProviderName.Gcp]: {
     title: "Set up Google Cloud credentials",
     steps: [
-      { number: 1, text: "Sign in to the Google Cloud Console and select or create a project. Note the Project ID shown in the header." },
-      { number: 2, text: "Go to IAM & Admin → Service Accounts → Create service account and give it a name (e.g. byocvpn)." },
-      { number: 3, text: "Assign permissions to the service account. Quick setup: attach the built-in roles Compute Instance Admin (v1) and Service Usage Admin. Least-privilege setup: go to IAM & Admin → Roles → Create role, add each permission listed in the YAML below, then assign that custom role to the service account." },
-      { number: 4, text: "Open the service account, go to the Keys tab → Add key → Create new key → JSON. A key file will download automatically." },
+      {
+        number: 1,
+        text: "Sign in to the Google Cloud Console and select or create a project. Note the Project ID shown in the header.",
+      },
+      {
+        number: 2,
+        text: "Go to IAM & Admin → Service Accounts → Create service account and give it a name (e.g. byocvpn).",
+      },
+      {
+        number: 3,
+        text: "Assign permissions to the service account. Quick setup: attach the built-in roles Compute Instance Admin (v1) and Service Usage Admin. Least-privilege setup: go to IAM & Admin → Roles → Create role, add each permission listed in the YAML below, then assign that custom role to the service account.",
+      },
+      {
+        number: 4,
+        text: "Open the service account, go to the Keys tab → Add key → Create new key → JSON. A key file will download automatically.",
+      },
       { number: 5, text: "Upload the JSON key file below and click Connect." },
     ],
   },
-  azure: {
+  [CloudProviderName.Azure]: {
     title: "Set up Azure credentials",
     steps: [
-      { number: 1, text: "Sign in to the Azure Portal and go to Microsoft Entra ID → App registrations → New registration." },
-      { number: 2, text: "Register the app with any name. Note the Application (client) ID and Directory (tenant) ID shown on the overview page." },
-      { number: 3, text: "In the app, go to Certificates & secrets → New client secret. Copy the secret Value immediately — it won't be shown again." },
-      { number: 4, text: "Find your Subscription ID in the Azure Portal by searching for Subscriptions — note it down as you will need it in the next steps." },
-      { number: 5, text: "Create a role: quick setup — skip this step and use the built-in Contributor role in step 6. Least-privilege setup: download the JSON definition below, replace YOUR_SUBSCRIPTION_ID with your actual Subscription ID, then go to Subscriptions → your subscription → Access control (IAM) → Add → Add custom role → Start from JSON, upload the file and create the role." },
-      { number: 6, text: "Assign the role to your app: go to Subscriptions → your subscription → Access control (IAM) → Add → Add role assignment. Search for Contributor (quick setup) or your newly created ByocVPN role (least-privilege). Click Next, select User, group, or service principal, click Select members, search for your app registration by name, select it, then click Review + assign." },
-      { number: 7, text: "Enter your Subscription ID, Tenant ID, Client ID, and Client Secret in the form and click Connect." },
+      {
+        number: 1,
+        text: "Sign in to the Azure Portal and go to Microsoft Entra ID → App registrations → New registration.",
+      },
+      {
+        number: 2,
+        text: "Register the app with any name. Note the Application (client) ID and Directory (tenant) ID shown on the overview page.",
+      },
+      {
+        number: 3,
+        text: "In the app, go to Certificates & secrets → New client secret. Copy the secret Value immediately — it won't be shown again.",
+      },
+      {
+        number: 4,
+        text: "Find your Subscription ID in the Azure Portal by searching for Subscriptions — note it down as you will need it in the next steps.",
+      },
+      {
+        number: 5,
+        text: "Create a role: quick setup — skip this step and use the built-in Contributor role in step 6. Least-privilege setup: download the JSON definition below, replace YOUR_SUBSCRIPTION_ID with your actual Subscription ID, then go to Subscriptions → your subscription → Access control (IAM) → Add → Add custom role → Start from JSON, upload the file and create the role.",
+      },
+      {
+        number: 6,
+        text: "Assign the role to your app: go to Subscriptions → your subscription → Access control (IAM) → Add → Add role assignment. Search for Contributor (quick setup) or your newly created ByocVPN role (least-privilege). Click Next, select User, group, or service principal, click Select members, search for your app registration by name, select it, then click Review + assign.",
+      },
+      {
+        number: 7,
+        text: "Enter your Subscription ID, Tenant ID, Client ID, and Client Secret in the form and click Connect.",
+      },
     ],
   },
 };
 
-export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPageProps) {
+export function AddAccountPage({
+  onNavigateBack,
+  onAccountAdded,
+}: AddAccountPageProps) {
   const [step, setStep] = useState<AddAccountStep>("selecting-provider");
-  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
-  const [unconfiguredProviders, setUnconfiguredProviders] = useState<ProviderOption[]>([]);
-  const [isLoadingProviders, setIsLoadingProviders] = useState(true);
+  const [selectedProvider, setSelectedProvider] = useState<CloudProviderName | null>(null);
 
-  const [activeProvisionJob, setActiveProvisionJob] = useState<ProvisionJobState | null>(null);
-  const [isProvisionDrawerOpen, setIsProvisionDrawerOpen] = useState(false);
-  const [isProvisionComplete, setIsProvisionComplete] = useState(false);
-  const [provisionError, setProvisionError] = useState<string | null>(null);
-  const activeJobIdRef = useRef<string | null>(null);
-  const earlyProgressEventsRef = useRef<ProvisionAccountProgressEvent[]>([]);
+  const {
+    activeProvisionJob,
+    isProvisionDrawerOpen,
+    isProvisionComplete,
+    provisionError,
+    provisionAccount,
+    closeProvisionDrawer,
+  } = useAccounts({
+    onComplete: () => toast.success("Account connected successfully!"),
+    onFailed: () => toast.error("Account setup failed"),
+  });
 
-  const { loadCredentials } = useCredentials();
-
-  useEffect(() => {
-    const loadUnconfiguredProviders = async () => {
-      const unconfigured: ProviderOption[] = [];
-      for (const provider of ALL_PROVIDERS) {
-        const existing = await loadCredentials(provider.id as "aws" | "oracle" | "gcp" | "azure");
-        if (existing === null) {
-          unconfigured.push(provider);
-        }
-      }
-      setUnconfiguredProviders(unconfigured);
-      setIsLoadingProviders(false);
-    };
-    loadUnconfiguredProviders();
-  }, []);
-
-  useEffect(() => {
-    const progressUnlisten = listen<ProvisionAccountProgressEvent>(
-      "provision-account-progress",
-      ({ payload }) => {
-        const { jobId, stepId, status, error: stepError } = payload;
-        setActiveProvisionJob((previous) => {
-          if (!previous || previous.jobId !== jobId) {
-            earlyProgressEventsRef.current.push(payload);
-            return previous;
-          }
-          return {
-            ...previous,
-            steps: previous.steps.map((provisionStep) =>
-              provisionStep.id === stepId
-                ? { ...provisionStep, status, error: stepError }
-                : provisionStep,
-            ),
-          };
-        });
-      },
-    );
-
-    const completeUnlisten = listen<ProvisionAccountCompleteEvent>(
-      "provision-account-complete",
-      ({ payload }) => {
-        if (activeJobIdRef.current === payload.jobId) {
-          setIsProvisionComplete(true);
-          toast.success("Account connected successfully!");
-        }
-      },
-    );
-
-    const failedUnlisten = listen<{ jobId: string; error: string }>(
-      "provision-account-failed",
-      ({ payload }) => {
-        if (activeJobIdRef.current === payload.jobId) {
-          setProvisionError(payload.error);
-          toast.error("Account setup failed");
-        }
-      },
-    );
-
-    return () => {
-      progressUnlisten.then((unlisten) => unlisten());
-      completeUnlisten.then((unlisten) => unlisten());
-      failedUnlisten.then((unlisten) => unlisten());
-    };
-  }, []);
-
-  const startProvisioning = async (provider: string) => {
-    try {
-      earlyProgressEventsRef.current = [];
-      const job = await invokeCommand<ProvisionAccountJob>("provision_account", { provider });
-      const bufferedEvents = earlyProgressEventsRef.current.filter((event) => event.jobId === job.jobId);
-      earlyProgressEventsRef.current = [];
-      const initialSteps: SpawnStepState[] = job.steps.map((provisionStep) => {
-        const latestBufferedEvent = [...bufferedEvents].reverse().find((event) => event.stepId === provisionStep.id);
-        return {
-          ...provisionStep,
-          status: latestBufferedEvent?.status ?? ("pending" as const),
-          error: latestBufferedEvent?.error,
-        };
-      });
-      activeJobIdRef.current = job.jobId;
-      setActiveProvisionJob({ jobId: job.jobId, provider, steps: initialSteps });
-      setIsProvisionComplete(false);
-      setProvisionError(null);
-      setIsProvisionDrawerOpen(true);
-    } catch (invocationError) {
-      const message =
-        invocationError instanceof Error ? invocationError.message : "Failed to start setup";
-      toast.error(message);
-    }
-  };
-
-  const handleProviderSelected = (providerId: string) => {
-    setSelectedProvider(providerId);
+  const handleProviderSelected = (providerName: CloudProviderName) => {
+    setSelectedProvider(providerName);
     setStep("entering-credentials");
   };
 
@@ -402,31 +330,43 @@ export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPag
     setStep("selecting-provider");
   };
 
-  const handleCredentialsSaved = (provider: string) => {
-    startProvisioning(provider);
+  const handleCredentialsSaved = (provider: CloudProviderName) => {
+    provisionAccount(provider);
   };
 
   const handleCloseProvisionDrawer = () => {
-    setIsProvisionDrawerOpen(false);
+    closeProvisionDrawer();
     const hasNoSteps = (activeProvisionJob?.steps ?? []).length === 0;
     if (isProvisionComplete || hasNoSteps) {
       onAccountAdded();
     }
   };
 
-  const selectedProviderOption = ALL_PROVIDERS.find((p) => p.id === selectedProvider) ?? null;
-  const instructions = selectedProvider ? PROVIDER_SETUP_INSTRUCTIONS[selectedProvider] : null;
+  const instructions = selectedProvider
+    ? PROVIDER_SETUP_INSTRUCTIONS[selectedProvider]
+    : null;
+
+  if (step === "selecting-provider") {
+    return (
+      <ProviderSelector
+        filter="unconfigured"
+        title="Add Cloud Account"
+        subtitle="Connect a new cloud provider to deploy VPN servers"
+        onSelectProvider={handleProviderSelected}
+        onClose={onNavigateBack}
+      />
+    );
+  }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-900 text-white">
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-700/40 flex-shrink-0">
+    <div className="flex flex-col h-full bg-gray-900 text-white">
+      <div className="flex items-center gap-3 px-5 pt-5 pb-4 border-b border-gray-700/50 flex-shrink-0">
         <button
-          onClick={step === "entering-credentials" ? handleBackToProviderSelection : onNavigateBack}
-          className="p-1.5 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-gray-700/50 transition-colors"
+          onClick={handleBackToProviderSelection}
+          className="p-1.5 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
         >
           <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-4 w-4"
+            className="w-5 h-5 text-gray-400"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -434,34 +374,29 @@ export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPag
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        <span className="text-sm font-semibold text-gray-300">
-          {step === "selecting-provider" ? "Connect a Cloud Account" : `Connect ${selectedProviderOption?.label ?? ""}`}
-        </span>
+        <div>
+          <h1 className="text-base font-semibold text-white leading-tight">
+            {selectedProvider ? PROVIDER_METADATA[selectedProvider].label : ""}
+          </h1>
+          <p className="text-xs text-gray-500 mt-0.5">Enter your credentials</p>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {step === "selecting-provider" ? (
-          <ProviderSelectionStep
-            providers={unconfiguredProviders}
-            isLoading={isLoadingProviders}
-            onSelectProvider={handleProviderSelected}
+        {selectedProvider && instructions && (
+          <CredentialsStep
+            provider={selectedProvider}
+            instructions={instructions}
+            onCredentialsSaved={handleCredentialsSaved}
+            onCancel={handleBackToProviderSelection}
           />
-        ) : (
-          selectedProvider && instructions && (
-            <CredentialsStep
-              provider={selectedProvider}
-              instructions={instructions}
-              onCredentialsSaved={handleCredentialsSaved}
-              onCancel={handleBackToProviderSelection}
-            />
-          )
         )}
       </div>
 
-      <ProvisionAccountDrawer
+      <JobProgressDrawer
         isOpen={isProvisionDrawerOpen}
         onClose={handleCloseProvisionDrawer}
-        provider={activeProvisionJob?.provider ?? ""}
+        provider={activeProvisionJob?.provider ?? CloudProviderName.Aws}
         steps={activeProvisionJob?.steps ?? []}
         isComplete={isProvisionComplete}
         error={provisionError}
@@ -470,103 +405,75 @@ export function AddAccountPage({ onNavigateBack, onAccountAdded }: AddAccountPag
   );
 }
 
-interface ProviderSelectionStepProps {
-  providers: ProviderOption[];
-  isLoading: boolean;
-  onSelectProvider: (providerId: string) => void;
-}
-
-function ProviderSelectionStep({ providers, isLoading, onSelectProvider }: ProviderSelectionStepProps) {
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  if (providers.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400">
-        <p className="text-lg font-medium">All providers are already connected.</p>
-        <p className="text-sm">Manage existing accounts from Settings.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-6 flex flex-col gap-4 max-w-lg mx-auto w-full">
-      {providers.map((provider) => (
-        <button
-          key={provider.id}
-          onClick={() => onSelectProvider(provider.id)}
-          className="w-full flex items-center gap-5 p-5 bg-gray-800 card-border rounded-xl hover:glow-accent-sm transition-all text-left group"
-        >
-          {provider.badge}
-          <div className="flex-1">
-            <p className="font-semibold text-white text-lg group-hover:text-blue-300 transition-colors">
-              {provider.label}
-            </p>
-            <p className="text-sm text-gray-400 mt-0.5">{provider.description}</p>
-          </div>
-          <svg
-            className="w-5 h-5 text-gray-500 group-hover:text-blue-400 transition-colors flex-shrink-0"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
-      ))}
-    </div>
-  );
-}
 
 interface CredentialsStepProps {
-  provider: string;
+  provider: CloudProviderName;
   instructions: { title: string; steps: SetupStep[] };
-  onCredentialsSaved: (provider: string) => void;
+  onCredentialsSaved: (provider: CloudProviderName) => void;
   onCancel: () => void;
 }
 
-function CredentialsStep({ provider, instructions, onCredentialsSaved, onCancel }: CredentialsStepProps) {
+function CredentialsStep({
+  provider,
+  instructions,
+  onCredentialsSaved,
+  onCancel,
+}: CredentialsStepProps) {
   const policy = PROVIDER_POLICIES[provider] ?? null;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto w-full">
-      <div className="flex gap-8 items-start">
-        <div className="flex-1 min-w-0 space-y-4">
-          <div className="bg-gray-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-white mb-4">{instructions.title}</h2>
-            <ol className="space-y-4">
+    <div className="px-6 py-6">
+      <div className="flex gap-8 items-stretch">
+        <div className="max-w-xl w-full space-y-6">
+          <div>
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 pb-3 border-b border-gray-700/50">
+              {instructions.title}
+            </h2>
+            <ol className="space-y-4 pt-4">
               {instructions.steps.map((setupStep) => (
                 <li key={setupStep.number} className="flex gap-3">
                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600/20 border border-blue-600/40 text-blue-400 text-xs font-bold flex items-center justify-center mt-0.5">
                     {setupStep.number}
                   </span>
-                  <p className="text-sm text-gray-300 leading-relaxed">{setupStep.text}</p>
+                  <p className="text-sm text-gray-300 leading-relaxed">
+                    {setupStep.text}
+                  </p>
                 </li>
               ))}
             </ol>
           </div>
-          {policy && <PolicyBox policy={policy} />}
+
+          {provider === CloudProviderName.Aws && (
+            <AwsCredentialsForm
+              onSaved={() => onCredentialsSaved(CloudProviderName.Aws)}
+              onCancel={onCancel}
+            />
+          )}
+          {provider === CloudProviderName.Oracle && (
+            <OracleCredentialsForm
+              onSaved={() => onCredentialsSaved(CloudProviderName.Oracle)}
+              onCancel={onCancel}
+            />
+          )}
+          {provider === CloudProviderName.Gcp && (
+            <GcpCredentialsForm
+              onSaved={() => onCredentialsSaved(CloudProviderName.Gcp)}
+              onCancel={onCancel}
+            />
+          )}
+          {provider === CloudProviderName.Azure && (
+            <AzureCredentialsForm
+              onSaved={() => onCredentialsSaved(CloudProviderName.Azure)}
+              onCancel={onCancel}
+            />
+          )}
         </div>
 
-        <div className="w-96 flex-shrink-0">
-          {provider === "aws" && (
-            <AwsCredentialsForm onSaved={() => onCredentialsSaved("aws")} onCancel={onCancel} />
-          )}
-          {provider === "oracle" && (
-            <OracleCredentialsForm onSaved={() => onCredentialsSaved("oracle")} onCancel={onCancel} />
-          )}
-          {provider === "gcp" && (
-            <GcpCredentialsForm onSaved={() => onCredentialsSaved("gcp")} onCancel={onCancel} />
-          )}
-          {provider === "azure" && (
-            <AzureCredentialsForm onSaved={() => onCredentialsSaved("azure")} onCancel={onCancel} />
-          )}
-        </div>
+        {policy && (
+          <div className="flex-1 h-full">
+            <PolicyBox policy={policy} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -583,7 +490,7 @@ function AwsCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
   const { isSaving, error, saveCredentials } = useCredentials();
 
   const handleSubmit = async () => {
-    const success = await saveCredentials("aws", {
+    const success = await saveCredentials(CloudProviderName.Aws, {
       accessKeyId: accessKeyId.trim(),
       secretAccessKey: secretAccessKey.trim(),
     });
@@ -594,7 +501,6 @@ function AwsCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
 
   return (
     <CredentialsFormShell
-      title="AWS credentials"
       error={error}
       isSaving={isSaving}
       isFormValid={!!isFormValid}
@@ -602,7 +508,9 @@ function AwsCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
       onCancel={onCancel}
     >
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">Access Key ID</label>
+        <label className="block text-sm font-medium text-gray-300 mb-1">
+          Access Key ID
+        </label>
         <p className="text-xs text-gray-500 mb-2">e.g. AKIAIOSFODNN7EXAMPLE</p>
         <input
           type="text"
@@ -612,7 +520,9 @@ function AwsCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">Secret Access Key</label>
+        <label className="block text-sm font-medium text-gray-300 mb-1">
+          Secret Access Key
+        </label>
         <input
           type="password"
           value={secretAccessKey}
@@ -646,7 +556,7 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
   };
 
   const handleSubmit = async () => {
-    const success = await saveCredentials("oracle", {
+    const success = await saveCredentials(CloudProviderName.Oracle, {
       tenancyOcid: tenancyOcid.trim(),
       userOcid: userOcid.trim(),
       fingerprint: fingerprint.trim(),
@@ -657,11 +567,14 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
   };
 
   const isFormValid =
-    tenancyOcid.trim() && userOcid.trim() && fingerprint.trim() && homeRegion.trim() && privateKeyPem.trim();
+    tenancyOcid.trim() &&
+    userOcid.trim() &&
+    fingerprint.trim() &&
+    homeRegion.trim() &&
+    privateKeyPem.trim();
 
   return (
     <CredentialsFormShell
-      title="Oracle Cloud credentials"
       error={error}
       isSaving={isSaving}
       isFormValid={!!isFormValid}
@@ -669,8 +582,12 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
       onCancel={onCancel}
     >
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">Tenancy OCID</label>
-        <p className="text-xs text-gray-500 mb-2">e.g. ocid1.tenancy.oc1..aaaaaa…</p>
+        <label className="block text-sm font-medium text-gray-300 mb-1">
+          Tenancy OCID
+        </label>
+        <p className="text-xs text-gray-500 mb-2">
+          e.g. ocid1.tenancy.oc1..aaaaaa…
+        </p>
         <input
           type="text"
           value={tenancyOcid}
@@ -679,8 +596,12 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">User OCID</label>
-        <p className="text-xs text-gray-500 mb-2">e.g. ocid1.user.oc1..aaaaaa…</p>
+        <label className="block text-sm font-medium text-gray-300 mb-1">
+          User OCID
+        </label>
+        <p className="text-xs text-gray-500 mb-2">
+          e.g. ocid1.user.oc1..aaaaaa…
+        </p>
         <input
           type="text"
           value={userOcid}
@@ -689,8 +610,12 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">Key Fingerprint</label>
-        <p className="text-xs text-gray-500 mb-2">e.g. xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx</p>
+        <label className="block text-sm font-medium text-gray-300 mb-1">
+          Key Fingerprint
+        </label>
+        <p className="text-xs text-gray-500 mb-2">
+          e.g. xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx
+        </p>
         <input
           type="text"
           value={fingerprint}
@@ -699,7 +624,9 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">Home Region</label>
+        <label className="block text-sm font-medium text-gray-300 mb-1">
+          Home Region
+        </label>
         <p className="text-xs text-gray-500 mb-2">e.g. us-ashburn-1</p>
         <input
           type="text"
@@ -710,7 +637,9 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
       </div>
       <div>
         <div className="flex items-center justify-between mb-1">
-          <label className="block text-sm font-medium text-gray-300">Private Key (.pem)</label>
+          <label className="block text-sm font-medium text-gray-300">
+            Private Key (.pem)
+          </label>
           <button
             type="button"
             onClick={() => pemFileInputRef.current?.click()}
@@ -755,8 +684,7 @@ function GcpCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
         try {
           const parsed = JSON.parse(content);
           if (parsed.project_id && !projectId) setProjectId(parsed.project_id);
-        } catch {
-        }
+        } catch {}
       }
     };
     reader.readAsText(file);
@@ -764,7 +692,7 @@ function GcpCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
   };
 
   const handleSubmit = async () => {
-    const success = await saveCredentials("gcp", {
+    const success = await saveCredentials(CloudProviderName.Gcp, {
       projectId: projectId.trim(),
       serviceAccountJson: serviceAccountJson.trim(),
     });
@@ -775,7 +703,6 @@ function GcpCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
 
   return (
     <CredentialsFormShell
-      title="Google Cloud credentials"
       error={error}
       isSaving={isSaving}
       isFormValid={!!isFormValid}
@@ -783,7 +710,9 @@ function GcpCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
       onCancel={onCancel}
     >
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">Project ID</label>
+        <label className="block text-sm font-medium text-gray-300 mb-1">
+          Project ID
+        </label>
         <p className="text-xs text-gray-500 mb-2">e.g. my-project-123456</p>
         <input
           type="text"
@@ -794,7 +723,9 @@ function GcpCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
       </div>
       <div>
         <div className="flex items-center justify-between mb-1">
-          <label className="block text-sm font-medium text-gray-300">Service Account Key (.json)</label>
+          <label className="block text-sm font-medium text-gray-300">
+            Service Account Key (.json)
+          </label>
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -830,7 +761,7 @@ function AzureCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
   const { isSaving, error, saveCredentials } = useCredentials();
 
   const handleSubmit = async () => {
-    const success = await saveCredentials("azure", {
+    const success = await saveCredentials(CloudProviderName.Azure, {
       subscriptionId: subscriptionId.trim(),
       tenantId: tenantId.trim(),
       clientId: clientId.trim(),
@@ -840,11 +771,13 @@ function AzureCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
   };
 
   const isFormValid =
-    subscriptionId.trim() && tenantId.trim() && clientId.trim() && clientSecret.trim();
+    subscriptionId.trim() &&
+    tenantId.trim() &&
+    clientId.trim() &&
+    clientSecret.trim();
 
   return (
     <CredentialsFormShell
-      title="Azure credentials"
       error={error}
       isSaving={isSaving}
       isFormValid={!!isFormValid}
@@ -852,8 +785,12 @@ function AzureCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
       onCancel={onCancel}
     >
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">Subscription ID</label>
-        <p className="text-xs text-gray-500 mb-2">e.g. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</p>
+        <label className="block text-sm font-medium text-gray-300 mb-1">
+          Subscription ID
+        </label>
+        <p className="text-xs text-gray-500 mb-2">
+          e.g. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+        </p>
         <input
           type="text"
           value={subscriptionId}
@@ -863,8 +800,12 @@ function AzureCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">Tenant ID</label>
-        <p className="text-xs text-gray-500 mb-2">Your Azure Active Directory tenant ID</p>
+        <label className="block text-sm font-medium text-gray-300 mb-1">
+          Tenant ID
+        </label>
+        <p className="text-xs text-gray-500 mb-2">
+          Your Azure Active Directory tenant ID
+        </p>
         <input
           type="text"
           value={tenantId}
@@ -874,8 +815,12 @@ function AzureCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">Client ID</label>
-        <p className="text-xs text-gray-500 mb-2">Application (client) ID of the service principal</p>
+        <label className="block text-sm font-medium text-gray-300 mb-1">
+          Client ID
+        </label>
+        <p className="text-xs text-gray-500 mb-2">
+          Application (client) ID of the service principal
+        </p>
         <input
           type="text"
           value={clientId}
@@ -885,8 +830,12 @@ function AzureCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">Client Secret</label>
-        <p className="text-xs text-gray-500 mb-2">Secret value from your app registration</p>
+        <label className="block text-sm font-medium text-gray-300 mb-1">
+          Client Secret
+        </label>
+        <p className="text-xs text-gray-500 mb-2">
+          Secret value from your app registration
+        </p>
         <input
           type="password"
           value={clientSecret}
@@ -914,18 +863,34 @@ function PolicyBox({ policy }: PolicyBoxProps) {
   const handleDownload = async () => {
     const savePath = await save({ defaultPath: policy.filename });
     if (savePath) {
-      await invokeCommand("save_file", { path: savePath, content: policy.content });
+      await invokeCommand("save_file", {
+        path: savePath,
+        content: policy.content,
+      });
     }
   };
 
   return (
-    <div className="bg-gray-800 rounded-xl overflow-hidden">
+    <div className="bg-gray-800 rounded-xl overflow-hidden h-full flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700/50">
         <div className="flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-4 w-4 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+            />
           </svg>
-          <span className="text-sm text-gray-300 font-mono">{policy.filename}</span>
+          <span className="text-sm text-gray-300 font-mono">
+            {policy.filename}
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -934,15 +899,37 @@ function PolicyBox({ policy }: PolicyBoxProps) {
           >
             {copied ? (
               <>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-3.5 w-3.5 text-green-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
                 </svg>
                 Copied
               </>
             ) : (
               <>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-3.5 w-3.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                  />
                 </svg>
                 Copy
               </>
@@ -952,14 +939,25 @@ function PolicyBox({ policy }: PolicyBoxProps) {
             onClick={handleDownload}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white rounded-lg transition-colors"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-3.5 w-3.5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+              />
             </svg>
             Download
           </button>
         </div>
       </div>
-      <pre className="p-4 text-xs font-mono text-gray-300 overflow-x-auto max-h-48 overflow-y-auto leading-relaxed">
+      <pre className="p-4 text-xs font-mono text-gray-300 overflow-x-auto flex-1 overflow-y-auto leading-relaxed">
         {policy.content}
       </pre>
     </div>
@@ -967,7 +965,6 @@ function PolicyBox({ policy }: PolicyBoxProps) {
 }
 
 interface CredentialsFormShellProps {
-  title: string;
   error: string | null;
   isSaving: boolean;
   isFormValid: boolean;
@@ -977,7 +974,6 @@ interface CredentialsFormShellProps {
 }
 
 function CredentialsFormShell({
-  title,
   error,
   isSaving,
   isFormValid,
@@ -986,8 +982,7 @@ function CredentialsFormShell({
   children,
 }: CredentialsFormShellProps) {
   return (
-    <div className="bg-gray-800 rounded-xl p-6">
-      <h2 className="text-lg font-semibold text-white mb-5">{title}</h2>
+    <div>
       <div className="space-y-4">
         {children}
 
@@ -998,10 +993,7 @@ function CredentialsFormShell({
         )}
 
         <div className="flex gap-3 pt-2">
-          <button
-            onClick={onCancel}
-            className="flex-1 px-4 py-2 btn-secondary"
-          >
+          <button onClick={onCancel} className="flex-1 px-4 py-2 btn-secondary">
             Back
           </button>
           <button
@@ -1011,7 +1003,7 @@ function CredentialsFormShell({
           >
             {isSaving ? (
               <div className="flex items-center justify-center gap-2">
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <Spinner color="border-white" />
                 Saving...
               </div>
             ) : (

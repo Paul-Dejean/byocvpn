@@ -1,104 +1,98 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { invokeCommand } from "../lib/invokeCommand";
 import toast from "react-hot-toast";
-import { AwsRegion, RegionGroup } from "../types";
+import { CloudProviderName, Region, RegionGroup } from "../types";
 
-const PROVIDERS = ["aws", "oracle", "gcp", "azure"] as const;
-
-type Provider = (typeof PROVIDERS)[number];
-
-const groupRegionsByContinent = (regions: AwsRegion[]): RegionGroup[] => {
-  const continentMap: Record<string, string> = {
-    us: "North America",
-    ca: "North America",
-    eu: "Europe",
-    ap: "Asia Pacific",
-    sa: "South America",
-    me: "Middle East",
-    af: "Africa",
-  };
-
-  const groups: Record<string, AwsRegion[]> = {};
-
-  regions.forEach((region) => {
-    const prefix = region.name.split("-")[0];
-    const continent = continentMap[prefix] || "Other";
-    if (!groups[continent]) {
-      groups[continent] = [];
-    }
-    groups[continent].push(region);
-  });
-
-  return Object.entries(groups)
-    .map(([continent, regions]) => ({
-      continent,
-      regions: regions.sort((a, b) => a.name.localeCompare(b.name)),
-    }))
-    .sort((a, b) => a.continent.localeCompare(b.continent));
+const REGION_PREFIX_TO_CONTINENT: Record<string, string> = {
+  us: "North America",
+  ca: "North America",
+  eu: "Europe",
+  ap: "Asia Pacific",
+  sa: "South America",
+  me: "Middle East",
+  af: "Africa",
 };
 
-const fetchConfiguredProviders = async (): Promise<Provider[]> => {
+interface RegionsData {
+  regions: Region[];
+  groupedRegions: RegionGroup[];
+}
+
+export function useRegions() {
+  const queryClient = useQueryClient();
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["all-regions"],
+    queryFn: fetchAllRegions,
+    staleTime: 30_000,
+  });
+
+  useEffect(() => {
+    if (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to load regions",
+      );
+    }
+  }, [error]);
+
+  return {
+    regions: data?.regions ?? [],
+    groupedRegions: data?.groupedRegions ?? [],
+    isLoading,
+    error: error instanceof Error ? error.message : null,
+    loadRegions: () =>
+      queryClient.invalidateQueries({ queryKey: ["all-regions"] }),
+    clearError: () => {},
+  };
+}
+
+async function fetchAllRegions(): Promise<RegionsData> {
+  const configuredProviders = await fetchConfiguredProviders();
+  if (configuredProviders.length === 0) {
+    return { regions: [], groupedRegions: [] };
+  }
+  const primaryProvider = configuredProviders[0];
+  const fetchedRegions = await invokeCommand<Region[]>("get_regions", {
+    provider: primaryProvider,
+  });
+  return {
+    regions: fetchedRegions,
+    groupedRegions: groupRegionsByContinent(fetchedRegions),
+  };
+}
+
+async function fetchConfiguredProviders(): Promise<CloudProviderName[]> {
   const checks = await Promise.all(
-    PROVIDERS.map(async (provider) => {
+    Object.values(CloudProviderName).map(async (provider) => {
       try {
-        const credentials = await invokeCommand("get_credentials", { provider });
+        const credentials = await invokeCommand("get_credentials", {
+          provider,
+        });
         return credentials !== null ? provider : null;
       } catch {
         return null;
       }
     }),
   );
-  return checks.filter((provider): provider is Provider => provider !== null);
-};
+  return checks.filter(
+    (provider): provider is CloudProviderName => provider !== null,
+  );
+}
 
-export const useRegions = () => {
-  const [regions, setRegions] = useState<AwsRegion[]>([]);
-  const [groupedRegions, setGroupedRegions] = useState<RegionGroup[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadRegions = async () => {
-    setError(null);
-    try {
-      const configuredProviders = await fetchConfiguredProviders();
-      if (configuredProviders.length === 0) {
-        setIsLoading(false);
-        return;
-      }
-
-      const primaryProvider = configuredProviders[0];
-      const fetchedRegions = (await invokeCommand("get_regions", {
-        provider: primaryProvider,
-      })) as AwsRegion[];
-      setRegions(fetchedRegions);
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to load regions";
-      setError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      setIsLoading(false);
+function groupRegionsByContinent(regions: Region[]): RegionGroup[] {
+  const groups: Record<string, Region[]> = {};
+  regions.forEach((region) => {
+    const prefix = region.name.split("-")[0];
+    const continent = REGION_PREFIX_TO_CONTINENT[prefix] ?? "Other";
+    if (!groups[continent]) {
+      groups[continent] = [];
     }
-  };
-
-  useEffect(() => {
-    loadRegions();
-  }, []);
-
-  useEffect(() => {
-    if (regions.length > 0) {
-      setGroupedRegions(groupRegionsByContinent(regions));
-    }
-  }, [regions]);
-
-  const clearError = () => setError(null);
-
-  return {
-    regions,
-    groupedRegions,
-    isLoading,
-    error,
-    loadRegions,
-    clearError,
-  };
-};
+    groups[continent].push(region);
+  });
+  return Object.entries(groups)
+    .map(([continent, continentRegions]) => ({
+      continent,
+      regions: continentRegions.sort((a, b) => a.name.localeCompare(b.name)),
+    }))
+    .sort((a, b) => a.continent.localeCompare(b.continent));
+}

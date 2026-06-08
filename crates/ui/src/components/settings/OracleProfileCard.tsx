@@ -1,29 +1,35 @@
+import { Spinner } from "../common/Spinner";
 import { useEffect, useRef, useState } from "react";
-import { useCredentials, OracleCredentials } from "../../hooks";
+import { useCredentials } from "../../hooks";
+import { CloudProviderName } from "../../types";
 
 interface OracleProfileCardProps {
-  onCredentialsSaved: (provider: string) => void;
+  onCredentialsSaved: (provider: CloudProviderName) => void;
   onCredentialsDeleted: () => void;
-  onProvisionRequested: (provider: string) => void;
+  onProvisionRequested: (provider: CloudProviderName) => void;
   isProvisioned: boolean;
 }
 
-const OciIcon = () => (
-  <div className="w-12 h-12 bg-white/5 rounded-lg flex items-center justify-center flex-shrink-0 p-2">
-    <img src="/cloud-providers/oracle-icon.svg" alt="Oracle" className="w-full h-full object-contain" />
-  </div>
-);
+function OciIcon() {
+  return (
+    <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 p-2.5">
+      <img src="/cloud-providers/oracle-icon.svg" alt="Oracle" className="w-full h-full object-contain" />
+    </div>
+  );
+}
 
 export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, onProvisionRequested, isProvisioned }: OracleProfileCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [hasCredentials, setHasCredentials] = useState<boolean | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-  const [tenancyOcid, setTenancyOcid] = useState("");
-  const [userOcid, setUserOcid] = useState("");
-  const [fingerprint, setFingerprint] = useState("");
-  const [privateKeyPem, setPrivateKeyPem] = useState("");
   const [pemAlreadySet, setPemAlreadySet] = useState(false);
-  const [region, setRegion] = useState("");
+  const [formFields, setFormFields] = useState({
+    tenancyOcid: "",
+    userOcid: "",
+    fingerprint: "",
+    privateKeyPem: "",
+    region: "",
+  });
 
   const pemFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -38,57 +44,51 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
   } = useCredentials();
 
   useEffect(() => {
-    loadCredentials("oracle").then((existing) => {
+    loadCredentials(CloudProviderName.Oracle).then((existing) => {
       setHasCredentials(existing !== null);
     });
   }, []);
 
+  const resetForm = () => {
+    setFormFields({ tenancyOcid: "", userOcid: "", fingerprint: "", privateKeyPem: "", region: "" });
+    setPemAlreadySet(false);
+  };
+
   const handleEditOpen = async () => {
-    const existing = await loadCredentials("oracle");
+    const existing = await loadCredentials(CloudProviderName.Oracle);
     if (existing) {
-      const oracle = existing as OracleCredentials;
-      setTenancyOcid(oracle.tenancyOcid);
-      setUserOcid(oracle.userOcid);
-      setFingerprint(oracle.fingerprint);
-      setRegion(oracle.region);
-      if (oracle.privateKeyPem) {
-        setPrivateKeyPem(oracle.privateKeyPem);
-        setPemAlreadySet(true);
-      }
+      setFormFields({
+        tenancyOcid: existing.tenancyOcid,
+        userOcid: existing.userOcid,
+        fingerprint: existing.fingerprint,
+        region: existing.region,
+        privateKeyPem: existing.privateKeyPem ?? "",
+      });
+      setPemAlreadySet(!!existing.privateKeyPem);
     }
     setIsEditing(true);
   };
 
   const handleCancel = () => {
     setIsEditing(false);
-    setTenancyOcid("");
-    setUserOcid("");
-    setFingerprint("");
-    setPrivateKeyPem("");
-    setPemAlreadySet(false);
-    setRegion("");
+    resetForm();
     clearError();
   };
 
   const handleSave = async () => {
-    const success = await saveCredentials("oracle", {
-      tenancyOcid: tenancyOcid.trim(),
-      userOcid: userOcid.trim(),
-      fingerprint: fingerprint.trim(),
-      privateKeyPem: privateKeyPem.trim(),
-      region: region.trim(),
+    const success = await saveCredentials(CloudProviderName.Oracle, {
+      tenancyOcid: formFields.tenancyOcid.trim(),
+      userOcid: formFields.userOcid.trim(),
+      fingerprint: formFields.fingerprint.trim(),
+      privateKeyPem: formFields.privateKeyPem.trim(),
+      region: formFields.region.trim(),
     });
 
     if (success) {
-      setTenancyOcid("");
-      setUserOcid("");
-      setFingerprint("");
-      setPrivateKeyPem("");
-      setPemAlreadySet(false);
-      setRegion("");
+      resetForm();
       setIsEditing(false);
       setHasCredentials(true);
-      onCredentialsSaved("oracle");
+      onCredentialsSaved(CloudProviderName.Oracle);
     }
   };
 
@@ -99,7 +99,7 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
     reader.onload = (loadEvent) => {
       const content = loadEvent.target?.result;
       if (typeof content === "string") {
-        setPrivateKeyPem(content);
+        setFormFields((prev) => ({ ...prev, privateKeyPem: content }));
       }
     };
     reader.readAsText(file);
@@ -107,7 +107,7 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
   };
 
   const handleDeleteCredentials = async () => {
-    const success = await deleteCredentials("oracle");
+    const success = await deleteCredentials(CloudProviderName.Oracle);
     if (success) {
       setHasCredentials(false);
       setIsConfirmingDelete(false);
@@ -116,23 +116,23 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
   };
 
   const isFormValid =
-    tenancyOcid.trim() &&
-    userOcid.trim() &&
-    fingerprint.trim() &&
-    (privateKeyPem.trim() || pemAlreadySet) &&
-    region.trim();
+    formFields.tenancyOcid.trim() &&
+    formFields.userOcid.trim() &&
+    formFields.fingerprint.trim() &&
+    (formFields.privateKeyPem.trim() || pemAlreadySet) &&
+    formFields.region.trim();
 
   const showNotProvisionedWarning = hasCredentials === true && !isProvisioned;
 
   return (
-    <div className={`rounded-lg p-6 mt-4 ${showNotProvisionedWarning ? "bg-gray-700 border-l-4 border-amber-500" : "bg-gray-700"}`}>
+    <div className="py-4">
       {!isEditing ? (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <OciIcon />
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-lg text-white">Oracle Cloud Profile</h3>
+                <h3 className="font-semibold text-lg text-white">Oracle Cloud Account</h3>
                 {hasCredentials && isProvisioned && (
                   <span className="text-xs px-2 py-0.5 bg-green-900/50 text-green-400 rounded-full border border-green-700/50">
                     Provisioned
@@ -144,13 +144,10 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
                   </span>
                 )}
               </div>
-              <p className="text-sm text-gray-400">
-                Oracle Cloud Infrastructure credentials for Compute deployment
-              </p>
             </div>
           </div>
           {hasCredentials === null ? (
-            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+            <Spinner color="border-gray-400" />
           ) : hasCredentials ? (
             <div className="flex items-center gap-2">
               {isConfirmingDelete ? (
@@ -162,13 +159,13 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
               ) : (
                 <>
                   {isProvisioned ? (
-                    <button onClick={() => onProvisionRequested("oracle")} className="p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded-lg transition-colors" title="Re-provision">
+                    <button onClick={() => onProvisionRequested(CloudProviderName.Oracle)} className="p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded-lg transition-colors" title="Re-provision">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
                     </button>
                   ) : (
-                    <button onClick={() => onProvisionRequested("oracle")} className="p-2 text-amber-400 hover:text-amber-300 hover:bg-gray-600 rounded-lg transition-colors" title="Provision">
+                    <button onClick={() => onProvisionRequested(CloudProviderName.Oracle)} className="p-2 text-amber-400 hover:text-amber-300 hover:bg-gray-600 rounded-lg transition-colors" title="Provision">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>
@@ -204,8 +201,8 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
             <div>
               <h3 className="font-semibold text-lg text-white">
                 {hasCredentials
-                  ? "Edit Oracle Cloud Profile"
-                  : "Add Oracle Cloud Profile"}
+                  ? "Edit Oracle Cloud Account"
+                  : "Add Oracle Cloud Account"}
               </h3>
               <p className="text-sm text-gray-400">
                 {hasCredentials
@@ -225,8 +222,8 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
               </p>
               <input
                 type="text"
-                value={tenancyOcid}
-                onChange={(e) => setTenancyOcid(e.target.value)}
+                value={formFields.tenancyOcid}
+                onChange={(e) => setFormFields((prev) => ({ ...prev, tenancyOcid: e.target.value }))}
                 className="input font-mono text-sm"
               />
             </div>
@@ -240,8 +237,8 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
               </p>
               <input
                 type="text"
-                value={userOcid}
-                onChange={(e) => setUserOcid(e.target.value)}
+                value={formFields.userOcid}
+                onChange={(e) => setFormFields((prev) => ({ ...prev, userOcid: e.target.value }))}
                 className="input font-mono text-sm"
               />
             </div>
@@ -255,8 +252,8 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
               </p>
               <input
                 type="text"
-                value={fingerprint}
-                onChange={(e) => setFingerprint(e.target.value)}
+                value={formFields.fingerprint}
+                onChange={(e) => setFormFields((prev) => ({ ...prev, fingerprint: e.target.value }))}
                 className="input font-mono text-sm"
               />
             </div>
@@ -268,8 +265,8 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
               <p className="text-xs text-gray-500 mb-2">e.g. us-ashburn-1</p>
               <input
                 type="text"
-                value={region}
-                onChange={(e) => setRegion(e.target.value)}
+                value={formFields.region}
+                onChange={(e) => setFormFields((prev) => ({ ...prev, region: e.target.value }))}
                 className="input font-mono text-sm"
               />
             </div>
@@ -308,20 +305,20 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
                   className="hidden"
                 />
               </div>
-              {pemAlreadySet && !privateKeyPem && (
+              {pemAlreadySet && !formFields.privateKeyPem && (
                 <p className="text-xs text-green-400 mb-2">
                   ✓ Private key already configured — load a new file or paste
                   below to replace it
                 </p>
               )}
-              {!pemAlreadySet && !privateKeyPem && (
+              {!pemAlreadySet && !formFields.privateKeyPem && (
                 <p className="text-xs text-gray-500 mb-2">
                   Paste the contents of your .pem file or use "Load from file"
                 </p>
               )}
               <textarea
-                value={privateKeyPem}
-                onChange={(e) => setPrivateKeyPem(e.target.value)}
+                value={formFields.privateKeyPem}
+                onChange={(e) => setFormFields((prev) => ({ ...prev, privateKeyPem: e.target.value }))}
                 rows={6}
                 className="input font-mono text-xs resize-none"
               />
@@ -353,11 +350,11 @@ export function OracleProfileCard({ onCredentialsSaved, onCredentialsDeleted, on
               >
                 {isSaving ? (
                   <div className="flex items-center justify-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <Spinner color="border-white" />
                     Saving...
                   </div>
                 ) : (
-                  "Save Profile"
+                  "Save Account"
                 )}
               </button>
             </div>

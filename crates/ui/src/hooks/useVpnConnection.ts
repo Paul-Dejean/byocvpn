@@ -20,12 +20,9 @@ export interface VpnMetrics {
   downloadRate: number;
 }
 
-export interface VpnStatus {
-  connected: boolean;
-  instance: Instance | null;
-  metrics: VpnMetrics | null;
-  connectionError: string | null;
-}
+export type VpnStatus =
+  | { connected: true; instance: Instance; metrics: VpnMetrics | null; connectionError: string | null }
+  | { connected: false; instance: null; metrics: null; connectionError: string | null };
 
 const initialVpnStatus: VpnStatus = {
   connected: false,
@@ -34,7 +31,7 @@ const initialVpnStatus: VpnStatus = {
   connectionError: null,
 };
 
-export const useVpnConnection = () => {
+export function useVpnConnection() {
   const [vpnStatus, setVpnStatus] = useState<VpnStatus>(initialVpnStatus);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -134,4 +131,4 @@ export const useVpnConnection = () => {
     disconnectFromVpn,
     clearError,
   };
-};
+}

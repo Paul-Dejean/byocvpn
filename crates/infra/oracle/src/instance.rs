@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use byocvpn_core::{
-    cloud_provider::{CloudProviderName, InstanceInfo, SpawnInstanceParams},
+    cloud_provider::{CloudProviderName, InstanceInfo, InstanceState, SpawnInstanceParams},
     error::{ComputeProvisioningError, Error as CoreError, Result},
 };
 use chrono::{DateTime, Utc};
@@ -56,7 +56,11 @@ pub async fn spawn_instance(
             assign_ipv6_ip: subnet_has_ipv6.then_some(true),
         },
         metadata: HashMap::from([("user_data".to_string(), encoded_user_data)]),
-        freeform_tags: byocvpn_tags(),
+        freeform_tags: {
+            let mut tags = byocvpn_tags();
+            tags.insert("byocvpn-spawn-id".to_string(), params.spawn_id.to_string());
+            tags
+        },
     };
 
     debug!(
@@ -111,7 +115,7 @@ pub async fn list_instances(
     compartment_ocid: &str,
     region: &str,
 ) -> Result<Vec<InstanceInfo>> {
-    let url = client.build_core_url(&format!("/instances?compartmentId={}&lifecycleState=RUNNING", compartment_ocid));
+    let url = client.build_core_url(&format!("/instances?compartmentId={}", compartment_ocid));
     let response: Vec<InstanceResponse> =
         client
             .get(&url)
@@ -137,6 +141,15 @@ pub async fn list_instances(
                     .unwrap_or(false)
         })
         .map(|instance| build_instance_info(&instance, region))
+        .filter(|instance| {
+            matches!(
+                instance.state,
+                InstanceState::Running
+                    | InstanceState::Stopping
+                    | InstanceState::Stopped
+                    | InstanceState::Error
+            )
+        })
         .collect();
 
     let ip_results = futures::future::join_all(
@@ -260,6 +273,12 @@ async fn get_public_ips(
 }
 
 fn build_instance_info(instance: &InstanceResponse, region: &str) -> InstanceInfo {
+    let spawn_id = instance
+        .freeform_tags
+        .as_ref()
+        .and_then(|tags| tags.get("byocvpn-spawn-id"))
+        .cloned();
+
     InstanceInfo {
         id: instance.id.clone(),
         name: instance.display_name.clone(),
@@ -275,5 +294,6 @@ fn build_instance_info(instance: &InstanceResponse, region: &str) -> InstanceInf
             .and_then(|timestamp| DateTime::parse_from_rfc3339(timestamp).ok())
             .map(|datetime| datetime.with_timezone(&Utc)),
         error_reason: None,
+        spawn_id,
     }
 }

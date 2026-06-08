@@ -29,13 +29,13 @@ impl From<&str> for AzureProvisioningState {
 impl From<AzureProvisioningState> for InstanceState {
     fn from(state: AzureProvisioningState) -> Self {
         match state {
-            AzureProvisioningState::Creating => InstanceState::Creating,
-            AzureProvisioningState::Updating => InstanceState::Creating,
+            AzureProvisioningState::Creating => InstanceState::Unknown,
+            AzureProvisioningState::Updating => InstanceState::Unknown,
             AzureProvisioningState::Succeeded => InstanceState::Running,
-            AzureProvisioningState::Deleting => InstanceState::Deleting,
-            AzureProvisioningState::Deleted => InstanceState::Deleted,
-            AzureProvisioningState::Failed => InstanceState::Unknown,
-            AzureProvisioningState::Canceled => InstanceState::Unknown,
+            AzureProvisioningState::Deleting => InstanceState::Unknown,
+            AzureProvisioningState::Deleted => InstanceState::Unknown,
+            AzureProvisioningState::Failed => InstanceState::Error,
+            AzureProvisioningState::Canceled => InstanceState::Error,
             AzureProvisioningState::Unknown => InstanceState::Unknown,
         }
     }

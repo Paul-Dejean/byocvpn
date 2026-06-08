@@ -27,10 +27,10 @@ impl From<&str> for Ec2InstanceState {
 impl From<Ec2InstanceState> for InstanceState {
     fn from(state: Ec2InstanceState) -> Self {
         match state {
-            Ec2InstanceState::Pending => InstanceState::Creating,
+            Ec2InstanceState::Pending => InstanceState::Unknown,
             Ec2InstanceState::Running => InstanceState::Running,
-            Ec2InstanceState::ShuttingDown => InstanceState::Deleting,
-            Ec2InstanceState::Terminated => InstanceState::Deleted,
+            Ec2InstanceState::ShuttingDown => InstanceState::Stopping,
+            Ec2InstanceState::Terminated => InstanceState::Unknown,
             Ec2InstanceState::Stopping => InstanceState::Stopping,
             Ec2InstanceState::Stopped => InstanceState::Stopped,
             Ec2InstanceState::Unknown => InstanceState::Unknown,

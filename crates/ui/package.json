@@ -1,7 +1,7 @@
 {
   "name": "ui",
   "private": true,
-  "version": "0.1.11",
+  "version": "0.1.14",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,16 +9,17 @@
     "preview": "vite preview",
     "tauri": "cross-env CARGO_TARGET_DIR=../../../target/tauri tauri",
     "tauri:dev": "cargo build -p byocvpn_daemon --manifest-path ../../Cargo.toml && cross-env CARGO_TARGET_DIR=../../../target/tauri RUST_LOG_STYLE=always tauri dev",
-"tauri:build": "cross-env CARGO_TARGET_DIR=../../../target/tauri tauri build"
+    "tauri:build": "cross-env CARGO_TARGET_DIR=../../../target/tauri tauri build"
   },
   "dependencies": {
     "@fontsource-variable/outfit": "^5.2.8",
     "@tailwindcss/vite": "^4.1.10",
+    "@tanstack/react-query": "^5.101.0",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.7.0",
     "@tauri-apps/plugin-log": "^2.8.0",
-    "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-notification": "^2",
+    "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-store": "^2.4.2",
     "flag-icons": "^7.5.0",
     "react": "^18.3.1",

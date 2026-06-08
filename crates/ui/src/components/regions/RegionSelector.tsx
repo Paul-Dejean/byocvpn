@@ -1,32 +1,14 @@
+import { Spinner } from "../common/Spinner";
 import { useInstancesContext } from "../../contexts";
-import { getRegionInfo } from "../../types/regionInfo";
+import { getRegionInfo } from "../../constants/regionInfo";
 import { FlagIcon } from "../FlagIcon";
-import { useEffect, useRef, useState } from "react";
-import { invokeCommand } from "../../lib/invokeCommand";
-import { listen } from "@tauri-apps/api/event";
-import { load as loadStore } from "@tauri-apps/plugin-store";
-import toast from "react-hot-toast";
-import {
-  Instance,
-  EnableRegionJob,
-  EnableRegionProgressEvent,
-  EnableRegionCompleteEvent,
-  SpawnStepState,
-} from "../../types";
-import { ProvisionAccountDrawer } from "../settings/ProvisionAccountDrawer";
-
-interface SimpleRegion {
-  name: string;
-  country: string;
-}
-
-interface SimpleRegionGroup {
-  continent: string;
-  regions: SimpleRegion[];
-}
+import { useEffect, useState } from "react";
+import { Instance, CloudProviderName, Region } from "../../types";
+import { useProviderRegions } from "../../hooks/useProviderRegions";
+import { JobProgressDrawer } from "../common/JobProgressDrawer";
 
 interface RegionSelectorProps {
-  provider: string;
+  provider: CloudProviderName;
   onClose: () => void;
   onSpawned?: (instance: Instance) => void;
 }
@@ -36,135 +18,28 @@ export function RegionSelector({
   onClose,
   onSpawned,
 }: RegionSelectorProps) {
-  const [selectedRegion, setSelectedRegion] = useState<SimpleRegion | null>(null);
-  const [groupedRegions, setGroupedRegions] = useState<SimpleRegionGroup[]>([]);
-  const [isLoadingRegions, setIsLoadingRegions] = useState(true);
-  const [enabledRegions, setEnabledRegions] = useState<Set<string>>(new Set());
+  const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
+  const {
+    groupedRegions,
+    enabledRegions,
+    isLoading: isLoadingRegions,
+    enableRegion,
+    activeEnableJob,
+    isEnableDrawerOpen,
+    isEnableComplete,
+    enableError,
+    closeEnableDrawer,
+  } = useProviderRegions(provider);
 
-  const [activeEnableJob, setActiveEnableJob] = useState<{
-    jobId: string;
-    region: string;
-    country: string;
-    steps: SpawnStepState[];
-  } | null>(null);
-  const [isEnableDrawerOpen, setIsEnableDrawerOpen] = useState(false);
-  const [isEnableComplete, setIsEnableComplete] = useState(false);
-  const [enableError, setEnableError] = useState<string | null>(null);
-
-  const activeEnableJobIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    setSelectedRegion(null);
+  }, [provider]);
 
   const { spawnInstance, instances } = useInstancesContext();
 
-  useEffect(() => {
-    setIsLoadingRegions(true);
-    setSelectedRegion(null);
-    invokeCommand<SimpleRegion[]>("get_regions", { provider })
-      .then(async (regions) => {
-        const groups: Record<string, SimpleRegion[]> = {};
-        regions.forEach((region) => {
-          if (!groups[region.country]) groups[region.country] = [];
-          groups[region.country].push(region);
-        });
-        setGroupedRegions(
-          Object.entries(groups)
-            .map(([continent, continentRegions]) => ({
-              continent,
-              regions: continentRegions.sort((a, b) =>
-                a.name.localeCompare(b.name),
-              ),
-            }))
-            .sort((a, b) => a.continent.localeCompare(b.continent)),
-        );
-
-        const store = await loadStore("providers.json");
-        const enabled = new Set<string>();
-        for (const region of regions) {
-          const value = await store.get<boolean>(
-            `enabled_regions/${provider}/${region.name}`,
-          );
-          if (value === true) {
-            enabled.add(region.name);
-          }
-        }
-        setEnabledRegions(enabled);
-      })
-      .catch(console.error)
-      .finally(() => setIsLoadingRegions(false));
-  }, [provider]);
-
-  useEffect(() => {
-    const progressUnlisten = listen<EnableRegionProgressEvent>(
-      "enable-region-progress",
-      ({ payload }) => {
-        const { jobId, stepId, status, error } = payload;
-        setActiveEnableJob((previous) => {
-          if (!previous || previous.jobId !== jobId) return previous;
-          return {
-            ...previous,
-            steps: previous.steps.map((step) =>
-              step.id === stepId ? { ...step, status, error } : step,
-            ),
-          };
-        });
-      },
-    );
-
-    const completeUnlisten = listen<EnableRegionCompleteEvent>(
-      "enable-region-complete",
-      ({ payload }) => {
-        if (activeEnableJobIdRef.current === payload.jobId) {
-          setIsEnableComplete(true);
-          setEnabledRegions((previous) => new Set([...previous, payload.region]));
-          toast.success(`${payload.region} enabled!`);
-        }
-      },
-    );
-
-    const failedUnlisten = listen<{ jobId: string; error: string }>(
-      "enable-region-failed",
-      ({ payload }) => {
-        if (activeEnableJobIdRef.current === payload.jobId) {
-          setEnableError(payload.error);
-        }
-      },
-    );
-
-    return () => {
-      progressUnlisten.then((unlisten) => unlisten());
-      completeUnlisten.then((unlisten) => unlisten());
-      failedUnlisten.then((unlisten) => unlisten());
-    };
-  }, []);
-
-  const handleEnableRegion = async (
-    region: SimpleRegion,
-    event: React.MouseEvent,
-  ) => {
+  const handleEnableRegion = async (region: Region, event: React.MouseEvent) => {
     event.stopPropagation();
-    try {
-      const job = await invokeCommand<EnableRegionJob>("enable_region", {
-        region: region.name,
-        provider,
-      });
-      const initialSteps: SpawnStepState[] = job.steps.map((step) => ({
-        ...step,
-        status: "pending" as const,
-      }));
-      activeEnableJobIdRef.current = job.jobId;
-      setActiveEnableJob({
-        jobId: job.jobId,
-        region: region.name,
-        country: region.country,
-        steps: initialSteps,
-      });
-      setIsEnableComplete(false);
-      setEnableError(null);
-      setIsEnableDrawerOpen(true);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to enable region";
-      toast.error(message);
-    }
+    await enableRegion(region);
   };
 
   const lookupRegionInfo = (regionName: string) => getRegionInfo(provider, regionName);
@@ -178,46 +53,39 @@ export function RegionSelector({
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-900">
-      <div className="bg-gray-800 border-b border-gray-700/50 p-6">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+    <div className="flex flex-col h-full bg-gray-900">
+      <div className="flex items-center gap-3 px-5 pt-5 pb-4 border-b border-gray-700/50">
+        <button
+          onClick={onClose}
+          className="p-1.5 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
+        >
+          <svg
+            className="w-5 h-5 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
           >
-            <svg
-              className="w-6 h-6 text-gray-300"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold text-blue-400">Deploy New Server</h1>
-            <p className="text-gray-300 mt-1">
-              Enable a region first, then deploy your VPN server
-            </p>
-          </div>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <div>
+          <h1 className="text-base font-semibold text-white leading-tight">Deploy New Server</h1>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Enable a region first, then deploy your VPN server
+          </p>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 pb-0">
         {isLoadingRegions ? (
           <div className="flex justify-center items-center h-32">
-            <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+            <Spinner size="w-8 h-8" color="border-blue-400" />
           </div>
         ) : (
           <div className="space-y-6 pb-6">
             {groupedRegions.map((group, idx) => (
               <div key={idx}>
-                <h3 className="text-xs uppercase text-gray-400 font-semibold mb-3 px-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 pb-2 mb-3 border-b border-gray-700/50">
                   {group.continent}
                 </h3>
                 <div className="grid grid-cols-2 gap-3">
@@ -329,10 +197,10 @@ export function RegionSelector({
       </div>
 
       {selectedRegion && enabledRegions.has(selectedRegion.name) && (
-        <div className="border-t border-gray-700 p-6 flex-shrink-0">
+        <div className="border-t border-gray-700/50 p-5 flex-shrink-0">
           <button
             onClick={handleDeploy}
-            className="btn-primary w-full px-6 py-4 text-lg flex items-center justify-center gap-2"
+            className="btn-primary !rounded-xl w-full px-6 py-3 flex items-center justify-center gap-2 font-semibold"
           >
             <svg
               className="w-5 h-5"
@@ -352,12 +220,16 @@ export function RegionSelector({
         </div>
       )}
 
-      <ProvisionAccountDrawer
+      <JobProgressDrawer
         isOpen={isEnableDrawerOpen}
-        onClose={() => setIsEnableDrawerOpen(false)}
+        onClose={closeEnableDrawer}
         provider={provider}
         title={activeEnableJob ? `Enabling ${activeEnableJob.country}` : ""}
-        subtitle={activeEnableJob ? `Setting up regional infrastructure for ${activeEnableJob.region}` : undefined}
+        subtitle={
+          activeEnableJob
+            ? `Setting up regional infrastructure for ${activeEnableJob.region}`
+            : undefined
+        }
         successMessage={
           activeEnableJob
             ? `${activeEnableJob.country} is ready for deployment`

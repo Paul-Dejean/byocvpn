@@ -1,5 +1,6 @@
 import { Instance, RegionGroup, SpawnJobState } from "../../types";
 import { ServerCard } from "./ServerCard";
+import { Spinner } from "../common/Spinner";
 
 interface ServerListProps {
 
@@ -10,6 +11,7 @@ interface ServerListProps {
   groupedRegions: RegionGroup[];
 
   isLoading: boolean;
+  isRefreshing: boolean;
 
   getSpawnJobForInstance: (instanceId: string) => SpawnJobState | undefined;
 
@@ -23,29 +25,32 @@ export function ServerList({
   selectedInstance,
   groupedRegions,
   isLoading,
+  isRefreshing,
   getSpawnJobForInstance,
   onSelectInstance,
   onAddNewServer,
 }: ServerListProps) {
   return (
-    <div className="w-fit min-w-80 flex-shrink-0 border-r border-gray-700/50 flex flex-col">
+    <div className="w-fit min-w-80 flex-shrink-0 border-r border-gray-700/50 flex flex-col bg-gray-900">
       <div className="px-4 pt-4 pb-2 border-b border-gray-700/50">
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Servers</h2>
       </div>
       <div className="flex-1 overflow-y-auto p-4">
-        {isLoading && (
-          <div className="flex justify-center py-8">
-            <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          </div>
-        )}
-
-        {!isLoading && instances.length === 0 ? (
-          <div className="text-center py-8 text-gray-400">
-            <p>No servers</p>
-          </div>
+        {instances.length === 0 ? (
+          isLoading || isRefreshing ? (
+            <div className="flex justify-center py-8">
+              <Spinner size="w-8 h-8" color="border-blue-500" thickness="border-4" />
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-400">
+              <p>No servers</p>
+            </div>
+          )
         ) : (
           <div className="flex flex-col gap-2">
-            {}
+            {(isLoading || isRefreshing) && (
+              <p className="text-xs text-gray-500 text-center py-1">Refreshing server list…</p>
+            )}
             {instances.map((instance) => {
               const spawnJob = getSpawnJobForInstance(instance.id);
               return (
@@ -63,11 +68,10 @@ export function ServerList({
         )}
       </div>
 
-      {}
       <div className="p-4 border-t border-gray-700/50">
         <button
           onClick={onAddNewServer}
-          className="btn-primary w-full px-4 py-3 flex items-center justify-center gap-2"
+          className="btn-primary w-full px-4 py-3 flex items-center justify-center gap-2 !rounded-xl"
         >
           <svg
             className="w-5 h-5"

@@ -1,26 +1,29 @@
+import { Spinner } from "../common/Spinner";
 import { useEffect, useRef, useState } from "react";
-import { useCredentials, GcpCredentials } from "../../hooks";
+import { useCredentials } from "../../hooks";
+import { CloudProviderName } from "../../types";
 
 interface GcpProfileCardProps {
-  onCredentialsSaved: (provider: string) => void;
+  onCredentialsSaved: (provider: CloudProviderName) => void;
   onCredentialsDeleted: () => void;
-  onProvisionRequested: (provider: string) => void;
+  onProvisionRequested: (provider: CloudProviderName) => void;
   isProvisioned: boolean;
 }
 
-const GcpIcon = () => (
-  <div className="w-12 h-12 bg-white/5 rounded-lg flex items-center justify-center flex-shrink-0 p-2">
-    <img src="/cloud-providers/google-cloud-icon.svg" alt="GCP" className="w-full h-full object-contain" />
-  </div>
-);
+function GcpIcon() {
+  return (
+    <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 p-2.5">
+      <img src="/cloud-providers/google-cloud-icon.svg" alt="GCP" className="w-full h-full object-contain" />
+    </div>
+  );
+}
 
 export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onProvisionRequested, isProvisioned }: GcpProfileCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [hasCredentials, setHasCredentials] = useState<boolean | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-  const [projectId, setProjectId] = useState("");
-  const [serviceAccountJson, setServiceAccountJson] = useState("");
   const [jsonAlreadySet, setJsonAlreadySet] = useState(false);
+  const [formFields, setFormFields] = useState({ projectId: "", serviceAccountJson: "" });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -35,44 +38,42 @@ export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
   } = useCredentials();
 
   useEffect(() => {
-    loadCredentials("gcp").then((existing) => {
+    loadCredentials(CloudProviderName.Gcp).then((existing) => {
       setHasCredentials(existing !== null);
     });
   }, []);
 
+  const resetForm = () => {
+    setFormFields({ projectId: "", serviceAccountJson: "" });
+    setJsonAlreadySet(false);
+  };
+
   const handleEditOpen = async () => {
-    const existing = await loadCredentials("gcp");
+    const existing = await loadCredentials(CloudProviderName.Gcp);
     if (existing) {
-      const gcpCredentials = existing as GcpCredentials;
-      setProjectId(gcpCredentials.projectId);
-      if (gcpCredentials.serviceAccountJson) {
-        setJsonAlreadySet(true);
-      }
+      setFormFields({ projectId: existing.projectId, serviceAccountJson: "" });
+      setJsonAlreadySet(!!existing.serviceAccountJson);
     }
     setIsEditing(true);
   };
 
   const handleCancel = () => {
     setIsEditing(false);
-    setProjectId("");
-    setServiceAccountJson("");
-    setJsonAlreadySet(false);
+    resetForm();
     clearError();
   };
 
   const handleSave = async () => {
-    const success = await saveCredentials("gcp", {
-      projectId: projectId.trim(),
-      serviceAccountJson: serviceAccountJson.trim(),
+    const success = await saveCredentials(CloudProviderName.Gcp, {
+      projectId: formFields.projectId.trim(),
+      serviceAccountJson: formFields.serviceAccountJson.trim(),
     });
 
     if (success) {
-      setProjectId("");
-      setServiceAccountJson("");
-      setJsonAlreadySet(false);
+      resetForm();
       setIsEditing(false);
       setHasCredentials(true);
-      onCredentialsSaved("gcp");
+      onCredentialsSaved(CloudProviderName.Gcp);
     }
   };
 
@@ -83,13 +84,14 @@ export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
     reader.onload = (loadEvent) => {
       const content = loadEvent.target?.result;
       if (typeof content === "string") {
-        setServiceAccountJson(content);
         try {
           const parsed = JSON.parse(content);
-          if (parsed.project_id && !projectId) {
-            setProjectId(parsed.project_id);
-          }
+          setFormFields((prev) => ({
+            serviceAccountJson: content,
+            projectId: parsed.project_id && !prev.projectId ? parsed.project_id : prev.projectId,
+          }));
         } catch {
+          setFormFields((prev) => ({ ...prev, serviceAccountJson: content }));
         }
       }
     };
@@ -98,7 +100,7 @@ export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
   };
 
   const handleDeleteCredentials = async () => {
-    const success = await deleteCredentials("gcp");
+    const success = await deleteCredentials(CloudProviderName.Gcp);
     if (success) {
       setHasCredentials(false);
       setIsConfirmingDelete(false);
@@ -107,19 +109,19 @@ export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
   };
 
   const isFormValid =
-    projectId.trim() && (serviceAccountJson.trim() || jsonAlreadySet);
+    formFields.projectId.trim() && (formFields.serviceAccountJson.trim() || jsonAlreadySet);
 
   const showNotProvisionedWarning = hasCredentials === true && !isProvisioned;
 
   return (
-    <div className={`rounded-lg p-6 mt-4 ${showNotProvisionedWarning ? "bg-gray-700 border-l-4 border-amber-500" : "bg-gray-700"}`}>
+    <div className="py-4">
       {!isEditing ? (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <GcpIcon />
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-lg text-white">Google Cloud Profile</h3>
+                <h3 className="font-semibold text-lg text-white">Google Cloud Account</h3>
                 {hasCredentials && isProvisioned && (
                   <span className="text-xs px-2 py-0.5 bg-green-900/50 text-green-400 rounded-full border border-green-700/50">
                     Provisioned
@@ -131,13 +133,10 @@ export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
                   </span>
                 )}
               </div>
-              <p className="text-sm text-gray-400">
-                GCP service-account credentials for Compute Engine deployment
-              </p>
             </div>
           </div>
           {hasCredentials === null ? (
-            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+            <Spinner color="border-gray-400" />
           ) : hasCredentials ? (
             <div className="flex items-center gap-2">
               {isConfirmingDelete ? (
@@ -149,13 +148,13 @@ export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
               ) : (
                 <>
                   {isProvisioned ? (
-                    <button onClick={() => onProvisionRequested("gcp")} className="p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded-lg transition-colors" title="Re-provision">
+                    <button onClick={() => onProvisionRequested(CloudProviderName.Gcp)} className="p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded-lg transition-colors" title="Re-provision">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
                     </button>
                   ) : (
-                    <button onClick={() => onProvisionRequested("gcp")} className="p-2 text-amber-400 hover:text-amber-300 hover:bg-gray-600 rounded-lg transition-colors" title="Provision">
+                    <button onClick={() => onProvisionRequested(CloudProviderName.Gcp)} className="p-2 text-amber-400 hover:text-amber-300 hover:bg-gray-600 rounded-lg transition-colors" title="Provision">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>
@@ -191,8 +190,8 @@ export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
             <div>
               <h3 className="font-semibold text-lg text-white">
                 {hasCredentials
-                  ? "Edit Google Cloud Profile"
-                  : "Add Google Cloud Profile"}
+                  ? "Edit Google Cloud Account"
+                  : "Add Google Cloud Account"}
               </h3>
               <p className="text-sm text-gray-400">
                 {hasCredentials
@@ -212,8 +211,8 @@ export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
               </p>
               <input
                 type="text"
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
+                value={formFields.projectId}
+                onChange={(e) => setFormFields((prev) => ({ ...prev, projectId: e.target.value }))}
                 className="input font-mono text-sm"
                 placeholder="my-gcp-project"
               />
@@ -253,21 +252,21 @@ export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
                   className="hidden"
                 />
               </div>
-              {jsonAlreadySet && !serviceAccountJson && (
+              {jsonAlreadySet && !formFields.serviceAccountJson && (
                 <p className="text-xs text-green-400 mb-2">
                   ✓ Service account key already configured — load a new file or
                   paste below to replace it
                 </p>
               )}
-              {!jsonAlreadySet && !serviceAccountJson && (
+              {!jsonAlreadySet && !formFields.serviceAccountJson && (
                 <p className="text-xs text-gray-500 mb-2">
                   Paste the contents of your service-account JSON key file or
                   use "Load from file"
                 </p>
               )}
               <textarea
-                value={serviceAccountJson}
-                onChange={(e) => setServiceAccountJson(e.target.value)}
+                value={formFields.serviceAccountJson}
+                onChange={(e) => setFormFields((prev) => ({ ...prev, serviceAccountJson: e.target.value }))}
                 rows={6}
                 className="input font-mono text-xs resize-none"
                 placeholder='{"type":"service_account","project_id":"..."}'
@@ -300,11 +299,11 @@ export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
               >
                 {isSaving ? (
                   <div className="flex items-center justify-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <Spinner color="border-white" />
                     Saving...
                   </div>
                 ) : (
-                  "Save Profile"
+                  "Save Account"
                 )}
               </button>
             </div>

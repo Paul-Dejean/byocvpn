@@ -11,13 +11,14 @@ use crate::{
     },
     config::{generate_client_config, get_wireguard_config_file_path},
     connectivity,
-    error::{ComputeProvisioningError, ConfigurationError, Result},
+    error::{ConfigurationError, Result},
 };
 
 pub async fn run_spawn_steps<F1, F2>(
     provider: &dyn CloudProvider,
     steps: &[SpawnStep],
     region: &str,
+    spawn_id: &str,
     client_private_key: &str,
     server_private_key: &str,
     client_public_key: &str,
@@ -35,7 +36,7 @@ where
         match step.id.as_str() {
             "launch" => {
                 on_step_progress("launch", SpawnStepStatus::Running, None);
-                match launch_instance(provider, region, server_private_key, client_public_key).await
+                match launch_instance(provider, region, spawn_id, server_private_key, client_public_key).await
                 {
                     Ok(instance) => {
                         on_step_progress("launch", SpawnStepStatus::Completed, None);
@@ -96,6 +97,7 @@ where
 pub async fn launch_instance(
     provider: &dyn CloudProvider,
     region: &str,
+    spawn_id: &str,
     server_private_key: &str,
     client_public_key: &str,
 ) -> Result<InstanceInfo> {
@@ -103,14 +105,10 @@ pub async fn launch_instance(
         region,
         server_private_key,
         client_public_key,
+        spawn_id,
     };
 
-    let instance = provider.spawn_instance(&params).await.map_err(|error| {
-        ComputeProvisioningError::InstanceSpawnFailed {
-            region_name: region.to_string(),
-            reason: error.to_string(),
-        }
-    })?;
+    let instance = provider.spawn_instance(&params).await?;
 
     info!("Spawned instance: {}", instance.id);
     Ok(instance)

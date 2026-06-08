@@ -10,6 +10,7 @@ pub struct SpawnInstanceParams<'a> {
     pub region: &'a str,
     pub server_private_key: &'a str,
     pub client_public_key: &'a str,
+    pub spawn_id: &'a str,
 }
 
 pub struct TerminateInstanceParams<'a> {
@@ -39,7 +40,7 @@ pub trait CloudProvider: Send + Sync {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Display, EnumString)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "lowercase", ascii_case_insensitive)]
 pub enum CloudProviderName {
     Aws,
@@ -50,17 +51,14 @@ pub enum CloudProviderName {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum InstanceState {
     Spawning,
     Installing,
     Error,
     Running,
-    Creating,
     Stopping,
     Stopped,
-    Deleting,
-    Deleted,
     Unknown,
 }
 
@@ -77,6 +75,7 @@ pub struct InstanceInfo {
     pub provider: CloudProviderName,
     pub instance_type: String,
     pub launched_at: Option<DateTime<Utc>>,
+    pub spawn_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -106,7 +105,7 @@ pub struct SpawnJob {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SpawnStepStatus {
     Pending,
     Running,

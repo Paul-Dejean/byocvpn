@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invokeCommand } from "../../lib/invokeCommand";
-import { isPermissionGranted, requestPermission } from "@tauri-apps/plugin-notification";
+import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 interface NotificationSettings {
   notificationEnabled: boolean;
@@ -53,6 +54,29 @@ export function NotificationSettingsCard() {
     updateSettings({ ...settings, notificationEnabled: enabling });
   };
 
+  const sendTestNotification = () => {
+    sendNotification({
+      title: "ByocVPN",
+      body: "Notifications are working!",
+    });
+  };
+
+  const notificationSettingsUrl = (() => {
+    if (navigator.platform.startsWith("Mac")) return "x-apple.systempreferences:com.apple.preference.notifications";
+    if (navigator.platform.startsWith("Win")) return "ms-settings:notifications";
+    return null;
+  })();
+
+  const openNotificationSettings = async () => {
+    if (!notificationSettingsUrl) return;
+    try {
+      await openUrl(notificationSettingsUrl);
+    } catch (error) {
+      console.error("Failed to open notification settings:", error);
+      setPermissionError(`Could not open System Settings: ${error}`);
+    }
+  };
+
   const onThresholdChange = (raw: string) => {
     const minutes = parseInt(raw, 10);
     if (!isNaN(minutes) && minutes >= 1) {
@@ -61,22 +85,23 @@ export function NotificationSettingsCard() {
   };
 
   return (
-    <div className="bg-gray-800 rounded-lg p-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-yellow-900/50 flex items-center justify-center flex-shrink-0">
+    <div className="py-6">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="w-12 h-12 rounded-xl bg-yellow-900/50 flex items-center justify-center flex-shrink-0">
             <BellIcon />
           </div>
-          <div>
-            <h3 className="text-sm font-medium text-white">Server Uptime Notifications</h3>
-            <p className="text-xs text-gray-400 mt-0.5">
+          <div className="min-w-0">
+            <h3 className="font-semibold text-white">Server Uptime Notifications</h3>
+            <p className="text-sm text-gray-400 mt-0.5">
               Get notified when a server has been running too long
             </p>
           </div>
         </div>
+
         <button
           onClick={toggleEnabled}
-          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
             settings.notificationEnabled ? "bg-blue-600" : "bg-gray-600"
           }`}
           aria-label="Toggle notifications"
@@ -89,20 +114,44 @@ export function NotificationSettingsCard() {
         </button>
       </div>
 
-      {permissionError && (
-        <p className="mt-2 text-xs text-red-400">{permissionError}</p>
-      )}
-
       {settings.notificationEnabled && (
-        <div className="mt-4 pt-4 border-t border-gray-700">
-          <label className="text-xs text-gray-400 mb-2 block">Notify after (minutes)</label>
-          <input
-            type="number"
-            min={1}
-            value={settings.notificationThresholdMinutes}
-            onChange={(event) => onThresholdChange(event.target.value)}
-            className="w-24 px-3 py-1.5 text-xs bg-gray-700 text-white rounded-md border border-gray-600 focus:outline-none focus:border-blue-500"
-          />
+        <div className="mt-3 pl-16 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400">Notify after</span>
+            <input
+              type="number"
+              min={1}
+              value={settings.notificationThresholdMinutes}
+              onChange={(event) => onThresholdChange(event.target.value)}
+              className="w-14 px-2 py-1 text-xs bg-gray-700 text-white rounded-md border border-gray-600 focus:outline-none focus:border-blue-500 text-center"
+            />
+            <span className="text-xs text-gray-400">minutes of server uptime</span>
+          </div>
+
+          <p className="text-xs text-gray-500">
+            To verify notifications work, open System Settings and allow notifications for this app. You can then send a test notification to confirm everything is set up correctly.
+          </p>
+
+          {permissionError && (
+            <p className="text-xs text-red-400">{permissionError}</p>
+          )}
+
+          <div className="flex items-center gap-2">
+            {notificationSettingsUrl && (
+              <button
+                onClick={openNotificationSettings}
+                className="text-xs text-gray-400 hover:text-white border border-gray-600 hover:border-gray-400 rounded-md px-2.5 py-1 transition-colors"
+              >
+                Open Settings
+              </button>
+            )}
+            <button
+              onClick={sendTestNotification}
+              className="text-xs text-gray-400 hover:text-white border border-gray-600 hover:border-gray-400 rounded-md px-2.5 py-1 transition-colors"
+            >
+              Test Notification
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -112,7 +161,7 @@ export function NotificationSettingsCard() {
 function BellIcon() {
   return (
     <svg
-      className="w-4 h-4 text-yellow-400"
+      className="w-5 h-5 text-yellow-400"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"

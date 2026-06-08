@@ -53,6 +53,14 @@
   --color-blue-200: #9ae2ff;
   --color-blue-100: #ccf0ff;
 
+  /* ── Animations ── */
+  --animate-fade-in: fade-in 1s ease-in-out forwards;
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
   /* ── Typography ── */
   --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;

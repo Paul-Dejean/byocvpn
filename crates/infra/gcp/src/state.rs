@@ -31,14 +31,14 @@ impl From<&str> for GcpInstanceStatus {
 impl From<GcpInstanceStatus> for InstanceState {
     fn from(status: GcpInstanceStatus) -> Self {
         match status {
-            GcpInstanceStatus::Provisioning => InstanceState::Creating,
-            GcpInstanceStatus::Staging => InstanceState::Creating,
+            GcpInstanceStatus::Provisioning => InstanceState::Unknown,
+            GcpInstanceStatus::Staging => InstanceState::Unknown,
             GcpInstanceStatus::Running => InstanceState::Running,
             GcpInstanceStatus::Stopping => InstanceState::Stopping,
             GcpInstanceStatus::Suspending => InstanceState::Stopping,
             GcpInstanceStatus::Suspended => InstanceState::Stopped,
-            GcpInstanceStatus::Repairing => InstanceState::Unknown,
-            GcpInstanceStatus::Terminated => InstanceState::Deleted,
+            GcpInstanceStatus::Repairing => InstanceState::Error,
+            GcpInstanceStatus::Terminated => InstanceState::Unknown,
             GcpInstanceStatus::Unknown => InstanceState::Unknown,
         }
     }

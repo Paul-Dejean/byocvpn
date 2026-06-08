@@ -24,15 +24,15 @@ export function KillSwitchSettingsCard() {
   };
 
   return (
-    <div className="bg-gray-800 rounded-lg p-4">
+    <div className="py-6">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-red-900/50 flex items-center justify-center flex-shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-red-900/50 flex items-center justify-center flex-shrink-0">
             <ShieldIcon />
           </div>
           <div>
-            <h3 className="text-sm font-medium text-white">Kill Switch</h3>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <h3 className="font-semibold text-white">Kill Switch</h3>
+            <p className="text-sm text-gray-400 mt-0.5">
               Block all traffic if the VPN tunnel drops
             </p>
           </div>
@@ -58,7 +58,7 @@ export function KillSwitchSettingsCard() {
 function ShieldIcon() {
   return (
     <svg
-      className="w-4 h-4 text-red-400"
+      className="w-5 h-5 text-red-400"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"

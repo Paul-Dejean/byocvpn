@@ -1,4 +1,5 @@
 mod commands;
+mod provider_credentials;
 mod ledger_store;
 mod provider_store;
 mod settings_store;

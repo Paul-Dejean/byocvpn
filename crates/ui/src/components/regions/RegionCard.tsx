@@ -1,9 +1,9 @@
-import { AwsRegion } from "../../types";
+import { Region } from "../../types";
 
 interface RegionCardProps {
-  region: AwsRegion;
+  region: Region;
   isSelected: boolean;
-  onSelect: (region: AwsRegion) => void;
+  onSelect: (region: Region) => void;
 }
 
 export function RegionCard({ region, isSelected, onSelect }: RegionCardProps) {

@@ -125,13 +125,16 @@ pub async fn spawn_instance(
         Uuid::new_v4().to_string().replace('-', "")[..16].to_uppercase()
     );
 
+    let mut vm_tags = byocvpn_tags();
+    vm_tags.insert("byocvpn-spawn-id".to_string(), params.spawn_id.to_string());
+
     let (async_op_url, used_vm_size) = {
         let mut last_error = String::new();
         let mut result = None;
         for &vm_size in VM_SIZES {
             let vm_body = VmRequest {
                 location: location.to_string(),
-                tags: byocvpn_tags(),
+                tags: vm_tags.clone(),
                 properties: VmProperties {
                     hardware_profile: HardwareProfile {
                         vm_size: vm_size.to_string(),
@@ -245,6 +248,7 @@ pub async fn spawn_instance(
         instance_type: used_vm_size.to_string(),
         launched_at: Some(Utc::now()),
         error_reason: None,
+        spawn_id: Some(params.spawn_id.to_string()),
     })
 }
 
@@ -338,6 +342,16 @@ pub async fn list_all_instances(client: &AzureClient) -> Result<Vec<InstanceInfo
         }
     }
 
+    instances.retain(|instance| {
+        matches!(
+            instance.state,
+            InstanceState::Running
+                | InstanceState::Stopping
+                | InstanceState::Stopped
+                | InstanceState::Error
+        )
+    });
+
     debug!(
         "[Azure] Found {} byocvpn instance(s) in subscription.",
         instances.len()
@@ -365,6 +379,12 @@ async fn resolve_vm_info(
     let resource_group = crate::client::extract_resource_group_from_id(vm_id)
         .unwrap_or("unknown")
         .to_string();
+
+    let spawn_id = virtual_machine
+        .tags
+        .as_ref()
+        .and_then(|tags| tags.get("byocvpn-spawn-id"))
+        .cloned();
 
     let provisioning_state = virtual_machine
         .properties
@@ -408,6 +428,7 @@ async fn resolve_vm_info(
         instance_type,
         launched_at,
         error_reason: None,
+        spawn_id,
     }))
 }
 

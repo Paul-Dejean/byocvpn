@@ -1,16 +1,11 @@
 import { ProviderIcon } from "../providers/ProviderIcon";
-
-const PROVIDER_SHORT_LABELS: Record<string, string> = {
-  aws: "AWS",
-  azure: "Azure",
-  gcp: "GCP",
-  oracle: "Oracle",
-};
+import { CloudProviderName } from "../../types";
+import { PROVIDER_METADATA } from "../../constants/providers";
 
 interface ProviderFilterProps {
-  availableProviders: string[];
-  selectedProvider: string | null;
-  onSelectProvider: (provider: string | null) => void;
+  availableProviders: CloudProviderName[];
+  selectedProvider: CloudProviderName | null;
+  onSelectProvider: (provider: CloudProviderName | null) => void;
 }
 
 export function ProviderFilter({
@@ -41,7 +36,7 @@ export function ProviderFilter({
           }`}
         >
           <ProviderIcon provider={provider} className="w-4 h-4" />
-          {PROVIDER_SHORT_LABELS[provider] ?? provider}
+          {PROVIDER_METADATA[provider].shortLabel}
         </button>
       ))}
     </div>

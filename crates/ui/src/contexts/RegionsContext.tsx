@@ -1,9 +1,9 @@
 import { createContext, useContext, ReactNode } from "react";
-import { AwsRegion, RegionGroup } from "../types";
+import { Region, RegionGroup } from "../types";
 import { useRegions } from "../hooks/useRegions";
 
 interface RegionsContextValue {
-  regions: AwsRegion[];
+  regions: Region[];
   groupedRegions: RegionGroup[];
   isLoading: boolean;
   error: string | null;

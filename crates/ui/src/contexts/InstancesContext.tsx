@@ -1,21 +1,20 @@
 import { createContext, useContext, ReactNode } from "react";
-import { Instance, SpawnJobState } from "../types";
+import { CloudProviderName, Instance, SpawnJobState } from "../types";
 import { useInstances } from "../hooks/useInstances";
-import { useRegionsContext } from "./RegionsContext";
 
 interface InstancesContextValue {
   instances: Instance[];
   isLoading: boolean;
+  isRefreshing: boolean;
   isSpawning: boolean;
   terminatingInstanceId: string | null;
-  error: string | null;
-  spawnInstance: (regionName: string, provider: string) => Promise<Instance>;
+  spawnInstance: (regionName: string, provider: CloudProviderName) => Promise<Instance>;
   terminateInstance: (
     instanceId: string,
     region: string,
-    provider: string,
+    provider: CloudProviderName,
   ) => Promise<void>;
-  clearError: () => void;
+  dismissFailedInstance: (instanceId: string) => void;
   refetch: () => Promise<void>;
   getSpawnJobForInstance: (instanceId: string) => SpawnJobState | undefined;
 }
@@ -27,8 +26,7 @@ interface InstancesProviderProps {
 }
 
 export function InstancesProvider({ children }: InstancesProviderProps) {
-  const { regions } = useRegionsContext();
-  const instancesState = useInstances(regions);
+  const instancesState = useInstances();
 
   return (
     <InstancesContext.Provider value={instancesState}>

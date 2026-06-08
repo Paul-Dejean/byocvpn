@@ -1,154 +1,152 @@
-import React, { useEffect, useState } from "react";
+import { Spinner } from "../common/Spinner";
+import { useEffect, useState } from "react";
 import { useCredentials } from "../../hooks/useCredentials";
+import { CloudProviderName } from "../../types";
 
 interface ProviderSelectorProps {
-  onSelectProvider: (provider: string) => void;
+  onSelectProvider: (provider: CloudProviderName) => void;
   onClose: () => void;
+  filter?: "configured" | "unconfigured";
+  title?: string;
+  subtitle?: string;
 }
 
 interface ProviderOption {
-  id: string;
+  name: CloudProviderName;
   label: string;
   description: string;
-  badge: React.ReactNode;
+  iconSrc: string;
+  iconAlt: string;
 }
 
 const providers: ProviderOption[] = [
   {
-    id: "aws",
+    name: CloudProviderName.Aws,
     label: "Amazon Web Services",
-    description: "Deploy on EC2 — available in 30+ regions worldwide",
-    badge: (
-      <div className="w-14 h-14 rounded-xl bg-white/5 flex items-center justify-center p-2">
-        <img src="/cloud-providers/aws-icon.svg" alt="AWS" className="w-full h-full object-contain" />
-      </div>
-    ),
+    description: "EC2 — 15+ regions worldwide",
+    iconSrc: "/cloud-providers/aws-icon.svg",
+    iconAlt: "AWS",
   },
   {
-    id: "oracle",
-    label: "Oracle Cloud Infrastructure",
-    description: "Deploy on OCI Compute — includes an Always Free tier",
-    badge: (
-      <div className="w-14 h-14 rounded-xl bg-white/5 flex items-center justify-center p-2">
-        <img src="/cloud-providers/oracle-icon.svg" alt="Oracle" className="w-full h-full object-contain" />
-      </div>
-    ),
+    name: CloudProviderName.Oracle,
+    label: "Oracle Cloud",
+    description: "OCI Compute — 40+ regions worldwide",
+    iconSrc: "/cloud-providers/oracle-icon.svg",
+    iconAlt: "Oracle",
   },
   {
-    id: "gcp",
-    label: "Google Cloud Platform",
-    description:
-      "Deploy on GCP Compute Engine — available in 40+ regions worldwide",
-    badge: (
-      <div className="w-14 h-14 rounded-xl bg-white/5 flex items-center justify-center p-2">
-        <img src="/cloud-providers/google-cloud-icon.svg" alt="GCP" className="w-full h-full object-contain" />
-      </div>
-    ),
+    name: CloudProviderName.Gcp,
+    label: "Google Cloud",
+    description: "Compute Engine — 40+ regions worldwide",
+    iconSrc: "/cloud-providers/google-cloud-icon.svg",
+    iconAlt: "GCP",
   },
   {
-    id: "azure",
+    name: CloudProviderName.Azure,
     label: "Microsoft Azure",
-    description: "Deploy on Azure VMs — available in 60+ regions worldwide",
-    badge: (
-      <div className="w-14 h-14 rounded-xl bg-white/5 flex items-center justify-center p-2">
-        <img src="/cloud-providers/azure-icon.svg" alt="Azure" className="w-full h-full object-contain" />
-      </div>
-    ),
+    description: "Azure VMs — 60+ regions worldwide",
+    iconSrc: "/cloud-providers/azure-icon.svg",
+    iconAlt: "Azure",
   },
 ];
 
 export function ProviderSelector({
   onSelectProvider,
   onClose,
+  filter = "configured",
+  title = "Select Cloud Provider",
+  subtitle = "Choose which provider to deploy your VPN server on",
 }: ProviderSelectorProps) {
-  const [configuredProviders, setConfiguredProviders] = useState<ProviderOption[]>([]);
+  const [filteredProviders, setFilteredProviders] = useState<ProviderOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { loadCredentials } = useCredentials();
 
   useEffect(() => {
-    const loadConfiguredProviders = async () => {
-      const configured: ProviderOption[] = [];
+    const loadFilteredProviders = async () => {
+      const result: ProviderOption[] = [];
       for (const provider of providers) {
-        const existing = await loadCredentials(provider.id as "aws" | "oracle" | "gcp" | "azure");
-        if (existing !== null) {
-          configured.push(provider);
+        const existing = await loadCredentials(provider.name);
+        const shouldInclude = filter === "unconfigured" ? existing === null : existing !== null;
+        if (shouldInclude) {
+          result.push(provider);
         }
       }
-      setConfiguredProviders(configured);
+      setFilteredProviders(result);
       setIsLoading(false);
     };
-    loadConfiguredProviders();
+    loadFilteredProviders();
   }, []);
 
   return (
-    <div className="flex flex-col h-screen bg-gray-900">
-      <div className="bg-gray-800 border-b border-gray-700/50 p-6">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+    <div className="flex flex-col h-full bg-gray-900">
+      <div className="flex items-center gap-3 px-5 pt-5 pb-4 border-b border-gray-700/50">
+        <button
+          onClick={onClose}
+          className="p-1.5 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
+        >
+          <svg
+            className="w-5 h-5 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
           >
-            <svg
-              className="w-6 h-6 text-gray-300"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold text-blue-400">
-              Select Cloud Provider
-            </h1>
-            <p className="text-gray-300 mt-1">
-              Choose which provider to deploy your VPN server on
-            </p>
-          </div>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
+        </button>
+        <div>
+          <h1 className="text-base font-semibold text-white leading-tight">
+            {title}
+          </h1>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {subtitle}
+          </p>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4 max-w-lg mx-auto w-full">
+      <div className="flex-1 overflow-y-auto px-5 pt-5 pb-5">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+            <Spinner size="w-6 h-6" color="border-blue-400" />
           </div>
         ) : (
-          configuredProviders.map((provider) => (
-            <button
-              key={provider.id}
-              onClick={() => onSelectProvider(provider.id)}
-              className="w-full flex items-center gap-5 p-5 bg-gray-800 card-border rounded-xl hover:glow-accent-sm transition-all text-left group"
-            >
-              {provider.badge}
-              <div className="flex-1">
-                <p className="font-semibold text-white text-lg group-hover:text-blue-300 transition-colors">
-                  {provider.label}
-                </p>
-                <p className="text-sm text-gray-400 mt-0.5">
-                  {provider.description}
-                </p>
-              </div>
-              <svg
-                className="w-5 h-5 text-gray-500 group-hover:text-blue-400 transition-colors flex-shrink-0"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+          <div className="flex flex-col gap-3">
+            {filteredProviders.map((provider) => (
+              <button
+                key={provider.name}
+                onClick={() => onSelectProvider(provider.name)}
+                className="w-full flex items-center gap-4 p-4 bg-gray-800/60 border border-white/5 rounded-xl hover:border-blue-500/40 hover:bg-gray-800 transition-all text-left group"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
-            </button>
-          ))
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center p-2 flex-shrink-0">
+                  <img
+                    src={provider.iconSrc}
+                    alt={provider.iconAlt}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-white group-hover:text-blue-300 transition-colors">
+                    {provider.label}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5 truncate">
+                    {provider.description}
+                  </p>
+                </div>
+                <svg
+                  className="w-4 h-4 text-gray-600 group-hover:text-blue-400 transition-colors flex-shrink-0"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            ))}
+          </div>
         )}
       </div>
     </div>
