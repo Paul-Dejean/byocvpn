@@ -211,11 +211,26 @@ export function useInstances(regions: Region[]) {
         setSpawnJobs((previous) => ({ ...previous, ...newSpawnJobs }));
       }
 
-      const sorted = [...fetched].sort((a, b) => {
-        const installingA = a.state === InstanceState.Installing ? 0 : 1;
-        const installingB = b.state === InstanceState.Installing ? 0 : 1;
-        return installingA - installingB;
-      });
+      const spawnIdsWithPlaceholder = new Set(
+        [
+          ...Object.values(newSpawnJobs),
+          ...Object.values(spawnJobsRef.current),
+        ]
+          .filter((job) => job.instanceId.startsWith("spawning-"))
+          .map((job) => job.jobId),
+      );
+
+      const sorted = [...fetched]
+        .filter(
+          (instance) =>
+            !instance.spawnId ||
+            !spawnIdsWithPlaceholder.has(instance.spawnId),
+        )
+        .sort((a, b) => {
+          const installingA = a.state === InstanceState.Installing ? 0 : 1;
+          const installingB = b.state === InstanceState.Installing ? 0 : 1;
+          return installingA - installingB;
+        });
       setInstances([...spawningPlaceholders, ...sorted]);
     } catch (fetchError) {
       if (!isBackgroundLoad) {
