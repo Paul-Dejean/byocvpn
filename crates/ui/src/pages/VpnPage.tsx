@@ -10,11 +10,11 @@ interface VpnPageProps {
 
 export function VpnPage({ onNavigateToAddAccount }: VpnPageProps) {
   const { vpnStatus, checkVpnStatus } = useVpnConnectionContext();
-  const { backgroundRefetch } = useInstancesContext();
+  const { refetch } = useInstancesContext();
 
   useEffect(() => {
     checkVpnStatus();
-    backgroundRefetch();
+    refetch();
   }, []);
 
   if (vpnStatus.connected && vpnStatus.instance) {

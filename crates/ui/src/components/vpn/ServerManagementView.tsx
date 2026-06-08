@@ -34,6 +34,7 @@ export function ServerManagementView({
   const {
     instances,
     isLoading: instancesLoading,
+    isRefreshing,
     terminatingInstanceId,
     terminateInstance,
     dismissFailedInstance,
@@ -168,6 +169,7 @@ export function ServerManagementView({
               selectedInstance={selectedInstance}
               groupedRegions={groupedRegions}
               isLoading={isLoading}
+              isRefreshing={isRefreshing}
               getSpawnJobForInstance={getSpawnJobForInstance}
               onSelectInstance={handleSelectInstance}
               onAddNewServer={() => setCreationStep("selecting-provider")}

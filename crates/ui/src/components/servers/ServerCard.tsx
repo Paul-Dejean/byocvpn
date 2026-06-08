@@ -1,4 +1,10 @@
-import { Instance, InstanceState, RegionGroup, SpawnJobState, JobStepStatus } from "../../types";
+import {
+  Instance,
+  InstanceState,
+  RegionGroup,
+  SpawnJobState,
+  JobStepStatus,
+} from "../../types";
 import { getRegionInfo } from "../../constants/regionInfo";
 import { FlagIcon } from "../FlagIcon";
 import { ProviderIcon } from "../providers/ProviderIcon";
@@ -20,17 +26,52 @@ const PROVIDER_STRIPE: Record<CloudProviderName, string> = {
   [CloudProviderName.Azure]: "border-l-sky-500",
 };
 
-const STATE_BADGE: Record<InstanceState, { className: string; label: string; spinner?: boolean }> = {
-  [InstanceState.Spawning]:   { className: "bg-blue-900/50 text-blue-300",    label: "spawning",   spinner: true },
-  [InstanceState.Installing]: { className: "bg-yellow-900/50 text-yellow-300", label: "installing", spinner: true },
-  [InstanceState.Error]:      { className: "bg-red-900/50 text-red-400",      label: "error" },
-  [InstanceState.Running]:    { className: "bg-green-900/50 text-green-300",  label: "running" },
-  [InstanceState.Creating]:   { className: "bg-yellow-900/50 text-yellow-300", label: "creating" },
-  [InstanceState.Stopping]:   { className: "bg-red-900/50 text-red-300",      label: "stopping" },
-  [InstanceState.Deleting]:   { className: "bg-red-900/50 text-red-300",      label: "deleting" },
-  [InstanceState.Stopped]:    { className: "bg-gray-700/50 text-gray-500",    label: "stopped" },
-  [InstanceState.Deleted]:    { className: "bg-gray-700/50 text-gray-500",    label: "deleted" },
-  [InstanceState.Unknown]:    { className: "bg-gray-900/50 text-gray-400",    label: "unknown" },
+const STATE_BADGE: Record<
+  InstanceState,
+  { className: string; label: string; spinner?: boolean }
+> = {
+  [InstanceState.Spawning]: {
+    className: "bg-blue-900/50 text-blue-300",
+    label: "spawning",
+    spinner: true,
+  },
+  [InstanceState.Installing]: {
+    className: "bg-yellow-900/50 text-yellow-300",
+    label: "installing",
+    spinner: true,
+  },
+  [InstanceState.Error]: {
+    className: "bg-red-900/50 text-red-400",
+    label: "error",
+  },
+  [InstanceState.Running]: {
+    className: "bg-green-900/50 text-green-300",
+    label: "running",
+  },
+  [InstanceState.Creating]: {
+    className: "bg-yellow-900/50 text-yellow-300",
+    label: "creating",
+  },
+  [InstanceState.Stopping]: {
+    className: "bg-red-900/50 text-red-300",
+    label: "stopping",
+  },
+  [InstanceState.Deleting]: {
+    className: "bg-red-900/50 text-red-300",
+    label: "deleting",
+  },
+  [InstanceState.Stopped]: {
+    className: "bg-gray-700/50 text-gray-500",
+    label: "stopped",
+  },
+  [InstanceState.Deleted]: {
+    className: "bg-gray-700/50 text-gray-500",
+    label: "deleted",
+  },
+  [InstanceState.Unknown]: {
+    className: "bg-gray-900/50 text-gray-400",
+    label: "unknown",
+  },
 };
 
 export function ServerCard({
@@ -44,32 +85,50 @@ export function ServerCard({
   const stripeColor = PROVIDER_STRIPE[instance.provider] ?? "border-l-gray-600";
 
   const isInProgress =
-    instance.state === InstanceState.Spawning || instance.state === InstanceState.Installing;
+    instance.state === InstanceState.Spawning ||
+    instance.state === InstanceState.Installing;
+
+  const isInteractive = [
+    InstanceState.Spawning,
+    InstanceState.Installing,
+    InstanceState.Running,
+    InstanceState.Error,
+  ].includes(instance.state);
 
   const badge = STATE_BADGE[instance.state] ?? {
     className: "bg-gray-900/50 text-gray-400",
     label: instance.state,
   };
 
-  const runningStep = spawnJob?.steps.find((step) => step.status === JobStepStatus.Running);
+  const runningStep = spawnJob?.steps.find(
+    (step) => step.status === JobStepStatus.Running,
+  );
   const stepLabel = runningStep?.label ?? (isInProgress ? "Starting…" : null);
 
   return (
     <button
-      onClick={() => onSelect(instance)}
+      onClick={() => isInteractive && onSelect(instance)}
+      disabled={!isInteractive}
       className={`text-left p-3 rounded-lg transition-all border border-l-4 ${stripeColor} ${
-        isInProgress
-          ? isSelected
-            ? "bg-blue-700/60 text-white glow-accent border-blue-500/40"
-            : "bg-gray-800 text-gray-300 hover:bg-gray-750 border-white/10"
-          : isSelected
-            ? "bg-blue-600/80 text-white glow-accent border-blue-500/40"
-            : "bg-gray-800 hover:bg-gray-700 text-gray-200 border-white/10"
+        !isInteractive
+          ? "bg-gray-800/50 text-gray-500 cursor-not-allowed border-white/5 opacity-60"
+          : isInProgress
+            ? isSelected
+              ? "bg-blue-700/60 text-white glow-accent border-blue-500/40"
+              : "bg-gray-800 text-gray-300 hover:bg-gray-750 border-white/10"
+            : isSelected
+              ? "bg-blue-600/80 text-white glow-accent border-blue-500/40"
+              : "bg-gray-800 hover:bg-gray-700 text-gray-200 border-white/10"
       }`}
     >
-      <div className={`flex items-center justify-between gap-4 ${isInProgress ? "mb-2" : ""}`}>
+      <div
+        className={`flex items-center justify-between gap-4 ${isInProgress ? "mb-2" : ""}`}
+      >
         <div className="flex items-center gap-3">
-          <FlagIcon countryCode={regionInfo.countryCode} className="text-xl flex-shrink-0" />
+          <FlagIcon
+            countryCode={regionInfo.countryCode}
+            className="text-xl flex-shrink-0"
+          />
           <div>
             <p className="font-medium text-sm">
               {regionInfo.city || instance.name || "VPN Server"}
@@ -79,7 +138,9 @@ export function ServerCard({
         </div>
         <div className="flex items-center gap-1.5">
           <ProviderIcon provider={instance.provider} className="w-6 h-6" />
-          <span className={`px-2 py-1 rounded text-xs font-medium flex items-center gap-1 ${badge.className}`}>
+          <span
+            className={`px-2 py-1 rounded text-xs font-medium flex items-center gap-1 ${badge.className}`}
+          >
             {badge.spinner && <Spinner />}
             {badge.label}
           </span>

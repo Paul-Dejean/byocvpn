@@ -377,6 +377,7 @@ impl CloudProvider for AwsProvider {
             &ec2_client,
             &ssm_client,
             params.region,
+            params.spawn_id,
             params.server_private_key,
             params.client_public_key,
         )

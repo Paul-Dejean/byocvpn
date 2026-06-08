@@ -51,19 +51,25 @@ interface ActiveSpawnJob extends SpawnJob {
 export function useInstances(regions: Region[]) {
   const [instances, setInstances] = useState<Instance[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [terminatingInstanceId, setTerminatingInstanceId] = useState<
     string | null
   >(null);
   const [error, setError] = useState<string | null>(null);
   const [spawnJobs, setSpawnJobs] = useState<Record<string, SpawnJobState>>({});
   const spawnJobsRef = useRef(spawnJobs);
+  const instancesRef = useRef(instances);
 
   useEffect(() => {
     spawnJobsRef.current = spawnJobs;
   }, [spawnJobs]);
 
   useEffect(() => {
-    if (regions.length > 0) fetchInstances();
+    instancesRef.current = instances;
+  }, [instances]);
+
+  useEffect(() => {
+    if (regions.length > 0) refetch();
   }, [regions]);
 
   useEffect(() => {
@@ -157,8 +163,11 @@ export function useInstances(regions: Region[]) {
     };
   }, []);
 
-  const loadInstances = async (background: boolean) => {
-    if (!background) {
+  const refetch = async () => {
+    const isBackgroundLoad = instancesRef.current.length > 0;
+    if (isBackgroundLoad) {
+      setIsRefreshing(true);
+    } else {
       setIsLoading(true);
       setError(null);
     }
@@ -209,7 +218,7 @@ export function useInstances(regions: Region[]) {
       });
       setInstances([...spawningPlaceholders, ...sorted]);
     } catch (fetchError) {
-      if (!background) {
+      if (!isBackgroundLoad) {
         const message =
           fetchError instanceof Error
             ? fetchError.message
@@ -218,12 +227,10 @@ export function useInstances(regions: Region[]) {
         setError(message);
       }
     } finally {
-      if (!background) setIsLoading(false);
+      if (isBackgroundLoad) setIsRefreshing(false);
+      else setIsLoading(false);
     }
   };
-
-  const fetchInstances = () => loadInstances(false);
-  const backgroundRefetch = () => loadInstances(true);
 
   const spawnInstance = async (
     regionName: string,
@@ -337,6 +344,7 @@ export function useInstances(regions: Region[]) {
   return {
     instances,
     isLoading,
+    isRefreshing,
     isSpawning: Object.keys(spawnJobs).length > 0,
     terminatingInstanceId,
     error,
@@ -344,8 +352,7 @@ export function useInstances(regions: Region[]) {
     terminateInstance,
     clearError,
     dismissFailedInstance,
-    refetch: fetchInstances,
-    backgroundRefetch,
+    refetch,
     getSpawnJobForInstance,
   };
 }

@@ -56,7 +56,11 @@ pub async fn spawn_instance(
             assign_ipv6_ip: subnet_has_ipv6.then_some(true),
         },
         metadata: HashMap::from([("user_data".to_string(), encoded_user_data)]),
-        freeform_tags: byocvpn_tags(),
+        freeform_tags: {
+            let mut tags = byocvpn_tags();
+            tags.insert("byocvpn-spawn-id".to_string(), params.spawn_id.to_string());
+            tags
+        },
     };
 
     debug!(
@@ -260,6 +264,12 @@ async fn get_public_ips(
 }
 
 fn build_instance_info(instance: &InstanceResponse, region: &str) -> InstanceInfo {
+    let spawn_id = instance
+        .freeform_tags
+        .as_ref()
+        .and_then(|tags| tags.get("byocvpn-spawn-id"))
+        .cloned();
+
     InstanceInfo {
         id: instance.id.clone(),
         name: instance.display_name.clone(),
@@ -275,5 +285,6 @@ fn build_instance_info(instance: &InstanceResponse, region: &str) -> InstanceInf
             .and_then(|timestamp| DateTime::parse_from_rfc3339(timestamp).ok())
             .map(|datetime| datetime.with_timezone(&Utc)),
         error_reason: None,
+        spawn_id,
     }
 }

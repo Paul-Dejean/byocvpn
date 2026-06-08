@@ -139,6 +139,7 @@ pub async fn spawn_instance(
             &*cloud_provider,
             &steps,
             &region,
+            &job_id,
             &client_private_key,
             &server_private_key,
             &client_public_key,

@@ -225,6 +225,7 @@ pub struct InstanceResponse {
     pub creation_timestamp: Option<String>,
     pub network_interfaces: Option<Vec<NetworkInterfaceResponse>>,
     pub self_link: Option<String>,
+    pub labels: Option<HashMap<String, String>>,
 }
 
 #[derive(Deserialize)]

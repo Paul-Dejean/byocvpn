@@ -1,7 +1,7 @@
 use aws_sdk_ec2::{
     Client as Ec2Client,
     client::Waiters,
-    types::{ResourceType, Tag, TagSpecification},
+    types::{Filter, ResourceType, Tag, TagSpecification},
 };
 use aws_sdk_ssm::Client as SsmClient;
 use base64::{Engine, engine::general_purpose};
@@ -23,11 +23,15 @@ use crate::{
 
 const SERVER_INSTANCE_NAME: &str = "byocvpn-server";
 const SERVER_INSTANCE_TYPE: &str = "t3.micro";
+const TAG_CREATED_BY_KEY: &str = "created-by";
+const TAG_CREATED_BY_VALUE: &str = "byocvpn";
+const TAG_SPAWN_ID_KEY: &str = "byocvpn-spawn-id";
 
 pub(super) async fn spawn_instance(
     ec2_client: &Ec2Client,
     ssm_client: &SsmClient,
     region: &str,
+    spawn_id: &str,
     server_private_key: &str,
     client_public_key: &str,
 ) -> Result<InstanceInfo> {
@@ -53,12 +57,9 @@ pub(super) async fn spawn_instance(
 
     let tags = TagSpecification::builder()
         .resource_type(ResourceType::Instance)
-        .tags(
-            Tag::builder()
-                .key("Name")
-                .value(SERVER_INSTANCE_NAME)
-                .build(),
-        )
+        .tags(Tag::builder().key("Name").value(SERVER_INSTANCE_NAME).build())
+        .tags(Tag::builder().key(TAG_CREATED_BY_KEY).value(TAG_CREATED_BY_VALUE).build())
+        .tags(Tag::builder().key(TAG_SPAWN_ID_KEY).value(spawn_id).build())
         .build();
     let response = ec2_client
         .run_instances()
@@ -137,6 +138,7 @@ pub(super) async fn spawn_instance(
         instance_type: SERVER_INSTANCE_TYPE.to_string(),
         launched_at: Some(Utc::now()),
         error_reason: None,
+        spawn_id: Some(spawn_id.to_string()),
     })
 }
 
@@ -165,6 +167,12 @@ pub(super) async fn list_instances_in_region(
     debug!("Listing EC2 instances in region {}", region);
     let response = ec2_client
         .describe_instances()
+        .filters(
+            Filter::builder()
+                .name(format!("tag:{}", TAG_CREATED_BY_KEY))
+                .values(TAG_CREATED_BY_VALUE)
+                .build(),
+        )
         .send()
         .await
         .map_err(|error| ComputeProvisioningError::InstanceSpawnFailed {
@@ -190,6 +198,11 @@ pub(super) async fn list_instances_in_region(
             let name = instance.tags().iter().find_map(|tag| {
                 tag.key()
                     .filter(|key| *key == "Name")
+                    .and_then(|_| tag.value().map(ToString::to_string))
+            });
+            let spawn_id = instance.tags().iter().find_map(|tag| {
+                tag.key()
+                    .filter(|key| *key == TAG_SPAWN_ID_KEY)
                     .and_then(|_| tag.value().map(ToString::to_string))
             });
 
@@ -220,6 +233,7 @@ pub(super) async fn list_instances_in_region(
                 instance_type,
                 launched_at,
                 error_reason: None,
+                spawn_id,
             })
         })
         .collect::<Vec<InstanceInfo>>();

@@ -10,6 +10,7 @@ pub struct SpawnInstanceParams<'a> {
     pub region: &'a str,
     pub server_private_key: &'a str,
     pub client_public_key: &'a str,
+    pub spawn_id: &'a str,
 }
 
 pub struct TerminateInstanceParams<'a> {
@@ -77,6 +78,7 @@ pub struct InstanceInfo {
     pub provider: CloudProviderName,
     pub instance_type: String,
     pub launched_at: Option<DateTime<Utc>>,
+    pub spawn_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

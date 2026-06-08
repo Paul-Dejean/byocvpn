@@ -35,6 +35,7 @@ pub async fn spawn_instance(
     region: &str,
     params: &SpawnInstanceParams<'_>,
 ) -> Result<InstanceInfo> {
+    let spawn_id = params.spawn_id;
     let zone = build_primary_zone_for_region(region);
     let startup_script =
         generate_server_startup_script(params.server_private_key, params.client_public_key)?;
@@ -56,6 +57,7 @@ pub async fn spawn_instance(
 
     let mut labels = HashMap::new();
     labels.insert(INSTANCE_LABEL_KEY.to_string(), INSTANCE_LABEL_VALUE.to_string());
+    labels.insert("byocvpn-spawn-id".to_string(), spawn_id.to_string());
 
     let body = CreateInstanceRequest {
         name: instance_name.clone(),
@@ -133,6 +135,7 @@ pub async fn spawn_instance(
         instance_type: MACHINE_TYPE.to_string(),
         launched_at: Some(Utc::now()),
         error_reason: None,
+        spawn_id: Some(spawn_id.to_string()),
     })
 }
 
@@ -289,6 +292,12 @@ fn parse_instance_info(
         .and_then(|timestamp| DateTime::parse_from_rfc3339(timestamp).ok())
         .map(|datetime| datetime.with_timezone(&Utc));
 
+    let spawn_id = instance
+        .labels
+        .as_ref()
+        .and_then(|labels| labels.get("byocvpn-spawn-id"))
+        .cloned();
+
     Some(InstanceInfo {
         id,
         name: Some(name),
@@ -300,6 +309,7 @@ fn parse_instance_info(
         instance_type,
         launched_at,
         error_reason: None,
+        spawn_id,
     })
 }
 

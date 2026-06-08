@@ -6,6 +6,7 @@ import { useRegionsContext } from "./RegionsContext";
 interface InstancesContextValue {
   instances: Instance[];
   isLoading: boolean;
+  isRefreshing: boolean;
   isSpawning: boolean;
   terminatingInstanceId: string | null;
   error: string | null;
@@ -18,7 +19,6 @@ interface InstancesContextValue {
   clearError: () => void;
   dismissFailedInstance: (instanceId: string) => void;
   refetch: () => Promise<void>;
-  backgroundRefetch: () => Promise<void>;
   getSpawnJobForInstance: (instanceId: string) => SpawnJobState | undefined;
 }
 

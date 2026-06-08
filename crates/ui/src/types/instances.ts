@@ -22,4 +22,5 @@ export interface Instance {
   publicIpV6: string;
   region: string;
   provider: CloudProviderName;
+  spawnId?: string;
 }

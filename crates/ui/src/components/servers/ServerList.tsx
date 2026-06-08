@@ -11,6 +11,7 @@ interface ServerListProps {
   groupedRegions: RegionGroup[];
 
   isLoading: boolean;
+  isRefreshing: boolean;
 
   getSpawnJobForInstance: (instanceId: string) => SpawnJobState | undefined;
 
@@ -24,6 +25,7 @@ export function ServerList({
   selectedInstance,
   groupedRegions,
   isLoading,
+  isRefreshing,
   getSpawnJobForInstance,
   onSelectInstance,
   onAddNewServer,
@@ -34,19 +36,19 @@ export function ServerList({
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Servers</h2>
       </div>
       <div className="flex-1 overflow-y-auto p-4">
-        {isLoading && instances.length === 0 && (
-          <div className="flex justify-center py-8">
-            <Spinner size="w-8 h-8" color="border-blue-500" thickness="border-4" />
-          </div>
-        )}
-
-        {!isLoading && instances.length === 0 ? (
-          <div className="text-center py-8 text-gray-400">
-            <p>No servers</p>
-          </div>
+        {instances.length === 0 ? (
+          isLoading || isRefreshing ? (
+            <div className="flex justify-center py-8">
+              <Spinner size="w-8 h-8" color="border-blue-500" thickness="border-4" />
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-400">
+              <p>No servers</p>
+            </div>
+          )
         ) : (
           <div className="flex flex-col gap-2">
-            {isLoading && instances.length > 0 && (
+            {(isLoading || isRefreshing) && (
               <p className="text-xs text-gray-500 text-center py-1">Refreshing server list…</p>
             )}
             {instances.map((instance) => {

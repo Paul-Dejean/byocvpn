@@ -81,6 +81,7 @@ async fn main() -> Result<()> {
             let instance = commands::spawn::launch_instance(
                 &*provider,
                 region.as_str(),
+                "",
                 &server_private_key,
                 &client_public_key,
             )
