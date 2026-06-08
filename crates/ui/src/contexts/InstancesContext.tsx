@@ -18,6 +18,7 @@ interface InstancesContextValue {
   clearError: () => void;
   dismissFailedInstance: (instanceId: string) => void;
   refetch: () => Promise<void>;
+  backgroundRefetch: () => Promise<void>;
   getSpawnJobForInstance: (instanceId: string) => SpawnJobState | undefined;
 }
 

@@ -13,6 +13,7 @@ import {
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { Navbar } from "./components/common/Navbar";
 import { VpnConnectionProvider } from "./contexts/VpnConnectionContext";
+import { RegionsProvider, InstancesProvider } from "./contexts";
 import { Page } from "./types/pages";
 export { Page };
 function App() {
@@ -58,22 +59,26 @@ function App() {
           page === Page.PRICING ||
           page === Page.SETTINGS) && (
           <VpnConnectionProvider>
-            <div className="flex h-screen">
-              <Navbar currentPage={page} onNavigate={setPage} />
-              <div className="flex-1 min-w-0 overflow-hidden">
-                {page === Page.VPN && (
-                  <VpnPage
-                    onNavigateToAddAccount={() => setPage(Page.ADD_ACCOUNT)}
-                  />
-                )}
-                {page === Page.PRICING && <PricingPage />}
-                {page === Page.SETTINGS && (
-                  <SettingsPage
-                    onNavigateToAddAccount={() => setPage(Page.ADD_ACCOUNT)}
-                  />
-                )}
-              </div>
-            </div>
+            <RegionsProvider>
+              <InstancesProvider>
+                <div className="flex h-screen">
+                  <Navbar currentPage={page} onNavigate={setPage} />
+                  <div className="flex-1 min-w-0 overflow-hidden">
+                    {page === Page.VPN && (
+                      <VpnPage
+                        onNavigateToAddAccount={() => setPage(Page.ADD_ACCOUNT)}
+                      />
+                    )}
+                    {page === Page.PRICING && <PricingPage />}
+                    {page === Page.SETTINGS && (
+                      <SettingsPage
+                        onNavigateToAddAccount={() => setPage(Page.ADD_ACCOUNT)}
+                      />
+                    )}
+                  </div>
+                </div>
+              </InstancesProvider>
+            </RegionsProvider>
           </VpnConnectionProvider>
         )}
       </ErrorBoundary>

@@ -157,9 +157,11 @@ export function useInstances(regions: Region[]) {
     };
   }, []);
 
-  const fetchInstances = async () => {
-    setIsLoading(true);
-    setError(null);
+  const loadInstances = async (background: boolean) => {
+    if (!background) {
+      setIsLoading(true);
+      setError(null);
+    }
     try {
       const [fetched, activeJobs] = await Promise.all([
         invokeCommand<Instance[]>("list_instances"),
@@ -207,16 +209,21 @@ export function useInstances(regions: Region[]) {
       });
       setInstances([...spawningPlaceholders, ...sorted]);
     } catch (fetchError) {
-      const message =
-        fetchError instanceof Error
-          ? fetchError.message
-          : "Failed to fetch instances";
-      console.error("Failed to fetch instances:", fetchError);
-      setError(message);
+      if (!background) {
+        const message =
+          fetchError instanceof Error
+            ? fetchError.message
+            : "Failed to fetch instances";
+        console.error("Failed to fetch instances:", fetchError);
+        setError(message);
+      }
     } finally {
-      setIsLoading(false);
+      if (!background) setIsLoading(false);
     }
   };
+
+  const fetchInstances = () => loadInstances(false);
+  const backgroundRefetch = () => loadInstances(true);
 
   const spawnInstance = async (
     regionName: string,
@@ -338,6 +345,7 @@ export function useInstances(regions: Region[]) {
     clearError,
     dismissFailedInstance,
     refetch: fetchInstances,
+    backgroundRefetch,
     getSpawnJobForInstance,
   };
 }
