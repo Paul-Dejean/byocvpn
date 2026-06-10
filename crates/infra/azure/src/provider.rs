@@ -17,8 +17,8 @@ use crate::{auth::create_credential, client::AzureClient, instance, network};
 pub struct AzureProviderConfig {
     pub subscription_id: String,
     pub tenant_id: String,
-    pub client_id: String,
-    pub client_secret: String,
+    pub application_id: String,
+    pub secret_value: String,
 }
 
 pub struct AzureProvider {
@@ -28,7 +28,7 @@ pub struct AzureProvider {
 impl AzureProvider {
     pub fn new(config: AzureProviderConfig) -> Result<Self> {
         let credential =
-            create_credential(&config.tenant_id, &config.client_id, &config.client_secret)?;
+            create_credential(&config.tenant_id, &config.application_id, &config.secret_value)?;
         let client = AzureClient::new(credential, config.subscription_id);
         Ok(Self { client })
     }

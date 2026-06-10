@@ -958,11 +958,10 @@ pub async fn create_nic(
 
 async fn delete_network_resource(
     client: &AzureClient,
-    location: &str,
+    resource_group: &str,
     resource_type: &str,
     resource_name: &str,
 ) {
-    let resource_group = build_resource_group_name(location);
     let path = client.build_subscription_path(&format!(
         "/resourceGroups/{}/providers/Microsoft.Network/{}/{}",
         resource_group, resource_type, resource_name
@@ -991,29 +990,29 @@ async fn delete_network_resource(
     }
 }
 
-pub async fn delete_nic(client: &AzureClient, location: &str, vm_name: &str) {
+pub async fn delete_nic(client: &AzureClient, resource_group: &str, vm_name: &str) {
     delete_network_resource(
         client,
-        location,
+        resource_group,
         "networkInterfaces",
         &format!("{}-nic", vm_name),
     )
     .await;
 }
 
-async fn delete_public_ip(client: &AzureClient, location: &str, vm_name: &str, version: IpVersion) {
+async fn delete_public_ip(client: &AzureClient, resource_group: &str, vm_name: &str, version: IpVersion) {
     let name = build_public_ip_resource_name(vm_name, version);
-    delete_network_resource(client, location, "publicIPAddresses", &name).await;
+    delete_network_resource(client, resource_group, "publicIPAddresses", &name).await;
 }
 
-pub async fn cleanup_vm_resources(client: &AzureClient, location: &str, vm_name: &str) {
+pub async fn cleanup_vm_resources(client: &AzureClient, resource_group: &str, vm_name: &str) {
     info!(
-        "[Azure] Cleaning up network resources for VM '{}' in {}...",
-        vm_name, location
+        "[Azure] Cleaning up network resources for VM '{}' in resource group '{}'...",
+        vm_name, resource_group
     );
-    delete_nic(client, location, vm_name).await;
+    delete_nic(client, resource_group, vm_name).await;
     tokio::join!(
-        delete_public_ip(client, location, vm_name, IpVersion::V4),
-        delete_public_ip(client, location, vm_name, IpVersion::V6),
+        delete_public_ip(client, resource_group, vm_name, IpVersion::V4),
+        delete_public_ip(client, resource_group, vm_name, IpVersion::V6),
     );
 }

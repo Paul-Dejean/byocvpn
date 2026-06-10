@@ -756,16 +756,16 @@ function GcpCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
 function AzureCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
   const [subscriptionId, setSubscriptionId] = useState("");
   const [tenantId, setTenantId] = useState("");
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
+  const [applicationId, setApplicationId] = useState("");
+  const [secretValue, setSecretValue] = useState("");
   const { isSaving, error, saveCredentials } = useCredentials();
 
   const handleSubmit = async () => {
     const success = await saveCredentials(CloudProviderName.Azure, {
       subscriptionId: subscriptionId.trim(),
       tenantId: tenantId.trim(),
-      clientId: clientId.trim(),
-      clientSecret: clientSecret.trim(),
+      applicationId: applicationId.trim(),
+      secretValue: secretValue.trim(),
     });
     if (success) onSaved();
   };
@@ -773,8 +773,8 @@ function AzureCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
   const isFormValid =
     subscriptionId.trim() &&
     tenantId.trim() &&
-    clientId.trim() &&
-    clientSecret.trim();
+    applicationId.trim() &&
+    secretValue.trim();
 
   return (
     <CredentialsFormShell
@@ -816,30 +816,30 @@ function AzureCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
       </div>
       <div>
         <label className="block text-sm font-medium text-gray-300 mb-1">
-          Client ID
+          Application ID
         </label>
         <p className="text-xs text-gray-500 mb-2">
-          Application (client) ID of the service principal
+          Application ID of the service principal
         </p>
         <input
           type="text"
-          value={clientId}
-          onChange={(e) => setClientId(e.target.value)}
+          value={applicationId}
+          onChange={(e) => setApplicationId(e.target.value)}
           className="input font-mono text-sm"
           placeholder="00000000-0000-0000-0000-000000000000"
         />
       </div>
       <div>
         <label className="block text-sm font-medium text-gray-300 mb-1">
-          Client Secret
+          Secret Value
         </label>
         <p className="text-xs text-gray-500 mb-2">
           Secret value from your app registration
         </p>
         <input
           type="password"
-          value={clientSecret}
-          onChange={(e) => setClientSecret(e.target.value)}
+          value={secretValue}
+          onChange={(e) => setSecretValue(e.target.value)}
           className="input font-mono text-sm"
         />
       </div>

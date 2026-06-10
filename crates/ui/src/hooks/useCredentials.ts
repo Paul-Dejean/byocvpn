@@ -24,8 +24,8 @@ export interface GcpCredentials {
 export interface AzureCredentials {
   subscriptionId: string;
   tenantId: string;
-  clientId: string;
-  clientSecret: string;
+  applicationId: string;
+  secretValue: string;
 }
 
 type CredentialsMap = {

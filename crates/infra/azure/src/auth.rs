@@ -7,11 +7,11 @@ use log::*;
 
 pub fn create_credential(
     tenant_id: &str,
-    client_id: &str,
-    client_secret: &str,
+    application_id: &str,
+    secret_value: &str,
 ) -> Result<Arc<ClientSecretCredential>> {
-    let secret = Secret::new(client_secret.to_string());
-    ClientSecretCredential::new(tenant_id, client_id.to_string(), secret, None).map_err(|error| {
+    let secret = Secret::new(secret_value.to_string());
+    ClientSecretCredential::new(tenant_id, application_id.to_string(), secret, None).map_err(|error| {
         CredentialsError::InvalidFormat {
             reason: format!(
                 "Failed to create Azure service-principal credential: {}",

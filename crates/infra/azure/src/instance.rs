@@ -13,7 +13,7 @@ use crate::{
     client::AzureClient,
     models::{
         AsyncOperationResponse, HardwareProfile, ImageReference, LinuxConfiguration,
-        NetworkInterfaceReference, NetworkInterfaceReferenceProperties, NetworkProfile, OsDisk,
+        NetworkInterfaceReference, NetworkProfile, OsDisk,
         OsProfile, StorageProfile, VmListResponse, VmProperties, VmRequest, VmResponse,
         byocvpn_tags,
     },
@@ -78,6 +78,8 @@ pub async fn spawn_instance(
         Uuid::new_v4().to_string().replace('-', "")[..12].to_lowercase()
     );
 
+    let resource_group = build_resource_group_name(location);
+
     let public_ipv4_id =
         ensure_public_ip(client, location, &vm_name, IpVersion::V4)
             .await
@@ -86,7 +88,7 @@ pub async fn spawn_instance(
     let public_ipv6_id = match ensure_public_ip(client, location, &vm_name, IpVersion::V6).await {
         Ok(id) => id,
         Err(error) => {
-            cleanup_vm_resources(client, location, &vm_name).await;
+            cleanup_vm_resources(client, &resource_group, &vm_name).await;
             return Err(build_spawn_error(location, "Public IPv6 IP", error));
         }
     };
@@ -104,7 +106,7 @@ pub async fn spawn_instance(
     {
         Ok(id) => id,
         Err(error) => {
-            cleanup_vm_resources(client, location, &vm_name).await;
+            cleanup_vm_resources(client, &resource_group, &vm_name).await;
             return Err(build_spawn_error(location, "NIC", error));
         }
     };
@@ -112,8 +114,6 @@ pub async fn spawn_instance(
     let custom_data =
         generate_server_startup_script(params.server_private_key, params.client_public_key)
             .map_err(|error| build_spawn_error(location, "Startup script", error))?;
-
-    let resource_group = build_resource_group_name(location);
     let vm_path = client.build_subscription_path(&format!(
         "/resourceGroups/{}/providers/Microsoft.Compute/virtualMachines/{}",
         resource_group, vm_name
@@ -165,9 +165,6 @@ pub async fn spawn_instance(
                     network_profile: NetworkProfile {
                         network_interfaces: vec![NetworkInterfaceReference {
                             id: nic_id.clone(),
-                            properties: NetworkInterfaceReferenceProperties {
-                                delete_option: "Delete".to_string(),
-                            },
                         }],
                     },
                 },
@@ -186,7 +183,7 @@ pub async fn spawn_instance(
                             vm_size, location
                         );
                     } else {
-                        cleanup_vm_resources(client, location, &vm_name).await;
+                        cleanup_vm_resources(client, &resource_group, &vm_name).await;
                         return Err(build_spawn_error(location, "VM creation", &last_error));
                     }
                 }
@@ -195,7 +192,7 @@ pub async fn spawn_instance(
         match result {
             Some((operation_url, vm_size)) => (operation_url, vm_size),
             None => {
-                cleanup_vm_resources(client, location, &vm_name).await;
+                cleanup_vm_resources(client, &resource_group, &vm_name).await;
                 return Err(build_spawn_error(
                     location,
                     "VM creation",
@@ -208,7 +205,7 @@ pub async fn spawn_instance(
     if let Some(operation_url) = async_op_url
         && let Err(error) = wait_for_vm_creation(client, &operation_url, location).await
     {
-        cleanup_vm_resources(client, location, &vm_name).await;
+        cleanup_vm_resources(client, &resource_group, &vm_name).await;
         return Err(error);
     }
 
@@ -256,10 +253,6 @@ pub async fn terminate_instance(client: &AzureClient, instance_id: &str) -> Resu
     info!("[Azure] Terminating instance '{}'...", instance_id);
     let (resource_group, vm_name) = parse_instance_id(instance_id)?;
 
-    let location = resource_group
-        .strip_prefix("byocvpn-")
-        .unwrap_or(resource_group);
-
     let vm_path = client.build_subscription_path(&format!(
         "/resourceGroups/{}/providers/Microsoft.Compute/virtualMachines/{}",
         resource_group, vm_name
@@ -288,10 +281,10 @@ pub async fn terminate_instance(client: &AzureClient, instance_id: &str) -> Resu
     info!("[Azure] VM '{}' deleted.", vm_name);
 
     let client_clone = client.clone();
-    let location_owned = location.to_string();
+    let resource_group_owned = resource_group.to_string();
     let vm_name_owned = vm_name.to_string();
     tokio::spawn(async move {
-        cleanup_vm_resources(&client_clone, &location_owned, &vm_name_owned).await;
+        cleanup_vm_resources(&client_clone, &resource_group_owned, &vm_name_owned).await;
     });
 
     Ok(())

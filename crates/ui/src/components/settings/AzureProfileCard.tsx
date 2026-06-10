@@ -31,8 +31,8 @@ export function AzureProfileCard({
   const [formFields, setFormFields] = useState({
     subscriptionId: "",
     tenantId: "",
-    clientId: "",
-    clientSecret: "",
+    applicationId: "",
+    secretValue: "",
   });
 
   const {
@@ -52,7 +52,7 @@ export function AzureProfileCard({
   }, []);
 
   const resetForm = () => {
-    setFormFields({ subscriptionId: "", tenantId: "", clientId: "", clientSecret: "" });
+    setFormFields({ subscriptionId: "", tenantId: "", applicationId: "", secretValue: "" });
     setSecretAlreadySet(false);
   };
 
@@ -62,10 +62,10 @@ export function AzureProfileCard({
       setFormFields({
         subscriptionId: existing.subscriptionId,
         tenantId: existing.tenantId,
-        clientId: existing.clientId,
-        clientSecret: "",
+        applicationId: existing.applicationId,
+        secretValue: "",
       });
-      setSecretAlreadySet(!!existing.clientSecret);
+      setSecretAlreadySet(!!existing.secretValue);
     }
     setIsEditing(true);
   };
@@ -80,8 +80,8 @@ export function AzureProfileCard({
     const success = await saveCredentials(CloudProviderName.Azure, {
       subscriptionId: formFields.subscriptionId.trim(),
       tenantId: formFields.tenantId.trim(),
-      clientId: formFields.clientId.trim(),
-      clientSecret: formFields.clientSecret.trim(),
+      applicationId: formFields.applicationId.trim(),
+      secretValue: formFields.secretValue.trim(),
     });
 
     if (success) {
@@ -104,8 +104,8 @@ export function AzureProfileCard({
   const isFormValid =
     formFields.subscriptionId.trim() &&
     formFields.tenantId.trim() &&
-    formFields.clientId.trim() &&
-    (formFields.clientSecret.trim() || secretAlreadySet);
+    formFields.applicationId.trim() &&
+    (formFields.secretValue.trim() || secretAlreadySet);
 
   const showNotProvisionedWarning = hasCredentials === true && !isProvisioned;
 
@@ -261,15 +261,15 @@ export function AzureProfileCard({
 
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
-                Client ID
+                Application ID
               </label>
               <p className="text-xs text-gray-500 mb-2">
-                Application (client) ID of the service principal
+                Application ID of the service principal
               </p>
               <input
                 type="text"
-                value={formFields.clientId}
-                onChange={(e) => setFormFields((prev) => ({ ...prev, clientId: e.target.value }))}
+                value={formFields.applicationId}
+                onChange={(e) => setFormFields((prev) => ({ ...prev, applicationId: e.target.value }))}
                 className="input font-mono text-sm"
                 placeholder="00000000-0000-0000-0000-000000000000"
               />
@@ -277,23 +277,23 @@ export function AzureProfileCard({
 
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
-                Client Secret
+                Secret Value
               </label>
-              {secretAlreadySet && !formFields.clientSecret && (
+              {secretAlreadySet && !formFields.secretValue && (
                 <p className="text-xs text-green-400 mb-2">
-                  ✓ Client secret already configured — enter a new value to
+                  ✓ Secret value already configured — enter a new value to
                   replace it
                 </p>
               )}
-              {!secretAlreadySet && !formFields.clientSecret && (
+              {!secretAlreadySet && !formFields.secretValue && (
                 <p className="text-xs text-gray-500 mb-2">
                   Secret value from your app registration
                 </p>
               )}
               <input
                 type="password"
-                value={formFields.clientSecret}
-                onChange={(e) => setFormFields((prev) => ({ ...prev, clientSecret: e.target.value }))}
+                value={formFields.secretValue}
+                onChange={(e) => setFormFields((prev) => ({ ...prev, secretValue: e.target.value }))}
                 className="input font-mono text-sm"
                 placeholder={secretAlreadySet ? "Enter new secret to replace" : ""}
               />

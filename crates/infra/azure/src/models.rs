@@ -315,13 +315,6 @@ pub struct NetworkProfile {
 #[derive(Serialize)]
 pub struct NetworkInterfaceReference {
     pub id: String,
-    pub properties: NetworkInterfaceReferenceProperties,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NetworkInterfaceReferenceProperties {
-    pub delete_option: String,
 }
 
 #[derive(Deserialize)]
