@@ -6,4 +6,4 @@ pub mod daemon_client;
 
 pub mod daemon;
 mod routing;
-mod vpn;
+pub mod vpn;

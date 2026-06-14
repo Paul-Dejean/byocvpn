@@ -6,6 +6,8 @@ interface VpnConnectionContextValue {
   vpnStatus: VpnStatus;
   checkVpnStatus: () => Promise<void>;
   isConnecting: boolean;
+  isDisconnecting: boolean;
+  isDaemonRunning: boolean;
   error: string | null;
   connectToVpn: (instance: Instance) => Promise<void>;
   disconnectFromVpn: () => Promise<void>;

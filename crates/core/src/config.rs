@@ -77,6 +77,11 @@ async fn get_configs_path() -> Result<PathBuf> {
     Ok(byocvpn_dir)
 }
 
+pub fn session_file_path() -> Result<PathBuf> {
+    let home_dir = dirs::home_dir().ok_or(ConfigurationError::HomeDirectoryNotAvailable)?;
+    Ok(home_dir.join(".byocvpn").join("session.json"))
+}
+
 fn get_wireguard_config_file_name(
     provider_name: &CloudProviderName,
     region: &str,

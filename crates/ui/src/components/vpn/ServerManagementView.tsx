@@ -35,6 +35,7 @@ export function ServerManagementView() {
     isConnecting,
     error: vpnError,
     connectToVpn,
+    clearError,
   } = useVpnConnectionContext();
 
   const isLoading = regionsLoading || instancesLoading;
@@ -59,6 +60,7 @@ export function ServerManagementView() {
 
   const handleSelectInstance = (instance: Instance) => {
     setSelectedInstance(instance);
+    clearError();
   };
   const onConnect = async (instance: Instance) => {
     await connectToVpn(instance);

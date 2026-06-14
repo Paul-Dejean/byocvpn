@@ -1,16 +1,29 @@
 use std::sync::Arc;
 
-use byocvpn_core::daemon_client::{DaemonClient, DaemonCommand};
-use byocvpn_daemon::daemon_client::UnixDaemonClient;
-use log::warn;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Wry};
 use tauri_plugin_store::{Store, StoreExt};
+use log::warn;
 
 const NOTIFICATION_ENABLED_KEY: &str = "notificationEnabled";
 const NOTIFICATION_THRESHOLD_MINUTES_KEY: &str = "notificationThresholdMinutes";
 const DEFAULT_THRESHOLD_MINUTES: u64 = 60;
-const KILL_SWITCH_ENABLED_KEY: &str = "killSwitchEnabled";
+const SESSION_KILLSWITCH_KEY: &str = "sessionKillswitch";
+const DEFAULT_SESSION_KILLSWITCH: bool = true;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VpnSettings {
+    pub session_killswitch: bool,
+}
+
+impl Default for VpnSettings {
+    fn default() -> Self {
+        Self {
+            session_killswitch: DEFAULT_SESSION_KILLSWITCH,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -24,20 +37,6 @@ impl Default for NotificationSettings {
         Self {
             notification_enabled: false,
             notification_threshold_minutes: DEFAULT_THRESHOLD_MINUTES,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct KillSwitchSettings {
-    pub kill_switch_enabled: bool,
-}
-
-impl Default for KillSwitchSettings {
-    fn default() -> Self {
-        Self {
-            kill_switch_enabled: false,
         }
     }
 }
@@ -68,25 +67,6 @@ impl SettingsStore {
         }
     }
 
-    pub fn load_kill_switch_settings(&self) -> KillSwitchSettings {
-        let kill_switch_enabled = self
-            .0
-            .get(KILL_SWITCH_ENABLED_KEY)
-            .and_then(|value| serde_json::from_value(value).ok())
-            .unwrap_or(false);
-        KillSwitchSettings { kill_switch_enabled }
-    }
-
-    pub fn save_kill_switch_settings(&self, settings: &KillSwitchSettings) {
-        self.0.set(
-            KILL_SWITCH_ENABLED_KEY,
-            serde_json::Value::Bool(settings.kill_switch_enabled),
-        );
-        if let Err(error) = self.0.save() {
-            warn!("Failed to save kill switch settings: {}", error);
-        }
-    }
-
     pub fn save_notification_settings(&self, settings: &NotificationSettings) {
         self.0.set(
             NOTIFICATION_ENABLED_KEY,
@@ -98,6 +78,26 @@ impl SettingsStore {
         );
         if let Err(error) = self.0.save() {
             warn!("Failed to save notification settings: {}", error);
+        }
+    }
+
+    pub fn load_vpn_settings(&self) -> VpnSettings {
+        let session_killswitch = self
+            .0
+            .get(SESSION_KILLSWITCH_KEY)
+            .and_then(|value| serde_json::from_value(value).ok())
+            .unwrap_or(DEFAULT_SESSION_KILLSWITCH);
+
+        VpnSettings { session_killswitch }
+    }
+
+    pub fn save_vpn_settings(&self, settings: &VpnSettings) {
+        self.0.set(
+            SESSION_KILLSWITCH_KEY,
+            serde_json::Value::Bool(settings.session_killswitch),
+        );
+        if let Err(error) = self.0.save() {
+            warn!("Failed to save VPN settings: {}", error);
         }
     }
 }
@@ -124,34 +124,19 @@ pub fn save_notification_settings(
 }
 
 #[tauri::command]
-pub fn get_kill_switch_settings(app_handle: AppHandle) -> KillSwitchSettings {
+pub fn get_vpn_settings(app_handle: AppHandle) -> VpnSettings {
     SettingsStore::open(&app_handle)
-        .map(|store| store.load_kill_switch_settings())
+        .map(|store| store.load_vpn_settings())
         .unwrap_or_default()
 }
 
 #[tauri::command]
-pub async fn save_kill_switch_settings(
-    app_handle: AppHandle,
-    enabled: bool,
-) -> Result<(), String> {
-    let settings = KillSwitchSettings { kill_switch_enabled: enabled };
+pub fn save_vpn_settings(app_handle: AppHandle, settings: VpnSettings) -> Result<(), String> {
     match SettingsStore::open(&app_handle) {
         Some(store) => {
-            store.save_kill_switch_settings(&settings);
+            store.save_vpn_settings(&settings);
+            Ok(())
         }
-        None => return Err("Failed to open settings store".to_string()),
+        None => Err("Failed to open settings store".to_string()),
     }
-
-    let client = UnixDaemonClient;
-    if client.is_daemon_running().await {
-        if let Err(error) = client
-            .send_command(DaemonCommand::SetKillSwitch { enabled })
-            .await
-        {
-            warn!("Failed to send SetKillSwitch to daemon: {}", error);
-        }
-    }
-
-    Ok(())
 }

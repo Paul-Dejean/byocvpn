@@ -9,13 +9,11 @@ mod linux;
 mod windows;
 
 pub struct KillSwitchState {
-    pub enabled: bool,
     pub server_ip: Option<String>,
     pub tun_name: Option<String>,
 }
 
 pub static KILL_SWITCH: Mutex<KillSwitchState> = Mutex::new(KillSwitchState {
-    enabled: false,
     server_ip: None,
     tun_name: None,
 });

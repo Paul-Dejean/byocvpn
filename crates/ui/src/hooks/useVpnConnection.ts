@@ -34,6 +34,7 @@ const initialVpnStatus: VpnStatus = {
 export function useVpnConnection() {
   const [vpnStatus, setVpnStatus] = useState<VpnStatus>(initialVpnStatus);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -102,6 +103,7 @@ export function useVpnConnection() {
 
   const disconnectFromVpn = async () => {
     setError(null);
+    setIsDisconnecting(true);
 
     try {
       const response = await invokeCommand("disconnect");
@@ -115,6 +117,8 @@ export function useVpnConnection() {
       setError(errorMessage);
       toast.error(errorMessage);
       console.error("Failed to disconnect from VPN:", error);
+    } finally {
+      setIsDisconnecting(false);
     }
   };
 
@@ -122,10 +126,14 @@ export function useVpnConnection() {
     setError(null);
   };
 
+  const isDaemonRunning = !vpnStatus.connectionError;
+
   return {
     vpnStatus,
     checkVpnStatus,
     isConnecting,
+    isDisconnecting,
+    isDaemonRunning,
     error,
     connectToVpn,
     disconnectFromVpn,

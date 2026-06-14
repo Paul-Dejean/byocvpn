@@ -74,10 +74,15 @@ export function useInstances() {
     initialData: {},
   });
 
-  const { data: rawData, isLoading, isFetching } = useQuery({
+  const {
+    data: rawData,
+    isLoading,
+    isFetching,
+  } = useQuery({
     queryKey: ["instances"],
     queryFn: fetchRawInstanceData,
     staleTime: 0,
+    refetchOnReconnect: false,
   });
 
   useEffect(() => {
@@ -87,7 +92,9 @@ export function useInstances() {
     const newSpawnJobs: Record<string, SpawnJobState> = {};
     const recoveredSpawningPlaceholders: Instance[] = [];
 
-    const currentSpawnJobs = queryClient.getQueryData<Record<string, SpawnJobState>>(["spawn-jobs"]) ?? {};
+    const currentSpawnJobs =
+      queryClient.getQueryData<Record<string, SpawnJobState>>(["spawn-jobs"]) ??
+      {};
 
     for (const activeJob of activeJobs) {
       const existingLocalJob = currentSpawnJobs[activeJob.jobId];
@@ -122,18 +129,25 @@ export function useInstances() {
       }
     }
 
-    if (Object.keys(newSpawnJobs).length > 0) {
+    const finishedJobIds = Object.keys(currentSpawnJobs).filter(
+      (jobId) => !(jobId in newSpawnJobs),
+    );
+
+    if (Object.keys(newSpawnJobs).length > 0 || finishedJobIds.length > 0) {
       queryClient.setQueryData<Record<string, SpawnJobState>>(
         ["spawn-jobs"],
-        (previous = {}) => ({ ...previous, ...newSpawnJobs }),
+        (previous = {}) => {
+          const updated = { ...previous, ...newSpawnJobs };
+          for (const jobId of finishedJobIds) {
+            delete updated[jobId];
+          }
+          return updated;
+        },
       );
     }
 
     const spawnIdsWithPlaceholder = new Set(
-      [
-        ...Object.values(newSpawnJobs),
-        ...Object.values(currentSpawnJobs),
-      ]
+      [...Object.values(newSpawnJobs), ...Object.values(currentSpawnJobs)]
         .filter((job) => job.instanceId.startsWith("spawning-"))
         .map((job) => job.jobId),
     );
@@ -141,8 +155,7 @@ export function useInstances() {
     const sorted = [...fetched]
       .filter(
         (instance) =>
-          !instance.spawnId ||
-          !spawnIdsWithPlaceholder.has(instance.spawnId),
+          !instance.spawnId || !spawnIdsWithPlaceholder.has(instance.spawnId),
       )
       .sort((a, b) => {
         const installingA = a.state === InstanceState.Installing ? 0 : 1;
@@ -151,12 +164,18 @@ export function useInstances() {
       });
 
     setInstances((previous) => {
-      const recoveredIds = new Set(recoveredSpawningPlaceholders.map((p) => p.id));
+      const recoveredIds = new Set(
+        recoveredSpawningPlaceholders.map((p) => p.id),
+      );
       const localSpawningInstances = previous.filter(
         (instance) =>
           instance.id.startsWith("spawning-") && !recoveredIds.has(instance.id),
       );
-      return [...recoveredSpawningPlaceholders, ...localSpawningInstances, ...sorted];
+      return [
+        ...recoveredSpawningPlaceholders,
+        ...localSpawningInstances,
+        ...sorted,
+      ];
     });
   }, [rawData]);
 
@@ -190,7 +209,9 @@ export function useInstances() {
       SpawnEvent.InstanceLaunched,
       ({ payload }) => {
         const { jobId, instance } = payload;
-        const job = (queryClient.getQueryData<Record<string, SpawnJobState>>(["spawn-jobs"]) ?? {})[jobId];
+        const job = (queryClient.getQueryData<Record<string, SpawnJobState>>([
+          "spawn-jobs",
+        ]) ?? {})[jobId];
         if (!job) return;
         setInstances((previous) =>
           previous.map((existing) =>
@@ -211,7 +232,9 @@ export function useInstances() {
       SpawnEvent.Complete,
       ({ payload }) => {
         const { jobId, instance } = payload;
-        const job = (queryClient.getQueryData<Record<string, SpawnJobState>>(["spawn-jobs"]) ?? {})[jobId];
+        const job = (queryClient.getQueryData<Record<string, SpawnJobState>>([
+          "spawn-jobs",
+        ]) ?? {})[jobId];
         if (job) {
           setInstances((previous) =>
             previous.map((existing) =>
@@ -234,7 +257,9 @@ export function useInstances() {
       SpawnEvent.Failed,
       ({ payload }) => {
         const { jobId, error: failureError } = payload;
-        const job = (queryClient.getQueryData<Record<string, SpawnJobState>>(["spawn-jobs"]) ?? {})[jobId];
+        const job = (queryClient.getQueryData<Record<string, SpawnJobState>>([
+          "spawn-jobs",
+        ]) ?? {})[jobId];
         if (job) {
           setInstances((previous) =>
             previous.map((existing) =>

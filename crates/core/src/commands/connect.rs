@@ -14,6 +14,7 @@ pub async fn connect(
     instance_id: &str,
     public_ip_v4: Option<String>,
     public_ip_v6: Option<String>,
+    kill_switch_enabled: bool,
 ) -> Result<()> {
     let provider_name = provider.get_provider_name();
     let wireguard_file_path =
@@ -35,6 +36,7 @@ pub async fn connect(
             provider: provider_name,
             public_ip_v4,
             public_ip_v6,
+            kill_switch_enabled,
         }))
         .await?;
 

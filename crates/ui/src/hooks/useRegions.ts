@@ -25,6 +25,7 @@ export function useRegions() {
     queryKey: ["all-regions"],
     queryFn: fetchAllRegions,
     staleTime: 30_000,
+    refetchOnReconnect: false,
   });
 
   useEffect(() => {

@@ -10,7 +10,7 @@ import { GcpProfileCard } from "../components/settings/GcpProfileCard";
 import { AzureProfileCard } from "../components/settings/AzureProfileCard";
 import { JobProgressDrawer } from "../components/common/JobProgressDrawer";
 import { NotificationSettingsCard } from "../components/settings/NotificationSettingsCard";
-import { KillSwitchSettingsCard } from "../components/settings/KillSwitchSettingsCard";
+import { SessionKillswitchCard } from "../components/settings/SessionKillswitchCard";
 
 interface SettingsPageProps {
   onNavigateToAddAccount?: () => void;
@@ -186,8 +186,8 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
               VPN Settings
             </h2>
             <div className="divide-y divide-gray-700/50">
+              <SessionKillswitchCard />
               <NotificationSettingsCard />
-              <KillSwitchSettingsCard />
             </div>
           </div>
         </div>

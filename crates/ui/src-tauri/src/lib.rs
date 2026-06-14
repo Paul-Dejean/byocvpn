@@ -52,8 +52,8 @@ pub fn run() {
             commands::list_active_spawn_jobs,
             settings_store::get_notification_settings,
             settings_store::save_notification_settings,
-            settings_store::get_kill_switch_settings,
-            settings_store::save_kill_switch_settings,
+            settings_store::get_vpn_settings,
+            settings_store::save_vpn_settings,
         ]);
 
     builder

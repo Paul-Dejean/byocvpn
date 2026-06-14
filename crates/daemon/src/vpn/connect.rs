@@ -29,6 +29,7 @@ use crate::{
         routes::{add_vpn_routes, update_server_host_route},
     },
     tunnel_manager::{TUNNEL_MANAGER, TunnelHandle},
+    vpn::session::{self, PersistedSession},
 };
 
 pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
@@ -44,6 +45,7 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
         provider,
         public_ip_v4,
         public_ip_v6,
+        kill_switch_enabled,
     } = params;
 
     info!(
@@ -67,6 +69,15 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
 
     let (tun, interface_index) = setup_tun_device(private_ipv4, private_ipv6)?;
     let interface_name = tun.name().unwrap_or_else(|_| format!("tun{}", interface_index));
+
+    if kill_switch_enabled {
+        if let Err(error) = firewall::apply(&server_endpoint.ip().to_string(), &interface_name) {
+            warn!("Kill switch apply failed: {}", error);
+        }
+    } else {
+        warn!("Session kill switch disabled; traffic can leak if the tunnel drops.");
+    }
+
     let wireguard_tunnel = create_wireguard_tunnel(private_key, public_key)?;
     let udp = connect_udp_socket(server_endpoint).await?;
 
@@ -96,6 +107,15 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
 
     let dns_override_guard = apply_dns_servers(dns_servers);
 
+    let persisted_session = PersistedSession {
+        instance_id: instance_id.clone(),
+        provider: provider.clone(),
+        region: region.clone(),
+        public_ip_v4: public_ip_v4.clone(),
+        public_ip_v6: public_ip_v6.clone(),
+        kill_switch_enabled,
+    };
+
     *manager = Some(TunnelHandle {
         shutdown: shutdown_tx,
         task,
@@ -118,15 +138,8 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
         connected_at: std::time::SystemTime::now(),
     });
 
-    let kill_switch_enabled = firewall::KILL_SWITCH
-        .lock()
-        .map(|state| state.enabled)
-        .unwrap_or(false);
-
-    if kill_switch_enabled {
-        if let Err(error) = firewall::apply(&server_endpoint.ip().to_string(), &interface_name) {
-            warn!("Kill switch apply failed: {}", error);
-        }
+    if let Err(error) = session::write_session(&persisted_session) {
+        warn!("Failed to persist session: {}", error);
     }
 
     info!("VPN setup complete.");

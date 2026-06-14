@@ -11,7 +11,7 @@ interface ConnectedViewProps {
 }
 
 export function ConnectedView({ connectedInstance }: ConnectedViewProps) {
-  const { disconnectFromVpn, vpnStatus } = useVpnConnectionContext();
+  const { disconnectFromVpn, vpnStatus, isDaemonRunning, isDisconnecting } = useVpnConnectionContext();
   const [startTime] = useState(() => Date.now());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const regionInfo = getRegionInfo(
@@ -27,7 +27,7 @@ export function ConnectedView({ connectedInstance }: ConnectedViewProps) {
     return () => clearInterval(interval);
   }, [startTime]);
 
-  const connectionError = vpnStatus.connectionError;
+  const connectionError = isDisconnecting ? null : vpnStatus.connectionError;
 
   return (
     <div className="flex flex-col h-full text-white overflow-hidden">
@@ -199,12 +199,23 @@ export function ConnectedView({ connectedInstance }: ConnectedViewProps) {
 
       {/* Disconnect — pinned bottom */}
       <div className="px-6 pb-6 pt-2">
-        <button
-          onClick={disconnectFromVpn}
-          className="btn-ghost-danger w-full py-4 text-lg"
-        >
-          Disconnect
-        </button>
+        <div className="relative group">
+          <button
+            onClick={disconnectFromVpn}
+            disabled={!isDaemonRunning}
+            className="btn-ghost-danger w-full py-4 text-lg disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Disconnect
+          </button>
+          {!isDaemonRunning && (
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-56 text-center">
+              <div className="bg-gray-800 border border-gray-600 text-gray-200 text-xs rounded-lg px-3 py-2 leading-relaxed shadow-lg">
+                VPN daemon is not running. You may need to restart your computer.
+              </div>
+              <div className="w-2 h-2 bg-gray-800 border-r border-b border-gray-600 rotate-45 mx-auto -mt-1" />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -119,6 +119,7 @@ async fn main() -> Result<()> {
                 instance_id.as_str(),
                 None,
                 None,
+                true,
             )
             .await?;
             info!("Connected to VPN");

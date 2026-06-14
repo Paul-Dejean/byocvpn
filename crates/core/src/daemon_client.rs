@@ -23,6 +23,7 @@ pub struct VpnConnectParams {
     pub provider: CloudProviderName,
     pub public_ip_v4: Option<String>,
     pub public_ip_v6: Option<String>,
+    pub kill_switch_enabled: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -30,7 +31,6 @@ pub struct VpnConnectParams {
 pub enum DaemonCommand {
     Connect(VpnConnectParams),
     Disconnect,
-    SetKillSwitch { enabled: bool },
     Status,
     Stats,
     HealthCheck,

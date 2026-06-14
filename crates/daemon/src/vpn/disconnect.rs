@@ -1,7 +1,7 @@
 use byocvpn_core::error::{Result, SystemError};
 use log::*;
 
-use crate::{firewall, routing::routes::remove_vpn_routes, tunnel_manager::TUNNEL_MANAGER};
+use crate::{firewall, routing::routes::remove_vpn_routes, tunnel_manager::TUNNEL_MANAGER, vpn::session};
 
 pub async fn disconnect_vpn() -> Result<()> {
     info!("[VPN Disconnect] Disconnecting VPN tunnel...");
@@ -11,7 +11,13 @@ pub async fn disconnect_vpn() -> Result<()> {
         .map_err(|_| SystemError::MutexPoisoned("TUNNEL_MANAGER".to_string()))?
         .take()
     else {
-        warn!("[VPN Disconnect] Disconnect requested but VPN is not connected, returning early.");
+        warn!("[VPN Disconnect] No active tunnel in memory (daemon restarted?), clearing firewall rules.");
+        if let Err(error) = firewall::remove() {
+            warn!("[VPN Disconnect] Kill switch removal failed: {}", error);
+        }
+        if let Err(error) = session::clear_session() {
+            warn!("[VPN Disconnect] Failed to clear session file: {}", error);
+        }
         return Ok(());
     };
 
@@ -73,6 +79,10 @@ pub async fn disconnect_vpn() -> Result<()> {
 
     if let Err(error) = firewall::remove() {
         warn!("[VPN Disconnect] Kill switch removal failed: {}", error);
+    }
+
+    if let Err(error) = session::clear_session() {
+        warn!("[VPN Disconnect] Failed to clear session file: {}", error);
     }
 
     info!("[VPN Disconnect] VPN disconnected.");
