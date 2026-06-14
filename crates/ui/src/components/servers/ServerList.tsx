@@ -1,6 +1,7 @@
 import { Instance, RegionGroup, SpawnJobState } from "../../types";
 import { ServerCard } from "./ServerCard";
-import { Spinner } from "../common/Spinner";
+import { Spinner } from "../primitives/Spinner";
+import { Button } from "../primitives/Button";
 
 interface ServerListProps {
 
@@ -69,9 +70,11 @@ export function ServerList({
       </div>
 
       <div className="p-4 border-t border-gray-700/50">
-        <button
+        <Button
+          variant="primary"
+          size="none"
           onClick={onAddNewServer}
-          className="btn-primary w-full px-4 py-3 flex items-center justify-center gap-2 !rounded-xl"
+          className="w-full px-4 py-3 !rounded-xl"
         >
           <svg
             className="w-5 h-5"
@@ -87,7 +90,7 @@ export function ServerList({
             />
           </svg>
           Add New Server
-        </button>
+        </Button>
       </div>
     </div>
   );

@@ -8,7 +8,10 @@ import {
 import { getRegionInfo } from "../../constants/regionInfo";
 import { FlagIcon } from "../FlagIcon";
 import { ProviderIcon } from "../providers/ProviderIcon";
-import { Spinner } from "../common/Spinner";
+import { Spinner } from "../primitives/Spinner";
+import { Card } from "../primitives/Card";
+import { Alert } from "../primitives/Alert";
+import { Button } from "../primitives/Button";
 import { formatUptime } from "../../lib/time";
 
 function StepIndicator({ status }: { status: JobStepStatus }) {
@@ -18,7 +21,7 @@ function StepIndicator({ status }: { status: JobStepStatus }) {
   if (status === JobStepStatus.Completed) {
     return (
       <svg
-        className="w-5 h-5 text-green-400 flex-shrink-0"
+        className="w-5 h-5 text-success-400 flex-shrink-0"
         viewBox="0 0 20 20"
         fill="currentColor"
       >
@@ -33,7 +36,7 @@ function StepIndicator({ status }: { status: JobStepStatus }) {
   if (status === JobStepStatus.Failed) {
     return (
       <svg
-        className="w-5 h-5 text-red-400 flex-shrink-0"
+        className="w-5 h-5 text-danger-400 flex-shrink-0"
         viewBox="0 0 20 20"
         fill="currentColor"
       >
@@ -104,7 +107,7 @@ export function ServerDetails({
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-2xl space-y-6">
           {!isSpawning && (
-            <div className="bg-gray-800/60 rounded-lg p-6">
+            <Card>
               <div className="flex items-center gap-3 mb-4">
                 <FlagIcon
                   countryCode={regionInfo.countryCode}
@@ -126,19 +129,19 @@ export function ServerDetails({
               <div className="space-y-3">
                 <div>
                   <p className="text-xs text-gray-400 mb-1">Instance ID</p>
-                  <p className="text-sm font-mono text-white break-all">
+                  <p className="text-sm font-mono text-primary break-all">
                     {instance.id}
                   </p>
                 </div>
                 {instance.instanceType && (
                   <div>
                     <p className="text-xs text-gray-400 mb-1">Instance Type</p>
-                    <p className="text-sm font-mono text-white">{instance.instanceType}</p>
+                    <p className="text-sm font-mono text-primary">{instance.instanceType}</p>
                   </div>
                 )}
                 <div>
                   <p className="text-xs text-gray-400 mb-1">IPv4 Address</p>
-                  <p className="text-sm font-mono text-white">
+                  <p className="text-sm font-mono text-primary">
                     {isSpawning ? (
                       <span className="text-gray-500 italic">
                         Assigning IP address…
@@ -151,7 +154,7 @@ export function ServerDetails({
                 {instance.publicIpV6 && !isSpawning && (
                   <div>
                     <p className="text-xs text-gray-400 mb-1">IPv6 Address</p>
-                    <p className="text-sm font-mono text-white">
+                    <p className="text-sm font-mono text-primary">
                       {instance.publicIpV6}
                     </p>
                   </div>
@@ -159,25 +162,25 @@ export function ServerDetails({
                 {instance.launchedAt && (
                   <div>
                     <p className="text-xs text-gray-400 mb-1">Uptime</p>
-                    <p className="text-sm font-mono text-white">{formatUptime(uptimeHours)}</p>
+                    <p className="text-sm font-mono text-primary">{formatUptime(uptimeHours)}</p>
                   </div>
                 )}
                 {/* {estimatedCost !== null && (
                   <div>
                     <p className="text-xs text-gray-400 mb-1">Est. Cost</p>
-                    <p className="text-sm font-mono text-white">${estimatedCost.toFixed(6)}</p>
+                    <p className="text-sm font-mono text-primary">${estimatedCost.toFixed(6)}</p>
                   </div>
                 )} */}
               </div>
-            </div>
+            </Card>
           )}
 
           <div className="space-y-3">
             {isInProgress || isFailedSpawn ? (
-              <div className="bg-gray-800/60 rounded-lg overflow-hidden">
+              <Card padded={false} className="overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-700/50">
                   <p
-                    className={`text-sm font-medium ${isFailedSpawn ? "text-red-400" : "text-blue-400"}`}
+                    className={`text-sm font-medium ${isFailedSpawn ? "text-danger-400" : "text-blue-400"}`}
                   >
                     Deployment progress
                   </p>
@@ -194,7 +197,7 @@ export function ServerDetails({
                               : step.status === JobStepStatus.Completed
                                 ? "opacity-60"
                                 : step.status === JobStepStatus.Failed
-                                  ? "bg-red-900/20 border border-red-700/40"
+                                  ? "bg-danger-900/20 border border-danger-700/40"
                                   : "opacity-40"
                           }`}
                         >
@@ -207,7 +210,7 @@ export function ServerDetails({
                                   : step.status === JobStepStatus.Completed
                                     ? "text-gray-400"
                                     : step.status === JobStepStatus.Failed
-                                      ? "text-red-300"
+                                      ? "text-danger-300"
                                       : "text-gray-500"
                               }`}
                             >
@@ -224,80 +227,68 @@ export function ServerDetails({
                     </div>
                   )}
                 </div>
-              </div>
+              </Card>
             ) : (
               <>
-                <button
+                <Button
+                  variant="primary"
+                  size="lg"
+                  disabledStyle="dim"
+                  loading={isConnecting}
                   onClick={() => onConnect(instance)}
-                  disabled={isConnecting}
-                  className="btn-primary w-full px-6 py-4 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full"
                 >
-                  {isConnecting ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <Spinner size="w-5 h-5" color="border-white" />
-                      Connecting…
-                    </div>
-                  ) : (
-                    "Connect to VPN"
-                  )}
-                </button>
+                  {isConnecting ? "Connecting…" : "Connect to VPN"}
+                </Button>
 
-                <button
+                <Button
+                  variant="danger"
+                  size="lg"
+                  disabledStyle="dim"
+                  loading={isTerminating}
                   onClick={onTerminate}
-                  disabled={isTerminating}
-                  className="btn-danger w-full px-6 py-4 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full"
                 >
-                  {isTerminating ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <Spinner size="w-5 h-5" color="border-white" />
-                      Terminating…
-                    </div>
-                  ) : (
-                    "Terminate Server"
-                  )}
-                </button>
+                  {isTerminating ? "Terminating…" : "Terminate Server"}
+                </Button>
               </>
             )}
             {isFailedSpawn && instance.errorReason && (
-              <div className="flex items-start gap-3 p-4 bg-red-900/50 border border-red-700 rounded-lg">
-                <svg
-                  className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                  />
-                </svg>
-                <div>
-                  <p className="text-red-300 text-sm font-medium">
-                    Deployment failed
-                  </p>
-                  <p className="text-xs text-red-400/70 mt-0.5 break-all">
-                    {instance.errorReason}
-                  </p>
-                </div>
-              </div>
+              <Alert
+                variant="error"
+                title="Deployment failed"
+                icon={
+                  <svg
+                    className="w-5 h-5 text-danger-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                  </svg>
+                }
+              >
+                {instance.errorReason}
+              </Alert>
             )}
             {isFailedSpawn && (
-              <button
+              <Button
+                variant="secondary"
+                size="lg"
                 onClick={onDismiss}
-                className="btn-secondary w-full px-6 py-4 text-lg"
+                className="w-full"
               >
                 Dismiss
-              </button>
+              </Button>
             )}
           </div>
 
-          {vpnError && (
-            <div className="p-4 bg-red-900/20 border border-red-500/50 rounded-lg">
-              <p className="text-red-300 text-sm">{vpnError}</p>
-            </div>
-          )}
+          {vpnError && <Alert variant="error">{vpnError}</Alert>}
         </div>
       </div>
     </div>

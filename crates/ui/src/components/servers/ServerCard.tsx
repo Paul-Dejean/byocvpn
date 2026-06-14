@@ -9,7 +9,8 @@ import { getRegionInfo } from "../../constants/regionInfo";
 import { FlagIcon } from "../FlagIcon";
 import { ProviderIcon } from "../providers/ProviderIcon";
 import { CloudProviderName } from "../../types";
-import { Spinner } from "../common/Spinner";
+import { Badge, BadgeVariant } from "../primitives/Badge";
+import { SelectableCard } from "../primitives/SelectableCard";
 
 interface ServerCardProps {
   instance: Instance;
@@ -28,32 +29,32 @@ const PROVIDER_STRIPE: Record<CloudProviderName, string> = {
 
 const STATE_BADGE: Record<
   InstanceState,
-  { className: string; label: string; spinner?: boolean }
+  { variant: BadgeVariant; label: string; spinner?: boolean }
 > = {
   [InstanceState.Spawning]: {
-    className: "bg-blue-900/50 text-blue-300",
+    variant: "info",
     label: "spawning",
     spinner: true,
   },
   [InstanceState.Installing]: {
-    className: "bg-yellow-900/50 text-yellow-300",
+    variant: "warning",
     label: "installing",
     spinner: true,
   },
   [InstanceState.Error]: {
-    className: "bg-red-900/50 text-red-400",
+    variant: "danger",
     label: "error",
   },
   [InstanceState.Running]: {
-    className: "bg-green-900/50 text-green-300",
+    variant: "success",
     label: "running",
   },
   [InstanceState.Stopping]: {
-    className: "bg-red-900/50 text-red-300",
+    variant: "danger",
     label: "stopping",
   },
   [InstanceState.Stopped]: {
-    className: "bg-gray-700/50 text-gray-500",
+    variant: "neutral",
     label: "stopped",
   },
 };
@@ -80,7 +81,7 @@ export function ServerCard({
   ].includes(instance.state);
 
   const badge = STATE_BADGE[instance.state] ?? {
-    className: "bg-gray-900/50 text-gray-400",
+    variant: "neutral",
     label: instance.state,
   };
 
@@ -90,19 +91,19 @@ export function ServerCard({
   const stepLabel = runningStep?.label ?? (isInProgress ? "Starting…" : null);
 
   return (
-    <button
+    <SelectableCard
       onClick={() => isInteractive && onSelect(instance)}
       disabled={!isInteractive}
-      className={`text-left p-3 rounded-lg transition-all border border-l-4 ${stripeColor} ${
+      className={`p-3 rounded-lg border border-l-4 ${stripeColor} ${
         !isInteractive
-          ? "bg-gray-800/50 text-gray-400 cursor-not-allowed border-white/5 opacity-80"
+          ? "bg-gray-800/50 text-gray-400 cursor-not-allowed border-gray-500/15 opacity-80"
           : isInProgress
             ? isSelected
               ? "bg-blue-700/60 text-white glow-accent border-blue-500/40"
-              : "bg-gray-800 text-gray-300 hover:bg-gray-750 border-white/10"
+              : "bg-gray-800 text-gray-300 hover:bg-gray-750 border-gray-500/25"
             : isSelected
               ? "bg-blue-600/80 text-white glow-accent border-blue-500/40"
-              : "bg-gray-800 hover:bg-gray-700 text-gray-200 border-white/10"
+              : "bg-gray-800 hover:bg-gray-700 text-gray-200 border-gray-500/25"
       }`}
     >
       <div
@@ -122,17 +123,14 @@ export function ServerCard({
         </div>
         <div className="flex items-center gap-1.5">
           <ProviderIcon provider={instance.provider} className="w-6 h-6" />
-          <span
-            className={`px-2 py-1 rounded text-xs font-medium flex items-center gap-1 ${badge.className}`}
-          >
-            {badge.spinner && <Spinner />}
+          <Badge variant={badge.variant} spinner={badge.spinner}>
             {badge.label}
-          </span>
+          </Badge>
         </div>
       </div>
       {isInProgress && stepLabel && (
         <p className="text-xs font-mono opacity-75 truncate">{stepLabel}</p>
       )}
-    </button>
+    </SelectableCard>
   );
 }

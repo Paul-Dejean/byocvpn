@@ -1,4 +1,4 @@
-import { Spinner } from "./Spinner";
+import { Spinner } from "../primitives/Spinner";
 
 interface LoadingScreenProps {
   message?: string;

@@ -33,13 +33,13 @@ function App() {
           },
           success: {
             iconTheme: {
-              primary: "#10b981",
+              primary: "var(--color-success-500)",
               secondary: "var(--color-gray-800)",
             },
           },
           error: {
             iconTheme: {
-              primary: "#ef4444",
+              primary: "var(--color-danger-500)",
               secondary: "var(--color-gray-800)",
             },
           },

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { invokeCommand } from "../../lib/invokeCommand";
+import { Toggle } from "../primitives/Toggle";
 
 interface VpnSettings {
   sessionKillswitch: boolean;
@@ -33,30 +34,22 @@ export function SessionKillswitchCard() {
     <div className="py-6">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-4 min-w-0">
-          <div className="w-12 h-12 rounded-xl bg-green-900/50 flex items-center justify-center flex-shrink-0">
+          <div className="w-12 h-12 rounded-xl bg-success-900/50 flex items-center justify-center flex-shrink-0">
             <ShieldIcon />
           </div>
           <div className="min-w-0">
-            <h3 className="font-semibold text-white">Session Kill Switch</h3>
+            <h3 className="font-semibold text-primary">Session Kill Switch</h3>
             <p className="text-sm text-gray-400 mt-0.5">
               Blocks all internet traffic that isn't going through the VPN tunnel
             </p>
           </div>
         </div>
 
-        <button
-          onClick={toggleKillswitch}
-          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
-            settings.sessionKillswitch ? "bg-blue-600" : "bg-gray-600"
-          }`}
-          aria-label="Toggle session kill switch"
-        >
-          <span
-            className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-              settings.sessionKillswitch ? "translate-x-4.5" : "translate-x-0.5"
-            }`}
-          />
-        </button>
+        <Toggle
+          checked={settings.sessionKillswitch}
+          onChange={toggleKillswitch}
+          ariaLabel="Toggle session kill switch"
+        />
       </div>
 
       <div className="mt-3 pl-16">
@@ -72,7 +65,7 @@ export function SessionKillswitchCard() {
 
 function ShieldIcon() {
   return (
-    <svg className="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <svg className="w-5 h-5 text-success-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path
         strokeLinecap="round"
         strokeLinejoin="round"

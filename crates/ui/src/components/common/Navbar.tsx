@@ -1,33 +1,11 @@
 import { version } from "../../../package.json";
 import { Page } from "../../types/pages";
 import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
+import { NavItem } from "../primitives/NavItem";
 
 interface NavbarProps {
   currentPage: Page;
   onNavigate: (page: Page) => void;
-}
-
-interface NavItemProps {
-  icon: React.ReactNode;
-  label: string;
-  isActive: boolean;
-  onClick: () => void;
-}
-
-function NavItem({ icon, label, isActive, onClick }: NavItemProps) {
-  return (
-    <button
-      onClick={onClick}
-      title={label}
-      className={`flex flex-col items-center justify-center w-10 h-10 rounded-lg transition-colors ${
-        isActive
-          ? "bg-blue-600 text-white"
-          : "text-gray-400 hover:bg-gray-700 hover:text-white"
-      }`}
-    >
-      {icon}
-    </button>
-  );
 }
 
 export function Navbar({ currentPage, onNavigate }: NavbarProps) {
@@ -38,12 +16,12 @@ export function Navbar({ currentPage, onNavigate }: NavbarProps) {
       <div className="flex flex-col items-center gap-1 mb-2">
         <div
           className={`w-2 h-2 rounded-full transition-all duration-500 ${
-            isConnected ? "bg-green-400 glow-connected-indicator" : "bg-gray-600"
+            isConnected ? "bg-success-400 glow-connected-indicator" : "bg-gray-600"
           }`}
         />
         <span
           className={`text-[9px] font-bold tracking-widest uppercase transition-colors duration-500 ${
-            isConnected ? "text-green-500" : "text-gray-400"
+            isConnected ? "text-success-500" : "text-gray-400"
           }`}
         >
           {isConnected ? "ON" : "OFF"}

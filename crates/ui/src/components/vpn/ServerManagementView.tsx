@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { ServerList } from "../servers/ServerList";
 import { RegionSelector } from "../regions/RegionSelector";
 import { ServerDetails } from "../servers/ServerDetails";
-import { EmptyState } from "../common/EmptyState";
+import { EmptyState } from "../primitives/EmptyState";
 import { ProviderSelector } from "../providers/ProviderSelector";
 import { CloudProviderName } from "../../types";
 
@@ -94,7 +94,7 @@ export function ServerManagementView() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-900 text-white overflow-hidden">
+    <div className="flex flex-col h-full bg-gray-900 text-primary overflow-hidden">
       {creationStep === "selecting-provider" ? (
         <ProviderSelector
           onSelectProvider={handleSelectProvider}

@@ -45,8 +45,8 @@ export function InstanceCostRow({ entry }: InstanceCostRowProps) {
         </td>
         <td className="py-3 px-4 text-sm">
           {isActive ? (
-            <span className="inline-flex items-center gap-1.5 text-green-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
+            <span className="inline-flex items-center gap-1.5 text-success-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-success-400 animate-pulse inline-block" />
               Active
             </span>
           ) : (
@@ -58,7 +58,7 @@ export function InstanceCostRow({ entry }: InstanceCostRowProps) {
         </td>
         <td className="py-3 px-4">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-semibold text-yellow-300">
+            <span className="text-sm font-semibold text-warning-300">
               ${entry.estimatedCost.toFixed(4)}
             </span>
             <svg
@@ -122,10 +122,10 @@ export function InstanceCostRow({ entry }: InstanceCostRowProps) {
                     </td>
                   </tr>
                   <tr className="border-t border-gray-700">
-                    <td className="pt-2 font-semibold text-white" colSpan={2}>
+                    <td className="pt-2 font-semibold text-primary" colSpan={2}>
                       Total
                     </td>
-                    <td className="pt-2 text-right font-bold text-yellow-300">
+                    <td className="pt-2 text-right font-bold text-warning-300">
                       ${entry.estimatedCost.toFixed(4)}
                     </td>
                   </tr>

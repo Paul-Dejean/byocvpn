@@ -4,8 +4,11 @@ import { CalendarMonth, CloudProviderName } from "../types";
 import { ProviderFilter } from "../components/pricing/ProviderFilter";
 import { InstanceCostRow } from "../components/pricing/InstanceCostRow";
 import { LoadingScreen } from "../components/common/LoadingScreen";
-import { EmptyState } from "../components/common/EmptyState";
+import { EmptyState } from "../components/primitives/EmptyState";
+import { Alert } from "../components/primitives/Alert";
 import { LedgerEntryWithCost } from "../types/ledger";
+import { Button } from "../components/primitives/Button";
+import { IconButton } from "../components/primitives/IconButton";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -88,22 +91,24 @@ export function PricingPage() {
 
   if (error) {
     return (
-      <div className="flex flex-col h-full bg-gray-900 text-white p-8">
-        <p className="text-red-400 mb-4">
+      <div className="flex flex-col h-full bg-gray-900 text-primary p-8">
+        <Alert variant="error" className="mb-4">
           Failed to load pricing data: {error}
-        </p>
-        <button
+        </Alert>
+        <Button
+          variant="primary"
+          size="none"
           onClick={refetch}
-          className="btn-primary self-start px-4 py-2 text-sm"
+          className="self-start px-4 py-2 text-sm"
         >
           Retry
-        </button>
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-900 text-white overflow-hidden">
+    <div className="flex flex-col h-full bg-gray-900 text-primary overflow-hidden">
       <div className="px-6 flex-shrink-0">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 pt-6 pb-2 border-b border-gray-700/50">
           Expenses
@@ -121,31 +126,33 @@ export function PricingPage() {
           {!isLoading && visibleEntries.length > 0 && (
             <div className="flex items-baseline gap-2">
               <span className="text-xs text-gray-500 uppercase tracking-widest">Total</span>
-              <span className="text-2xl font-bold text-yellow-300">${totalCost.toFixed(4)}</span>
+              <span className="text-2xl font-bold text-warning-300">${totalCost.toFixed(4)}</span>
             </div>
           )}
           <div className="flex items-center gap-1 flex-shrink-0">
-            <button
+            <IconButton
+              accent="white"
+              size="xs"
               onClick={() => setCalendarMonth(availableMonths[calendarMonthIndex + 1])}
               disabled={calendarMonthIndex >= availableMonths.length - 1}
-              className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
-            </button>
+            </IconButton>
             <span className="text-sm font-medium text-gray-200 w-36 text-center">
               {MONTH_NAMES[calendarMonth.month - 1]} {calendarMonth.year}
             </span>
-            <button
+            <IconButton
+              accent="white"
+              size="xs"
               onClick={() => setCalendarMonth(availableMonths[calendarMonthIndex - 1])}
               disabled={calendarMonthIndex <= 0}
-              className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
-            </button>
+            </IconButton>
           </div>
         </div>
       </div>

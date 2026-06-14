@@ -1,4 +1,5 @@
 import { Page } from "../types/pages";
+import { Button } from "../components/primitives/Button";
 
 export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
 
@@ -8,7 +9,7 @@ export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
 
   return (
     <div className="relative bg-[url('/landing-page-bg.png')] bg-cover bg-center h-screen flex items-center justify-center overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-black/50 to-transparent"></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-overlay/50 to-transparent"></div>
 
       <div className="container relative z-10 px-4 md:px-0">
         <div className="flex flex-col items-center max-w-3xl mx-auto">
@@ -52,9 +53,11 @@ export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button
-                className="px-8 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-all font-semibold text-lg flex items-center justify-center"
+              <Button
+                variant="primary"
+                size="none"
                 onClick={navigateToVpnPage}
+                className="px-8 py-4 text-lg"
               >
                 <span>Get Started</span>
                 <svg
@@ -69,7 +72,7 @@ export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
                     clipRule="evenodd"
                   />
                 </svg>
-              </button>
+              </Button>
             </div>
           </div>
 

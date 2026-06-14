@@ -1,5 +1,8 @@
-import { Spinner } from "../components/common/Spinner";
 import { useRef, useState } from "react";
+import { Button } from "../components/primitives/Button";
+import { IconButton } from "../components/primitives/IconButton";
+import { Alert } from "../components/primitives/Alert";
+import { FormField } from "../components/primitives/FormField";
 import { invokeCommand } from "../lib/invokeCommand";
 import { save } from "@tauri-apps/plugin-dialog";
 import toast from "react-hot-toast";
@@ -359,23 +362,25 @@ export function AddAccountPage({
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-900 text-white">
+    <div className="flex flex-col h-full bg-gray-900 text-primary">
       <div className="flex items-center gap-3 px-5 pt-5 pb-4 border-b border-gray-700/50 flex-shrink-0">
-        <button
+        <IconButton
+          accent="white"
+          size="sm"
           onClick={handleBackToProviderSelection}
-          className="p-1.5 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
+          className="flex-shrink-0"
         >
           <svg
-            className="w-5 h-5 text-gray-400"
+            className="w-5 h-5"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
-        </button>
+        </IconButton>
         <div>
-          <h1 className="text-base font-semibold text-white leading-tight">
+          <h1 className="text-base font-semibold text-primary leading-tight">
             {selectedProvider ? PROVIDER_METADATA[selectedProvider].label : ""}
           </h1>
           <p className="text-xs text-gray-500 mt-0.5">Enter your credentials</p>
@@ -507,29 +512,20 @@ function AwsCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
       onSubmit={handleSubmit}
       onCancel={onCancel}
     >
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">
-          Access Key ID
-        </label>
-        <p className="text-xs text-gray-500 mb-2">e.g. AKIAIOSFODNN7EXAMPLE</p>
-        <input
-          type="text"
-          value={accessKeyId}
-          onChange={(e) => setAccessKeyId(e.target.value)}
-          className="input font-mono text-sm"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">
-          Secret Access Key
-        </label>
-        <input
-          type="password"
-          value={secretAccessKey}
-          onChange={(e) => setSecretAccessKey(e.target.value)}
-          className="input"
-        />
-      </div>
+      <FormField
+        label="Access Key ID"
+        hint="e.g. AKIAIOSFODNN7EXAMPLE"
+        type="text"
+        mono
+        value={accessKeyId}
+        onChange={setAccessKeyId}
+      />
+      <FormField
+        label="Secret Access Key"
+        type="password"
+        value={secretAccessKey}
+        onChange={setSecretAccessKey}
+      />
     </CredentialsFormShell>
   );
 }
@@ -581,72 +577,52 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
       onSubmit={handleSubmit}
       onCancel={onCancel}
     >
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">
-          Tenancy OCID
-        </label>
-        <p className="text-xs text-gray-500 mb-2">
-          e.g. ocid1.tenancy.oc1..aaaaaa…
-        </p>
-        <input
-          type="text"
-          value={tenancyOcid}
-          onChange={(e) => setTenancyOcid(e.target.value)}
-          className="input font-mono text-sm"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">
-          User OCID
-        </label>
-        <p className="text-xs text-gray-500 mb-2">
-          e.g. ocid1.user.oc1..aaaaaa…
-        </p>
-        <input
-          type="text"
-          value={userOcid}
-          onChange={(e) => setUserOcid(e.target.value)}
-          className="input font-mono text-sm"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">
-          Key Fingerprint
-        </label>
-        <p className="text-xs text-gray-500 mb-2">
-          e.g. xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx
-        </p>
-        <input
-          type="text"
-          value={fingerprint}
-          onChange={(e) => setFingerprint(e.target.value)}
-          className="input font-mono text-sm"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">
-          Home Region
-        </label>
-        <p className="text-xs text-gray-500 mb-2">e.g. us-ashburn-1</p>
-        <input
-          type="text"
-          value={homeRegion}
-          onChange={(e) => setHomeRegion(e.target.value)}
-          className="input font-mono text-sm"
-        />
-      </div>
+      <FormField
+        label="Tenancy OCID"
+        hint="e.g. ocid1.tenancy.oc1..aaaaaa…"
+        type="text"
+        mono
+        value={tenancyOcid}
+        onChange={setTenancyOcid}
+      />
+      <FormField
+        label="User OCID"
+        hint="e.g. ocid1.user.oc1..aaaaaa…"
+        type="text"
+        mono
+        value={userOcid}
+        onChange={setUserOcid}
+      />
+      <FormField
+        label="Key Fingerprint"
+        hint="e.g. xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx"
+        type="text"
+        mono
+        value={fingerprint}
+        onChange={setFingerprint}
+      />
+      <FormField
+        label="Home Region"
+        hint="e.g. us-ashburn-1"
+        type="text"
+        mono
+        value={homeRegion}
+        onChange={setHomeRegion}
+      />
       <div>
         <div className="flex items-center justify-between mb-1">
           <label className="block text-sm font-medium text-gray-300">
             Private Key (.pem)
           </label>
-          <button
+          <Button
+            variant="secondary"
+            size="none"
             type="button"
             onClick={() => pemFileInputRef.current?.click()}
-            className="text-xs px-3 py-1 bg-gray-600 hover:bg-gray-500 text-gray-300 rounded-lg transition-colors"
+            className="text-xs px-3 py-1"
           >
             Load from file
-          </button>
+          </Button>
           <input
             ref={pemFileInputRef}
             type="file"
@@ -709,30 +685,28 @@ function GcpCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
       onSubmit={handleSubmit}
       onCancel={onCancel}
     >
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">
-          Project ID
-        </label>
-        <p className="text-xs text-gray-500 mb-2">e.g. my-project-123456</p>
-        <input
-          type="text"
-          value={projectId}
-          onChange={(e) => setProjectId(e.target.value)}
-          className="input font-mono text-sm"
-        />
-      </div>
+      <FormField
+        label="Project ID"
+        hint="e.g. my-project-123456"
+        type="text"
+        mono
+        value={projectId}
+        onChange={setProjectId}
+      />
       <div>
         <div className="flex items-center justify-between mb-1">
           <label className="block text-sm font-medium text-gray-300">
             Service Account Key (.json)
           </label>
-          <button
+          <Button
+            variant="secondary"
+            size="none"
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="text-xs px-3 py-1 bg-gray-600 hover:bg-gray-500 text-gray-300 rounded-lg transition-colors"
+            className="text-xs px-3 py-1"
           >
             Load from file
-          </button>
+          </Button>
           <input
             ref={fileInputRef}
             type="file"
@@ -784,65 +758,41 @@ function AzureCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
       onSubmit={handleSubmit}
       onCancel={onCancel}
     >
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">
-          Subscription ID
-        </label>
-        <p className="text-xs text-gray-500 mb-2">
-          e.g. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-        </p>
-        <input
-          type="text"
-          value={subscriptionId}
-          onChange={(e) => setSubscriptionId(e.target.value)}
-          className="input font-mono text-sm"
-          placeholder="00000000-0000-0000-0000-000000000000"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">
-          Tenant ID
-        </label>
-        <p className="text-xs text-gray-500 mb-2">
-          Your Azure Active Directory tenant ID
-        </p>
-        <input
-          type="text"
-          value={tenantId}
-          onChange={(e) => setTenantId(e.target.value)}
-          className="input font-mono text-sm"
-          placeholder="00000000-0000-0000-0000-000000000000"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">
-          Application ID
-        </label>
-        <p className="text-xs text-gray-500 mb-2">
-          Application ID of the service principal
-        </p>
-        <input
-          type="text"
-          value={applicationId}
-          onChange={(e) => setApplicationId(e.target.value)}
-          className="input font-mono text-sm"
-          placeholder="00000000-0000-0000-0000-000000000000"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">
-          Secret Value
-        </label>
-        <p className="text-xs text-gray-500 mb-2">
-          Secret value from your app registration
-        </p>
-        <input
-          type="password"
-          value={secretValue}
-          onChange={(e) => setSecretValue(e.target.value)}
-          className="input font-mono text-sm"
-        />
-      </div>
+      <FormField
+        label="Subscription ID"
+        hint="e.g. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+        type="text"
+        mono
+        value={subscriptionId}
+        onChange={setSubscriptionId}
+        placeholder="00000000-0000-0000-0000-000000000000"
+      />
+      <FormField
+        label="Tenant ID"
+        hint="Your Azure Active Directory tenant ID"
+        type="text"
+        mono
+        value={tenantId}
+        onChange={setTenantId}
+        placeholder="00000000-0000-0000-0000-000000000000"
+      />
+      <FormField
+        label="Application ID"
+        hint="Application ID of the service principal"
+        type="text"
+        mono
+        value={applicationId}
+        onChange={setApplicationId}
+        placeholder="00000000-0000-0000-0000-000000000000"
+      />
+      <FormField
+        label="Secret Value"
+        hint="Secret value from your app registration"
+        type="password"
+        mono
+        value={secretValue}
+        onChange={setSecretValue}
+      />
     </CredentialsFormShell>
   );
 }
@@ -893,15 +843,17 @@ function PolicyBox({ policy }: PolicyBoxProps) {
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <button
+          <Button
+            variant="secondary"
+            size="none"
             onClick={handleCopy}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white rounded-lg transition-colors"
+            className="px-3 py-1.5 text-xs"
           >
             {copied ? (
               <>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  className="h-3.5 w-3.5 text-green-400"
+                  className="h-3.5 w-3.5 text-success-400"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -934,10 +886,12 @@ function PolicyBox({ policy }: PolicyBoxProps) {
                 Copy
               </>
             )}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="secondary"
+            size="none"
             onClick={handleDownload}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white rounded-lg transition-colors"
+            className="px-3 py-1.5 text-xs"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -954,7 +908,7 @@ function PolicyBox({ policy }: PolicyBoxProps) {
               />
             </svg>
             Download
-          </button>
+          </Button>
         </div>
       </div>
       <pre className="p-4 text-xs font-mono text-gray-300 overflow-x-auto flex-1 overflow-y-auto leading-relaxed">
@@ -986,30 +940,21 @@ function CredentialsFormShell({
       <div className="space-y-4">
         {children}
 
-        {error && (
-          <div className="p-3 bg-red-900 border border-red-700 rounded-lg">
-            <p className="text-red-300 text-sm">{error}</p>
-          </div>
-        )}
+        {error && <Alert variant="error">{error}</Alert>}
 
         <div className="flex gap-3 pt-2">
-          <button onClick={onCancel} className="flex-1 px-4 py-2 btn-secondary">
+          <Button variant="secondary" onClick={onCancel} className="flex-1">
             Back
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
             onClick={onSubmit}
-            disabled={isSaving || !isFormValid}
-            className="btn-primary flex-1 px-4 py-2 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-gray-600"
+            loading={isSaving}
+            disabled={!isFormValid}
+            className="flex-1"
           >
-            {isSaving ? (
-              <div className="flex items-center justify-center gap-2">
-                <Spinner color="border-white" />
-                Saving...
-              </div>
-            ) : (
-              "Connect"
-            )}
-          </button>
+            {isSaving ? "Saving..." : "Connect"}
+          </Button>
         </div>
       </div>
     </div>

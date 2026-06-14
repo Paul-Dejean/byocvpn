@@ -1,7 +1,12 @@
-import { Spinner } from "../common/Spinner";
 import { useEffect, useState } from "react";
 import { useCredentials } from "../../hooks";
 import { CloudProviderName } from "../../types";
+import { Spinner } from "../primitives/Spinner";
+import { Badge } from "../primitives/Badge";
+import { Button } from "../primitives/Button";
+import { IconButton } from "../primitives/IconButton";
+import { Alert } from "../primitives/Alert";
+import { FormField } from "../primitives/FormField";
 
 interface AzureProfileCardProps {
   onCredentialsSaved: (provider: CloudProviderName) => void;
@@ -117,18 +122,18 @@ export function AzureProfileCard({
             <AzureIcon />
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-lg text-white">
+                <h3 className="font-semibold text-lg text-primary">
                   Azure Account
                 </h3>
                 {hasCredentials && isProvisioned && (
-                  <span className="text-xs px-2 py-0.5 bg-green-900/50 text-green-400 rounded-full border border-green-700/50">
+                  <Badge variant="success" shape="pill">
                     Provisioned
-                  </span>
+                  </Badge>
                 )}
                 {showNotProvisionedWarning && (
-                  <span className="text-xs px-2 py-0.5 bg-yellow-900/50 text-yellow-300 rounded-full border border-yellow-700/50">
+                  <Badge variant="warning" shape="pill">
                     Not provisioned
-                  </span>
+                  </Badge>
                 )}
               </div>
             </div>
@@ -141,73 +146,55 @@ export function AzureProfileCard({
               {isConfirmingDelete ? (
                 <>
                   <span className="text-sm text-gray-300">Delete?</span>
-                  <button
-                    onClick={() => setIsConfirmingDelete(false)}
-                    className="px-3 py-1.5 btn-secondary text-sm"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleDeleteCredentials}
-                    className="px-3 py-1.5 btn-danger text-sm"
-                  >
-                    Confirm
-                  </button>
+                  <Button variant="secondary" size="sm" onClick={() => setIsConfirmingDelete(false)}>Cancel</Button>
+                  <Button variant="danger" size="sm" onClick={handleDeleteCredentials}>Confirm</Button>
                 </>
               ) : (
                 <>
                   {isProvisioned ? (
-                    <button
-                      onClick={() => onProvisionRequested(CloudProviderName.Azure)}
-                      className="p-2 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded-lg transition-colors"
-                      title="Re-provision"
-                    >
+                    <IconButton accent="blue" onClick={() => onProvisionRequested(CloudProviderName.Azure)} title="Re-provision">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
-                    </button>
+                    </IconButton>
                   ) : (
-                    <button
-                      onClick={() => onProvisionRequested(CloudProviderName.Azure)}
-                      className="p-2 text-amber-400 hover:text-amber-300 hover:bg-gray-600 rounded-lg transition-colors"
-                      title="Provision"
-                    >
+                    <IconButton accent="amber" onClick={() => onProvisionRequested(CloudProviderName.Azure)} title="Provision">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>
-                    </button>
+                    </IconButton>
                   )}
-                  <button
-                    onClick={() => setIsConfirmingDelete(true)}
-                    className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-600 rounded-lg transition-colors"
-                    title="Delete credentials"
-                  >
+                  <IconButton accent="red" onClick={() => setIsConfirmingDelete(true)} title="Delete credentials">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
-                  </button>
-                  <button
+                  </IconButton>
+                  <Button
+                    variant="primary"
                     onClick={handleEditOpen}
-                    className="px-4 py-2 btn-primary font-medium flex items-center gap-2"
+                    icon={
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    }
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
                     Edit
-                  </button>
+                  </Button>
                 </>
               )}
             </div>
           ) : (
-            <button
+            <Button
+              variant="success"
               onClick={handleEditOpen}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium flex items-center gap-2"
+              icon={
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              }
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
               Add Provider
-            </button>
+            </Button>
           )}
         </div>
       ) : (
@@ -215,7 +202,7 @@ export function AzureProfileCard({
           <div className="flex items-center gap-4">
             <AzureIcon />
             <div>
-              <h3 className="font-semibold text-lg text-white">
+              <h3 className="font-semibold text-lg text-primary">
                 {hasCredentials ? "Edit Azure Account" : "Add Azure Account"}
               </h3>
               <p className="text-sm text-gray-400">
@@ -227,60 +214,42 @@ export function AzureProfileCard({
           </div>
 
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Subscription ID
-              </label>
-              <p className="text-xs text-gray-500 mb-2">
-                e.g. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-              </p>
-              <input
-                type="text"
-                value={formFields.subscriptionId}
-                onChange={(e) => setFormFields((prev) => ({ ...prev, subscriptionId: e.target.value }))}
-                className="input font-mono text-sm"
-                placeholder="00000000-0000-0000-0000-000000000000"
-              />
-            </div>
+            <FormField
+              label="Subscription ID"
+              hint="e.g. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              type="text"
+              mono
+              value={formFields.subscriptionId}
+              onChange={(value) => setFormFields((prev) => ({ ...prev, subscriptionId: value }))}
+              placeholder="00000000-0000-0000-0000-000000000000"
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Tenant ID
-              </label>
-              <p className="text-xs text-gray-500 mb-2">
-                Your Azure Active Directory tenant ID (UUID)
-              </p>
-              <input
-                type="text"
-                value={formFields.tenantId}
-                onChange={(e) => setFormFields((prev) => ({ ...prev, tenantId: e.target.value }))}
-                className="input font-mono text-sm"
-                placeholder="00000000-0000-0000-0000-000000000000"
-              />
-            </div>
+            <FormField
+              label="Tenant ID"
+              hint="Your Azure Active Directory tenant ID (UUID)"
+              type="text"
+              mono
+              value={formFields.tenantId}
+              onChange={(value) => setFormFields((prev) => ({ ...prev, tenantId: value }))}
+              placeholder="00000000-0000-0000-0000-000000000000"
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Application ID
-              </label>
-              <p className="text-xs text-gray-500 mb-2">
-                Application ID of the service principal
-              </p>
-              <input
-                type="text"
-                value={formFields.applicationId}
-                onChange={(e) => setFormFields((prev) => ({ ...prev, applicationId: e.target.value }))}
-                className="input font-mono text-sm"
-                placeholder="00000000-0000-0000-0000-000000000000"
-              />
-            </div>
+            <FormField
+              label="Application ID"
+              hint="Application ID of the service principal"
+              type="text"
+              mono
+              value={formFields.applicationId}
+              onChange={(value) => setFormFields((prev) => ({ ...prev, applicationId: value }))}
+              placeholder="00000000-0000-0000-0000-000000000000"
+            />
 
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
                 Secret Value
               </label>
               {secretAlreadySet && !formFields.secretValue && (
-                <p className="text-xs text-green-400 mb-2">
+                <p className="text-xs text-success-400 mb-2">
                   ✓ Secret value already configured — enter a new value to
                   replace it
                 </p>
@@ -299,39 +268,20 @@ export function AzureProfileCard({
               />
             </div>
 
-            {error && (
-              <div className="p-3 bg-red-900 border border-red-700 rounded-lg">
-                <p className="text-red-300 text-sm">{error}</p>
-              </div>
-            )}
-
-            {successMessage && (
-              <div className="p-3 bg-green-900 border border-green-700 rounded-lg">
-                <p className="text-green-300 text-sm">{successMessage}</p>
-              </div>
-            )}
+            {error && <Alert variant="error">{error}</Alert>}
+            {successMessage && <Alert variant="success">{successMessage}</Alert>}
 
             <div className="flex gap-3 pt-4">
-              <button
-                onClick={handleCancel}
-                className="flex-1 px-4 py-2 btn-secondary"
-              >
-                Cancel
-              </button>
-              <button
+              <Button variant="secondary" onClick={handleCancel} className="flex-1">Cancel</Button>
+              <Button
+                variant="primary"
                 onClick={handleSave}
-                disabled={isSaving || !isFormValid}
-                className="btn-primary flex-1 px-4 py-2 disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-gray-600"
+                loading={isSaving}
+                disabled={!isFormValid}
+                className="flex-1"
               >
-                {isSaving ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <Spinner color="border-white" />
-                    Saving...
-                  </div>
-                ) : (
-                  "Save Account"
-                )}
-              </button>
+                {isSaving ? "Saving..." : "Save Account"}
+              </Button>
             </div>
           </div>
         </div>

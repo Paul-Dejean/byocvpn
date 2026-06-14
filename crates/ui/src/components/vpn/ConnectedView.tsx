@@ -3,6 +3,8 @@ import { Instance } from "../../types";
 import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
 import { getRegionInfo } from "../../constants/regionInfo";
 import { FlagIcon } from "../FlagIcon";
+import { Alert } from "../primitives/Alert";
+import { Button } from "../primitives/Button";
 import { formatBytes } from "../../lib/bytes";
 import { formatDuration } from "../../lib/time";
 
@@ -30,27 +32,29 @@ export function ConnectedView({ connectedInstance }: ConnectedViewProps) {
   const connectionError = isDisconnecting ? null : vpnStatus.connectionError;
 
   return (
-    <div className="flex flex-col h-full text-white overflow-hidden">
+    <div className="flex flex-col h-full text-primary overflow-hidden">
       {connectionError && (
         <div className="px-4 pt-4">
-          <div className="flex items-start gap-2.5 bg-red-900/40 border border-red-700/60 rounded-lg px-3.5 py-3">
-            <svg
-              className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
-              />
-            </svg>
-            <p className="text-xs text-red-300 leading-relaxed">
-              {connectionError}
-            </p>
-          </div>
+          <Alert
+            variant="error"
+            icon={
+              <svg
+                className="w-4 h-4 text-danger-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                />
+              </svg>
+            }
+          >
+            <span className="text-xs leading-relaxed">{connectionError}</span>
+          </Alert>
         </div>
       )}
       <div className="flex-1 flex flex-col p-6 pb-2 overflow-y-auto">
@@ -62,7 +66,7 @@ export function ConnectedView({ connectedInstance }: ConnectedViewProps) {
               className="text-xl"
             />
             <div>
-              <div className="text-sm font-medium text-white leading-tight">
+              <div className="text-sm font-medium text-primary leading-tight">
                 {regionInfo.city}
               </div>
               <div className="text-xs text-gray-400 font-mono">
@@ -90,14 +94,14 @@ export function ConnectedView({ connectedInstance }: ConnectedViewProps) {
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-3">
             <div className="relative flex items-center justify-center w-44 h-44">
-              <div className="absolute w-44 h-44 rounded-full border border-green-400/10 animate-ping [animation-duration:4s]" />
-              <div className="absolute w-32 h-32 rounded-full border border-green-400/15 animate-ping [animation-duration:3s] [animation-delay:0.75s]" />
-              <div className="absolute w-24 h-24 rounded-full border border-green-400/25 animate-ping [animation-duration:2.5s] [animation-delay:1.25s]" />
-              <div className="absolute w-20 h-20 rounded-full border border-green-400/30 glow-green-ring" />
-              <div className="w-16 h-16 rounded-full bg-green-500/20 backdrop-blur-sm flex items-center justify-center relative z-10 border border-green-400/30 glow-green-core">
+              <div className="absolute w-44 h-44 rounded-full border border-success-400/10 animate-ping [animation-duration:4s]" />
+              <div className="absolute w-32 h-32 rounded-full border border-success-400/15 animate-ping [animation-duration:3s] [animation-delay:0.75s]" />
+              <div className="absolute w-24 h-24 rounded-full border border-success-400/25 animate-ping [animation-duration:2.5s] [animation-delay:1.25s]" />
+              <div className="absolute w-20 h-20 rounded-full border border-success-400/30 glow-green-ring" />
+              <div className="w-16 h-16 rounded-full bg-success-500/20 backdrop-blur-sm flex items-center justify-center relative z-10 border border-success-400/30 glow-green-core">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  className="h-7 w-7 text-green-300"
+                  className="h-7 w-7 text-success-300"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -113,10 +117,10 @@ export function ConnectedView({ connectedInstance }: ConnectedViewProps) {
             </div>
             <div className="flex items-center gap-2">
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-60" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success-400 opacity-60" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-success-400" />
               </span>
-              <span className="text-xs font-mono text-green-400 uppercase tracking-widest">
+              <span className="text-xs font-mono text-success-400 uppercase tracking-widest">
                 Connected
               </span>
             </div>
@@ -128,17 +132,17 @@ export function ConnectedView({ connectedInstance }: ConnectedViewProps) {
           <span className="text-xs text-gray-400 uppercase tracking-widest font-mono">
             Uptime
           </span>
-          <span className="text-sm font-mono font-bold text-white tabular-nums">
+          <span className="text-sm font-mono font-bold text-primary tabular-nums">
             {formatDuration(elapsedSeconds)}
           </span>
         </div>
 
         {/* Upload / Download */}
         <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-lg px-4 py-3 bg-green-400/6 border border-green-400/12">
+          <div className="rounded-lg px-4 py-3 bg-success-400/6 border border-success-400/12">
             <div className="flex items-center gap-1.5 mb-1.5">
               <svg
-                className="w-3 h-3 text-green-500 flex-shrink-0"
+                className="w-3 h-3 text-success-500 flex-shrink-0"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -154,11 +158,11 @@ export function ConnectedView({ connectedInstance }: ConnectedViewProps) {
                 Upload
               </span>
             </div>
-            <div className="font-mono font-bold text-green-400 tabular-nums">
+            <div className="font-mono font-bold text-success-400 tabular-nums">
               <span className="text-xl">
                 {formatBytes(metrics?.uploadRate ?? 0)}
               </span>
-              <span className="text-xs text-green-600 ml-0.5">/s</span>
+              <span className="text-xs text-success-600 ml-0.5">/s</span>
             </div>
             <div className="text-xs text-gray-500 font-mono mt-1">
               {formatBytes(metrics?.bytesSent ?? 0)} total
@@ -200,13 +204,16 @@ export function ConnectedView({ connectedInstance }: ConnectedViewProps) {
       {/* Disconnect — pinned bottom */}
       <div className="px-6 pb-6 pt-2">
         <div className="relative group">
-          <button
+          <Button
+            variant="ghostDanger"
+            size="none"
+            disabledStyle="dim"
             onClick={disconnectFromVpn}
             disabled={!isDaemonRunning}
-            className="btn-ghost-danger w-full py-4 text-lg disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full py-4 text-lg"
           >
             Disconnect
-          </button>
+          </Button>
           {!isDaemonRunning && (
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-56 text-center">
               <div className="bg-gray-800 border border-gray-600 text-gray-200 text-xs rounded-lg px-3 py-2 leading-relaxed shadow-lg">

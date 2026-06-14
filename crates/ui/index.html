@@ -5,6 +5,21 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ByocVPN</title>
+    <script>
+      (function () {
+        try {
+          var storedTheme = localStorage.getItem("byocvpn-theme");
+          if (storedTheme !== "light" && storedTheme !== "dark") {
+            storedTheme = window.matchMedia("(prefers-color-scheme: light)").matches
+              ? "light"
+              : "dark";
+          }
+          document.documentElement.dataset.theme = storedTheme;
+        } catch (error) {
+          document.documentElement.dataset.theme = "dark";
+        }
+      })();
+    </script>
   </head>
 
   <body>

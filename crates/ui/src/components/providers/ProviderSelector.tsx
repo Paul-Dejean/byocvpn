@@ -1,4 +1,6 @@
-import { Spinner } from "../common/Spinner";
+import { Spinner } from "../primitives/Spinner";
+import { IconButton } from "../primitives/IconButton";
+import { SelectableCard } from "../primitives/SelectableCard";
 import { useEffect, useState } from "react";
 import { useCredentials } from "../../hooks/useCredentials";
 import { CloudProviderName } from "../../types";
@@ -80,12 +82,9 @@ export function ProviderSelector({
   return (
     <div className="flex flex-col h-full bg-gray-900">
       <div className="flex items-center gap-3 px-5 pt-5 pb-4 border-b border-gray-700/50">
-        <button
-          onClick={onClose}
-          className="p-1.5 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
-        >
+        <IconButton accent="white" size="sm" onClick={onClose} className="flex-shrink-0">
           <svg
-            className="w-5 h-5 text-gray-400"
+            className="w-5 h-5"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -97,9 +96,9 @@ export function ProviderSelector({
               d="M15 19l-7-7 7-7"
             />
           </svg>
-        </button>
+        </IconButton>
         <div>
-          <h1 className="text-base font-semibold text-white leading-tight">
+          <h1 className="text-base font-semibold text-primary leading-tight">
             {title}
           </h1>
           <p className="text-xs text-gray-500 mt-0.5">
@@ -116,10 +115,10 @@ export function ProviderSelector({
         ) : (
           <div className="flex flex-col gap-3">
             {filteredProviders.map((provider) => (
-              <button
+              <SelectableCard
                 key={provider.name}
                 onClick={() => onSelectProvider(provider.name)}
-                className="w-full flex items-center gap-4 p-4 bg-gray-800/60 border border-white/5 rounded-xl hover:border-blue-500/40 hover:bg-gray-800 transition-all text-left group"
+                className="flex items-center gap-4 p-4 bg-gray-800/60 border border-gray-500/15 rounded-xl hover:border-blue-500/40 hover:bg-gray-800 group"
               >
                 <div className="w-11 h-11 rounded-xl flex items-center justify-center p-2 flex-shrink-0">
                   <img
@@ -129,7 +128,7 @@ export function ProviderSelector({
                   />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white group-hover:text-blue-300 transition-colors">
+                  <p className="text-sm font-semibold text-primary group-hover:text-blue-300 transition-colors">
                     {provider.label}
                   </p>
                   <p className="text-xs text-gray-500 mt-0.5 truncate">
@@ -144,7 +143,7 @@ export function ProviderSelector({
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
-              </button>
+              </SelectableCard>
             ))}
           </div>
         )}

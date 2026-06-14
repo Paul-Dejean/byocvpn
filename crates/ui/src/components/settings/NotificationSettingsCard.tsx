@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { invokeCommand } from "../../lib/invokeCommand";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { Toggle } from "../primitives/Toggle";
+import { Button } from "../primitives/Button";
 
 interface NotificationSettings {
   notificationEnabled: boolean;
@@ -88,30 +90,22 @@ export function NotificationSettingsCard() {
     <div className="py-6">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-4 min-w-0">
-          <div className="w-12 h-12 rounded-xl bg-yellow-900/50 flex items-center justify-center flex-shrink-0">
+          <div className="w-12 h-12 rounded-xl bg-warning-900/50 flex items-center justify-center flex-shrink-0">
             <BellIcon />
           </div>
           <div className="min-w-0">
-            <h3 className="font-semibold text-white">Server Uptime Notifications</h3>
+            <h3 className="font-semibold text-primary">Server Uptime Notifications</h3>
             <p className="text-sm text-gray-400 mt-0.5">
               Get notified when a server has been running too long
             </p>
           </div>
         </div>
 
-        <button
-          onClick={toggleEnabled}
-          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
-            settings.notificationEnabled ? "bg-blue-600" : "bg-gray-600"
-          }`}
-          aria-label="Toggle notifications"
-        >
-          <span
-            className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-              settings.notificationEnabled ? "translate-x-4.5" : "translate-x-0.5"
-            }`}
-          />
-        </button>
+        <Toggle
+          checked={settings.notificationEnabled}
+          onChange={toggleEnabled}
+          ariaLabel="Toggle notifications"
+        />
       </div>
 
       {settings.notificationEnabled && (
@@ -123,7 +117,7 @@ export function NotificationSettingsCard() {
               min={1}
               value={settings.notificationThresholdMinutes}
               onChange={(event) => onThresholdChange(event.target.value)}
-              className="w-14 px-2 py-1 text-xs bg-gray-700 text-white rounded-md border border-gray-600 focus:outline-none focus:border-blue-500 text-center"
+              className="w-14 px-2 py-1 text-xs bg-gray-700 text-primary rounded-md border border-gray-600 focus:outline-none focus:border-blue-500 text-center"
             />
             <span className="text-xs text-gray-400">minutes of server uptime</span>
           </div>
@@ -133,24 +127,18 @@ export function NotificationSettingsCard() {
           </p>
 
           {permissionError && (
-            <p className="text-xs text-red-400">{permissionError}</p>
+            <p className="text-xs text-danger-400">{permissionError}</p>
           )}
 
           <div className="flex items-center gap-2">
             {notificationSettingsUrl && (
-              <button
-                onClick={openNotificationSettings}
-                className="text-xs text-gray-400 hover:text-white border border-gray-600 hover:border-gray-400 rounded-md px-2.5 py-1 transition-colors"
-              >
+              <Button variant="ghost" size="none" onClick={openNotificationSettings} className="text-xs px-2.5 py-1 !rounded-md">
                 Open Settings
-              </button>
+              </Button>
             )}
-            <button
-              onClick={sendTestNotification}
-              className="text-xs text-gray-400 hover:text-white border border-gray-600 hover:border-gray-400 rounded-md px-2.5 py-1 transition-colors"
-            >
+            <Button variant="ghost" size="none" onClick={sendTestNotification} className="text-xs px-2.5 py-1 !rounded-md">
               Test Notification
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -161,7 +149,7 @@ export function NotificationSettingsCard() {
 function BellIcon() {
   return (
     <svg
-      className="w-5 h-5 text-yellow-400"
+      className="w-5 h-5 text-warning-400"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"

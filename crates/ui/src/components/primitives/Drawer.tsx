@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import { IconButton } from "./IconButton";
 
 interface DrawerProps {
   isOpen: boolean;
@@ -13,7 +14,7 @@ export function Drawer({ isOpen, onClose, title, subtitle, footer, children }: D
   return (
     <>
       <div
-        className={`fixed inset-0 z-40 bg-black transition-opacity duration-300 ${
+        className={`fixed inset-0 z-40 bg-overlay transition-opacity duration-300 ${
           isOpen
             ? "opacity-50 pointer-events-auto"
             : "opacity-0 pointer-events-none"
@@ -28,15 +29,12 @@ export function Drawer({ isOpen, onClose, title, subtitle, footer, children }: D
       >
         <div className="flex items-center justify-between p-6 border-b border-gray-700/50 flex-shrink-0">
           <div>
-            <h2 className="text-lg font-semibold text-white">{title}</h2>
+            <h2 className="text-lg font-semibold text-primary">{title}</h2>
             {subtitle && (
               <p className="text-sm text-gray-400 mt-1">{subtitle}</p>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg transition-colors text-gray-400 hover:text-white hover:bg-gray-600/50"
-          >
+          <IconButton accent="white" onClick={onClose}>
             <svg
               className="w-5 h-5"
               fill="none"
@@ -50,7 +48,7 @@ export function Drawer({ isOpen, onClose, title, subtitle, footer, children }: D
                 d="M6 18L18 6M6 6l12 12"
               />
             </svg>
-          </button>
+          </IconButton>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">{children}</div>

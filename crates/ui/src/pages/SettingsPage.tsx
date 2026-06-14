@@ -11,6 +11,8 @@ import { AzureProfileCard } from "../components/settings/AzureProfileCard";
 import { JobProgressDrawer } from "../components/common/JobProgressDrawer";
 import { NotificationSettingsCard } from "../components/settings/NotificationSettingsCard";
 import { SessionKillswitchCard } from "../components/settings/SessionKillswitchCard";
+import { AppearanceCard } from "../components/settings/AppearanceCard";
+import { Button } from "../components/primitives/Button";
 
 interface SettingsPageProps {
   onNavigateToAddAccount?: () => void;
@@ -82,7 +84,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
   }, []);
 
   return (
-    <div className="flex flex-col h-full bg-gray-900 text-white">
+    <div className="flex flex-col h-full bg-gray-900 text-primary">
       <div className="flex-1 overflow-y-auto">
         <div className="px-6 pb-8">
           <div>
@@ -156,28 +158,41 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
 
               {onNavigateToAddAccount && !(awsHasCredentials && oracleHasCredentials && gcpHasCredentials && azureHasCredentials) && (
                 <div className="py-4">
-                  <button
+                  <Button
+                    variant="primary"
+                    size="none"
                     onClick={onNavigateToAddAccount}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition-colors font-semibold"
+                    className="px-6 py-2.5 !rounded-xl"
+                    icon={
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-5 w-5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 4v16m8-8H4"
+                        />
+                      </svg>
+                    }
                   >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 4v16m8-8H4"
-                      />
-                    </svg>
                     Add Account
-                  </button>
+                  </Button>
                 </div>
               )}
+            </div>
+          </div>
+
+          <div className="mt-8">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 pb-2 border-b border-gray-700/50">
+              Appearance
+            </h2>
+            <div className="divide-y divide-gray-700/50">
+              <AppearanceCard />
             </div>
           </div>
 

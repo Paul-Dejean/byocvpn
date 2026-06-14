@@ -41,6 +41,10 @@
   --color-gray-100: #deedf8;   /* near-primary body text            */
   --color-gray-50:  #eef6fc;
 
+  /* Primary foreground text — flips per theme (white here, near-black in light).
+     NOTE: this is the text color, distinct from the accent ("primary" button = blue). */
+  --color-primary: #ffffff;
+
   /* ── Electric blue accent ── */
   --color-blue-950: #020d1e;
   --color-blue-900: #03162e;
@@ -52,6 +56,39 @@
   --color-blue-300: #5dcfff;
   --color-blue-200: #9ae2ff;
   --color-blue-100: #ccf0ff;
+
+  /* ── Semantic status colors ──
+     blue = accent, gray = surface/neutral (both above). These three drive
+     success / warning / danger across Badge, Alert and buttons. Re-theme any
+     status color by editing only the ramp below. */
+
+  /* Success (green) */
+  --color-success-300: #86efac;
+  --color-success-400: #4ade80;
+  --color-success-500: #22c55e;
+  --color-success-600: #16a34a;
+  --color-success-700: #15803d;
+  --color-success-900: #14532d;
+
+  /* Warning (amber) */
+  --color-warning-300: #fde047;
+  --color-warning-400: #facc15;
+  --color-warning-700: #a16207;
+  --color-warning-900: #713f12;
+
+  /* Danger (red) */
+  --color-danger-300: #fca5a5;
+  --color-danger-400: #f87171;
+  --color-danger-500: #ef4444;
+  --color-danger-600: #dc2626;
+  --color-danger-700: #b91c1c;
+  --color-danger-900: #7f1d1d;
+
+  /* Depth shadow base — drives the dark drop-shadows under buttons/cards */
+  --color-shadow: #000000;
+
+  /* Modal/scrim overlay — intentionally dark in BOTH themes (not overridden below) */
+  --color-overlay: #000000;
 
   /* ── Animations ── */
   --animate-fade-in: fade-in 1s ease-in-out forwards;
@@ -67,6 +104,60 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   LIGHT THEME
+   Activated by data-theme="light" on <html>. Overrides only token VALUES — every
+   component utility (bg-gray-900, text-primary, bg-success-900, glow-*, …) picks
+   up the new value automatically. Retune the light palette entirely from here.
+───────────────────────────────────────────────────────────────────────────── */
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  /* Primary foreground text flips to near-black */
+  --color-primary: #0f172a;
+
+  /* Slate grays — role-preserving inversion (900 = app bg … 50 = strongest text) */
+  --color-gray-950: #ffffff;
+  --color-gray-900: #f1f5f9;   /* app background       */
+  --color-gray-800: #ffffff;   /* cards / nav / panels */
+  --color-gray-750: #f8fafc;   /* hover                */
+  --color-gray-700: #c3cdda;   /* dividers / borders (must read at /50 over white), chips, hovers */
+  --color-gray-600: #dbe2ea;   /* input bg, secondary button */
+  --color-gray-500: #94a3b8;   /* borders + faint hint text  */
+  --color-gray-400: #64748b;   /* muted text           */
+  --color-gray-300: #475569;   /* secondary text       */
+  --color-gray-200: #334155;   /* labels               */
+  --color-gray-100: #1e293b;   /* body text            */
+  --color-gray-50:  #0f172a;   /* strongest text       */
+
+  /* Accent — darken the light end so blue text/icons keep contrast on light surfaces,
+     and lighten blue-900 (only ever used as a tinted background) to a soft blue tint.
+     blue-500/600/700 stay saturated: they back solid buttons/selections with white text. */
+  --color-blue-900: #dbeafe;
+  --color-blue-400: #0669c0;
+  --color-blue-300: #1f7fc4;
+
+  /* Status — flip dark fills (‑900) to light tints, and light text/icons (‑300/‑400) to dark */
+  --color-success-900: #dcfce7;
+  --color-success-700: #86efac;
+  --color-success-400: #16a34a;
+  --color-success-300: #15803d;
+
+  --color-warning-900: #fef9c3;
+  --color-warning-700: #fde047;
+  --color-warning-400: #a16207;
+  --color-warning-300: #a16207;
+
+  --color-danger-900: #fee2e2;
+  --color-danger-700: #fca5a5;
+  --color-danger-400: #dc2626;
+  --color-danger-300: #b91c1c;
+
+  /* Soft slate depth shadows instead of heavy black on light surfaces */
+  --color-shadow: #94a3b8;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    COMPONENTS
    Semantic atoms — use these instead of raw utilities for inputs and buttons.
    Padding is NOT included in button classes; add it at the call site.
@@ -74,7 +165,7 @@
 
 @layer components {
   .input {
-    @apply w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white;
+    @apply w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-primary;
   }
 
   .btn-primary {
@@ -82,15 +173,15 @@
   }
 
   .btn-secondary {
-    @apply bg-gray-600 hover:bg-gray-500 text-white rounded-lg font-medium transition-colors;
+    @apply bg-gray-600 hover:bg-gray-500 text-primary rounded-lg font-medium transition-colors;
   }
 
   .btn-danger {
-    @apply bg-red-600 hover:bg-red-500 text-white rounded-lg font-semibold transition-colors;
+    @apply bg-danger-600 hover:bg-danger-500 text-white rounded-lg font-semibold transition-colors;
   }
 
   .btn-ghost-danger {
-    @apply bg-red-500/10 border border-red-500/25 hover:bg-red-500/20 hover:glow-red text-white rounded-lg font-semibold transition-colors;
+    @apply bg-danger-500/10 border border-danger-500/25 hover:bg-danger-500/20 hover:glow-red text-primary rounded-lg font-semibold transition-colors;
   }
 }
 
@@ -138,25 +229,25 @@
   input:focus,
   textarea:focus {
     box-shadow:
-      0 0 0 1px rgba(8, 136, 220, 0.6),
-      0 0 12px rgba(8, 136, 220, 0.12);
+      0 0 0 1px color-mix(in srgb, var(--color-blue-500) 60%, transparent),
+      0 0 12px color-mix(in srgb, var(--color-blue-500) 12%, transparent);
   }
 
   /* ── Primary button glow on hover ── */
   button.bg-blue-600:hover,
   a.bg-blue-600:hover {
     box-shadow:
-      0 0 18px rgba(8, 136, 220, 0.4),
-      0 0 4px rgba(8, 136, 220, 0.2),
-      0 2px 8px rgba(0, 0, 0, 0.5);
+      0 0 18px color-mix(in srgb, var(--color-blue-500) 40%, transparent),
+      0 0 4px color-mix(in srgb, var(--color-blue-500) 20%, transparent),
+      0 2px 8px color-mix(in srgb, var(--color-shadow) 50%, transparent);
   }
 
   /* ── Destructive button glow on hover ── */
-  button.bg-red-600:hover {
+  button.bg-danger-600:hover {
     box-shadow:
-      0 0 18px rgba(239, 68, 68, 0.35),
-      0 0 4px rgba(239, 68, 68, 0.2),
-      0 2px 8px rgba(0, 0, 0, 0.5);
+      0 0 18px color-mix(in srgb, var(--color-danger-500) 35%, transparent),
+      0 0 4px color-mix(in srgb, var(--color-danger-500) 20%, transparent),
+      0 2px 8px color-mix(in srgb, var(--color-shadow) 50%, transparent);
   }
 
   /* ── Smooth border/shadow transitions on all rounded elements ── */
@@ -181,7 +272,7 @@
 @utility bg-grid {
   background-image: radial-gradient(
     circle,
-    rgba(32, 180, 250, 0.07) 1px,
+    color-mix(in srgb, var(--color-blue-400) 7%, transparent) 1px,
     transparent 1px
   );
   background-size: 28px 28px;
@@ -193,27 +284,32 @@
   position: relative;
   border: 1px solid transparent;
   background-clip: padding-box;
-  box-shadow: inset 0 0 0 1px rgba(32, 180, 250, 0.08);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-blue-400) 8%, transparent);
 }
 
 /* Strong glow ring — selected cards, active states */
 @utility glow-accent {
   box-shadow:
-    0 0 0 1px rgba(8, 136, 220, 0.4),
-    0 0 20px rgba(8, 136, 220, 0.2),
-    0 2px 8px rgba(0, 0, 0, 0.5);
+    0 0 0 1px color-mix(in srgb, var(--color-blue-500) 40%, transparent),
+    0 0 20px color-mix(in srgb, var(--color-blue-500) 20%, transparent),
+    0 2px 8px color-mix(in srgb, var(--color-shadow) 50%, transparent);
 }
 
 /* Soft glow — hover states */
 @utility glow-accent-sm {
   box-shadow:
-    0 0 0 1px rgba(8, 136, 220, 0.2),
-    0 0 8px rgba(8, 136, 220, 0.1);
+    0 0 0 1px color-mix(in srgb, var(--color-blue-500) 20%, transparent),
+    0 0 8px color-mix(in srgb, var(--color-blue-500) 10%, transparent);
 }
 
 /* Gradient text — landing page headings */
 @utility text-gradient {
-  background: linear-gradient(135deg, #5dcfff 0%, #20b4fa 45%, #0888dc 100%);
+  background: linear-gradient(
+    135deg,
+    var(--color-blue-300) 0%,
+    var(--color-blue-400) 45%,
+    var(--color-blue-500) 100%
+  );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -221,33 +317,35 @@
 
 /* Outer ring glow for blue icon hero (LandingPage, ConnectedView) */
 @utility glow-blue-ring {
-  box-shadow: 0 0 24px rgba(32, 180, 250, 0.12);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--color-blue-400) 12%, transparent);
 }
 
 /* Inner core glow for blue icon hero */
 @utility glow-blue-core {
-  box-shadow: 0 0 32px rgba(32, 180, 250, 0.2);
+  box-shadow: 0 0 32px color-mix(in srgb, var(--color-blue-400) 20%, transparent);
 }
 
 /* Outer ring glow for green connected hero (ConnectedView) */
 @utility glow-green-ring {
-  box-shadow: 0 0 24px rgba(74, 222, 128, 0.12);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--color-success-400) 12%, transparent);
 }
 
 /* Inner core glow for green connected hero */
 @utility glow-green-core {
-  box-shadow: 0 0 32px rgba(74, 222, 128, 0.2);
+  box-shadow: 0 0 32px color-mix(in srgb, var(--color-success-400) 20%, transparent);
 }
 
 /* Destructive red glow — ghost red buttons on hover */
 @utility glow-red {
   box-shadow:
-    0 0 18px rgba(239, 68, 68, 0.35),
-    0 0 4px rgba(239, 68, 68, 0.2),
-    0 2px 8px rgba(0, 0, 0, 0.5);
+    0 0 18px color-mix(in srgb, var(--color-danger-500) 35%, transparent),
+    0 0 4px color-mix(in srgb, var(--color-danger-500) 20%, transparent),
+    0 2px 8px color-mix(in srgb, var(--color-shadow) 50%, transparent);
 }
 
 /* Navbar connected status indicator */
 @utility glow-connected-indicator {
-  box-shadow: 0 0 6px rgba(74, 222, 128, 0.9), 0 0 12px rgba(74, 222, 128, 0.4);
+  box-shadow:
+    0 0 6px color-mix(in srgb, var(--color-success-400) 90%, transparent),
+    0 0 12px color-mix(in srgb, var(--color-success-400) 40%, transparent);
 }
