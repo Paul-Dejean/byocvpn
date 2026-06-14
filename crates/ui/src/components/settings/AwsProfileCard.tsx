@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useCredentials } from "../../hooks";
 import { CloudProviderName } from "../../types";
+import { ProviderIcon } from "../providers/ProviderIcon";
 import { Spinner } from "../primitives/Spinner";
 import { Badge } from "../primitives/Badge";
 import { Button } from "../primitives/Button";
@@ -18,7 +19,7 @@ interface AwsProfileCardProps {
 function AwsIcon() {
   return (
     <div className="w-12 h-12 rounded-xl flex items-center justify-center p-2.5 flex-shrink-0">
-      <img src="/cloud-providers/aws-icon.svg" alt="AWS" className="w-full h-full object-contain" />
+      <ProviderIcon provider={CloudProviderName.Aws} className="w-full h-full" />
     </div>
   );
 }

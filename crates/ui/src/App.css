@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Dark is the default; `light:` utilities apply under data-theme="light" (see THEME). */
+@custom-variant light (&:where([data-theme="light"] *));
+
 /* ─────────────────────────────────────────────────────────────────────────────
    FONTS
    Self-hosted variable fonts — no CDN dependency.

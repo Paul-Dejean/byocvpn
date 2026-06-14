@@ -1,6 +1,7 @@
 import { Spinner } from "../primitives/Spinner";
 import { IconButton } from "../primitives/IconButton";
 import { SelectableCard } from "../primitives/SelectableCard";
+import { ProviderIcon } from "./ProviderIcon";
 import { useEffect, useState } from "react";
 import { useCredentials } from "../../hooks/useCredentials";
 import { CloudProviderName } from "../../types";
@@ -17,8 +18,6 @@ interface ProviderOption {
   name: CloudProviderName;
   label: string;
   description: string;
-  iconSrc: string;
-  iconAlt: string;
 }
 
 const providers: ProviderOption[] = [
@@ -26,29 +25,21 @@ const providers: ProviderOption[] = [
     name: CloudProviderName.Aws,
     label: "Amazon Web Services",
     description: "EC2 — 15+ regions worldwide",
-    iconSrc: "/cloud-providers/aws-icon.svg",
-    iconAlt: "AWS",
   },
   {
     name: CloudProviderName.Oracle,
     label: "Oracle Cloud",
     description: "OCI Compute — 40+ regions worldwide",
-    iconSrc: "/cloud-providers/oracle-icon.svg",
-    iconAlt: "Oracle",
   },
   {
     name: CloudProviderName.Gcp,
     label: "Google Cloud",
     description: "Compute Engine — 40+ regions worldwide",
-    iconSrc: "/cloud-providers/google-cloud-icon.svg",
-    iconAlt: "GCP",
   },
   {
     name: CloudProviderName.Azure,
     label: "Microsoft Azure",
     description: "Azure VMs — 60+ regions worldwide",
-    iconSrc: "/cloud-providers/azure-icon.svg",
-    iconAlt: "Azure",
   },
 ];
 
@@ -121,11 +112,7 @@ export function ProviderSelector({
                 className="flex items-center gap-4 p-4 bg-gray-800/60 border border-gray-500/15 rounded-xl hover:border-blue-500/40 hover:bg-gray-800 group"
               >
                 <div className="w-11 h-11 rounded-xl flex items-center justify-center p-2 flex-shrink-0">
-                  <img
-                    src={provider.iconSrc}
-                    alt={provider.iconAlt}
-                    className="w-full h-full object-contain"
-                  />
+                  <ProviderIcon provider={provider.name} className="w-full h-full" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-primary group-hover:text-blue-300 transition-colors">

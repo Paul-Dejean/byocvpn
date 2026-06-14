@@ -1,10 +1,29 @@
+import { useState } from "react";
 import { Theme } from "../../types/theme";
-import { useTheme } from "../../hooks/useTheme";
 import { Toggle } from "../primitives/Toggle";
 
+const THEME_STORAGE_KEY = "byocvpn-theme";
+
+function readActiveTheme(): Theme {
+  return document.documentElement.dataset.theme === Theme.LIGHT
+    ? Theme.LIGHT
+    : Theme.DARK;
+}
+
+function applyTheme(theme: Theme) {
+  localStorage.setItem(THEME_STORAGE_KEY, theme);
+  document.documentElement.dataset.theme = theme;
+}
+
 export function AppearanceCard() {
-  const { theme, toggleTheme } = useTheme();
+  const [theme, setTheme] = useState<Theme>(readActiveTheme);
   const isLight = theme === Theme.LIGHT;
+
+  function toggleTheme() {
+    const nextTheme = isLight ? Theme.DARK : Theme.LIGHT;
+    applyTheme(nextTheme);
+    setTheme(nextTheme);
+  }
 
   return (
     <div className="py-6">

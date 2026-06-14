@@ -13,4 +13,3 @@ export type {
   AzureCredentials,
 } from "./useCredentials";
 export { useLedger } from "./useLedger";
-export { useTheme, THEME_STORAGE_KEY } from "./useTheme";
