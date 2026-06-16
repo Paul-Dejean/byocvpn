@@ -1,8 +1,7 @@
 use std::{collections::HashSet, str::FromStr};
 
-
 use byocvpn_aws::{AwsCredentials, AwsProvider, pricing as aws_pricing};
-use byocvpn_azure::{credentials::AzureCredentials, AzureProvider, pricing as azure_pricing};
+use byocvpn_azure::{AzureProvider, credentials::AzureCredentials, pricing as azure_pricing};
 use byocvpn_core::{
     cloud_provider::{
         CloudProvider, CloudProviderName, EnableRegionCompleteEvent, EnableRegionJob,
@@ -22,7 +21,7 @@ use byocvpn_core::{
     tunnel::VpnStatus,
 };
 use byocvpn_daemon::daemon_client::UnixDaemonClient;
-use byocvpn_gcp::{credentials::GcpCredentials, GcpProvider, pricing as gcp_pricing};
+use byocvpn_gcp::{GcpProvider, credentials::GcpCredentials, pricing as gcp_pricing};
 use byocvpn_oracle::{credentials::OracleCredentials, pricing as oracle_pricing};
 use chrono::Utc;
 use log::*;
@@ -95,11 +94,37 @@ pub async fn delete_credentials(provider: String, app_handle: AppHandle) -> Resu
     Ok(())
 }
 
+async fn create_cloud_provider_from_credentials(
+    credentials: ProviderCredentials,
+) -> Result<Box<dyn CloudProvider>> {
+    let provider: Box<dyn CloudProvider> = match credentials {
+        ProviderCredentials::Aws(aws_credentials) => {
+            Box::new(AwsProvider::new(aws_credentials.into()).await)
+        }
+        ProviderCredentials::Gcp(gcp_credentials) => {
+            Box::new(GcpProvider::new(gcp_credentials.into())?)
+        }
+        ProviderCredentials::Oracle(oracle_credentials) => Box::new(
+            byocvpn_oracle::OracleProvider::new(oracle_credentials.into()),
+        ),
+        ProviderCredentials::Azure(azure_credentials) => {
+            Box::new(AzureProvider::new(azure_credentials.into())?)
+        }
+    };
+    Ok(provider)
+}
+
 #[tauri::command]
-pub async fn verify_permissions() -> Result<Value> {
-    let cloud_provider = create_cloud_provider(CloudProviderName::Aws).await?;
-    let result = commands::verify_permissions::verify_permissions(&*cloud_provider).await;
-    return result;
+pub async fn verify_permissions(
+    provider: String,
+    credentials: Option<ProviderCredentials>,
+) -> Result<Value> {
+    let provider_name = CloudProviderName::from_str(&provider)?;
+    let cloud_provider: Box<dyn CloudProvider> = match credentials {
+        Some(credentials) => create_cloud_provider_from_credentials(credentials).await?,
+        None => create_cloud_provider(provider_name).await?,
+    };
+    commands::verify_permissions::verify_permissions(&*cloud_provider).await
 }
 
 #[tauri::command]
@@ -221,9 +246,7 @@ pub async fn spawn_instance(
 }
 
 #[tauri::command]
-pub async fn list_active_spawn_jobs(
-    app_handle: AppHandle,
-) -> Result<Vec<ActiveSpawnJob>> {
+pub async fn list_active_spawn_jobs(app_handle: AppHandle) -> Result<Vec<ActiveSpawnJob>> {
     Ok(app_handle.state::<SpawnJobRegistry>().list())
 }
 
@@ -291,7 +314,9 @@ pub async fn list_instances(
         let running_ids: HashSet<&str> = all_instances.iter().map(|i| i.id.as_str()).collect();
         ledger.reconcile_terminated(&running_ids, &queried_provider_names);
 
-        let in_progress_ids = app_handle.state::<SpawnJobRegistry>().instance_ids_in_progress();
+        let in_progress_ids = app_handle
+            .state::<SpawnJobRegistry>()
+            .instance_ids_in_progress();
 
         let mut probe_handles = Vec::new();
         for instance in &all_instances {
@@ -393,9 +418,7 @@ pub async fn provision_account(
 
         match result {
             Ok(()) => {
-                if let Some(provider_store) =
-                    ProviderStore::open(&app_handle)
-                {
+                if let Some(provider_store) = ProviderStore::open(&app_handle) {
                     provider_store.mark_provisioned(&provider);
                 } else {
                     debug!(
@@ -477,9 +500,7 @@ pub async fn enable_region(
 
         match result {
             Ok(()) => {
-                if let Some(provider_store) =
-                    ProviderStore::open(&app_handle)
-                {
+                if let Some(provider_store) = ProviderStore::open(&app_handle) {
                     provider_store.mark_region_enabled(&provider, &region);
                 } else {
                     debug!(
@@ -569,7 +590,7 @@ pub async fn connect(
                         metrics: None,
                         connected_at: None,
                         connection_error: Some(
-                            "VPN tunnel dropped. Kill switch is blocking all traffic.".to_string()
+                            "VPN tunnel dropped. Kill switch is blocking all traffic.".to_string(),
                         ),
                     };
                 }
@@ -656,7 +677,7 @@ pub async fn subscribe_to_vpn_status(app_handle: AppHandle) -> Result<()> {
                     metrics: None,
                     connected_at: None,
                     connection_error: Some(
-                        "VPN tunnel dropped. Kill switch is blocking all traffic.".to_string()
+                        "VPN tunnel dropped. Kill switch is blocking all traffic.".to_string(),
                     ),
                 };
             }
@@ -712,4 +733,3 @@ pub async fn get_ledger(app_handle: AppHandle) -> Result<Vec<Value>> {
     })?;
     Ok(ledger.all_entries())
 }
-

@@ -1,20 +1,66 @@
+use std::collections::HashSet;
 use std::str::FromStr;
 
 use async_trait::async_trait;
 use byocvpn_core::{
     cloud_provider::{
-        CloudProvider, CloudProviderName, InstanceInfo, SpawnInstanceParams, SpawnStep,
-        TerminateInstanceParams,
+        CloudProvider, CloudProviderName, InstanceInfo, PermissionStatus, SpawnInstanceParams,
+        SpawnStep, TerminateInstanceParams,
     },
     commands::setup::Region,
     error::{NetworkProvisioningError, Result},
 };
 use log::*;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
     auth::parse_credentials_from_service_account_json, client::GcpClient, instance, network,
 };
+
+const REQUIRED_PERMISSIONS: &[&str] = &[
+    "compute.disks.create",
+    "compute.disks.delete",
+    "compute.firewalls.create",
+    "compute.firewalls.delete",
+    "compute.firewalls.get",
+    "compute.globalOperations.get",
+    "compute.images.get",
+    "compute.instances.create",
+    "compute.instances.delete",
+    "compute.instances.get",
+    "compute.instances.list",
+    "compute.instances.setLabels",
+    "compute.instances.setMetadata",
+    "compute.instances.setTags",
+    "compute.networks.create",
+    "compute.networks.delete",
+    "compute.networks.get",
+    "compute.networks.updatePolicy",
+    "compute.regions.list",
+    "compute.subnetworks.create",
+    "compute.subnetworks.delete",
+    "compute.subnetworks.get",
+    "compute.subnetworks.list",
+    "compute.subnetworks.update",
+    "compute.subnetworks.use",
+    "compute.subnetworks.useExternalIp",
+    "compute.zoneOperations.get",
+    "serviceusage.operations.get",
+    "serviceusage.services.enable",
+    "serviceusage.services.get",
+];
+
+#[derive(Serialize)]
+struct TestIamPermissionsRequest {
+    permissions: Vec<String>,
+}
+
+#[derive(Deserialize, Default)]
+struct TestIamPermissionsResponse {
+    #[serde(default)]
+    permissions: Vec<String>,
+}
 
 pub struct GcpProviderConfig {
     pub service_account_json: String,
@@ -127,7 +173,48 @@ impl CloudProvider for GcpProvider {
     }
 
     async fn verify_permissions(&self) -> Result<Value> {
-        Ok(serde_json::json!({ "status": "not_implemented" }))
+        network::ensure_cloud_resource_manager_api_enabled(&self.client).await?;
+
+        let url = format!(
+            "https://cloudresourcemanager.googleapis.com/v1/projects/{}:testIamPermissions",
+            self.client.project_id
+        );
+        let request = TestIamPermissionsRequest {
+            permissions: REQUIRED_PERMISSIONS
+                .iter()
+                .map(|permission| permission.to_string())
+                .collect(),
+        };
+
+        let response: TestIamPermissionsResponse = self.client.post(&url, &request).await?;
+        let granted_permissions: HashSet<&str> = response
+            .permissions
+            .iter()
+            .map(|permission| permission.as_str())
+            .collect();
+
+        let permissions: Vec<PermissionStatus> = REQUIRED_PERMISSIONS
+            .iter()
+            .map(|permission| {
+                let granted = granted_permissions.contains(permission);
+                if granted {
+                    info!("permission check {permission}: authorized");
+                } else {
+                    warn!("permission check {permission}: denied");
+                }
+                PermissionStatus {
+                    permission: permission.to_string(),
+                    granted,
+                }
+            })
+            .collect();
+
+        let value = serde_json::to_value(&permissions).map_err(|error| {
+            NetworkProvisioningError::NetworkQueryFailed {
+                reason: error.to_string(),
+            }
+        })?;
+        Ok(value)
     }
 
     async fn setup(&self) -> Result<()> {

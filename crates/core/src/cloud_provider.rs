@@ -39,6 +39,12 @@ pub trait CloudProvider: Send + Sync {
     async fn run_enable_region_step(&self, step_id: &str, region: &str) -> Result<()>;
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PermissionStatus {
+    pub permission: String,
+    pub granted: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Display, EnumString)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "lowercase", ascii_case_insensitive)]

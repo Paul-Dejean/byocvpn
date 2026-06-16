@@ -1,6 +1,6 @@
 mod commands;
-mod provider_credentials;
 mod ledger_store;
+mod provider_credentials;
 mod provider_store;
 mod settings_store;
 mod spawn_job_registry;

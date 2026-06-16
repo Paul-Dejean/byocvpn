@@ -7,7 +7,7 @@ use std::{
 use chrono::Utc;
 use humantime::format_duration;
 use log::warn;
-use tauri::{async_runtime, AppHandle};
+use tauri::{AppHandle, async_runtime};
 use tauri_plugin_notification::NotificationExt;
 use tokio::time::interval;
 

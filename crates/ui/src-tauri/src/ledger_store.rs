@@ -10,7 +10,10 @@ pub struct LedgerStore(Arc<Store<Wry>>);
 
 impl LedgerStore {
     pub fn open(app_handle: &AppHandle) -> Option<Self> {
-        app_handle.store("byocvpn-ledger.json").ok().map(LedgerStore)
+        app_handle
+            .store("byocvpn-ledger.json")
+            .ok()
+            .map(LedgerStore)
     }
 
     pub fn set_entry(&self, entry: &LedgerEntry) {

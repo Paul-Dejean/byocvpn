@@ -57,8 +57,18 @@ pub(super) async fn spawn_instance(
 
     let tags = TagSpecification::builder()
         .resource_type(ResourceType::Instance)
-        .tags(Tag::builder().key("Name").value(SERVER_INSTANCE_NAME).build())
-        .tags(Tag::builder().key(TAG_CREATED_BY_KEY).value(TAG_CREATED_BY_VALUE).build())
+        .tags(
+            Tag::builder()
+                .key("Name")
+                .value(SERVER_INSTANCE_NAME)
+                .build(),
+        )
+        .tags(
+            Tag::builder()
+                .key(TAG_CREATED_BY_KEY)
+                .value(TAG_CREATED_BY_VALUE)
+                .build(),
+        )
         .tags(Tag::builder().key(TAG_SPAWN_ID_KEY).value(spawn_id).build())
         .build();
     let response = ec2_client

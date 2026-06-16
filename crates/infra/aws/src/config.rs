@@ -11,7 +11,7 @@ use crate::{aws_error::map_aws_error, provider::AwsProviderConfig};
 
 const DEFAULT_REGION: &str = "us-east-1";
 const CREDENTIALS_SOURCE: &str = "manual";
-const AL2023_AMI_SSM_PARAMETER: &str =
+pub(super) const AL2023_AMI_SSM_PARAMETER: &str =
     "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64";
 const AL2023_AMI_NAME: &str = "al2023";
 

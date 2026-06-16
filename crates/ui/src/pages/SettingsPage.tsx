@@ -3,6 +3,7 @@ import { load as loadStore } from "@tauri-apps/plugin-store";
 import toast from "react-hot-toast";
 import { useCredentials } from "../hooks/useCredentials";
 import { useAccounts } from "../hooks/useAccounts";
+import { usePermissions } from "../hooks/usePermissions";
 import { CloudProviderName } from "../types";
 import { AwsProfileCard } from "../components/settings/AwsProfileCard";
 import { OracleProfileCard } from "../components/settings/OracleProfileCard";
@@ -53,6 +54,33 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
     onFailed: () => toast.error("Provisioning failed"),
   });
 
+  const { permissions, isVerifying, verifyPermissions, clearPermissions } =
+    usePermissions();
+  const provisionJobProvider = activeProvisionJob?.provider;
+  const isVerifiableProvisionJob =
+    provisionJobProvider === CloudProviderName.Aws ||
+    provisionJobProvider === CloudProviderName.Gcp ||
+    provisionJobProvider === CloudProviderName.Azure;
+
+  useEffect(() => {
+    if (
+      isProvisionDrawerOpen &&
+      isVerifiableProvisionJob &&
+      provisionJobProvider
+    ) {
+      verifyPermissions(provisionJobProvider);
+    }
+    if (!isProvisionDrawerOpen) {
+      clearPermissions();
+    }
+  }, [
+    isProvisionDrawerOpen,
+    isVerifiableProvisionJob,
+    provisionJobProvider,
+    verifyPermissions,
+    clearPermissions,
+  ]);
+
   useEffect(() => {
     loadCredentials(CloudProviderName.Aws).then((existing) =>
       setAwsHasCredentials(existing !== null),
@@ -96,7 +124,9 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
                 <AwsProfileCard
                   onCredentialsSaved={provisionAccount}
                   onProvisionRequested={provisionAccount}
-                  isProvisioned={provisionedProviders.has(CloudProviderName.Aws)}
+                  isProvisioned={provisionedProviders.has(
+                    CloudProviderName.Aws,
+                  )}
                   onCredentialsDeleted={() => {
                     setAwsHasCredentials(false);
                     setProvisionedProviders((previous) => {
@@ -112,7 +142,9 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
                 <OracleProfileCard
                   onCredentialsSaved={provisionAccount}
                   onProvisionRequested={provisionAccount}
-                  isProvisioned={provisionedProviders.has(CloudProviderName.Oracle)}
+                  isProvisioned={provisionedProviders.has(
+                    CloudProviderName.Oracle,
+                  )}
                   onCredentialsDeleted={() => {
                     setOracleHasCredentials(false);
                     setProvisionedProviders((previous) => {
@@ -128,7 +160,9 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
                 <GcpProfileCard
                   onCredentialsSaved={provisionAccount}
                   onProvisionRequested={provisionAccount}
-                  isProvisioned={provisionedProviders.has(CloudProviderName.Gcp)}
+                  isProvisioned={provisionedProviders.has(
+                    CloudProviderName.Gcp,
+                  )}
                   onCredentialsDeleted={() => {
                     setGcpHasCredentials(false);
                     setProvisionedProviders((previous) => {
@@ -144,7 +178,9 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
                 <AzureProfileCard
                   onCredentialsSaved={provisionAccount}
                   onProvisionRequested={provisionAccount}
-                  isProvisioned={provisionedProviders.has(CloudProviderName.Azure)}
+                  isProvisioned={provisionedProviders.has(
+                    CloudProviderName.Azure,
+                  )}
                   onCredentialsDeleted={() => {
                     setAzureHasCredentials(false);
                     setProvisionedProviders((previous) => {
@@ -156,34 +192,40 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
                 />
               )}
 
-              {onNavigateToAddAccount && !(awsHasCredentials && oracleHasCredentials && gcpHasCredentials && azureHasCredentials) && (
-                <div className="py-4">
-                  <Button
-                    variant="primary"
-                    size="none"
-                    onClick={onNavigateToAddAccount}
-                    className="px-6 py-2.5 !rounded-xl"
-                    icon={
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 4v16m8-8H4"
-                        />
-                      </svg>
-                    }
-                  >
-                    Add Account
-                  </Button>
-                </div>
-              )}
+              {onNavigateToAddAccount &&
+                !(
+                  awsHasCredentials &&
+                  oracleHasCredentials &&
+                  gcpHasCredentials &&
+                  azureHasCredentials
+                ) && (
+                  <div className="py-4">
+                    <Button
+                      variant="primary"
+                      size="none"
+                      onClick={onNavigateToAddAccount}
+                      className="px-6 py-2.5 !rounded-xl"
+                      icon={
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-5 w-5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 4v16m8-8H4"
+                          />
+                        </svg>
+                      }
+                    >
+                      Add Account
+                    </Button>
+                  </div>
+                )}
             </div>
           </div>
 
@@ -215,6 +257,11 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
         steps={activeProvisionJob?.steps ?? []}
         isComplete={isProvisionComplete}
         error={provisionError}
+        verification={
+          isVerifiableProvisionJob
+            ? { isVerifying, permissions, failed: false }
+            : undefined
+        }
       />
     </div>
   );

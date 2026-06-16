@@ -13,3 +13,4 @@ export type {
   AzureCredentials,
 } from "./useCredentials";
 export { useLedger } from "./useLedger";
+export { usePermissions } from "./usePermissions";

@@ -35,9 +35,10 @@ async fn wait_for_operation(client: &GcpClient, operation_url: &str) -> Result<(
                             .and_then(|detail| detail.message.as_deref())
                             .unwrap_or("unknown error")
                             .to_string();
-                        return Err(
-                            NetworkProvisioningError::CloudOperationFailed { reason: message }.into(),
-                        );
+                        return Err(NetworkProvisioningError::CloudOperationFailed {
+                            reason: message,
+                        }
+                        .into());
                     }
                     Ok(())
                 }
@@ -72,13 +73,19 @@ async fn wait_for_operation_response(client: &GcpClient, operation: &Operation) 
 }
 
 async fn get_vpc(client: &GcpClient) -> Result<Option<String>> {
-    let url = format!("{}/global/networks/{}", client.build_compute_base_url(), VPC_NAME);
+    let url = format!(
+        "{}/global/networks/{}",
+        client.build_compute_base_url(),
+        VPC_NAME
+    );
     match client.get::<VpcResponse>(&url).await {
         Ok(vpc) => {
-            let self_link = vpc.self_link.ok_or(NetworkProvisioningError::MissingResourceField {
-                field: "selfLink",
-                resource: "VPC",
-            })?;
+            let self_link =
+                vpc.self_link
+                    .ok_or(NetworkProvisioningError::MissingResourceField {
+                        field: "selfLink",
+                        resource: "VPC",
+                    })?;
             Ok(Some(self_link))
         }
         Err(Error::Network(NetworkProvisioningError::ResourceNotFound { .. })) => Ok(None),
@@ -87,7 +94,11 @@ async fn get_vpc(client: &GcpClient) -> Result<Option<String>> {
 }
 
 async fn create_vpc(client: &GcpClient) -> Result<String> {
-    let url = format!("{}/global/networks/{}", client.build_compute_base_url(), VPC_NAME);
+    let url = format!(
+        "{}/global/networks/{}",
+        client.build_compute_base_url(),
+        VPC_NAME
+    );
     let create_url = format!("{}/global/networks", client.build_compute_base_url());
     let body = CreateVpcRequest {
         name: VPC_NAME.to_string(),
@@ -119,7 +130,11 @@ pub async fn ensure_vpc(client: &GcpClient) -> Result<String> {
 }
 
 async fn get_firewall_rule(client: &GcpClient, name: &str) -> Option<FirewallRuleResponse> {
-    let url = format!("{}/global/firewalls/{}", client.build_compute_base_url(), name);
+    let url = format!(
+        "{}/global/firewalls/{}",
+        client.build_compute_base_url(),
+        name
+    );
     client.get::<FirewallRuleResponse>(&url).await.ok()
 }
 
@@ -136,7 +151,10 @@ fn build_desired_firewall_allowed() -> Vec<FirewallAllowed> {
     ]
 }
 
-fn firewall_rule_matches_desired_state(existing_rule: &FirewallRuleResponse, source_range: &str) -> bool {
+fn firewall_rule_matches_desired_state(
+    existing_rule: &FirewallRuleResponse,
+    source_range: &str,
+) -> bool {
     let desired_allowed = build_desired_firewall_allowed();
     let desired_source_ranges = vec![source_range.to_string()];
     let desired_target_tags = vec![FIREWALL_TAG.to_string()];
@@ -147,7 +165,11 @@ fn firewall_rule_matches_desired_state(existing_rule: &FirewallRuleResponse, sou
 }
 
 async fn patch_firewall_rule(client: &GcpClient, name: &str, source_range: &str) -> Result<()> {
-    let url = format!("{}/global/firewalls/{}", client.build_compute_base_url(), name);
+    let url = format!(
+        "{}/global/firewalls/{}",
+        client.build_compute_base_url(),
+        name
+    );
     let body = PatchFirewallRuleRequest {
         allowed: build_desired_firewall_allowed(),
         source_ranges: vec![source_range.to_string()],
@@ -200,18 +222,30 @@ pub async fn ensure_firewall_rules(client: &GcpClient) -> Result<()> {
     );
 
     for (rule_name, source_range, description) in [
-        (FIREWALL_NAME_IPV4, IPV4_ALL_CIDR, "Allow WireGuard UDP and health TCP on 51820 (IPv4) for byocvpn"),
-        (FIREWALL_NAME_IPV6, IPV6_ALL_CIDR, "Allow WireGuard UDP and health TCP on 51820 (IPv6) for byocvpn"),
+        (
+            FIREWALL_NAME_IPV4,
+            IPV4_ALL_CIDR,
+            "Allow WireGuard UDP and health TCP on 51820 (IPv4) for byocvpn",
+        ),
+        (
+            FIREWALL_NAME_IPV6,
+            IPV6_ALL_CIDR,
+            "Allow WireGuard UDP and health TCP on 51820 (IPv6) for byocvpn",
+        ),
     ] {
         match get_firewall_rule(client, rule_name).await {
             Some(existing_rule) => {
                 if !firewall_rule_matches_desired_state(&existing_rule, source_range) {
-                    info!("[GCP] Firewall rule '{}' has drifted, patching...", rule_name);
+                    info!(
+                        "[GCP] Firewall rule '{}' has drifted, patching...",
+                        rule_name
+                    );
                     patch_firewall_rule(client, rule_name, source_range).await?;
                 }
             }
             None => {
-                create_firewall_rule(client, rule_name, &vpc_url, description, source_range).await?;
+                create_firewall_rule(client, rule_name, &vpc_url, description, source_range)
+                    .await?;
             }
         }
     }
@@ -251,7 +285,12 @@ async fn find_available_subnet_cidr(client: &GcpClient) -> Result<String> {
 }
 
 async fn get_subnet(client: &GcpClient, region: &str) -> Result<Option<SubnetResponse>> {
-    let url = format!("{}/regions/{}/subnetworks/{}", client.build_compute_base_url(), region, SUBNET_NAME);
+    let url = format!(
+        "{}/regions/{}/subnetworks/{}",
+        client.build_compute_base_url(),
+        region,
+        SUBNET_NAME
+    );
     match client.get::<SubnetResponse>(&url).await {
         Ok(subnet) => Ok(Some(subnet)),
         Err(Error::Network(NetworkProvisioningError::ResourceNotFound { .. })) => Ok(None),
@@ -260,12 +299,21 @@ async fn get_subnet(client: &GcpClient, region: &str) -> Result<Option<SubnetRes
 }
 
 async fn create_subnet(client: &GcpClient, region: &str) -> Result<String> {
-    let url = format!("{}/regions/{}/subnetworks/{}", client.build_compute_base_url(), region, SUBNET_NAME);
+    let url = format!(
+        "{}/regions/{}/subnetworks/{}",
+        client.build_compute_base_url(),
+        region,
+        SUBNET_NAME
+    );
     let vpc_url = format!(
         "https://www.googleapis.com/compute/v1/projects/{}/global/networks/{}",
         client.project_id, VPC_NAME
     );
-    let create_url = format!("{}/regions/{}/subnetworks", client.build_compute_base_url(), region);
+    let create_url = format!(
+        "{}/regions/{}/subnetworks",
+        client.build_compute_base_url(),
+        region
+    );
     let body = CreateSubnetRequest {
         name: SUBNET_NAME.to_string(),
         network: vpc_url,
@@ -297,32 +345,46 @@ async fn create_subnet(client: &GcpClient, region: &str) -> Result<String> {
 }
 
 pub async fn ensure_subnet(client: &GcpClient, region: &str) -> Result<String> {
-    let url = format!("{}/regions/{}/subnetworks/{}", client.build_compute_base_url(), region, SUBNET_NAME);
+    let url = format!(
+        "{}/regions/{}/subnetworks/{}",
+        client.build_compute_base_url(),
+        region,
+        SUBNET_NAME
+    );
     if let Some(existing) = get_subnet(client, region).await? {
-        let self_link = existing.self_link.clone().ok_or(NetworkProvisioningError::MissingResourceField {
-            field: "selfLink",
-            resource: "subnet",
-        })?;
+        let self_link =
+            existing
+                .self_link
+                .clone()
+                .ok_or(NetworkProvisioningError::MissingResourceField {
+                    field: "selfLink",
+                    resource: "subnet",
+                })?;
         if existing.stack_type.as_deref() != Some("IPV4_IPV6") {
-            info!("[GCP] Upgrading subnet '{}' in {} to IPV4_IPV6...", SUBNET_NAME, region);
+            info!(
+                "[GCP] Upgrading subnet '{}' in {} to IPV4_IPV6...",
+                SUBNET_NAME, region
+            );
             let fingerprint = existing.fingerprint.clone().unwrap_or_default();
             let patch_body = PatchSubnetRequest {
                 stack_type: "IPV4_IPV6".to_string(),
                 ipv6_access_type: "EXTERNAL".to_string(),
                 fingerprint,
             };
-            let operation: Operation = client
-                .patch(&url, &patch_body)
-                .await
-                .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {
+            let operation: Operation = client.patch(&url, &patch_body).await.map_err(|error| {
+                NetworkProvisioningError::SubnetCreationFailed {
                     reason: format!("Failed to upgrade subnet to IPV4_IPV6: {}", error),
-                })?;
+                }
+            })?;
             wait_for_operation_response(client, &operation)
                 .await
                 .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {
                     reason: format!("Subnet IPV4_IPV6 upgrade operation failed: {}", error),
                 })?;
-            info!("GCP subnet '{}' upgraded to IPV4_IPV6 in {}.", SUBNET_NAME, region);
+            info!(
+                "GCP subnet '{}' upgraded to IPV4_IPV6 in {}.",
+                SUBNET_NAME, region
+            );
         }
         return Ok(self_link);
     }
@@ -331,12 +393,13 @@ pub async fn ensure_subnet(client: &GcpClient, region: &str) -> Result<String> {
 
 pub async fn get_ubuntu_image_self_link(client: &GcpClient) -> Result<String> {
     let url = "https://compute.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/family/ubuntu-2204-lts";
-    let image: ImageResponse = client
-        .get(url)
-        .await
-        .map_err(|_| NetworkProvisioningError::BaseImageNotFound {
-            image: "Ubuntu 22.04 LTS".to_string(),
-        })?;
+    let image: ImageResponse =
+        client
+            .get(url)
+            .await
+            .map_err(|_| NetworkProvisioningError::BaseImageNotFound {
+                image: "Ubuntu 22.04 LTS".to_string(),
+            })?;
     image.self_link.ok_or_else(|| {
         NetworkProvisioningError::BaseImageNotFound {
             image: "Ubuntu 22.04 LTS".to_string(),
@@ -347,6 +410,7 @@ pub async fn get_ubuntu_image_self_link(client: &GcpClient) -> Result<String> {
 
 const SERVICE_USAGE_BASE: &str = "https://serviceusage.googleapis.com/v1";
 const COMPUTE_API_SERVICE: &str = "compute.googleapis.com";
+const CLOUD_RESOURCE_MANAGER_API_SERVICE: &str = "cloudresourcemanager.googleapis.com";
 
 async fn wait_for_service_usage_operation(client: &GcpClient, operation_name: &str) -> Result<()> {
     let url = format!("{}/{}", SERVICE_USAGE_BASE, operation_name);
@@ -358,9 +422,10 @@ async fn wait_for_service_usage_operation(client: &GcpClient, operation_name: &s
                 if operation.done == Some(true) {
                     if let Some(error) = operation.error {
                         let message = error.message.unwrap_or_else(|| "unknown error".to_string());
-                        return Err(
-                            NetworkProvisioningError::CloudOperationFailed { reason: message }.into(),
-                        );
+                        return Err(NetworkProvisioningError::CloudOperationFailed {
+                            reason: message,
+                        }
+                        .into());
                     }
                     return Ok(());
                 }
@@ -377,11 +442,8 @@ async fn wait_for_service_usage_operation(client: &GcpClient, operation_name: &s
     .await
 }
 
-pub async fn ensure_compute_api_enabled(client: &GcpClient) -> Result<()> {
-    let service_name = format!(
-        "projects/{}/services/{}",
-        client.project_id, COMPUTE_API_SERVICE
-    );
+pub async fn ensure_api_enabled(client: &GcpClient, api_service: &str) -> Result<()> {
+    let service_name = format!("projects/{}/services/{}", client.project_id, api_service);
     let url = format!("{}/{}", SERVICE_USAGE_BASE, service_name);
 
     let response: ServiceResponse =
@@ -389,7 +451,7 @@ pub async fn ensure_compute_api_enabled(client: &GcpClient) -> Result<()> {
             .get(&url)
             .await
             .map_err(|error| NetworkProvisioningError::ProviderSetupFailed {
-                step: "Compute Engine API check".to_string(),
+                step: format!("{} API check", api_service),
                 reason: error.to_string(),
             })?;
 
@@ -398,32 +460,43 @@ pub async fn ensure_compute_api_enabled(client: &GcpClient) -> Result<()> {
     }
 
     info!(
-        "[GCP] Enabling Compute Engine API for project '{}'...",
-        client.project_id
+        "[GCP] Enabling {} for project '{}'...",
+        api_service, client.project_id
     );
 
     let enable_url = format!("{}:enable", url);
-    let operation: Operation = client
-        .post(&enable_url, &EmptyRequest {})
-        .await
-        .map_err(|error| NetworkProvisioningError::ProviderSetupFailed {
-            step: "Compute Engine API enablement".to_string(),
-            reason: error.to_string(),
-        })?;
+    let operation: Operation =
+        client
+            .post(&enable_url, &EmptyRequest {})
+            .await
+            .map_err(|error| NetworkProvisioningError::ProviderSetupFailed {
+                step: format!("{} API enablement", api_service),
+                reason: error.to_string(),
+            })?;
 
-    let operation_name = operation.name.as_deref().ok_or_else(|| {
-        NetworkProvisioningError::ProviderSetupFailed {
-            step: "Compute Engine API enablement".to_string(),
-            reason: "operation response missing 'name' field".to_string(),
-        }
-    })?;
+    let operation_name =
+        operation
+            .name
+            .as_deref()
+            .ok_or_else(|| NetworkProvisioningError::ProviderSetupFailed {
+                step: format!("{} API enablement", api_service),
+                reason: "operation response missing 'name' field".to_string(),
+            })?;
 
     wait_for_service_usage_operation(client, operation_name).await?;
     info!(
-        "[GCP] Compute Engine API enabled for project '{}'.",
-        client.project_id
+        "[GCP] {} enabled for project '{}'.",
+        api_service, client.project_id
     );
     Ok(())
+}
+
+pub async fn ensure_compute_api_enabled(client: &GcpClient) -> Result<()> {
+    ensure_api_enabled(client, COMPUTE_API_SERVICE).await
+}
+
+pub async fn ensure_cloud_resource_manager_api_enabled(client: &GcpClient) -> Result<()> {
+    ensure_api_enabled(client, CLOUD_RESOURCE_MANAGER_API_SERVICE).await
 }
 
 pub async fn list_regions(client: &GcpClient) -> Result<Vec<(String, String)>> {

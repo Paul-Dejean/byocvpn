@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
+use log::warn;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Wry};
 use tauri_plugin_store::{Store, StoreExt};
-use log::warn;
 
 const NOTIFICATION_ENABLED_KEY: &str = "notificationEnabled";
 const NOTIFICATION_THRESHOLD_MINUTES_KEY: &str = "notificationThresholdMinutes";

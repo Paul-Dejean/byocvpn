@@ -2,17 +2,17 @@ use std::{collections::HashMap, str::FromStr};
 
 use async_trait::async_trait;
 use aws_sdk_ec2::Client as Ec2Client;
+use aws_sdk_ec2::error::{ProvideErrorMetadata, SdkError};
 use aws_sdk_ssm::Client as SsmClient;
 use byocvpn_core::{
     cloud_provider::{
-        CloudProvider, CloudProviderName, InstanceInfo, SpawnInstanceParams, SpawnStep,
-        TerminateInstanceParams,
+        CloudProvider, CloudProviderName, InstanceInfo, PermissionStatus, SpawnInstanceParams,
+        SpawnStep, TerminateInstanceParams,
     },
     commands::setup::Region,
     error::{NetworkProvisioningError, Result},
 };
 use log::*;
-use serde::Serialize;
 use serde_json::Value;
 
 use crate::constants::{
@@ -46,22 +46,80 @@ impl AwsProvider {
     }
 }
 
-#[derive(Serialize)]
-pub struct AwsPermissionsResult {
-    pub ec2_run_instances: bool,
-    pub ec2_terminate_instances: bool,
-    pub ec2_create_vpc: bool,
-    pub ec2_create_subnet: bool,
-    pub ec2_create_security_group: bool,
-    pub ec2_create_tags: bool,
-    pub ec2_authorize_security_group_ingress: bool,
-    pub ec2_describe_instances: bool,
-    pub ec2_describe_vpcs: bool,
-    pub ec2_describe_subnets: bool,
-    pub ec2_describe_security_groups: bool,
-    pub ec2_describe_availability_zones: bool,
-    pub ec2_create_internet_gateway: bool,
-    pub ssm_get_parameter: bool,
+fn is_dry_run_authorized<T, E>(operation: &str, result: std::result::Result<T, SdkError<E>>) -> bool
+where
+    E: ProvideErrorMetadata,
+{
+    match result {
+        Ok(_) => {
+            info!("permission check {operation}: authorized (request succeeded)");
+            true
+        }
+        Err(SdkError::ServiceError(service_error)) => {
+            let error_code = service_error.err().code().unwrap_or("unknown");
+            let error_message = service_error.err().message().unwrap_or("");
+            let authorized = is_authorized_error_code(service_error.err().code());
+            if authorized {
+                info!(
+                    "permission check {operation}: authorized (code={error_code}, message={error_message})"
+                );
+            } else {
+                warn!(
+                    "permission check {operation}: denied (code={error_code}, message={error_message})"
+                );
+            }
+            authorized
+        }
+        Err(other_error) => {
+            warn!(
+                "permission check {operation}: inconclusive (code={:?})",
+                other_error.code()
+            );
+            false
+        }
+    }
+}
+
+fn is_authorized_error_code(code: Option<&str>) -> bool {
+    code == Some("DryRunOperation")
+}
+
+async fn get_default_vpc_id(ec2_client: &Ec2Client) -> Option<String> {
+    let response = ec2_client
+        .describe_vpcs()
+        .filters(
+            aws_sdk_ec2::types::Filter::builder()
+                .name("isDefault")
+                .values("true")
+                .build(),
+        )
+        .send()
+        .await
+        .ok()?;
+    response
+        .vpcs()
+        .first()
+        .and_then(|vpc| vpc.vpc_id())
+        .map(|vpc_id| vpc_id.to_string())
+}
+
+async fn get_default_security_group_id(ec2_client: &Ec2Client) -> Option<String> {
+    let response = ec2_client
+        .describe_security_groups()
+        .filters(
+            aws_sdk_ec2::types::Filter::builder()
+                .name("group-name")
+                .values("default")
+                .build(),
+        )
+        .send()
+        .await
+        .ok()?;
+    response
+        .security_groups()
+        .first()
+        .and_then(|security_group| security_group.group_id())
+        .map(|group_id| group_id.to_string())
 }
 
 pub enum AwsSpawnStepId {
@@ -131,150 +189,293 @@ impl CloudProvider for AwsProvider {
     async fn verify_permissions(&self) -> Result<Value> {
         let ec2_client = self.create_ec2_client(None).await;
         let ssm_client = self.create_ssm_client(None).await;
-        let ec2_run_instances = ec2_client
-            .run_instances()
-            .max_count(1)
-            .min_count(1)
-            .dry_run(true)
-            .send()
-            .await
-            .is_ok();
 
-        let ec2_terminate_instances = ec2_client
-            .terminate_instances()
-            .instance_ids("i-1234567890abcdef0")
-            .dry_run(true)
-            .send()
-            .await
-            .is_ok();
+        let ec2_run_instances = match config::get_al2023_ami(&ssm_client).await {
+            Ok(image_id) => is_dry_run_authorized(
+                "ec2:RunInstances",
+                ec2_client
+                    .run_instances()
+                    .image_id(image_id)
+                    .max_count(1)
+                    .min_count(1)
+                    .dry_run(true)
+                    .send()
+                    .await,
+            ),
+            Err(error) => {
+                warn!(
+                    "permission check ec2:RunInstances: could not resolve AMI ({error}); failing"
+                );
+                false
+            }
+        };
 
-        let ec2_create_vpc = ec2_client
-            .create_vpc()
-            .cidr_block("10.0.0.0/16")
-            .dry_run(true)
-            .send()
-            .await
-            .is_ok();
+        let ec2_terminate_instances = is_dry_run_authorized(
+            "ec2:TerminateInstances",
+            ec2_client
+                .terminate_instances()
+                .instance_ids("i-0ba8dd7fe03dfbb57")
+                .dry_run(true)
+                .send()
+                .await,
+        );
 
-        let ec2_create_subnet = ec2_client
-            .create_subnet()
-            .vpc_id("vpc-12345678")
-            .cidr_block("10.0.1.0/24")
-            .dry_run(true)
-            .send()
-            .await
-            .is_ok();
+        let ec2_create_vpc = is_dry_run_authorized(
+            "ec2:CreateVpc",
+            ec2_client
+                .create_vpc()
+                .cidr_block(VPC_CIDR_BLOCK)
+                .dry_run(true)
+                .send()
+                .await,
+        );
 
-        let ec2_create_security_group = ec2_client
-            .create_security_group()
-            .group_name(SECURITY_GROUP_NAME)
-            .description("Test SG")
-            .vpc_id("vpc-12345678")
-            .dry_run(true)
-            .send()
-            .await
-            .is_ok();
+        let ec2_create_subnet = is_dry_run_authorized(
+            "ec2:CreateSubnet",
+            ec2_client
+                .create_subnet()
+                .vpc_id("vpc-12345678")
+                .cidr_block(SUBNET_CIDR_BLOCK)
+                .dry_run(true)
+                .send()
+                .await,
+        );
 
-        let ec2_create_tags = ec2_client
-            .create_tags()
-            .resources("vpc-12345678")
-            .tags(
-                aws_sdk_ec2::types::Tag::builder()
-                    .key("Name")
-                    .value("test")
-                    .build(),
-            )
-            .dry_run(true)
-            .send()
-            .await
-            .is_ok();
+        let ec2_create_security_group = is_dry_run_authorized(
+            "ec2:CreateSecurityGroup",
+            ec2_client
+                .create_security_group()
+                .group_name(SECURITY_GROUP_NAME)
+                .description("permission check")
+                .vpc_id("vpc-12345678")
+                .dry_run(true)
+                .send()
+                .await,
+        );
 
-        let ec2_authorize_security_group_ingress = ec2_client
-            .authorize_security_group_ingress()
-            .group_id("sg-12345678")
-            .ip_permissions(
-                aws_sdk_ec2::types::IpPermission::builder()
-                    .ip_protocol("tcp")
-                    .from_port(22)
-                    .to_port(22)
-                    .ip_ranges(
-                        aws_sdk_ec2::types::IpRange::builder()
-                            .cidr_ip(IPV4_ALL_CIDR)
+        let ec2_create_tags = match get_default_vpc_id(&ec2_client).await {
+            Some(vpc_id) => is_dry_run_authorized(
+                "ec2:CreateTags",
+                ec2_client
+                    .create_tags()
+                    .resources(vpc_id)
+                    .tags(
+                        aws_sdk_ec2::types::Tag::builder()
+                            .key("Name")
+                            .value(VPC_NAME)
                             .build(),
                     )
+                    .dry_run(true)
+                    .send()
+                    .await,
+            ),
+            None => {
+                warn!(
+                    "permission check ec2:CreateTags: no default VPC found; treating as authorized"
+                );
+                true
+            }
+        };
+
+        let security_group_ingress_permission = aws_sdk_ec2::types::IpPermission::builder()
+            .ip_protocol("tcp")
+            .from_port(22)
+            .to_port(22)
+            .ip_ranges(
+                aws_sdk_ec2::types::IpRange::builder()
+                    .cidr_ip(IPV4_ALL_CIDR)
                     .build(),
             )
-            .dry_run(true)
-            .send()
-            .await
-            .is_ok();
+            .build();
 
-        let ec2_describe_instances = ec2_client
-            .describe_instances()
-            .dry_run(true)
-            .send()
-            .await
-            .is_ok();
+        let default_security_group_id = get_default_security_group_id(&ec2_client).await;
 
-        let ec2_describe_vpcs = ec2_client
-            .describe_vpcs()
-            .dry_run(true)
-            .send()
-            .await
-            .is_ok();
-
-        let ec2_describe_subnets = ec2_client
-            .describe_subnets()
-            .dry_run(true)
-            .send()
-            .await
-            .is_ok();
-
-        let ec2_describe_security_groups = ec2_client
-            .describe_security_groups()
-            .dry_run(true)
-            .send()
-            .await
-            .is_ok();
-
-        let ec2_describe_availability_zones = ec2_client
-            .describe_availability_zones()
-            .dry_run(true)
-            .send()
-            .await
-            .is_ok();
-
-        let ec2_create_internet_gateway = ec2_client
-            .create_internet_gateway()
-            .dry_run(true)
-            .send()
-            .await
-            .is_ok();
-
-        let ssm_get_parameter = ssm_client
-            .get_parameter()
-            .name("test-parameter")
-            .send()
-            .await
-            .is_ok();
-
-        let permissions = AwsPermissionsResult {
-            ec2_run_instances,
-            ec2_terminate_instances,
-            ec2_create_vpc,
-            ec2_create_subnet,
-            ec2_create_security_group,
-            ec2_create_tags,
-            ec2_authorize_security_group_ingress,
-            ec2_describe_instances,
-            ec2_describe_vpcs,
-            ec2_describe_subnets,
-            ec2_describe_security_groups,
-            ec2_describe_availability_zones,
-            ec2_create_internet_gateway,
-
-            ssm_get_parameter,
+        let ec2_authorize_security_group_ingress = match &default_security_group_id {
+            Some(group_id) => is_dry_run_authorized(
+                "ec2:AuthorizeSecurityGroupIngress",
+                ec2_client
+                    .authorize_security_group_ingress()
+                    .group_id(group_id)
+                    .ip_permissions(security_group_ingress_permission.clone())
+                    .dry_run(true)
+                    .send()
+                    .await,
+            ),
+            None => {
+                warn!(
+                    "permission check ec2:AuthorizeSecurityGroupIngress: no default security group found; treating as authorized"
+                );
+                true
+            }
         };
+
+        let ec2_revoke_security_group_ingress = match &default_security_group_id {
+            Some(group_id) => is_dry_run_authorized(
+                "ec2:RevokeSecurityGroupIngress",
+                ec2_client
+                    .revoke_security_group_ingress()
+                    .group_id(group_id)
+                    .ip_permissions(security_group_ingress_permission)
+                    .dry_run(true)
+                    .send()
+                    .await,
+            ),
+            None => {
+                warn!(
+                    "permission check ec2:RevokeSecurityGroupIngress: no default security group found; treating as authorized"
+                );
+                true
+            }
+        };
+
+        let ec2_describe_instances = is_dry_run_authorized(
+            "ec2:DescribeInstances",
+            ec2_client.describe_instances().dry_run(true).send().await,
+        );
+
+        let ec2_describe_vpcs = is_dry_run_authorized(
+            "ec2:DescribeVpcs",
+            ec2_client.describe_vpcs().dry_run(true).send().await,
+        );
+
+        let ec2_describe_subnets = is_dry_run_authorized(
+            "ec2:DescribeSubnets",
+            ec2_client.describe_subnets().dry_run(true).send().await,
+        );
+
+        let ec2_describe_security_groups = is_dry_run_authorized(
+            "ec2:DescribeSecurityGroups",
+            ec2_client
+                .describe_security_groups()
+                .dry_run(true)
+                .send()
+                .await,
+        );
+
+        let ec2_describe_availability_zones = is_dry_run_authorized(
+            "ec2:DescribeAvailabilityZones",
+            ec2_client
+                .describe_availability_zones()
+                .dry_run(true)
+                .send()
+                .await,
+        );
+
+        let ec2_describe_regions = is_dry_run_authorized(
+            "ec2:DescribeRegions",
+            ec2_client.describe_regions().dry_run(true).send().await,
+        );
+
+        let ec2_create_internet_gateway = is_dry_run_authorized(
+            "ec2:CreateInternetGateway",
+            ec2_client
+                .create_internet_gateway()
+                .dry_run(true)
+                .send()
+                .await,
+        );
+
+        let ec2_describe_internet_gateways = is_dry_run_authorized(
+            "ec2:DescribeInternetGateways",
+            ec2_client
+                .describe_internet_gateways()
+                .dry_run(true)
+                .send()
+                .await,
+        );
+
+        let ec2_attach_internet_gateway = is_dry_run_authorized(
+            "ec2:AttachInternetGateway",
+            ec2_client
+                .attach_internet_gateway()
+                .internet_gateway_id("igw-12345678")
+                .vpc_id("vpc-12345678")
+                .dry_run(true)
+                .send()
+                .await,
+        );
+
+        let ec2_describe_route_tables = is_dry_run_authorized(
+            "ec2:DescribeRouteTables",
+            ec2_client
+                .describe_route_tables()
+                .dry_run(true)
+                .send()
+                .await,
+        );
+
+        let ec2_create_route = is_dry_run_authorized(
+            "ec2:CreateRoute",
+            ec2_client
+                .create_route()
+                .route_table_id("rtb-12345678")
+                .destination_cidr_block(IPV4_ALL_CIDR)
+                .gateway_id("igw-12345678")
+                .dry_run(true)
+                .send()
+                .await,
+        );
+
+        let ssm_get_parameter_result = ssm_client
+            .get_parameter()
+            .name(config::AL2023_AMI_SSM_PARAMETER)
+            .send()
+            .await;
+        let ssm_get_parameter = match &ssm_get_parameter_result {
+            Ok(_) => {
+                info!("permission check ssm:GetParameter: authorized (request succeeded)");
+                true
+            }
+            Err(error) => {
+                warn!(
+                    "permission check ssm:GetParameter: denied (code={:?}, message={:?})",
+                    error.code(),
+                    error.message()
+                );
+                false
+            }
+        };
+
+        let permissions = [
+            ("ec2:RunInstances", ec2_run_instances),
+            ("ec2:TerminateInstances", ec2_terminate_instances),
+            ("ec2:CreateVpc", ec2_create_vpc),
+            ("ec2:CreateSubnet", ec2_create_subnet),
+            ("ec2:CreateSecurityGroup", ec2_create_security_group),
+            ("ec2:CreateTags", ec2_create_tags),
+            (
+                "ec2:AuthorizeSecurityGroupIngress",
+                ec2_authorize_security_group_ingress,
+            ),
+            (
+                "ec2:RevokeSecurityGroupIngress",
+                ec2_revoke_security_group_ingress,
+            ),
+            ("ec2:DescribeInstances", ec2_describe_instances),
+            ("ec2:DescribeVpcs", ec2_describe_vpcs),
+            ("ec2:DescribeSubnets", ec2_describe_subnets),
+            ("ec2:DescribeSecurityGroups", ec2_describe_security_groups),
+            (
+                "ec2:DescribeAvailabilityZones",
+                ec2_describe_availability_zones,
+            ),
+            (
+                "ec2:DescribeInternetGateways",
+                ec2_describe_internet_gateways,
+            ),
+            ("ec2:CreateInternetGateway", ec2_create_internet_gateway),
+            ("ec2:AttachInternetGateway", ec2_attach_internet_gateway),
+            ("ec2:DescribeRouteTables", ec2_describe_route_tables),
+            ("ec2:CreateRoute", ec2_create_route),
+            ("ec2:DescribeRegions", ec2_describe_regions),
+            ("ssm:GetParameter", ssm_get_parameter),
+        ]
+        .into_iter()
+        .map(|(permission, granted)| PermissionStatus {
+            permission: permission.to_string(),
+            granted,
+        })
+        .collect::<Vec<_>>();
 
         let value = serde_json::to_value(&permissions).map_err(|error| {
             NetworkProvisioningError::NetworkQueryFailed {
@@ -346,7 +547,13 @@ impl CloudProvider for AwsProvider {
             AwsSpawnStepId::SetupIgw => {
                 let ec2 = self.create_ec2_client(Some(region.to_string())).await;
                 let vpc_id = network::ensure_vpc(&ec2, VPC_CIDR_BLOCK, VPC_NAME).await?;
-                network::ensure_internet_gateway(&ec2, &vpc_id, INTERNET_GATEWAY_NAME, MAIN_ROUTE_TABLE_NAME).await?;
+                network::ensure_internet_gateway(
+                    &ec2,
+                    &vpc_id,
+                    INTERNET_GATEWAY_NAME,
+                    MAIN_ROUTE_TABLE_NAME,
+                )
+                .await?;
                 Ok(())
             }
             AwsSpawnStepId::RegionSubnets => {
@@ -358,7 +565,13 @@ impl CloudProvider for AwsProvider {
             AwsSpawnStepId::RegionSecurityGroup => {
                 let ec2 = self.create_ec2_client(Some(region.to_string())).await;
                 let vpc_id = network::ensure_vpc(&ec2, VPC_CIDR_BLOCK, VPC_NAME).await?;
-                network::ensure_security_group(&ec2, &vpc_id, SECURITY_GROUP_NAME, "BYOC VPN server").await?;
+                network::ensure_security_group(
+                    &ec2,
+                    &vpc_id,
+                    SECURITY_GROUP_NAME,
+                    "BYOC VPN server",
+                )
+                .await?;
                 Ok(())
             }
             AwsSpawnStepId::SetupNetwork => self.enable_region(region).await,

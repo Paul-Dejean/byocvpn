@@ -1,9 +1,21 @@
-import { CloudProviderName, JobStepState, JobStepStatus } from "../../types";
+import {
+  Permissions,
+  CloudProviderName,
+  JobStepState,
+  JobStepStatus,
+} from "../../types";
 import { PROVIDER_METADATA } from "../../constants/providers";
 import { Drawer } from "../primitives/Drawer";
 import { Spinner } from "../primitives/Spinner";
 import { Button } from "../primitives/Button";
 import { Alert } from "../primitives/Alert";
+import { PermissionsPanel } from "./PermissionsPanel";
+
+export interface VerificationState {
+  isVerifying: boolean;
+  permissions: Permissions | null;
+  failed: boolean;
+}
 
 interface JobProgressDrawerProps {
   isOpen: boolean;
@@ -15,6 +27,8 @@ interface JobProgressDrawerProps {
   isComplete: boolean;
   successMessage?: string;
   error: string | null;
+  verification?: VerificationState;
+  onRetry?: () => void;
 }
 
 function StepStatusIcon({ status }: { status: JobStepStatus }) {
@@ -29,7 +43,12 @@ function StepStatusIcon({ status }: { status: JobStepStatus }) {
           viewBox="0 0 24 24"
           stroke="currentColor"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M5 13l4 4L19 7"
+          />
         </svg>
       );
     case JobStepStatus.Failed:
@@ -40,12 +59,53 @@ function StepStatusIcon({ status }: { status: JobStepStatus }) {
           viewBox="0 0 24 24"
           stroke="currentColor"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M6 18L18 6M6 6l12 12"
+          />
         </svg>
       );
     default:
-      return <div className="w-5 h-5 rounded-full border-2 border-gray-600 flex-shrink-0" />;
+      return (
+        <div className="w-5 h-5 rounded-full border-2 border-gray-600 flex-shrink-0" />
+      );
   }
+}
+
+function ProvisionSteps({ steps }: { steps: JobStepState[] }) {
+  return (
+    <div className="space-y-4">
+      {steps.map((step, index) => (
+        <div key={step.id} className="flex items-start gap-3">
+          <div className="mt-0.5">
+            <StepStatusIcon status={step.status} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 font-mono tabular-nums">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <span
+                className={`text-sm font-medium ${
+                  step.status === JobStepStatus.Completed
+                    ? "text-gray-300"
+                    : step.status === JobStepStatus.Running
+                      ? "text-primary"
+                      : step.status === JobStepStatus.Failed
+                        ? "text-danger-300"
+                        : "text-gray-500"
+                }`}
+              >
+                {step.label}
+              </span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function JobProgressDrawer({
@@ -58,90 +118,121 @@ export function JobProgressDrawer({
   isComplete,
   successMessage,
   error,
+  verification,
+  onRetry,
 }: JobProgressDrawerProps) {
+  const isVerifying = verification?.isVerifying === true;
+  const verificationFailed = verification?.failed === true;
+
+  const drawerTitle = verificationFailed
+    ? "Permission check failed"
+    : isVerifying
+      ? "Verifying permissions"
+      : (title ?? `Provisioning ${PROVIDER_METADATA[provider].shortLabel}`);
+
+  const drawerSubtitle = verificationFailed
+    ? "Your access key is missing required permissions"
+    : isVerifying
+      ? "Checking your access key against the required permissions"
+      : (subtitle ?? "Setting up your account infrastructure");
+
   return (
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
-      title={title ?? `Provisioning ${PROVIDER_METADATA[provider].shortLabel}`}
-      subtitle={subtitle ?? "Setting up your account infrastructure"}
+      title={drawerTitle}
+      subtitle={drawerSubtitle}
       footer={
-        <Button variant="secondary" onClick={onClose} className="w-full">
-          Close
-        </Button>
+        verificationFailed ? (
+          <Button variant="primary" onClick={onRetry} className="w-full">
+            Retry
+          </Button>
+        ) : (
+          <Button variant="secondary" onClick={onClose} className="w-full">
+            Close
+          </Button>
+        )
       }
     >
-      <div className="space-y-4">
-        {steps.map((step, index) => (
-          <div key={step.id} className="flex items-start gap-3">
-            <div className="mt-0.5">
-              <StepStatusIcon status={step.status} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 font-mono tabular-nums">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <span
-                  className={`text-sm font-medium ${
-                    step.status === JobStepStatus.Completed
-                      ? "text-gray-300"
-                      : step.status === JobStepStatus.Running
-                        ? "text-primary"
-                        : step.status === JobStepStatus.Failed
-                          ? "text-danger-300"
-                          : "text-gray-500"
-                  }`}
-                >
-                  {step.label}
-                </span>
-              </div>
-            </div>
+      {isVerifying ? (
+        <div className="flex items-center gap-2 text-sm text-gray-400">
+          <Spinner color="border-blue-400" />
+          Verifying permissions…
+        </div>
+      ) : verificationFailed ? (
+        <>
+          <Alert variant="error" title="Update your permissions">
+            Your credentials are missing the permissions marked below. Grant
+            them in your cloud provider's console, then retry.
+          </Alert>
+          <div className="mt-4">
+            <PermissionsPanel
+              permissions={verification?.permissions ?? null}
+              isVerifying={false}
+              error={null}
+            />
           </div>
-        ))}
-      </div>
+        </>
+      ) : (
+        <>
+          <ProvisionSteps steps={steps} />
 
-      {isComplete && (
-        <Alert
-          variant="success"
-          className="mt-6"
-          icon={
-            <svg
-              className="w-5 h-5 text-success-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          }
-          title={successMessage ?? "Account provisioned successfully"}
-        />
-      )}
+          {verification?.permissions && (
+            <PermissionsPanel
+              permissions={verification.permissions}
+              isVerifying={false}
+              error={null}
+            />
+          )}
 
-      {error && (
-        <Alert
-          variant="error"
-          className="mt-6"
-          icon={
-            <svg
-              className="w-5 h-5 text-danger-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+          {isComplete && (
+            <Alert
+              variant="success"
+              className="mt-6"
+              icon={
+                <svg
+                  className="w-5 h-5 text-success-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              }
+              title={successMessage ?? "Account provisioned successfully"}
+            />
+          )}
+
+          {error && (
+            <Alert
+              variant="error"
+              className="mt-6"
+              icon={
+                <svg
+                  className="w-5 h-5 text-danger-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
+                </svg>
+              }
+              title="Provisioning failed"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-              />
-            </svg>
-          }
-          title="Provisioning failed"
-        >
-          {error}
-        </Alert>
+              {error}
+            </Alert>
+          )}
+        </>
       )}
     </Drawer>
   );

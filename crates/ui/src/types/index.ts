@@ -5,4 +5,5 @@ export * from "./instances";
 export * from "./job";
 export * from "./ledger";
 export * from "./pages";
+export * from "./permissions";
 export * from "./vpn";

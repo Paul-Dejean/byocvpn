@@ -1,8 +1,11 @@
+use humantime::format_duration;
 use std::{
-    sync::{Mutex, atomic::{AtomicBool, Ordering}},
+    sync::{
+        Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH},
 };
-use humantime::format_duration;
 
 use byocvpn_core::tunnel::VpnStatus;
 use log::warn;
@@ -28,19 +31,21 @@ pub fn build_tray(app: &AppHandle) -> tauri::Result<tauri::tray::TrayIcon> {
         .menu(&menu)
         .show_menu_on_left_click(true)
         .tooltip("ByocVPN — Disconnected")
-        .on_menu_event(move |app: &AppHandle, event: MenuEvent| match event.id().as_ref() {
-            "open" => show_main_window(app),
-            "disconnect" => {
-                let app = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    if let Err(error) = crate::commands::disconnect(app).await {
-                        warn!("Tray disconnect failed: {error}");
-                    }
-                });
-            }
-            "quit" => app.exit(0),
-            _ => {}
-        })
+        .on_menu_event(
+            move |app: &AppHandle, event: MenuEvent| match event.id().as_ref() {
+                "open" => show_main_window(app),
+                "disconnect" => {
+                    let app = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(error) = crate::commands::disconnect(app).await {
+                            warn!("Tray disconnect failed: {error}");
+                        }
+                    });
+                }
+                "quit" => app.exit(0),
+                _ => {}
+            },
+        )
         .build(app)
 }
 
@@ -68,7 +73,10 @@ pub fn update_tray(app: &AppHandle, vpn_status: &VpnStatus) {
             let _ = tray.set_menu(Some(menu));
         }
     } else if vpn_status.connected {
-        if let Some(elapsed) = vpn_status.connected_at.and_then(|ts| get_elapsed_duration(ts).ok()) {
+        if let Some(elapsed) = vpn_status
+            .connected_at
+            .and_then(|ts| get_elapsed_duration(ts).ok())
+        {
             let label = format!("Connected · {}", format_duration(elapsed));
             if let Ok(guard) = STATUS_MENU_ITEM.lock() {
                 if let Some(ref item) = *guard {
@@ -115,7 +123,9 @@ fn build_tray_menu(
         builder = builder.separator();
 
         let open_item = MenuItemBuilder::new("Open ByocVPN").id("open").build(app)?;
-        let disconnect_item = MenuItemBuilder::new("Disconnect").id("disconnect").build(app)?;
+        let disconnect_item = MenuItemBuilder::new("Disconnect")
+            .id("disconnect")
+            .build(app)?;
         builder = builder.item(&open_item).item(&disconnect_item);
     } else {
         builder = builder.separator();
