@@ -12,6 +12,7 @@ import { AzureProfileCard } from "../components/settings/AzureProfileCard";
 import { JobProgressDrawer } from "../components/common/JobProgressDrawer";
 import { NotificationSettingsCard } from "../components/settings/NotificationSettingsCard";
 import { SessionKillswitchCard } from "../components/settings/SessionKillswitchCard";
+import { AutoTerminateSettingsCard } from "../components/settings/AutoTerminateSettingsCard";
 import { AppearanceCard } from "../components/settings/AppearanceCard";
 import { Button } from "../components/primitives/Button";
 
@@ -245,6 +246,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
             <div className="divide-y divide-gray-700/50">
               <SessionKillswitchCard />
               <NotificationSettingsCard />
+              <AutoTerminateSettingsCard />
             </div>
           </div>
         </div>

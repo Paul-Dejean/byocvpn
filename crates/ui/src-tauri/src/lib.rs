@@ -2,10 +2,10 @@ mod commands;
 mod ledger_store;
 mod provider_credentials;
 mod provider_store;
+mod server_monitor;
 mod settings_store;
 mod spawn_job_registry;
 mod tray;
-mod uptime_notifier;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -21,7 +21,7 @@ pub fn run() {
         .manage(spawn_job_registry::SpawnJobRegistry::new())
         .setup(|app| {
             tray::build_tray(app.handle())?;
-            uptime_notifier::start_uptime_check_loop(app.handle().clone());
+            server_monitor::start_server_monitor(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -52,11 +52,20 @@ pub fn run() {
             commands::list_active_spawn_jobs,
             settings_store::get_notification_settings,
             settings_store::save_notification_settings,
+            settings_store::get_auto_terminate_settings,
+            settings_store::save_auto_terminate_settings,
             settings_store::get_vpn_settings,
             settings_store::save_vpn_settings,
         ]);
 
-    builder
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+    let app = builder
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|_app_handle, _event| {
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Reopen { .. } = _event {
+            tray::show_main_window(_app_handle);
+        }
+    });
 }

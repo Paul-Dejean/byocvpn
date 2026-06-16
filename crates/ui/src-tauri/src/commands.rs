@@ -34,7 +34,9 @@ use crate::provider_store::ProviderStore;
 use crate::spawn_job_registry::{ActiveSpawnJob, SpawnJobRegistry};
 use crate::tray;
 
-async fn create_cloud_provider(provider_name: CloudProviderName) -> Result<Box<dyn CloudProvider>> {
+pub(crate) async fn create_cloud_provider(
+    provider_name: CloudProviderName,
+) -> Result<Box<dyn CloudProvider>> {
     debug!("Creating {} cloud provider", provider_name);
     let store = CredentialStore::load().await?;
     let provider: Box<dyn CloudProvider> = match provider_name {
@@ -540,7 +542,7 @@ pub async fn get_regions(provider: String) -> Result<Vec<Region>> {
     commands::setup::get_regions(&*cloud_provider).await
 }
 
-async fn fetch_vpn_status() -> Result<VpnStatus> {
+pub(crate) async fn fetch_vpn_status() -> Result<VpnStatus> {
     commands::status::fetch_vpn_status(&UnixDaemonClient).await
 }
 
@@ -639,6 +641,8 @@ pub async fn disconnect(app_handle: AppHandle) -> Result<String> {
     if let Err(error) = app_handle.emit("vpn-status", &disconnected_status) {
         warn!("Failed to emit vpn-status: {}", error);
     }
+
+    crate::server_monitor::run_auto_terminate_check(&app_handle).await;
 
     Ok("Disconnected successfully.".to_string())
 }

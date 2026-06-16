@@ -277,11 +277,19 @@ export function useInstances() {
       },
     );
 
+    const autoTerminatedUnlisten = listen<{ instanceId: string }>(
+      "instance-auto-terminated",
+      () => {
+        queryClient.invalidateQueries({ queryKey: ["instances"] });
+      },
+    );
+
     return () => {
       progressUnlisten.then((unlisten) => unlisten());
       launchedUnlisten.then((unlisten) => unlisten());
       completeUnlisten.then((unlisten) => unlisten());
       failedUnlisten.then((unlisten) => unlisten());
+      autoTerminatedUnlisten.then((unlisten) => unlisten());
     };
   }, []);
 

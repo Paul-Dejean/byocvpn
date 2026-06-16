@@ -25,7 +25,7 @@ pub async fn connect(
     info!("Sending connect command to daemon...");
     let response = daemon_client
         .send_command(DaemonCommand::Connect(VpnConnectParams {
-            instance_id: wireguard_config.instance_id,
+            instance_id: instance_id.to_string(),
             private_key: wireguard_config.private_key,
             public_key: wireguard_config.public_key,
             server_endpoint: wireguard_config.server_endpoint,

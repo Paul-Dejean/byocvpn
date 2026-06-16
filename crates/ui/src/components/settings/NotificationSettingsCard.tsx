@@ -1,34 +1,44 @@
 import { useEffect, useState } from "react";
 import { invokeCommand } from "../../lib/invokeCommand";
-import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from "@tauri-apps/plugin-notification";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Toggle } from "../primitives/Toggle";
 import { Button } from "../primitives/Button";
+import { DurationField, DurationUnit } from "./DurationField";
 
 interface NotificationSettings {
   notificationEnabled: boolean;
   notificationThresholdMinutes: number;
+  notificationUnit: DurationUnit;
 }
 
 const DEFAULT_SETTINGS: NotificationSettings = {
   notificationEnabled: false,
   notificationThresholdMinutes: 60,
+  notificationUnit: "minutes",
 };
 
 export function NotificationSettingsCard() {
-  const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] =
+    useState<NotificationSettings>(DEFAULT_SETTINGS);
   const [permissionError, setPermissionError] = useState<string | null>(null);
 
   useEffect(() => {
     invokeCommand<NotificationSettings>("get_notification_settings")
       .then(setSettings)
-      .catch((error) => console.error("Failed to load notification settings:", error));
+      .catch((error) =>
+        console.error("Failed to load notification settings:", error),
+      );
   }, []);
 
   const updateSettings = (updated: NotificationSettings) => {
     setSettings(updated);
-    invokeCommand("save_notification_settings", { settings: updated }).catch((error) =>
-      console.error("Failed to save notification settings:", error),
+    invokeCommand("save_notification_settings", { settings: updated }).catch(
+      (error) => console.error("Failed to save notification settings:", error),
     );
   };
 
@@ -41,7 +51,9 @@ export function NotificationSettingsCard() {
         if (!alreadyGranted) {
           const result = await requestPermission();
           if (result !== "granted") {
-            setPermissionError("Notification permission was denied. Enable it in System Settings.");
+            setPermissionError(
+              "Notification permission was denied. Enable it in System Settings.",
+            );
             return;
           }
         }
@@ -64,8 +76,10 @@ export function NotificationSettingsCard() {
   };
 
   const notificationSettingsUrl = (() => {
-    if (navigator.platform.startsWith("Mac")) return "x-apple.systempreferences:com.apple.preference.notifications";
-    if (navigator.platform.startsWith("Win")) return "ms-settings:notifications";
+    if (navigator.platform.startsWith("Mac"))
+      return "x-apple.systempreferences:com.apple.preference.notifications";
+    if (navigator.platform.startsWith("Win"))
+      return "ms-settings:notifications";
     return null;
   })();
 
@@ -79,13 +93,6 @@ export function NotificationSettingsCard() {
     }
   };
 
-  const onThresholdChange = (raw: string) => {
-    const minutes = parseInt(raw, 10);
-    if (!isNaN(minutes) && minutes >= 1) {
-      updateSettings({ ...settings, notificationThresholdMinutes: minutes });
-    }
-  };
-
   return (
     <div className="py-6">
       <div className="flex items-center justify-between gap-4">
@@ -94,7 +101,9 @@ export function NotificationSettingsCard() {
             <BellIcon />
           </div>
           <div className="min-w-0">
-            <h3 className="font-semibold text-primary">Server Uptime Notifications</h3>
+            <h3 className="font-semibold text-primary">
+              Server Uptime Notifications
+            </h3>
             <p className="text-sm text-gray-400 mt-0.5">
               Get notified when a server has been running too long
             </p>
@@ -112,18 +121,25 @@ export function NotificationSettingsCard() {
         <div className="mt-3 pl-16 space-y-3">
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-400">Notify after</span>
-            <input
-              type="number"
-              min={1}
-              value={settings.notificationThresholdMinutes}
-              onChange={(event) => onThresholdChange(event.target.value)}
-              className="w-14 px-2 py-1 text-xs bg-gray-700 text-primary rounded-md border border-gray-600 focus:outline-none focus:border-blue-500 text-center"
+            <DurationField
+              minutes={settings.notificationThresholdMinutes}
+              unit={settings.notificationUnit}
+              minMinutes={1}
+              onChange={(minutes, unit) =>
+                updateSettings({
+                  ...settings,
+                  notificationThresholdMinutes: minutes,
+                  notificationUnit: unit,
+                })
+              }
             />
-            <span className="text-xs text-gray-400">minutes of server uptime</span>
+            <span className="text-xs text-gray-400">of server uptime</span>
           </div>
 
           <p className="text-xs text-gray-500">
-            To verify notifications work, open System Settings and allow notifications for this app. You can then send a test notification to confirm everything is set up correctly.
+            To verify notifications work, open System Settings and allow
+            notifications for this app. You can then send a test notification to
+            confirm everything is set up correctly.
           </p>
 
           {permissionError && (
@@ -132,11 +148,21 @@ export function NotificationSettingsCard() {
 
           <div className="flex items-center gap-2">
             {notificationSettingsUrl && (
-              <Button variant="ghost" size="none" onClick={openNotificationSettings} className="text-xs px-2.5 py-1 !rounded-md">
+              <Button
+                variant="ghost"
+                size="none"
+                onClick={openNotificationSettings}
+                className="text-xs px-2.5 py-1 !rounded-md"
+              >
                 Open Settings
               </Button>
             )}
-            <Button variant="ghost" size="none" onClick={sendTestNotification} className="text-xs px-2.5 py-1 !rounded-md">
+            <Button
+              variant="ghost"
+              size="none"
+              onClick={sendTestNotification}
+              className="text-xs px-2.5 py-1 !rounded-md"
+            >
               Test Notification
             </Button>
           </div>

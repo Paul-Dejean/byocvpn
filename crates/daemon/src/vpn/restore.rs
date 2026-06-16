@@ -1,4 +1,7 @@
-use byocvpn_core::{daemon_client::VpnConnectParams, wireguard_config::parse_wireguard_config};
+use byocvpn_core::{
+    config::get_wireguard_config_file_path, daemon_client::VpnConnectParams,
+    wireguard_config::parse_wireguard_config,
+};
 use log::*;
 
 use crate::vpn::{connect::connect_vpn, session};
@@ -14,19 +17,23 @@ pub async fn try_restore_session() {
         persisted_session.instance_id
     );
 
-    let home_dir = match dirs::home_dir() {
-        Some(dir) => dir,
-        None => {
-            warn!("Session restore: cannot determine home directory");
+    let config_path = match get_wireguard_config_file_path(
+        &persisted_session.provider,
+        &persisted_session.region,
+        &persisted_session.instance_id,
+    )
+    .await
+    {
+        Ok(config_path) => config_path,
+        Err(error) => {
+            warn!(
+                "Session restore: could not resolve WireGuard config path: {}",
+                error
+            );
             clear_stale_session();
             return;
         }
     };
-
-    let config_path = home_dir
-        .join(".byocvpn")
-        .join("configs")
-        .join(format!("{}.conf", persisted_session.instance_id));
 
     if !config_path.exists() {
         warn!(
@@ -46,10 +53,10 @@ pub async fn try_restore_session() {
         }
     };
 
-    let restore_instance_id = wireguard_config.instance_id.clone();
+    let restore_instance_id = persisted_session.instance_id.clone();
 
     let params = VpnConnectParams {
-        instance_id: wireguard_config.instance_id,
+        instance_id: persisted_session.instance_id,
         private_key: wireguard_config.private_key,
         public_key: wireguard_config.public_key,
         server_endpoint: wireguard_config.server_endpoint,
