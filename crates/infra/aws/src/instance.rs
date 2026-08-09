@@ -14,8 +14,8 @@ use log::*;
 use tokio::time::Duration;
 
 use crate::{
+    ami::get_al2023_ami,
     aws_error::extract_error_message,
-    config,
     constants::{SECURITY_GROUP_NAME, SUBNET_CIDR_BLOCK, SUBNET_NAME, VPC_CIDR_BLOCK, VPC_NAME},
     network, startup_script,
     state::Ec2InstanceState,
@@ -46,7 +46,7 @@ pub(super) async fn spawn_instance(
     debug!("Generated startup script ({} bytes)", user_data.len());
     let encoded_user_data = general_purpose::STANDARD.encode(user_data);
 
-    let ami_id = config::get_al2023_ami(&ssm_client).await?;
+    let ami_id = get_al2023_ami(&ssm_client).await?;
     debug!("Resolved AL2023 AMI: {}", ami_id);
 
     let security_group_id =
@@ -212,7 +212,7 @@ pub(super) async fn list_instances_in_region(
                 })
                 .unwrap_or("unknown");
 
-            let state: InstanceState = Ec2InstanceState::from(raw_state).into();
+            let state: InstanceState = Ec2InstanceState::from_state_name(raw_state).into();
             let name = instance.tags().iter().find_map(|tag| {
                 tag.key()
                     .filter(|key| *key == "Name")

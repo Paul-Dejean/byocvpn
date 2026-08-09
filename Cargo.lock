@@ -945,6 +945,7 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
+ "strum",
  "thiserror 2.0.17",
  "tokio",
 ]

@@ -1,11 +1,14 @@
+mod ami;
 mod aws_error;
 mod config;
 mod constants;
 pub mod credentials;
 mod instance;
 mod network;
+mod permissions;
 pub mod pricing;
 mod provider;
+mod spawn_step;
 mod startup_script;
 mod state;
 pub use credentials::AwsCredentials;

@@ -12,7 +12,7 @@ use byocvpn_core::{
     commands,
     commands::setup::Region,
     connectivity::{self, ProbeStatus},
-    credentials::CredentialStore,
+    credentials::{CredentialStore, StoredCredentials},
     crypto::generate_keypair,
     daemon_client::DaemonClient,
     error::{ConfigurationError, Error, Result},
@@ -78,10 +78,10 @@ pub async fn delete_credentials(provider: String, app_handle: AppHandle) -> Resu
     let mut store = CredentialStore::load().await?;
     let provider_name = CloudProviderName::from_str(&provider)?;
     let section = match provider_name {
-        CloudProviderName::Aws => "AWS",
-        CloudProviderName::Oracle => "ORACLE",
-        CloudProviderName::Gcp => "GCP",
-        CloudProviderName::Azure => "AZURE",
+        CloudProviderName::Aws => AwsCredentials::CREDENTIALS_SECTION,
+        CloudProviderName::Oracle => OracleCredentials::CREDENTIALS_SECTION,
+        CloudProviderName::Gcp => GcpCredentials::CREDENTIALS_SECTION,
+        CloudProviderName::Azure => AzureCredentials::CREDENTIALS_SECTION,
     };
     store.delete_section(section);
     store.save()?;

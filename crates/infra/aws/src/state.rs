@@ -1,5 +1,8 @@
 use byocvpn_core::cloud_provider::InstanceState;
+use strum::EnumString;
 
+#[derive(EnumString)]
+#[strum(serialize_all = "kebab-case")]
 pub enum Ec2InstanceState {
     Pending,
     Running,
@@ -10,17 +13,9 @@ pub enum Ec2InstanceState {
     Unknown,
 }
 
-impl From<&str> for Ec2InstanceState {
-    fn from(s: &str) -> Self {
-        match s {
-            "pending" => Self::Pending,
-            "running" => Self::Running,
-            "shutting-down" => Self::ShuttingDown,
-            "terminated" => Self::Terminated,
-            "stopping" => Self::Stopping,
-            "stopped" => Self::Stopped,
-            _ => Self::Unknown,
-        }
+impl Ec2InstanceState {
+    pub(super) fn from_state_name(state_name: &str) -> Self {
+        state_name.parse().unwrap_or(Self::Unknown)
     }
 }
 

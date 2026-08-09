@@ -86,3 +86,10 @@ impl CredentialStore {
         self.ini.delete(Some(section));
     }
 }
+
+pub trait StoredCredentials: Sized {
+    const CREDENTIALS_SECTION: &'static str;
+
+    fn from_store(store: &CredentialStore) -> Result<Self>;
+    fn write_to_store(&self, store: &mut CredentialStore);
+}

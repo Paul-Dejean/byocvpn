@@ -3,7 +3,7 @@ use byocvpn_core::{
     cloud_provider::{CloudProvider, CloudProviderName},
     commands,
     connectivity::wait_until_ready,
-    credentials::CredentialStore,
+    credentials::{CredentialStore, StoredCredentials},
     crypto::generate_keypair,
     error::Result,
 };
