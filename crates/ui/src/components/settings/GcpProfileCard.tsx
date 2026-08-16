@@ -35,7 +35,6 @@ export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
   const {
     isSaving,
     error,
-    successMessage,
     saveCredentials,
     deleteCredentials,
     loadCredentials,
@@ -285,7 +284,6 @@ export function GcpProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
             </div>
 
             {error && <Alert variant="error">{error}</Alert>}
-            {successMessage && <Alert variant="success">{successMessage}</Alert>}
 
             <div className="flex gap-3 pt-4">
               <Button variant="secondary" onClick={handleCancel} className="flex-1">Cancel</Button>

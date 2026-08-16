@@ -1,4 +1,6 @@
 import { Spinner } from "../primitives/Spinner";
+import { ProviderIcon } from "../providers/ProviderIcon";
+import { PROVIDER_METADATA } from "../../constants/providers";
 import { Button } from "../primitives/Button";
 import { IconButton } from "../primitives/IconButton";
 import { useInstancesContext } from "../../contexts";
@@ -74,6 +76,12 @@ export function RegionSelector({
           <p className="text-xs text-gray-500 mt-0.5">
             Enable a region first, then deploy your VPN server
           </p>
+        </div>
+        <div className="ml-auto flex items-center gap-2 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg flex-shrink-0">
+          <ProviderIcon provider={provider} className="w-4 h-4" />
+          <span className="text-xs font-medium text-gray-300">
+            {PROVIDER_METADATA[provider].shortLabel}
+          </span>
         </div>
       </div>
 

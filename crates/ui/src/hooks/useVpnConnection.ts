@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { extractErrorMessage } from "../lib/extractErrorMessage";
 import { invokeCommand } from "../lib/invokeCommand";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -90,8 +91,10 @@ export function useVpnConnection() {
 
       console.log("VPN connected:", response);
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to connect to VPN";
+      const errorMessage = extractErrorMessage(
+        error,
+        "Failed to connect to VPN",
+      );
       setError(errorMessage);
       console.error("Failed to connect to VPN:", error);
       toast.error(errorMessage);
@@ -108,10 +111,10 @@ export function useVpnConnection() {
       const response = await invokeCommand("disconnect");
       console.log("VPN disconnected:", response);
     } catch (error) {
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Failed to disconnect from VPN";
+      const errorMessage = extractErrorMessage(
+        error,
+        "Failed to disconnect from VPN",
+      );
       setError(errorMessage);
       toast.error(errorMessage);
       console.error("Failed to disconnect from VPN:", error);

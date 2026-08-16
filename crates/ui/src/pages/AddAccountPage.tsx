@@ -322,11 +322,10 @@ export function AddAccountPage({
 
   const {
     activeProvisionJob,
-    isProvisionDrawerOpen,
     isProvisionComplete,
     provisionError,
     provisionAccount,
-    closeProvisionDrawer,
+    resetProvisionState,
   } = useAccounts({
     onFailed: () => toast.error("Account setup failed"),
   });
@@ -389,12 +388,12 @@ export function AddAccountPage({
   };
 
   const handleCloseProvisionDrawer = () => {
-    const provisioningStarted = isProvisionDrawerOpen;
+    const provisioningStarted = activeProvisionJob !== null;
+    const hasNoSteps = (activeProvisionJob?.steps ?? []).length === 0;
     setIsVerificationDrawerOpen(false);
     setVerificationFailed(false);
     clearPermissions();
-    closeProvisionDrawer();
-    const hasNoSteps = (activeProvisionJob?.steps ?? []).length === 0;
+    resetProvisionState();
     if (provisioningStarted && (isProvisionComplete || hasNoSteps)) {
       onAccountAdded();
     }
@@ -461,7 +460,7 @@ export function AddAccountPage({
       </div>
 
       <JobProgressDrawer
-        isOpen={isVerificationDrawerOpen || isProvisionDrawerOpen}
+        isOpen={isVerificationDrawerOpen || activeProvisionJob !== null}
         onClose={handleCloseProvisionDrawer}
         provider={
           activeProvisionJob?.provider ??

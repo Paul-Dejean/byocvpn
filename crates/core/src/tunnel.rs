@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
-use boringtun::noise::{Tunn, TunnResult};
+use boringtun::noise::{Tunn, TunnResult, errors::WireGuardError};
 use serde::{Deserialize, Serialize};
 
 use crate::cloud_provider::CloudProviderName;
 use tokio::{
     net::UdpSocket,
     sync::{RwLock, watch},
-    time::{Duration, Instant},
+    time::{Duration, interval},
 };
 use tun_rs::AsyncDevice;
 
@@ -74,7 +74,7 @@ impl Tunnel {
         let mut tun_buf = [0u8; 1500];
         let mut udp_buf = [0u8; 1500];
         let mut out_buf = [0u8; 1500];
-        let mut last_keepalive = Instant::now();
+        let mut timer_interval = interval(Duration::from_millis(250));
         info!("[Tunnel] Starting tunnel...");
 
         loop {
@@ -130,6 +130,9 @@ impl Tunnel {
                         },
                         TunnResult::WriteToNetwork(packet) => {
                             self.udp.send(packet).await.map_err(|error| SystemError::TunnelIoFailed { reason: error.to_string() })?;
+                            while let TunnResult::WriteToNetwork(queued_packet) = self.wg.decapsulate(None, &[], &mut out_buf) {
+                                self.udp.send(queued_packet).await.map_err(|error| SystemError::TunnelIoFailed { reason: error.to_string() })?;
+                            }
                         },
                         TunnResult::Done => {},
                         TunnResult::Err(error) => {
@@ -138,16 +141,31 @@ impl Tunnel {
                     }
                 }
 
-                _ = tokio::time::sleep(Duration::from_secs(15)) => {
-                    if last_keepalive.elapsed() >= Duration::from_secs(15) {
-
-                        match self.wg.encapsulate(&[], &mut out_buf) {
-                            TunnResult::WriteToNetwork(packet) => {
-                                self.udp.send(packet).await.map_err(|error| SystemError::TunnelIoFailed { reason: error.to_string() })?;
-                                last_keepalive = Instant::now();
-                            },
-                            _ => {}
-                        }
+                _ = timer_interval.tick() => {
+                    match self.wg.update_timers(&mut out_buf) {
+                        TunnResult::WriteToNetwork(packet) => {
+                            if let Err(error) = self.udp.send(packet).await {
+                                warn!("[Tunnel] UDP send failed during timer update: {}", error);
+                            }
+                        },
+                        TunnResult::Err(WireGuardError::ConnectionExpired) => {
+                            warn!("[Tunnel] WireGuard session expired, initiating new handshake.");
+                            match self.wg.format_handshake_initiation(&mut out_buf, true) {
+                                TunnResult::WriteToNetwork(packet) => {
+                                    if let Err(error) = self.udp.send(packet).await {
+                                        warn!("[Tunnel] Handshake initiation send failed: {}", error);
+                                    }
+                                },
+                                TunnResult::Err(error) => {
+                                    error!("[Tunnel] Handshake initiation failed: {:?}", error);
+                                },
+                                _ => {}
+                            }
+                        },
+                        TunnResult::Err(error) => {
+                            error!("[Tunnel] Timer update error: {:?}", error);
+                        },
+                        _ => {}
                     }
                 }
             }

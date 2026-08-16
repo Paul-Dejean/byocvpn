@@ -9,6 +9,7 @@ import { ProviderSelector } from "../providers/ProviderSelector";
 
 import { useInstancesContext, useRegionsContext } from "../../contexts";
 import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
+import { fetchConfiguredProviders } from "../../lib/fetchConfiguredProviders";
 
 enum CreationStep {
   Idle = "IDLE",
@@ -38,6 +39,7 @@ export function ServerManagementView() {
   const {
     instances,
     spawnJobs,
+    pendingSpawnJobs,
     isLoading: instancesLoading,
     isRefreshing,
     terminatingInstanceId,
@@ -53,12 +55,6 @@ export function ServerManagementView() {
   } = useVpnConnectionContext();
 
   const isLoading = regionsLoading || instancesLoading;
-
-  const pendingSpawnJobs = spawnJobs.filter(
-    (spawnJob) =>
-      !spawnJob.instanceId ||
-      !instances.some((instance) => instance.id === spawnJob.instanceId),
-  );
 
   const selectedSpawnJob =
     selection?.kind === SelectionKind.SpawnJob
@@ -96,14 +92,24 @@ export function ServerManagementView() {
         selectedInstance.provider,
       );
       setSelection(null);
-    } catch (terminateError) {
-      console.error("Failed to terminate server:", terminateError);
+    } catch (error) {
+      console.error("Failed to terminate server:", error);
     }
   }
 
   async function handleDismissSpawnJob(jobId: string) {
     await dismissSpawnJob(jobId);
     setSelection(null);
+  }
+
+  async function handleAddNewServer() {
+    const configuredProviders = await fetchConfiguredProviders();
+    if (configuredProviders.length === 1) {
+      setSelectedProvider(configuredProviders[0]);
+      setCreationStep(CreationStep.SelectingRegion);
+    } else {
+      setCreationStep(CreationStep.SelectingProvider);
+    }
   }
 
   return (
@@ -137,9 +143,7 @@ export function ServerManagementView() {
             isRefreshing={isRefreshing}
             onSelectInstance={handleSelectInstance}
             onSelectSpawnJob={handleSelectSpawnJob}
-            onAddNewServer={() =>
-              setCreationStep(CreationStep.SelectingProvider)
-            }
+            onAddNewServer={handleAddNewServer}
           />
 
           {selectedInstance ? (

@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from "react";
 import { version } from "../../../package.json";
 import { Page } from "../../types/pages";
 import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
@@ -11,6 +12,32 @@ interface NavbarProps {
 export function Navbar({ currentPage, onNavigate }: NavbarProps) {
   const { vpnStatus } = useVpnConnectionContext();
   const isConnected = vpnStatus.connected;
+  const navItemButtons = useRef(new Map<Page, HTMLButtonElement>());
+  const [indicatorOffset, setIndicatorOffset] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+
+  useLayoutEffect(() => {
+    const activeButton = navItemButtons.current.get(currentPage);
+    if (activeButton) {
+      setIndicatorOffset({
+        top: activeButton.offsetTop,
+        left: activeButton.offsetLeft,
+      });
+    }
+  }, [currentPage]);
+
+  function registerNavItemButton(page: Page) {
+    return (button: HTMLButtonElement | null) => {
+      if (button) {
+        navItemButtons.current.set(page, button);
+      } else {
+        navItemButtons.current.delete(page);
+      }
+    };
+  }
+
   return (
     <nav className="flex flex-col items-center pt-4 pb-4 gap-2 w-14 bg-gray-800 border-r border-gray-700/50 flex-shrink-0">
       <div className="flex flex-col items-center gap-1 mb-2">
@@ -28,24 +55,37 @@ export function Navbar({ currentPage, onNavigate }: NavbarProps) {
         </span>
       </div>
 
-      <NavItem
-        icon={<ServerIcon />}
-        label="Servers"
-        isActive={currentPage === Page.VPN}
-        onClick={() => onNavigate(Page.VPN)}
-      />
-      <NavItem
-        icon={<DollarIcon />}
-        label="Expenses"
-        isActive={currentPage === Page.PRICING}
-        onClick={() => onNavigate(Page.PRICING)}
-      />
-      <NavItem
-        icon={<SettingsIcon />}
-        label="Settings"
-        isActive={currentPage === Page.SETTINGS}
-        onClick={() => onNavigate(Page.SETTINGS)}
-      />
+      <div className="relative flex flex-col items-center gap-2">
+        {indicatorOffset && (
+          <span
+            className="absolute top-0 left-0 w-10 h-10 rounded-lg bg-blue-600 transition-transform duration-300 ease-out"
+            style={{
+              transform: `translate(${indicatorOffset.left}px, ${indicatorOffset.top}px)`,
+            }}
+          />
+        )}
+        <NavItem
+          ref={registerNavItemButton(Page.VPN)}
+          icon={<ServerIcon />}
+          label="Servers"
+          isActive={currentPage === Page.VPN}
+          onClick={() => onNavigate(Page.VPN)}
+        />
+        <NavItem
+          ref={registerNavItemButton(Page.PRICING)}
+          icon={<DollarIcon />}
+          label="Expenses"
+          isActive={currentPage === Page.PRICING}
+          onClick={() => onNavigate(Page.PRICING)}
+        />
+        <NavItem
+          ref={registerNavItemButton(Page.SETTINGS)}
+          icon={<SettingsIcon />}
+          label="Settings"
+          isActive={currentPage === Page.SETTINGS}
+          onClick={() => onNavigate(Page.SETTINGS)}
+        />
+      </div>
       <span className="mt-auto text-[11px] text-gray-400 tracking-wide">
         v{version}
       </span>

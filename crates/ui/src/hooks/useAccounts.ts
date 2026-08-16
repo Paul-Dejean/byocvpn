@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Channel } from "@tauri-apps/api/core";
 import toast from "react-hot-toast";
+import { extractErrorMessage } from "../lib/extractErrorMessage";
 import { invokeCommand } from "../lib/invokeCommand";
 import {
   CloudProviderName,
@@ -41,7 +42,6 @@ interface UseAccountsOptions {
 export function useAccounts({ onComplete, onFailed }: UseAccountsOptions = {}) {
   const [activeProvisionJob, setActiveProvisionJob] =
     useState<ProvisionJobState | null>(null);
-  const [isProvisionDrawerOpen, setIsProvisionDrawerOpen] = useState(false);
   const [isProvisionComplete, setIsProvisionComplete] = useState(false);
   const [provisionError, setProvisionError] = useState<string | null>(null);
 
@@ -49,18 +49,12 @@ export function useAccounts({ onComplete, onFailed }: UseAccountsOptions = {}) {
     const onEvent = new Channel<ProvisionAccountEvent>();
     onEvent.onmessage = (event) => applyProvisionEvent(event, provider);
 
-    setActiveProvisionJob(null);
-    setIsProvisionComplete(false);
-    setProvisionError(null);
+    resetProvisionState();
 
     try {
       await invokeCommand("provision_account", { provider, onEvent });
-    } catch (invocationError) {
-      const message =
-        invocationError instanceof Error
-          ? invocationError.message
-          : "Failed to start provisioning";
-      toast.error(message);
+    } catch (error) {
+      toast.error(extractErrorMessage(error, "Failed to start provisioning"));
     }
   }
 
@@ -78,7 +72,6 @@ export function useAccounts({ onComplete, onFailed }: UseAccountsOptions = {}) {
             status: JobStepStatus.Pending,
           })),
         });
-        setIsProvisionDrawerOpen(true);
         return;
 
       case ProvisionEventKind.Progress:
@@ -108,16 +101,17 @@ export function useAccounts({ onComplete, onFailed }: UseAccountsOptions = {}) {
     }
   }
 
-  function closeProvisionDrawer() {
-    setIsProvisionDrawerOpen(false);
+  function resetProvisionState() {
+    setActiveProvisionJob(null);
+    setIsProvisionComplete(false);
+    setProvisionError(null);
   }
 
   return {
     activeProvisionJob,
-    isProvisionDrawerOpen,
     isProvisionComplete,
     provisionError,
     provisionAccount,
-    closeProvisionDrawer,
+    resetProvisionState,
   };
 }

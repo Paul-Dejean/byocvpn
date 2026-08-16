@@ -30,7 +30,7 @@ export function AwsProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [formFields, setFormFields] = useState({ accessKey: "", secretKey: "" });
 
-  const { isSaving, error, successMessage, saveCredentials, deleteCredentials, loadCredentials, clearError } = useCredentials();
+  const { isSaving, error, saveCredentials, deleteCredentials, loadCredentials, clearError } = useCredentials();
 
   useEffect(() => {
     loadCredentials(CloudProviderName.Aws).then((existing) => {
@@ -192,7 +192,6 @@ export function AwsProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
             />
 
             {error && <Alert variant="error">{error}</Alert>}
-            {successMessage && <Alert variant="success">{successMessage}</Alert>}
 
             <div className="flex gap-3 pt-4">
               <Button variant="secondary" onClick={handleCancel} className="flex-1">Cancel</Button>

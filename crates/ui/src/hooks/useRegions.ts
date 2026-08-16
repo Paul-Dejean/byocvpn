@@ -1,8 +1,10 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { extractErrorMessage } from "../lib/extractErrorMessage";
+import { fetchConfiguredProviders } from "../lib/fetchConfiguredProviders";
 import { invokeCommand } from "../lib/invokeCommand";
 import toast from "react-hot-toast";
-import { CloudProviderName, Region, RegionGroup } from "../types";
+import { Region, RegionGroup } from "../types";
 
 const REGION_PREFIX_TO_CONTINENT: Record<string, string> = {
   us: "North America",
@@ -30,9 +32,7 @@ export function useRegions() {
 
   useEffect(() => {
     if (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to load regions",
-      );
+      toast.error(extractErrorMessage(error, "Failed to load regions"));
     }
   }, [error]);
 
@@ -40,7 +40,7 @@ export function useRegions() {
     regions: data?.regions ?? [],
     groupedRegions: data?.groupedRegions ?? [],
     isLoading,
-    error: error instanceof Error ? error.message : null,
+    error: error ? extractErrorMessage(error, "Failed to load regions") : null,
     loadRegions: () =>
       queryClient.invalidateQueries({ queryKey: ["all-regions"] }),
     clearError: () => {},
@@ -60,24 +60,6 @@ async function fetchAllRegions(): Promise<RegionsData> {
     regions: fetchedRegions,
     groupedRegions: groupRegionsByContinent(fetchedRegions),
   };
-}
-
-async function fetchConfiguredProviders(): Promise<CloudProviderName[]> {
-  const checks = await Promise.all(
-    Object.values(CloudProviderName).map(async (provider) => {
-      try {
-        const credentials = await invokeCommand("get_credentials", {
-          provider,
-        });
-        return credentials !== null ? provider : null;
-      } catch {
-        return null;
-      }
-    }),
-  );
-  return checks.filter(
-    (provider): provider is CloudProviderName => provider !== null,
-  );
 }
 
 function groupRegionsByContinent(regions: Region[]): RegionGroup[] {

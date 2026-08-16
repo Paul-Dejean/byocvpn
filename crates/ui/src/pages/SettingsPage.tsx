@@ -42,11 +42,10 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
 
   const {
     activeProvisionJob,
-    isProvisionDrawerOpen,
     isProvisionComplete,
     provisionError,
     provisionAccount,
-    closeProvisionDrawer,
+    resetProvisionState,
   } = useAccounts({
     onComplete: (provider) => {
       setProvisionedProviders((previous) => new Set([...previous, provider]));
@@ -56,6 +55,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
 
   const { permissions, isVerifying, verifyPermissions, clearPermissions } =
     usePermissions();
+  const isProvisionDrawerOpen = activeProvisionJob !== null;
   const provisionJobProvider = activeProvisionJob?.provider;
   const isVerifiableProvisionJob =
     provisionJobProvider === CloudProviderName.Aws ||
@@ -63,18 +63,13 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
     provisionJobProvider === CloudProviderName.Azure;
 
   useEffect(() => {
-    if (
-      isProvisionDrawerOpen &&
-      isVerifiableProvisionJob &&
-      provisionJobProvider
-    ) {
+    if (isVerifiableProvisionJob && provisionJobProvider) {
       verifyPermissions(provisionJobProvider);
     }
-    if (!isProvisionDrawerOpen) {
+    if (!provisionJobProvider) {
       clearPermissions();
     }
   }, [
-    isProvisionDrawerOpen,
     isVerifiableProvisionJob,
     provisionJobProvider,
     verifyPermissions,
@@ -253,7 +248,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
 
       <JobProgressDrawer
         isOpen={isProvisionDrawerOpen}
-        onClose={closeProvisionDrawer}
+        onClose={resetProvisionState}
         provider={activeProvisionJob?.provider ?? CloudProviderName.Aws}
         steps={activeProvisionJob?.steps ?? []}
         isComplete={isProvisionComplete}

@@ -1,11 +1,11 @@
 import { createContext, useContext, ReactNode } from "react";
 import { CloudProviderName, Instance, SpawnJob } from "../types";
 import { useInstances } from "../hooks/useInstances";
-import { useSpawnJobs } from "../hooks/useSpawnJobs";
 
 interface InstancesContextValue {
   instances: Instance[];
   spawnJobs: SpawnJob[];
+  pendingSpawnJobs: SpawnJob[];
   isLoading: boolean;
   isRefreshing: boolean;
   terminatingInstanceId: string | null;
@@ -29,15 +29,25 @@ interface InstancesProviderProps {
 }
 
 export function InstancesProvider({ children }: InstancesProviderProps) {
-  const { instances, isLoading, isRefreshing, terminatingInstanceId, terminateInstance, refetchInstances } =
-    useInstances();
-  const { spawnJobs, startSpawnJob, dismissSpawnJob } = useSpawnJobs();
+  const {
+    instances,
+    spawnJobs,
+    pendingSpawnJobs,
+    isLoading,
+    isRefreshing,
+    terminatingInstanceId,
+    startSpawnJob,
+    dismissSpawnJob,
+    terminateInstance,
+    refetchInstances,
+  } = useInstances();
 
   return (
     <InstancesContext.Provider
       value={{
         instances,
         spawnJobs,
+        pendingSpawnJobs,
         isLoading,
         isRefreshing,
         terminatingInstanceId,

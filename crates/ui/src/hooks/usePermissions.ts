@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { extractErrorMessage } from "../lib/extractErrorMessage";
 import { invokeCommand } from "../lib/invokeCommand";
 import { Permissions, CloudProviderName } from "../types";
 import {
@@ -28,12 +29,8 @@ export function usePermissions() {
         });
         setPermissions(result);
         return result;
-      } catch (caughtError) {
-        const message =
-          caughtError instanceof Error
-            ? caughtError.message
-            : "Failed to verify permissions";
-        setError(message);
+      } catch (error) {
+        setError(extractErrorMessage(error, "Failed to verify permissions"));
         return null;
       } finally {
         setIsVerifying(false);

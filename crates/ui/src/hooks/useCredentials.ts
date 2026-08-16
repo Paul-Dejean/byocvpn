@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { extractErrorMessage } from "../lib/extractErrorMessage";
 import { invokeCommand } from "../lib/invokeCommand";
 import toast from "react-hot-toast";
 import { CloudProviderName } from "../types";
@@ -38,7 +39,6 @@ type CredentialsMap = {
 export function useCredentials() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const loadCredentials = async <T extends CloudProviderName>(
     provider: T,
@@ -56,19 +56,15 @@ export function useCredentials() {
   ): Promise<boolean> => {
     setIsSaving(true);
     setError(null);
-    setSuccessMessage(null);
 
     try {
       await invokeCommand("save_credentials", { credentials: { provider, ...credentials } });
-      const message = "Credentials saved successfully!";
-      setSuccessMessage(message);
       return true;
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to save credentials";
+    } catch (error) {
+      const message = extractErrorMessage(error, "Failed to save credentials");
       setError(message);
       toast.error(message);
-      console.error("Failed to save credentials:", err);
+      console.error("Failed to save credentials:", error);
       return false;
     } finally {
       setIsSaving(false);
@@ -81,26 +77,25 @@ export function useCredentials() {
     try {
       await invokeCommand("delete_credentials", { provider });
       return true;
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to delete credentials";
+    } catch (error) {
+      const message = extractErrorMessage(
+        error,
+        "Failed to delete credentials",
+      );
       toast.error(message);
-      console.error("Failed to delete credentials:", err);
+      console.error("Failed to delete credentials:", error);
       return false;
     }
   };
 
   const clearError = () => setError(null);
-  const clearSuccessMessage = () => setSuccessMessage(null);
 
   return {
     isSaving,
     error,
-    successMessage,
     loadCredentials,
     saveCredentials,
     deleteCredentials,
     clearError,
-    clearSuccessMessage,
   };
 }
