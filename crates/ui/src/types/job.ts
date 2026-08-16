@@ -17,10 +17,17 @@ export interface JobStepState extends JobStep {
   error?: string;
 }
 
-export interface SpawnJobState {
+export enum SpawnJobStatus {
+  Running = "RUNNING",
+  Failed = "FAILED",
+}
+
+export interface SpawnJob {
   jobId: string;
-  instanceId: string;
   region: string;
   provider: CloudProviderName;
+  instanceId: string | null;
+  status: SpawnJobStatus;
+  error?: string;
   steps: JobStepState[];
 }

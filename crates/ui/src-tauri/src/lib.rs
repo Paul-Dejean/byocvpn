@@ -50,6 +50,7 @@ pub fn run() {
             commands::get_ledger,
             commands::save_file,
             commands::list_active_spawn_jobs,
+            commands::dismiss_spawn_job,
             settings_store::get_notification_settings,
             settings_store::save_notification_settings,
             settings_store::get_auto_terminate_settings,

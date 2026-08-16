@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { load as loadStore } from "@tauri-apps/plugin-store";
-import { listen } from "@tauri-apps/api/event";
+import { Channel } from "@tauri-apps/api/core";
 import { invokeCommand } from "../lib/invokeCommand";
 import toast from "react-hot-toast";
 import {
@@ -13,25 +13,23 @@ import {
   JobStepStatus,
 } from "../types";
 
-interface EnableRegionJob {
-  jobId: string;
-  steps: JobStep[];
-  region: string;
-  provider: CloudProviderName;
+enum EnableRegionEventKind {
+  Started = "STARTED",
+  Progress = "PROGRESS",
+  Complete = "COMPLETE",
+  Failed = "FAILED",
 }
 
-interface EnableRegionProgressEvent {
-  jobId: string;
-  stepId: string;
-  status: JobStepStatus;
-  error?: string;
-}
-
-interface EnableRegionCompleteEvent {
-  jobId: string;
-  region: string;
-  provider: CloudProviderName;
-}
+type EnableRegionEvent =
+  | { kind: EnableRegionEventKind.Started; jobId: string; steps: JobStep[] }
+  | {
+      kind: EnableRegionEventKind.Progress;
+      stepId: string;
+      status: JobStepStatus;
+      error?: string;
+    }
+  | { kind: EnableRegionEventKind.Complete; region: string }
+  | { kind: EnableRegionEventKind.Failed; error: string };
 
 export interface EnableRegionJobState {
   jobId: string;
@@ -81,7 +79,6 @@ export function useProviderRegions(provider: CloudProviderName) {
   const [isEnableDrawerOpen, setIsEnableDrawerOpen] = useState(false);
   const [isEnableComplete, setIsEnableComplete] = useState(false);
   const [enableError, setEnableError] = useState<string | null>(null);
-  const activeEnableJobIdRef = useRef<string | null>(null);
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["regions", provider],
@@ -89,105 +86,83 @@ export function useProviderRegions(provider: CloudProviderName) {
     staleTime: 30_000,
   });
 
-  useEffect(() => {
-    let canceled = false;
-    const registeredUnlisteners: Array<() => void> = [];
+  async function enableRegion(region: Region) {
+    const onEvent = new Channel<EnableRegionEvent>();
+    onEvent.onmessage = (event) => applyEnableRegionEvent(event, region);
 
-    const registerListeners = async () => {
-      const unlistenProgress = await listen<EnableRegionProgressEvent>(
-        "enable-region-progress",
-        ({ payload }) => {
-          const { jobId, stepId, status, error } = payload;
-          setActiveEnableJob((previous) => {
-            if (!previous || previous.jobId !== jobId) return previous;
-            return {
-              ...previous,
-              steps: previous.steps.map((step) =>
-                step.id === stepId ? { ...step, status, error } : step,
-              ),
-            };
-          });
-        },
-      );
+    setActiveEnableJob(null);
+    setIsEnableComplete(false);
+    setEnableError(null);
 
-      const unlistenComplete = await listen<EnableRegionCompleteEvent>(
-        "enable-region-complete",
-        ({ payload }) => {
-          if (activeEnableJobIdRef.current !== payload.jobId) return;
-          setIsEnableComplete(true);
-          queryClient.setQueryData<ProviderRegionsData>(
-            ["regions", provider],
-            (previous) => {
-              if (!previous) return previous;
-              const enabledRegions = new Set([
-                ...previous.enabledRegions,
-                payload.region,
-              ]);
-              return { ...previous, enabledRegions };
-            },
-          );
-          toast.success(`${payload.region} enabled!`);
-        },
-      );
-
-      const unlistenFailed = await listen<{ jobId: string; error: string }>(
-        "enable-region-failed",
-        ({ payload }) => {
-          if (activeEnableJobIdRef.current === payload.jobId) {
-            setEnableError(payload.error);
-          }
-        },
-      );
-
-      if (canceled) {
-        unlistenProgress();
-        unlistenComplete();
-        unlistenFailed();
-      } else {
-        registeredUnlisteners.push(
-          unlistenProgress,
-          unlistenComplete,
-          unlistenFailed,
-        );
-      }
-    };
-
-    registerListeners();
-
-    return () => {
-      canceled = true;
-      registeredUnlisteners.forEach((unlisten) => unlisten());
-    };
-  }, [provider]);
-
-  const enableRegion = async (region: Region) => {
     try {
-      const job = await invokeCommand<EnableRegionJob>("enable_region", {
+      await invokeCommand("enable_region", {
         region: region.name,
         provider,
+        onEvent,
       });
-      const initialSteps: JobStepState[] = job.steps.map((step, index) => ({
-        ...step,
-        status: index === 0 ? JobStepStatus.Running : JobStepStatus.Pending,
-      }));
-      activeEnableJobIdRef.current = job.jobId;
-      setActiveEnableJob({
-        jobId: job.jobId,
-        region: region.name,
-        country: region.country,
-        steps: initialSteps,
-      });
-      setIsEnableComplete(false);
-      setEnableError(null);
-      setIsEnableDrawerOpen(true);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to enable region";
       toast.error(message);
     }
-  };
+  }
 
-  const closeEnableDrawer = () => setIsEnableDrawerOpen(false);
+  function applyEnableRegionEvent(event: EnableRegionEvent, region: Region) {
+    switch (event.kind) {
+      case EnableRegionEventKind.Started:
+        setActiveEnableJob({
+          jobId: event.jobId,
+          region: region.name,
+          country: region.country,
+          steps: event.steps.map((step) => ({
+            ...step,
+            status: JobStepStatus.Pending,
+          })),
+        });
+        setIsEnableDrawerOpen(true);
+        return;
+
+      case EnableRegionEventKind.Progress:
+        setActiveEnableJob((previous) =>
+          previous
+            ? {
+                ...previous,
+                steps: previous.steps.map((step) =>
+                  step.id === event.stepId
+                    ? { ...step, status: event.status, error: event.error }
+                    : step,
+                ),
+              }
+            : previous,
+        );
+        return;
+
+      case EnableRegionEventKind.Complete:
+        setIsEnableComplete(true);
+        queryClient.setQueryData<ProviderRegionsData>(
+          ["regions", provider],
+          (previous) =>
+            previous
+              ? {
+                  ...previous,
+                  enabledRegions: new Set([
+                    ...previous.enabledRegions,
+                    event.region,
+                  ]),
+                }
+              : previous,
+        );
+        return;
+
+      case EnableRegionEventKind.Failed:
+        setEnableError(event.error);
+        return;
+    }
+  }
+
+  function closeEnableDrawer() {
+    setIsEnableDrawerOpen(false);
+  }
 
   return {
     groupedRegions: data?.groupedRegions ?? [],

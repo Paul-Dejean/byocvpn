@@ -1,34 +1,48 @@
-import { Instance, InstanceState } from "../../types";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { CloudProviderName, Instance, SpawnJob } from "../../types";
 import { ServerList } from "../servers/ServerList";
 import { RegionSelector } from "../regions/RegionSelector";
 import { ServerDetails } from "../servers/ServerDetails";
+import { SpawnJobDetails } from "../jobs/SpawnJobDetails";
 import { EmptyState } from "../primitives/EmptyState";
 import { ProviderSelector } from "../providers/ProviderSelector";
-import { CloudProviderName } from "../../types";
 
 import { useInstancesContext, useRegionsContext } from "../../contexts";
 import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
 
-type CreationStep = "idle" | "selecting-provider" | "selecting-region";
+enum CreationStep {
+  Idle = "IDLE",
+  SelectingProvider = "SELECTING_PROVIDER",
+  SelectingRegion = "SELECTING_REGION",
+}
+
+enum SelectionKind {
+  SpawnJob = "SPAWN_JOB",
+  Instance = "INSTANCE",
+}
+
+type Selection =
+  | { kind: SelectionKind.SpawnJob; jobId: string }
+  | { kind: SelectionKind.Instance; instanceId: string };
 
 export function ServerManagementView() {
-  const [creationStep, setCreationStep] = useState<CreationStep>("idle");
-  const [selectedProvider, setSelectedProvider] = useState<CloudProviderName>(CloudProviderName.Aws);
-
-  const [selectedInstance, setSelectedInstance] = useState<Instance | null>(
-    null,
+  const [creationStep, setCreationStep] = useState<CreationStep>(
+    CreationStep.Idle,
   );
+  const [selectedProvider, setSelectedProvider] = useState<CloudProviderName>(
+    CloudProviderName.Aws,
+  );
+  const [selection, setSelection] = useState<Selection | null>(null);
 
   const { groupedRegions, isLoading: regionsLoading } = useRegionsContext();
   const {
     instances,
+    spawnJobs,
     isLoading: instancesLoading,
     isRefreshing,
     terminatingInstanceId,
     terminateInstance,
-    dismissFailedInstance,
-    getSpawnJobForInstance,
+    dismissSpawnJob,
   } = useInstancesContext();
 
   const {
@@ -40,109 +54,118 @@ export function ServerManagementView() {
 
   const isLoading = regionsLoading || instancesLoading;
 
-  useEffect(() => {
-    if (!selectedInstance) return;
-    const live = instances.find((i) => i.id === selectedInstance.id);
-    if (live) {
+  const pendingSpawnJobs = spawnJobs.filter(
+    (spawnJob) =>
+      !spawnJob.instanceId ||
+      !instances.some((instance) => instance.id === spawnJob.instanceId),
+  );
 
-      if (live !== selectedInstance) setSelectedInstance(live);
-    } else if (selectedInstance.state === InstanceState.Spawning) {
+  const selectedSpawnJob =
+    selection?.kind === SelectionKind.SpawnJob
+      ? spawnJobs.find((spawnJob) => spawnJob.jobId === selection.jobId)
+      : undefined;
 
-      const replacement = instances.find(
-        (i) =>
-          i.region === selectedInstance.region &&
-          i.provider === selectedInstance.provider &&
-          i.state !== InstanceState.Spawning,
-      );
-      if (replacement) setSelectedInstance(replacement);
-    }
-  }, [instances]);
+  const selectedInstance =
+    (selection?.kind === SelectionKind.Instance
+      ? instances.find((instance) => instance.id === selection.instanceId)
+      : instances.find(
+          (instance) => instance.spawnId === selection?.jobId,
+        )) ?? null;
 
-  const handleSelectInstance = (instance: Instance) => {
-    setSelectedInstance(instance);
+  function handleSelectInstance(instance: Instance) {
+    setSelection({ kind: SelectionKind.Instance, instanceId: instance.id });
     clearError();
-  };
-  const onConnect = async (instance: Instance) => {
-    await connectToVpn(instance);
-  };
+  }
 
-  const onTerminate = async () => {
+  function handleSelectSpawnJob(spawnJob: SpawnJob) {
+    setSelection({ kind: SelectionKind.SpawnJob, jobId: spawnJob.jobId });
+    clearError();
+  }
+
+  async function handleConnect(instance: Instance) {
+    await connectToVpn(instance);
+  }
+
+  async function handleTerminate() {
     if (!selectedInstance) return;
 
     try {
       await terminateInstance(
         selectedInstance.id,
-        selectedInstance.region || "",
-        selectedInstance.provider || CloudProviderName.Aws,
+        selectedInstance.region,
+        selectedInstance.provider,
       );
-
-      setSelectedInstance(null);
-    } catch (error) {
-      console.error("Failed to terminate server:", error);
+      setSelection(null);
+    } catch (terminateError) {
+      console.error("Failed to terminate server:", terminateError);
     }
-  };
+  }
 
-  const onDismiss = () => {
-    if (!selectedInstance) return;
-    dismissFailedInstance(selectedInstance.id);
-    setSelectedInstance(null);
-  };
-
-  const handleSelectProvider = (provider: CloudProviderName) => {
-    setSelectedProvider(provider);
-    setCreationStep("selecting-region");
-  };
+  async function handleDismissSpawnJob(jobId: string) {
+    await dismissSpawnJob(jobId);
+    setSelection(null);
+  }
 
   return (
     <div className="flex flex-col h-full bg-gray-900 text-primary overflow-hidden">
-      {creationStep === "selecting-provider" ? (
+      {creationStep === CreationStep.SelectingProvider ? (
         <ProviderSelector
-          onSelectProvider={handleSelectProvider}
-          onClose={() => setCreationStep("idle")}
+          onSelectProvider={(provider) => {
+            setSelectedProvider(provider);
+            setCreationStep(CreationStep.SelectingRegion);
+          }}
+          onClose={() => setCreationStep(CreationStep.Idle)}
         />
-      ) : creationStep === "selecting-region" ? (
-
+      ) : creationStep === CreationStep.SelectingRegion ? (
         <RegionSelector
           provider={selectedProvider}
-          onClose={() => setCreationStep("idle")}
-          onSpawned={(instance) => {
-            setSelectedInstance(instance);
-            setCreationStep("idle");
+          onClose={() => setCreationStep(CreationStep.Idle)}
+          onSpawnStarted={(jobId) => {
+            setSelection({ kind: SelectionKind.SpawnJob, jobId });
+            setCreationStep(CreationStep.Idle);
           }}
         />
       ) : (
-        <>
-          <div className="flex-1 flex min-h-0">
-            <ServerList
-              instances={instances}
-              selectedInstance={selectedInstance}
-              groupedRegions={groupedRegions}
-              isLoading={isLoading}
-              isRefreshing={isRefreshing}
-              getSpawnJobForInstance={getSpawnJobForInstance}
-              onSelectInstance={handleSelectInstance}
-              onAddNewServer={() => setCreationStep("selecting-provider")}
-            />
+        <div className="flex-1 flex min-h-0">
+          <ServerList
+            instances={instances}
+            spawnJobs={pendingSpawnJobs}
+            selectedInstanceId={selectedInstance?.id ?? null}
+            selectedJobId={selectedSpawnJob?.jobId ?? null}
+            groupedRegions={groupedRegions}
+            isLoading={isLoading}
+            isRefreshing={isRefreshing}
+            onSelectInstance={handleSelectInstance}
+            onSelectSpawnJob={handleSelectSpawnJob}
+            onAddNewServer={() =>
+              setCreationStep(CreationStep.SelectingProvider)
+            }
+          />
 
-            {selectedInstance ? (
-              <ServerDetails
-                instance={selectedInstance}
-                isConnecting={isConnecting}
-                isTerminating={terminatingInstanceId === selectedInstance?.id}
-                vpnError={vpnError}
-                spawnJob={getSpawnJobForInstance(selectedInstance.id)}
-                onConnect={onConnect}
-                onTerminate={onTerminate}
-                onDismiss={onDismiss}
-              />
-            ) : (
-              <EmptyState
-                title="Select a server"
-                description="Choose a server from the left to view details"
-              />
-            )}
-          </div>
-        </>
+          {selectedInstance ? (
+            <ServerDetails
+              instance={selectedInstance}
+              isConnecting={isConnecting}
+              isTerminating={terminatingInstanceId === selectedInstance.id}
+              vpnError={vpnError}
+              spawnJob={spawnJobs.find(
+                (spawnJob) => spawnJob.jobId === selectedInstance.spawnId,
+              )}
+              onConnect={handleConnect}
+              onTerminate={handleTerminate}
+            />
+          ) : selectedSpawnJob ? (
+            <SpawnJobDetails
+              spawnJob={selectedSpawnJob}
+              onDismiss={handleDismissSpawnJob}
+            />
+          ) : (
+            <EmptyState
+              title="Select a server"
+              description="Choose a server from the left to view details"
+            />
+          )}
+        </div>
       )}
     </div>
   );

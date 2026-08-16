@@ -2,30 +2,23 @@ import {
   Instance,
   InstanceState,
   RegionGroup,
-  SpawnJobState,
+  SpawnJob,
   JobStepStatus,
 } from "../../types";
 import { getRegionInfo } from "../../constants/regionInfo";
 import { FlagIcon } from "../FlagIcon";
 import { ProviderIcon } from "../providers/ProviderIcon";
-import { CloudProviderName } from "../../types";
 import { Badge, BadgeVariant } from "../primitives/Badge";
 import { SelectableCard } from "../primitives/SelectableCard";
+import { PROVIDER_STRIPE } from "./providerStripe";
 
 interface ServerCardProps {
   instance: Instance;
   isSelected: boolean;
   groupedRegions: RegionGroup[];
-  spawnJob?: SpawnJobState;
+  spawnJob?: SpawnJob;
   onSelect: (instance: Instance) => void;
 }
-
-const PROVIDER_STRIPE: Record<CloudProviderName, string> = {
-  [CloudProviderName.Aws]: "border-l-orange-500",
-  [CloudProviderName.Oracle]: "border-l-red-500",
-  [CloudProviderName.Gcp]: "border-l-blue-500",
-  [CloudProviderName.Azure]: "border-l-sky-500",
-};
 
 const STATE_BADGE: Record<
   InstanceState,
@@ -69,12 +62,9 @@ export function ServerCard({
   const regionInfo = getRegionInfo(instance.provider, instance.region ?? "");
   const stripeColor = PROVIDER_STRIPE[instance.provider] ?? "border-l-gray-600";
 
-  const isInProgress =
-    instance.state === InstanceState.Spawning ||
-    instance.state === InstanceState.Installing;
+  const isInProgress = instance.state === InstanceState.Installing;
 
   const isInteractive = [
-    InstanceState.Spawning,
     InstanceState.Installing,
     InstanceState.Running,
     InstanceState.Error,

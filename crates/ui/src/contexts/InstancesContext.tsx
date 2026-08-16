@@ -1,22 +1,25 @@
 import { createContext, useContext, ReactNode } from "react";
-import { CloudProviderName, Instance, SpawnJobState } from "../types";
+import { CloudProviderName, Instance, SpawnJob } from "../types";
 import { useInstances } from "../hooks/useInstances";
+import { useSpawnJobs } from "../hooks/useSpawnJobs";
 
 interface InstancesContextValue {
   instances: Instance[];
+  spawnJobs: SpawnJob[];
   isLoading: boolean;
   isRefreshing: boolean;
-  isSpawning: boolean;
   terminatingInstanceId: string | null;
-  spawnInstance: (regionName: string, provider: CloudProviderName) => Promise<Instance>;
+  startSpawnJob: (
+    region: string,
+    provider: CloudProviderName,
+  ) => Promise<SpawnJob | null>;
   terminateInstance: (
     instanceId: string,
     region: string,
     provider: CloudProviderName,
   ) => Promise<void>;
-  dismissFailedInstance: (instanceId: string) => void;
-  refetch: () => Promise<void>;
-  getSpawnJobForInstance: (instanceId: string) => SpawnJobState | undefined;
+  dismissSpawnJob: (jobId: string) => Promise<void>;
+  refetchInstances: () => Promise<void>;
 }
 
 const InstancesContext = createContext<InstancesContextValue | null>(null);
@@ -26,10 +29,24 @@ interface InstancesProviderProps {
 }
 
 export function InstancesProvider({ children }: InstancesProviderProps) {
-  const instancesState = useInstances();
+  const { instances, isLoading, isRefreshing, terminatingInstanceId, terminateInstance, refetchInstances } =
+    useInstances();
+  const { spawnJobs, startSpawnJob, dismissSpawnJob } = useSpawnJobs();
 
   return (
-    <InstancesContext.Provider value={instancesState}>
+    <InstancesContext.Provider
+      value={{
+        instances,
+        spawnJobs,
+        isLoading,
+        isRefreshing,
+        terminatingInstanceId,
+        startSpawnJob,
+        terminateInstance,
+        dismissSpawnJob,
+        refetchInstances,
+      }}
+    >
       {children}
     </InstancesContext.Provider>
   );

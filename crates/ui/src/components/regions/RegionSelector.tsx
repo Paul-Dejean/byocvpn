@@ -5,20 +5,20 @@ import { useInstancesContext } from "../../contexts";
 import { getRegionInfo } from "../../constants/regionInfo";
 import { FlagIcon } from "../FlagIcon";
 import { useEffect, useState } from "react";
-import { Instance, CloudProviderName, Region } from "../../types";
+import { CloudProviderName, Region } from "../../types";
 import { useProviderRegions } from "../../hooks/useProviderRegions";
 import { JobProgressDrawer } from "../common/JobProgressDrawer";
 
 interface RegionSelectorProps {
   provider: CloudProviderName;
   onClose: () => void;
-  onSpawned?: (instance: Instance) => void;
+  onSpawnStarted?: (jobId: string) => void;
 }
 
 export function RegionSelector({
   provider,
   onClose,
-  onSpawned,
+  onSpawnStarted,
 }: RegionSelectorProps) {
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
   const {
@@ -37,7 +37,7 @@ export function RegionSelector({
     setSelectedRegion(null);
   }, [provider]);
 
-  const { spawnInstance, instances } = useInstancesContext();
+  const { startSpawnJob, instances } = useInstancesContext();
 
   const handleEnableRegion = async (region: Region, event: React.MouseEvent) => {
     event.stopPropagation();
@@ -48,8 +48,10 @@ export function RegionSelector({
 
   const handleDeploy = async () => {
     if (selectedRegion && enabledRegions.has(selectedRegion.name)) {
-      const placeholder = await spawnInstance(selectedRegion.name, provider);
-      onSpawned?.(placeholder);
+      const spawnJob = await startSpawnJob(selectedRegion.name, provider);
+      if (spawnJob) {
+        onSpawnStarted?.(spawnJob.jobId);
+      }
       onClose();
     }
   };

@@ -6,11 +6,11 @@ import { useVpnConnectionContext } from "../contexts/VpnConnectionContext";
 
 export function VpnPage() {
   const { vpnStatus, checkVpnStatus } = useVpnConnectionContext();
-  const { refetch } = useInstancesContext();
+  const { refetchInstances } = useInstancesContext();
 
   useEffect(() => {
     checkVpnStatus();
-    refetch();
+    refetchInstances();
   }, []);
 
   if (vpnStatus.connected && vpnStatus.instance) {

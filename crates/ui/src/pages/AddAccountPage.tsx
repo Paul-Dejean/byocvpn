@@ -328,7 +328,6 @@ export function AddAccountPage({
     provisionAccount,
     closeProvisionDrawer,
   } = useAccounts({
-    onComplete: () => toast.success("Account connected successfully!"),
     onFailed: () => toast.error("Account setup failed"),
   });
 

@@ -62,7 +62,6 @@ export function useCredentials() {
       await invokeCommand("save_credentials", { credentials: { provider, ...credentials } });
       const message = "Credentials saved successfully!";
       setSuccessMessage(message);
-      toast.success(message);
       return true;
     } catch (err) {
       const message =
@@ -81,7 +80,6 @@ export function useCredentials() {
   ): Promise<boolean> => {
     try {
       await invokeCommand("delete_credentials", { provider });
-      toast.success("Credentials deleted successfully!");
       return true;
     } catch (err) {
       const message =

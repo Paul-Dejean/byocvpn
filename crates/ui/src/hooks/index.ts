@@ -1,5 +1,6 @@
 export { useRegions } from "./useRegions";
 export { useInstances } from "./useInstances";
+export { useSpawnJobs } from "./useSpawnJobs";
 export {
   useVpnConnection,
   ServerStatus,

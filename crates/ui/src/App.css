@@ -198,7 +198,7 @@
   }
 
   body {
-    background-color: var(--color-gray-900);
+    background-color: var(--color-gray-800);
     color: var(--color-gray-100);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;

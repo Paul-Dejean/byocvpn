@@ -50,7 +50,6 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
   } = useAccounts({
     onComplete: (provider) => {
       setProvisionedProviders((previous) => new Set([...previous, provider]));
-      toast.success("Account provisioned successfully!");
     },
     onFailed: () => toast.error("Provisioning failed"),
   });

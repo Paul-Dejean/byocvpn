@@ -4,10 +4,8 @@ use byocvpn_aws::{AwsCredentials, AwsProvider, pricing as aws_pricing};
 use byocvpn_azure::{AzureProvider, credentials::AzureCredentials, pricing as azure_pricing};
 use byocvpn_core::{
     cloud_provider::{
-        CloudProvider, CloudProviderName, EnableRegionCompleteEvent, EnableRegionJob,
-        EnableRegionProgressEvent, InstanceInfo, InstanceState, PricingInfo,
-        ProvisionAccountCompleteEvent, ProvisionAccountJob, ProvisionAccountProgressEvent,
-        SpawnCompleteEvent, SpawnJob, SpawnProgressEvent,
+        CloudProvider, CloudProviderName, InstanceInfo, InstanceState, PricingInfo,
+        SpawnJob, SpawnStep, SpawnStepStatus,
     },
     commands,
     commands::setup::Region,
@@ -25,13 +23,15 @@ use byocvpn_gcp::{GcpProvider, credentials::GcpCredentials, pricing as gcp_prici
 use byocvpn_oracle::{credentials::OracleCredentials, pricing as oracle_pricing};
 use chrono::Utc;
 use log::*;
-use serde_json::{Value, json};
-use tauri::{AppHandle, Emitter, Manager};
+use serde::Serialize;
+use serde_json::Value;
+use tauri::{AppHandle, Emitter, Manager, ipc::Channel};
+use tauri_plugin_notification::NotificationExt;
 
 use crate::ledger_store::LedgerStore;
 use crate::provider_credentials::ProviderCredentials;
 use crate::provider_store::ProviderStore;
-use crate::spawn_job_registry::{ActiveSpawnJob, SpawnJobRegistry};
+use crate::spawn_job_registry::{SpawnJobRegistry, SpawnJobState};
 use crate::tray;
 
 pub(crate) async fn create_cloud_provider(
@@ -129,12 +129,36 @@ pub async fn verify_permissions(
     commands::verify_permissions::verify_permissions(&*cloud_provider).await
 }
 
+#[derive(Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum SpawnInstanceEvent {
+    Started {
+        job: SpawnJobState,
+    },
+    #[serde(rename_all = "camelCase")]
+    Progress {
+        step_id: String,
+        status: SpawnStepStatus,
+        error: Option<String>,
+    },
+    InstanceLaunched {
+        instance: InstanceInfo,
+    },
+    Complete {
+        instance: InstanceInfo,
+    },
+    Failed {
+        error: String,
+    },
+}
+
 #[tauri::command]
 pub async fn spawn_instance(
     region: String,
     provider: String,
+    on_event: Channel<SpawnInstanceEvent>,
     app_handle: AppHandle,
-) -> Result<SpawnJob> {
+) -> Result<()> {
     let provider_name = CloudProviderName::from_str(&provider)?;
     let cloud_provider = create_cloud_provider(provider_name.clone()).await?;
 
@@ -151,13 +175,16 @@ pub async fn spawn_instance(
     let job_id = job.job_id.clone();
     let steps = job.steps.clone();
 
-    app_handle.state::<SpawnJobRegistry>().register(job.clone());
+    let job_state = app_handle.state::<SpawnJobRegistry>().register(job);
+    send_spawn_instance_event(&on_event, SpawnInstanceEvent::Started { job: job_state });
 
     tauri::async_runtime::spawn(async move {
         let job_id_for_progress = job_id.clone();
         let job_id_for_launched = job_id.clone();
         let progress_handle = app_handle.clone();
         let launched_handle = app_handle.clone();
+        let progress_channel = on_event.clone();
+        let launched_channel = on_event.clone();
         let region_for_launched = region.clone();
         let provider_name_for_launched = provider_name.clone();
 
@@ -173,19 +200,21 @@ pub async fn spawn_instance(
             move |step_id, status, error| {
                 progress_handle
                     .state::<SpawnJobRegistry>()
-                    .update_step_status(&job_id_for_progress, step_id, status.clone());
+                    .update_step_status(
+                        &job_id_for_progress,
+                        step_id,
+                        status.clone(),
+                        error.clone(),
+                    );
 
-                if let Err(error) = progress_handle.emit(
-                    "spawn-progress",
-                    SpawnProgressEvent {
-                        job_id: job_id_for_progress.clone(),
+                send_spawn_instance_event(
+                    &progress_channel,
+                    SpawnInstanceEvent::Progress {
                         step_id: step_id.to_string(),
                         status,
                         error,
                     },
-                ) {
-                    warn!("Failed to emit spawn-progress: {}", error);
-                }
+                );
             },
             move |instance| {
                 launched_handle
@@ -209,47 +238,87 @@ pub async fn spawn_instance(
 
                 let mut installing_instance = instance.clone();
                 installing_instance.state = InstanceState::Installing;
-                if let Err(error) = launched_handle.emit(
-                    "spawn-instance-launched",
-                    json!({ "jobId": &job_id_for_launched, "instance": installing_instance }),
-                ) {
-                    warn!("Failed to emit spawn-instance-launched: {}", error);
-                }
+                send_spawn_instance_event(
+                    &launched_channel,
+                    SpawnInstanceEvent::InstanceLaunched {
+                        instance: installing_instance,
+                    },
+                );
             },
         )
         .await;
 
-        app_handle.state::<SpawnJobRegistry>().deregister(&job_id);
-
         match result {
             Ok(mut instance) => {
+                app_handle.state::<SpawnJobRegistry>().deregister(&job_id);
                 if let Some(ledger) = LedgerStore::open(&app_handle) {
                     ledger.mark_setup_complete(&instance.id);
                 }
                 instance.state = InstanceState::Running;
-                if let Err(error) =
-                    app_handle.emit("spawn-complete", SpawnCompleteEvent { job_id, instance })
-                {
-                    warn!("Failed to emit spawn-complete: {}", error);
-                }
+                notify_server_deployed(&app_handle, &instance);
+                send_spawn_instance_event(&on_event, SpawnInstanceEvent::Complete { instance });
             }
             Err(error) => {
-                if let Err(error) = app_handle.emit(
-                    "spawn-failed",
-                    json!({ "jobId": &job_id, "error": error.to_string() }),
-                ) {
-                    warn!("Failed to emit spawn-failed: {}", error);
-                }
+                app_handle
+                    .state::<SpawnJobRegistry>()
+                    .mark_failed(&job_id, error.to_string());
+                send_spawn_instance_event(
+                    &on_event,
+                    SpawnInstanceEvent::Failed {
+                        error: error.to_string(),
+                    },
+                );
             }
         }
     });
 
-    Ok(job)
+    Ok(())
+}
+
+fn send_spawn_instance_event(channel: &Channel<SpawnInstanceEvent>, event: SpawnInstanceEvent) {
+    if let Err(error) = channel.send(event) {
+        warn!("Failed to send spawn-instance event: {}", error);
+    }
+}
+
+fn notify_server_deployed(app_handle: &AppHandle, instance: &InstanceInfo) {
+    if has_focused_window(app_handle) {
+        return;
+    }
+
+    let body = format!(
+        "Your {} server in {} is ready to connect.",
+        instance.provider.to_string().to_uppercase(),
+        instance.region
+    );
+    if let Err(error) = app_handle
+        .notification()
+        .builder()
+        .title("ByocVPN — Server Ready")
+        .body(&body)
+        .show()
+    {
+        warn!("Failed to send server-deployed notification: {}", error);
+    }
+}
+
+fn has_focused_window(app_handle: &AppHandle) -> bool {
+    app_handle.webview_windows().values().any(|window| {
+        window.is_visible().unwrap_or(false)
+            && window.is_focused().unwrap_or(false)
+            && !window.is_minimized().unwrap_or(false)
+    })
 }
 
 #[tauri::command]
-pub async fn list_active_spawn_jobs(app_handle: AppHandle) -> Result<Vec<ActiveSpawnJob>> {
+pub async fn list_active_spawn_jobs(app_handle: AppHandle) -> Result<Vec<SpawnJobState>> {
     Ok(app_handle.state::<SpawnJobRegistry>().list())
+}
+
+#[tauri::command]
+pub async fn dismiss_spawn_job(job_id: String, app_handle: AppHandle) -> Result<()> {
+    app_handle.state::<SpawnJobRegistry>().deregister(&job_id);
+    Ok(())
 }
 
 #[tauri::command]
@@ -378,42 +447,63 @@ pub async fn has_profile() -> Result<bool> {
         || AzureCredentials::from_store(&store).is_ok())
 }
 
+#[derive(Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ProvisionAccountEvent {
+    #[serde(rename_all = "camelCase")]
+    Started {
+        job_id: String,
+        steps: Vec<SpawnStep>,
+    },
+    #[serde(rename_all = "camelCase")]
+    Progress {
+        step_id: String,
+        status: SpawnStepStatus,
+        error: Option<String>,
+    },
+    Complete {
+        provider: CloudProviderName,
+    },
+    Failed {
+        error: String,
+    },
+}
+
 #[tauri::command]
 pub async fn provision_account(
     provider: String,
+    on_event: Channel<ProvisionAccountEvent>,
     app_handle: AppHandle,
-) -> Result<ProvisionAccountJob> {
+) -> Result<()> {
     let provider_name = CloudProviderName::from_str(&provider)?;
     let cloud_provider = create_cloud_provider(provider_name.clone()).await?;
 
-    let job = ProvisionAccountJob {
-        job_id: format!("{}-{}", provider_name, Utc::now().timestamp_millis()),
-        steps: cloud_provider.get_provision_account_steps(),
-        provider: provider_name,
-    };
+    let job_id = format!("{}-{}", provider_name, Utc::now().timestamp_millis());
+    let steps = cloud_provider.get_provision_account_steps();
 
-    let job_id = job.job_id.clone();
-    let steps = job.steps.clone();
+    send_provision_account_event(
+        &on_event,
+        ProvisionAccountEvent::Started {
+            job_id,
+            steps: steps.clone(),
+        },
+    );
 
     tauri::async_runtime::spawn(async move {
-        let job_id_for_progress = job_id.clone();
-        let progress_handle = app_handle.clone();
+        let progress_channel = on_event.clone();
 
         let result = commands::setup::run_provision_account_steps(
             &*cloud_provider,
             &steps,
             move |step_id, status, error| {
-                if let Err(error) = progress_handle.emit(
-                    "provision-account-progress",
-                    ProvisionAccountProgressEvent {
-                        job_id: job_id_for_progress.clone(),
+                send_provision_account_event(
+                    &progress_channel,
+                    ProvisionAccountEvent::Progress {
                         step_id: step_id.to_string(),
                         status,
                         error,
                     },
-                ) {
-                    warn!("Failed to emit provision-account-progress: {}", error);
-                }
+                );
             },
         )
         .await;
@@ -428,74 +518,100 @@ pub async fn provision_account(
                         provider
                     );
                 }
-                if let Err(error) = app_handle.emit(
-                    "provision-account-complete",
-                    ProvisionAccountCompleteEvent {
-                        job_id,
+                send_provision_account_event(
+                    &on_event,
+                    ProvisionAccountEvent::Complete {
                         provider: cloud_provider.get_provider_name(),
                     },
-                ) {
-                    warn!("Failed to emit provision-account-complete: {}", error);
-                }
+                );
             }
             Err(error) => {
-                if let Err(error) = app_handle.emit(
-                    "provision-account-failed",
-                    json!({ "jobId": &job_id, "error": error.to_string() }),
-                ) {
-                    warn!("Failed to emit provision-account-failed: {}", error);
-                }
+                send_provision_account_event(
+                    &on_event,
+                    ProvisionAccountEvent::Failed {
+                        error: error.to_string(),
+                    },
+                );
             }
         }
     });
 
-    Ok(job)
+    Ok(())
+}
+
+fn send_provision_account_event(
+    channel: &Channel<ProvisionAccountEvent>,
+    event: ProvisionAccountEvent,
+) {
+    if let Err(error) = channel.send(event) {
+        warn!("Failed to send provision-account event: {}", error);
+    }
+}
+
+#[derive(Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum EnableRegionEvent {
+    #[serde(rename_all = "camelCase")]
+    Started {
+        job_id: String,
+        steps: Vec<SpawnStep>,
+    },
+    #[serde(rename_all = "camelCase")]
+    Progress {
+        step_id: String,
+        status: SpawnStepStatus,
+        error: Option<String>,
+    },
+    Complete {
+        region: String,
+    },
+    Failed {
+        error: String,
+    },
 }
 
 #[tauri::command]
 pub async fn enable_region(
     region: String,
     provider: String,
+    on_event: Channel<EnableRegionEvent>,
     app_handle: AppHandle,
-) -> Result<EnableRegionJob> {
+) -> Result<()> {
     let provider_name = CloudProviderName::from_str(&provider)?;
     let cloud_provider = create_cloud_provider(provider_name.clone()).await?;
 
-    let job = EnableRegionJob {
-        job_id: format!(
-            "{}-{}-{}",
-            provider_name,
-            region,
-            Utc::now().timestamp_millis()
-        ),
-        steps: cloud_provider.get_enable_region_steps(&region),
-        region: region.clone(),
-        provider: provider_name,
-    };
+    let job_id = format!(
+        "{}-{}-{}",
+        provider_name,
+        region,
+        Utc::now().timestamp_millis()
+    );
+    let steps = cloud_provider.get_enable_region_steps(&region);
 
-    let job_id = job.job_id.clone();
-    let steps = job.steps.clone();
+    send_enable_region_event(
+        &on_event,
+        EnableRegionEvent::Started {
+            job_id,
+            steps: steps.clone(),
+        },
+    );
 
     tauri::async_runtime::spawn(async move {
-        let job_id_for_progress = job_id.clone();
-        let progress_handle = app_handle.clone();
+        let progress_channel = on_event.clone();
 
         let result = commands::setup::run_enable_region_steps(
             &*cloud_provider,
             &steps,
             &region,
             move |step_id, status, error| {
-                if let Err(error) = progress_handle.emit(
-                    "enable-region-progress",
-                    EnableRegionProgressEvent {
-                        job_id: job_id_for_progress.clone(),
+                send_enable_region_event(
+                    &progress_channel,
+                    EnableRegionEvent::Progress {
                         step_id: step_id.to_string(),
                         status,
                         error,
                     },
-                ) {
-                    warn!("Failed to emit enable-region-progress: {}", error);
-                }
+                );
             },
         )
         .await;
@@ -510,29 +626,26 @@ pub async fn enable_region(
                         region, provider
                     );
                 }
-                if let Err(error) = app_handle.emit(
-                    "enable-region-complete",
-                    EnableRegionCompleteEvent {
-                        job_id,
-                        region,
-                        provider: cloud_provider.get_provider_name(),
-                    },
-                ) {
-                    warn!("Failed to emit enable-region-complete: {}", error);
-                }
+                send_enable_region_event(&on_event, EnableRegionEvent::Complete { region });
             }
             Err(error) => {
-                if let Err(error) = app_handle.emit(
-                    "enable-region-failed",
-                    json!({ "jobId": &job_id, "error": error.to_string() }),
-                ) {
-                    warn!("Failed to emit enable-region-failed: {}", error);
-                }
+                send_enable_region_event(
+                    &on_event,
+                    EnableRegionEvent::Failed {
+                        error: error.to_string(),
+                    },
+                );
             }
         }
     });
 
-    Ok(job)
+    Ok(())
+}
+
+fn send_enable_region_event(channel: &Channel<EnableRegionEvent>, event: EnableRegionEvent) {
+    if let Err(error) = channel.send(event) {
+        warn!("Failed to send enable-region event: {}", error);
+    }
 }
 
 #[tauri::command]

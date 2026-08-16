@@ -1,43 +1,50 @@
-import { Instance, RegionGroup, SpawnJobState } from "../../types";
+import { Instance, RegionGroup, SpawnJob } from "../../types";
 import { ServerCard } from "./ServerCard";
+import { SpawnJobCard } from "../jobs/SpawnJobCard";
 import { Spinner } from "../primitives/Spinner";
 import { Button } from "../primitives/Button";
 
 interface ServerListProps {
-
   instances: Instance[];
-
-  selectedInstance: Instance | null;
-
+  spawnJobs: SpawnJob[];
+  selectedInstanceId: string | null;
+  selectedJobId: string | null;
   groupedRegions: RegionGroup[];
-
   isLoading: boolean;
   isRefreshing: boolean;
-
-  getSpawnJobForInstance: (instanceId: string) => SpawnJobState | undefined;
-
   onSelectInstance: (instance: Instance) => void;
-
+  onSelectSpawnJob: (spawnJob: SpawnJob) => void;
   onAddNewServer: () => void;
 }
 
 export function ServerList({
   instances,
-  selectedInstance,
+  spawnJobs,
+  selectedInstanceId,
+  selectedJobId,
   groupedRegions,
   isLoading,
   isRefreshing,
-  getSpawnJobForInstance,
   onSelectInstance,
+  onSelectSpawnJob,
   onAddNewServer,
 }: ServerListProps) {
+  const isEmpty = instances.length === 0 && spawnJobs.length === 0;
+
+  function findSpawnJobForInstance(instance: Instance) {
+    return spawnJobs.find((spawnJob) => spawnJob.jobId === instance.spawnId);
+  }
+
   return (
     <div className="w-fit min-w-80 flex-shrink-0 border-r border-gray-700/50 flex flex-col bg-gray-900">
-      <div className="px-4 pt-4 pb-2 border-b border-gray-700/50">
+      <div className="px-4 pt-4 pb-2 border-b border-gray-700/50 flex items-center gap-2">
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Servers</h2>
+        {(isLoading || isRefreshing) && (
+          <Spinner size="w-3 h-3" color="border-gray-500" thickness="border-2" />
+        )}
       </div>
       <div className="flex-1 overflow-y-auto p-4">
-        {instances.length === 0 ? (
+        {isEmpty ? (
           isLoading || isRefreshing ? (
             <div className="flex justify-center py-8">
               <Spinner size="w-8 h-8" color="border-blue-500" thickness="border-4" />
@@ -49,22 +56,24 @@ export function ServerList({
           )
         ) : (
           <div className="flex flex-col gap-2">
-            {(isLoading || isRefreshing) && (
-              <p className="text-xs text-gray-500 text-center py-1">Refreshing server list…</p>
-            )}
-            {instances.map((instance) => {
-              const spawnJob = getSpawnJobForInstance(instance.id);
-              return (
-                <ServerCard
-                  key={spawnJob?.jobId ?? instance.id}
-                  instance={instance}
-                  isSelected={selectedInstance?.id === instance.id}
-                  groupedRegions={groupedRegions}
-                  spawnJob={spawnJob}
-                  onSelect={onSelectInstance}
-                />
-              );
-            })}
+            {spawnJobs.map((spawnJob) => (
+              <SpawnJobCard
+                key={spawnJob.jobId}
+                spawnJob={spawnJob}
+                isSelected={selectedJobId === spawnJob.jobId}
+                onSelect={onSelectSpawnJob}
+              />
+            ))}
+            {instances.map((instance) => (
+              <ServerCard
+                key={instance.id}
+                instance={instance}
+                isSelected={selectedInstanceId === instance.id}
+                groupedRegions={groupedRegions}
+                spawnJob={findSpawnJobForInstance(instance)}
+                onSelect={onSelectInstance}
+              />
+            ))}
           </div>
         )}
       </div>

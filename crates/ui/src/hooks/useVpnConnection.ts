@@ -89,7 +89,6 @@ export function useVpnConnection() {
       });
 
       console.log("VPN connected:", response);
-      toast.success("Connected to VPN successfully!");
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Failed to connect to VPN";
@@ -108,7 +107,6 @@ export function useVpnConnection() {
     try {
       const response = await invokeCommand("disconnect");
       console.log("VPN disconnected:", response);
-      toast.success("Disconnected from VPN");
     } catch (error) {
       const errorMessage =
         error instanceof Error
