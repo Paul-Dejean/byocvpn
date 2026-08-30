@@ -232,6 +232,7 @@ pub async fn spawn_instance(
                         instance_type: instance.instance_type.clone(),
                         launched_at: instance.launched_at.unwrap_or_else(Utc::now),
                         terminated_at: None,
+                        idle_since: Some(Utc::now()),
                         setup_complete: false,
                         bytes_sent: 0,
                         bytes_received: 0,

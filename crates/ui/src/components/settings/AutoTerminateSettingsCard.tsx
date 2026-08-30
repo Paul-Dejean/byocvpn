@@ -49,10 +49,11 @@ export function AutoTerminateSettingsCard() {
           </div>
           <div className="min-w-0">
             <h3 className="font-semibold text-primary">
-              Auto-Terminate Servers
+              Auto-Terminate Idle Servers
             </h3>
             <p className="text-sm text-gray-400 mt-0.5">
-              Automatically terminate servers that have been running too long
+              Automatically terminate servers left running without a VPN
+              connection
             </p>
           </div>
         </div>
@@ -80,11 +81,13 @@ export function AutoTerminateSettingsCard() {
                 })
               }
             />
+            <span className="text-xs text-gray-400">without a connection</span>
           </div>
 
           <p className="text-xs text-gray-500">
-            Only runs while the app is open. Servers are fully terminated, so a
-            forgotten one won't keep costing you.
+            The idle timer resets every time you connect. Only runs while the
+            app is open. Servers are fully terminated, so a forgotten one won't
+            keep costing you.
           </p>
         </div>
       )}

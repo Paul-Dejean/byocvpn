@@ -120,6 +120,7 @@ export type LedgerEntry = {
 	instanceType: string,
 	launchedAt: string,
 	terminatedAt: string | null,
+	idleSince?: string | null,
 	setupComplete?: boolean,
 	bytesSent: number,
 	bytesReceived: number,
