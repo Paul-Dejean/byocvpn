@@ -5,14 +5,13 @@ use aws_sdk_ec2::Client as Ec2Client;
 use aws_sdk_ssm::Client as SsmClient;
 use byocvpn_core::{
     cloud_provider::{
-        CloudProvider, CloudProviderName, InstanceInfo, SpawnInstanceParams, SpawnStep,
-        TerminateInstanceParams,
+        CloudProvider, CloudProviderName, InstanceInfo, PermissionStatus, SpawnInstanceParams,
+        SpawnStep, TerminateInstanceParams,
     },
     commands::setup::Region,
     error::{NetworkProvisioningError, Result},
 };
 use log::*;
-use serde_json::Value;
 
 use crate::constants::{
     SECURITY_GROUP_NAME, SUBNET_CIDR_BLOCK, SUBNET_NAME, VPC_CIDR_BLOCK, VPC_NAME,
@@ -69,7 +68,7 @@ impl CloudProvider for AwsProvider {
         ]
     }
 
-    async fn verify_permissions(&self) -> Result<Value> {
+    async fn verify_permissions(&self) -> Result<Vec<PermissionStatus>> {
         let ec2_client = self.create_ec2_client(None).await;
         let ssm_client = self.create_ssm_client(None).await;
         permissions::verify_permissions(&ec2_client, &ssm_client).await

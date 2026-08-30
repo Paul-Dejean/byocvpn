@@ -1,11 +1,11 @@
-use std::{collections::HashSet, str::FromStr};
+use std::collections::HashSet;
 
 use byocvpn_aws::{AwsCredentials, AwsProvider, pricing as aws_pricing};
 use byocvpn_azure::{AzureProvider, credentials::AzureCredentials, pricing as azure_pricing};
 use byocvpn_core::{
     cloud_provider::{
-        CloudProvider, CloudProviderName, InstanceInfo, InstanceState, PricingInfo,
-        SpawnJob, SpawnStep, SpawnStepStatus,
+        CloudProvider, CloudProviderName, InstanceInfo, InstanceState, PermissionStatus,
+        PricingInfo, SpawnJob, SpawnStep, SpawnStepStatus,
     },
     commands,
     commands::setup::Region,
@@ -24,10 +24,11 @@ use byocvpn_oracle::{credentials::OracleCredentials, pricing as oracle_pricing};
 use chrono::Utc;
 use log::*;
 use serde::Serialize;
-use serde_json::Value;
-use tauri::{AppHandle, Emitter, Manager, ipc::Channel};
+use tauri::{AppHandle, Manager, ipc::Channel};
 use tauri_plugin_notification::NotificationExt;
+use tauri_specta::Event;
 
+use crate::events::VpnStatusEvent;
 use crate::ledger_store::LedgerStore;
 use crate::provider_credentials::ProviderCredentials;
 use crate::provider_store::ProviderStore;
@@ -35,11 +36,11 @@ use crate::spawn_job_registry::{SpawnJobRegistry, SpawnJobState};
 use crate::tray;
 
 pub(crate) async fn create_cloud_provider(
-    provider_name: CloudProviderName,
+    provider: CloudProviderName,
 ) -> Result<Box<dyn CloudProvider>> {
-    debug!("Creating {} cloud provider", provider_name);
+    debug!("Creating {} cloud provider", provider);
     let store = CredentialStore::load().await?;
-    let provider: Box<dyn CloudProvider> = match provider_name {
+    let provider: Box<dyn CloudProvider> = match provider {
         CloudProviderName::Aws => {
             Box::new(AwsProvider::new(AwsCredentials::from_store(&store)?.into()).await)
         }
@@ -57,16 +58,17 @@ pub(crate) async fn create_cloud_provider(
 }
 
 #[tauri::command]
-pub async fn get_credentials(provider: String) -> Result<Option<ProviderCredentials>> {
+#[specta::specta]
+pub async fn get_credentials(provider: CloudProviderName) -> Result<Option<ProviderCredentials>> {
     let store = match CredentialStore::load().await {
         Ok(store) => store,
         Err(_) => return Ok(None),
     };
-    let provider_name = CloudProviderName::from_str(&provider)?;
-    Ok(ProviderCredentials::load(provider_name, &store).ok())
+    Ok(ProviderCredentials::load(provider, &store).ok())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn save_credentials(credentials: ProviderCredentials) -> Result<()> {
     let mut store = CredentialStore::load().await?;
     credentials.write_to_store(&mut store);
@@ -74,10 +76,10 @@ pub async fn save_credentials(credentials: ProviderCredentials) -> Result<()> {
 }
 
 #[tauri::command]
-pub async fn delete_credentials(provider: String, app_handle: AppHandle) -> Result<()> {
+#[specta::specta]
+pub async fn delete_credentials(provider: CloudProviderName, app_handle: AppHandle) -> Result<()> {
     let mut store = CredentialStore::load().await?;
-    let provider_name = CloudProviderName::from_str(&provider)?;
-    let section = match provider_name {
+    let section = match provider {
         CloudProviderName::Aws => AwsCredentials::CREDENTIALS_SECTION,
         CloudProviderName::Oracle => OracleCredentials::CREDENTIALS_SECTION,
         CloudProviderName::Gcp => GcpCredentials::CREDENTIALS_SECTION,
@@ -86,11 +88,11 @@ pub async fn delete_credentials(provider: String, app_handle: AppHandle) -> Resu
     store.delete_section(section);
     store.save()?;
     if let Some(provider_store) = ProviderStore::open(&app_handle) {
-        provider_store.clear_provisioned(&provider_name.to_string());
+        provider_store.clear_provisioned(&provider.to_string());
     } else {
         debug!(
             "Provider store unavailable when deleting credentials for {}",
-            provider_name
+            provider
         );
     }
     Ok(())
@@ -117,20 +119,21 @@ async fn create_cloud_provider_from_credentials(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn verify_permissions(
-    provider: String,
+    provider: CloudProviderName,
     credentials: Option<ProviderCredentials>,
-) -> Result<Value> {
-    let provider_name = CloudProviderName::from_str(&provider)?;
+) -> Result<Vec<PermissionStatus>> {
     let cloud_provider: Box<dyn CloudProvider> = match credentials {
         Some(credentials) => create_cloud_provider_from_credentials(credentials).await?,
-        None => create_cloud_provider(provider_name).await?,
+        None => create_cloud_provider(provider).await?,
     };
     commands::verify_permissions::verify_permissions(&*cloud_provider).await
 }
 
 #[derive(Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE")]
+#[derive(specta::Type)]
 pub enum SpawnInstanceEvent {
     Started {
         job: SpawnJobState,
@@ -153,23 +156,23 @@ pub enum SpawnInstanceEvent {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn spawn_instance(
     region: String,
-    provider: String,
+    provider: CloudProviderName,
     on_event: Channel<SpawnInstanceEvent>,
     app_handle: AppHandle,
 ) -> Result<()> {
-    let provider_name = CloudProviderName::from_str(&provider)?;
-    let cloud_provider = create_cloud_provider(provider_name.clone()).await?;
+    let cloud_provider = create_cloud_provider(provider.clone()).await?;
 
     let (client_private_key, client_public_key) = generate_keypair();
     let (server_private_key, server_public_key) = generate_keypair();
 
     let job = SpawnJob {
-        job_id: format!("{}-{}", provider_name, Utc::now().timestamp_millis()),
+        job_id: format!("{}-{}", provider, Utc::now().timestamp_millis()),
         steps: cloud_provider.get_spawn_steps(&region),
         region: region.clone(),
-        provider: provider_name.clone(),
+        provider: provider.clone(),
     };
 
     let job_id = job.job_id.clone();
@@ -186,7 +189,7 @@ pub async fn spawn_instance(
         let progress_channel = on_event.clone();
         let launched_channel = on_event.clone();
         let region_for_launched = region.clone();
-        let provider_name_for_launched = provider_name.clone();
+        let provider_for_launched = provider.clone();
 
         let result = commands::spawn::run_spawn_steps(
             &*cloud_provider,
@@ -224,7 +227,7 @@ pub async fn spawn_instance(
                 if let Some(ledger) = LedgerStore::open(&launched_handle) {
                     let entry = LedgerEntry {
                         instance_id: instance.id.clone(),
-                        provider: provider_name_for_launched.clone(),
+                        provider: provider_for_launched.clone(),
                         region: region_for_launched.clone(),
                         instance_type: instance.instance_type.clone(),
                         launched_at: instance.launched_at.unwrap_or_else(Utc::now),
@@ -311,25 +314,27 @@ fn has_focused_window(app_handle: &AppHandle) -> bool {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_active_spawn_jobs(app_handle: AppHandle) -> Result<Vec<SpawnJobState>> {
     Ok(app_handle.state::<SpawnJobRegistry>().list())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn dismiss_spawn_job(job_id: String, app_handle: AppHandle) -> Result<()> {
     app_handle.state::<SpawnJobRegistry>().deregister(&job_id);
     Ok(())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn terminate_instance(
     instance_id: String,
     region: String,
-    provider: String,
+    provider: CloudProviderName,
     app_handle: AppHandle,
 ) -> Result<String> {
-    let provider_name = CloudProviderName::from_str(&provider)?;
-    let cloud_provider = create_cloud_provider(provider_name).await?;
+    let cloud_provider = create_cloud_provider(provider).await?;
     commands::terminate::terminate_instance(&*cloud_provider, &region, &instance_id).await?;
 
     if let Some(ledger) = LedgerStore::open(&app_handle) {
@@ -340,6 +345,7 @@ pub async fn terminate_instance(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_instances(
     region: Option<String>,
     app_handle: AppHandle,
@@ -347,20 +353,22 @@ pub async fn list_instances(
     let region_ref = region.as_deref();
 
     async fn list_provider_instances(
-        provider_name: CloudProviderName,
+        provider: CloudProviderName,
         region: Option<&str>,
     ) -> (CloudProviderName, Option<Vec<InstanceInfo>>) {
-        match create_cloud_provider(provider_name.clone()).await {
-            Ok(provider) => match commands::list::list_instances(&*provider, region).await {
-                Ok(instances) => (provider_name, Some(instances)),
-                Err(error) => {
-                    error!("Failed to list {} instances: {}", provider_name, error);
-                    (provider_name, None)
+        match create_cloud_provider(provider.clone()).await {
+            Ok(cloud_provider) => {
+                match commands::list::list_instances(&*cloud_provider, region).await {
+                    Ok(instances) => (provider, Some(instances)),
+                    Err(error) => {
+                        error!("Failed to list {} instances: {}", provider, error);
+                        (provider, None)
+                    }
                 }
-            },
+            }
             Err(error) => {
-                debug!("No credentials for {}, skipping: {}", provider_name, error);
-                (provider_name, None)
+                debug!("No credentials for {}, skipping: {}", provider, error);
+                (provider, None)
             }
         }
     }
@@ -373,17 +381,17 @@ pub async fn list_instances(
     );
 
     let mut all_instances: Vec<InstanceInfo> = Vec::new();
-    let mut queried_provider_names: Vec<CloudProviderName> = Vec::new();
-    for (provider_name, result) in [r_aws, r_oracle, r_gcp, r_azure] {
+    let mut queried_providers: Vec<CloudProviderName> = Vec::new();
+    for (provider, result) in [r_aws, r_oracle, r_gcp, r_azure] {
         if let Some(instances) = result {
-            queried_provider_names.push(provider_name);
+            queried_providers.push(provider);
             all_instances.extend(instances);
         }
     }
 
     if let Some(ledger) = LedgerStore::open(&app_handle) {
         let running_ids: HashSet<&str> = all_instances.iter().map(|i| i.id.as_str()).collect();
-        ledger.reconcile_terminated(&running_ids, &queried_provider_names);
+        ledger.reconcile_terminated(&running_ids, &queried_providers);
 
         let in_progress_ids = app_handle
             .state::<SpawnJobRegistry>()
@@ -436,6 +444,7 @@ pub async fn list_instances(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn has_profile() -> Result<bool> {
     let store = match CredentialStore::load().await {
         Ok(store) => store,
@@ -449,6 +458,7 @@ pub async fn has_profile() -> Result<bool> {
 
 #[derive(Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE")]
+#[derive(specta::Type)]
 pub enum ProvisionAccountEvent {
     #[serde(rename_all = "camelCase")]
     Started {
@@ -470,15 +480,15 @@ pub enum ProvisionAccountEvent {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn provision_account(
-    provider: String,
+    provider: CloudProviderName,
     on_event: Channel<ProvisionAccountEvent>,
     app_handle: AppHandle,
 ) -> Result<()> {
-    let provider_name = CloudProviderName::from_str(&provider)?;
-    let cloud_provider = create_cloud_provider(provider_name.clone()).await?;
+    let cloud_provider = create_cloud_provider(provider.clone()).await?;
 
-    let job_id = format!("{}-{}", provider_name, Utc::now().timestamp_millis());
+    let job_id = format!("{}-{}", provider, Utc::now().timestamp_millis());
     let steps = cloud_provider.get_provision_account_steps();
 
     send_provision_account_event(
@@ -511,7 +521,7 @@ pub async fn provision_account(
         match result {
             Ok(()) => {
                 if let Some(provider_store) = ProviderStore::open(&app_handle) {
-                    provider_store.mark_provisioned(&provider);
+                    provider_store.mark_provisioned(&provider.to_string());
                 } else {
                     debug!(
                         "Provider store unavailable when marking {} provisioned",
@@ -550,6 +560,7 @@ fn send_provision_account_event(
 
 #[derive(Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE")]
+#[derive(specta::Type)]
 pub enum EnableRegionEvent {
     #[serde(rename_all = "camelCase")]
     Started {
@@ -571,21 +582,16 @@ pub enum EnableRegionEvent {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn enable_region(
     region: String,
-    provider: String,
+    provider: CloudProviderName,
     on_event: Channel<EnableRegionEvent>,
     app_handle: AppHandle,
 ) -> Result<()> {
-    let provider_name = CloudProviderName::from_str(&provider)?;
-    let cloud_provider = create_cloud_provider(provider_name.clone()).await?;
+    let cloud_provider = create_cloud_provider(provider.clone()).await?;
 
-    let job_id = format!(
-        "{}-{}-{}",
-        provider_name,
-        region,
-        Utc::now().timestamp_millis()
-    );
+    let job_id = format!("{}-{}-{}", provider, region, Utc::now().timestamp_millis());
     let steps = cloud_provider.get_enable_region_steps(&region);
 
     send_enable_region_event(
@@ -619,7 +625,7 @@ pub async fn enable_region(
         match result {
             Ok(()) => {
                 if let Some(provider_store) = ProviderStore::open(&app_handle) {
-                    provider_store.mark_region_enabled(&provider, &region);
+                    provider_store.mark_region_enabled(&provider.to_string(), &region);
                 } else {
                     debug!(
                         "Provider store unavailable when marking region {} enabled for {}",
@@ -649,9 +655,9 @@ fn send_enable_region_event(channel: &Channel<EnableRegionEvent>, event: EnableR
 }
 
 #[tauri::command]
-pub async fn get_regions(provider: String) -> Result<Vec<Region>> {
-    let provider_name = CloudProviderName::from_str(&provider)?;
-    let cloud_provider = create_cloud_provider(provider_name).await?;
+#[specta::specta]
+pub async fn get_regions(provider: CloudProviderName) -> Result<Vec<Region>> {
+    let cloud_provider = create_cloud_provider(provider).await?;
     commands::setup::get_regions(&*cloud_provider).await
 }
 
@@ -660,16 +666,16 @@ pub(crate) async fn fetch_vpn_status() -> Result<VpnStatus> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn connect(
     instance_id: String,
     region: String,
-    provider: String,
+    provider: CloudProviderName,
     public_ip_v4: Option<String>,
     public_ip_v6: Option<String>,
     app_handle: AppHandle,
 ) -> Result<String> {
-    let provider_name = CloudProviderName::from_str(&provider)?;
-    let cloud_provider = create_cloud_provider(provider_name).await?;
+    let cloud_provider = create_cloud_provider(provider).await?;
     let daemon_client = UnixDaemonClient;
 
     let kill_switch_enabled = crate::settings_store::SettingsStore::open(&app_handle)
@@ -710,7 +716,7 @@ pub async fn connect(
                     };
                 }
                 tray::update_tray(&tray_handle, &status);
-                let _ = emit_handle.emit("vpn-status", &status);
+                let _ = VpnStatusEvent(status.clone()).emit(&emit_handle);
             },
         )
         .await
@@ -720,7 +726,7 @@ pub async fn connect(
     }
 
     tray::update_tray(&app_handle, &vpn_status);
-    if let Err(error) = app_handle.emit("vpn-status", &vpn_status) {
+    if let Err(error) = VpnStatusEvent(vpn_status.clone()).emit(&app_handle) {
         warn!("Failed to emit vpn-status: {}", error);
     }
 
@@ -731,6 +737,7 @@ pub async fn connect(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn disconnect(app_handle: AppHandle) -> Result<String> {
     metrics_stream::stop().await?;
 
@@ -751,7 +758,7 @@ pub async fn disconnect(app_handle: AppHandle) -> Result<String> {
         connection_error: None,
     };
     tray::update_tray(&app_handle, &disconnected_status);
-    if let Err(error) = app_handle.emit("vpn-status", &disconnected_status) {
+    if let Err(error) = VpnStatusEvent(disconnected_status.clone()).emit(&app_handle) {
         warn!("Failed to emit vpn-status: {}", error);
     }
 
@@ -761,11 +768,13 @@ pub async fn disconnect(app_handle: AppHandle) -> Result<String> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_vpn_status() -> Result<VpnStatus> {
     fetch_vpn_status().await
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn subscribe_to_vpn_status(app_handle: AppHandle) -> Result<()> {
     let status = fetch_vpn_status().await?;
     let connected_instance = status.instance.ok_or_else(|| -> Error {
@@ -799,7 +808,7 @@ pub async fn subscribe_to_vpn_status(app_handle: AppHandle) -> Result<()> {
                 };
             }
             tray::update_tray(&tray_handle, &vpn_status);
-            let _ = emit_handle.emit("vpn-status", &vpn_status);
+            let _ = VpnStatusEvent(vpn_status.clone()).emit(&emit_handle);
         },
         move |bytes_sent, bytes_received| {
             if let Some(ledger) = LedgerStore::open(&ledger_handle) {
@@ -811,9 +820,12 @@ pub async fn subscribe_to_vpn_status(app_handle: AppHandle) -> Result<()> {
 }
 
 #[tauri::command]
-pub async fn get_instance_pricing(provider: String, instance_type: String) -> Result<PricingInfo> {
-    let provider_name = CloudProviderName::from_str(&provider)?;
-    let pricing = match provider_name {
+#[specta::specta]
+pub async fn get_instance_pricing(
+    provider: CloudProviderName,
+    instance_type: String,
+) -> Result<PricingInfo> {
+    let pricing = match provider {
         CloudProviderName::Aws => aws_pricing::get_pricing(&instance_type),
         CloudProviderName::Azure => azure_pricing::get_pricing(&instance_type),
         CloudProviderName::Gcp => gcp_pricing::get_pricing(&instance_type),
@@ -821,13 +833,14 @@ pub async fn get_instance_pricing(provider: String, instance_type: String) -> Re
     };
     pricing.ok_or_else(|| {
         ConfigurationError::MissingField {
-            field: format!("pricing/{}/{}", provider_name, instance_type),
+            field: format!("pricing/{}/{}", provider, instance_type),
         }
         .into()
     })
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn save_file(path: String, content: String) -> Result<()> {
     debug!("Writing file: {}", path);
     tokio::fs::write(&path, content)
@@ -841,7 +854,8 @@ pub async fn save_file(path: String, content: String) -> Result<()> {
 }
 
 #[tauri::command]
-pub async fn get_ledger(app_handle: AppHandle) -> Result<Vec<Value>> {
+#[specta::specta]
+pub async fn get_ledger(app_handle: AppHandle) -> Result<Vec<LedgerEntry>> {
     let ledger = LedgerStore::open(&app_handle).ok_or_else(|| -> Error {
         ConfigurationError::InvalidFile {
             reason: "failed to open ledger store".to_string(),

@@ -58,9 +58,18 @@ export function InstanceCostRow({ entry }: InstanceCostRowProps) {
         </td>
         <td className="py-3 px-4">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-semibold text-warning-300">
-              ${entry.estimatedCost.toFixed(4)}
-            </span>
+            {entry.isPricingUnknown ? (
+              <span
+                className="text-sm font-semibold text-gray-500"
+                title="Pricing unavailable for this instance type"
+              >
+                —
+              </span>
+            ) : (
+              <span className="text-sm font-semibold text-warning-300">
+                ${entry.estimatedCost.toFixed(4)}
+              </span>
+            )}
             <svg
               className={`w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0 ${
                 isExpanded ? "rotate-180" : ""
@@ -83,6 +92,12 @@ export function InstanceCostRow({ entry }: InstanceCostRowProps) {
         <tr className="border-b border-gray-700/50 bg-gray-900/40">
           <td colSpan={8} className="px-6 py-4">
             <div className="max-w-lg">
+              {entry.isPricingUnknown ? (
+                <p className="text-sm text-gray-400">
+                  Pricing is unavailable for this instance type, so no cost
+                  estimate can be shown.
+                </p>
+              ) : (
               <table className="w-full text-sm">
                 <tbody>
                   <tr>
@@ -131,6 +146,7 @@ export function InstanceCostRow({ entry }: InstanceCostRowProps) {
                   </tr>
                 </tbody>
               </table>
+              )}
               <div className="mt-3 flex gap-6 text-xs text-gray-500">
                 <span>Sent: {formatBytes(entry.bytesSent)}</span>
                 <span>Received: {formatBytes(entry.bytesReceived)}</span>

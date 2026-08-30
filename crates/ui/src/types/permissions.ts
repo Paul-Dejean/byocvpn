@@ -1,7 +1,6 @@
-export interface PermissionStatus {
-  permission: string;
-  granted: boolean;
-}
+import type { PermissionStatus } from "../bindings";
+
+export type { PermissionStatus };
 
 export type Permissions = PermissionStatus[];
 

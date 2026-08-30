@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::cloud_provider::CloudProviderName;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct LedgerEntry {
     pub instance_id: String,
@@ -14,7 +15,9 @@ pub struct LedgerEntry {
     pub terminated_at: Option<DateTime<Utc>>,
     #[serde(default)]
     pub setup_complete: bool,
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub bytes_sent: u64,
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub bytes_received: u64,
 }
 

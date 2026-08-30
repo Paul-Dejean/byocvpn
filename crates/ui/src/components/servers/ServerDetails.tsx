@@ -161,6 +161,9 @@ export function ServerDetails({
             )}
           </div>
 
+          {instance.state === InstanceState.Error && instance.errorReason && (
+            <Alert variant="error">{instance.errorReason}</Alert>
+          )}
           {vpnError && <Alert variant="error">{vpnError}</Alert>}
         </div>
       </div>

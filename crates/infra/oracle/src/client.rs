@@ -20,11 +20,17 @@ impl OciClient {
     }
 
     pub fn build_core_url(&self, path: &str) -> String {
-        format!("https://iaas.{}.oraclecloud.com/20160918{}", self.credentials.region, path)
+        format!(
+            "https://iaas.{}.oraclecloud.com/20160918{}",
+            self.credentials.region, path
+        )
     }
 
     pub fn build_identity_url(&self, path: &str) -> String {
-        format!("https://identity.{}.oraclecloud.com/20160918{}", self.credentials.region, path)
+        format!(
+            "https://identity.{}.oraclecloud.com/20160918{}",
+            self.credentials.region, path
+        )
     }
 
     pub async fn get<T: DeserializeOwned>(&self, url: &str) -> Result<T> {
@@ -41,8 +47,14 @@ impl OciClient {
         };
         let date = format_rfc7231_date();
 
-        let (authorization, _) =
-            build_authorization_header(HttpMethod::Get, &host, &path, &date, None, &self.credentials)?;
+        let (authorization, _) = build_authorization_header(
+            HttpMethod::Get,
+            &host,
+            &path,
+            &date,
+            None,
+            &self.credentials,
+        )?;
 
         let response = self
             .http_client
@@ -172,8 +184,14 @@ impl OciClient {
         };
         let date = format_rfc7231_date();
 
-        let (authorization, _) =
-            build_authorization_header(HttpMethod::Delete, &host, &path, &date, None, &self.credentials)?;
+        let (authorization, _) = build_authorization_header(
+            HttpMethod::Delete,
+            &host,
+            &path,
+            &date,
+            None,
+            &self.credentials,
+        )?;
 
         let response = self
             .http_client
@@ -199,10 +217,16 @@ impl OciClient {
 }
 
 fn format_rfc7231_date() -> String {
-    chrono::Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string()
+    chrono::Utc::now()
+        .format("%a, %d %b %Y %H:%M:%S GMT")
+        .to_string()
 }
 
-async fn parse_response<T: DeserializeOwned>(method: &str, url: &str, response: Response) -> Result<T> {
+async fn parse_response<T: DeserializeOwned>(
+    method: &str,
+    url: &str,
+    response: Response,
+) -> Result<T> {
     let status = response.status();
     let body =
         response
@@ -214,7 +238,11 @@ async fn parse_response<T: DeserializeOwned>(method: &str, url: &str, response: 
 
     if status.is_success() {
         debug!("[OCI] {} {} → {}", method, url, status);
-        let json_str = if body.is_empty() { "null" } else { body.as_str() };
+        let json_str = if body.is_empty() {
+            "null"
+        } else {
+            body.as_str()
+        };
         from_str(json_str).map_err(|error| {
             NetworkProvisioningError::NetworkQueryFailed {
                 reason: format!(

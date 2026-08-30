@@ -1,24 +1,18 @@
-import { CloudProviderName } from "./providers";
+import type {
+  InstanceInfo,
+  InstanceState as InstanceStateBinding,
+} from "../bindings";
 
-export enum InstanceState {
-  Spawning = "SPAWNING",
-  Installing = "INSTALLING",
-  Error = "ERROR",
-  Running = "RUNNING",
-  Stopping = "STOPPING",
-  Stopped = "STOPPED",
-}
+export const InstanceState = {
+  Spawning: "SPAWNING",
+  Installing: "INSTALLING",
+  Error: "ERROR",
+  Running: "RUNNING",
+  Stopping: "STOPPING",
+  Stopped: "STOPPED",
+  Unknown: "UNKNOWN",
+} as const satisfies Record<string, InstanceStateBinding>;
 
-export interface Instance {
-  id: string;
-  name: string;
-  state: InstanceState;
-  errorReason?: string;
-  publicIpV4: string;
-  publicIpV6: string;
-  region: string;
-  provider: CloudProviderName;
-  spawnId?: string;
-  instanceType: string;
-  launchedAt: string;
-}
+export type InstanceState = InstanceStateBinding;
+
+export type Instance = InstanceInfo;

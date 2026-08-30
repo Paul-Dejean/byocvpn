@@ -47,7 +47,10 @@ pub async fn try_restore_session() {
     let wireguard_config = match parse_wireguard_config(&config_path.to_string_lossy()).await {
         Ok(wireguard_config) => wireguard_config,
         Err(error) => {
-            warn!("Session restore: failed to parse WireGuard config: {}", error);
+            warn!(
+                "Session restore: failed to parse WireGuard config: {}",
+                error
+            );
             clear_stale_session();
             return;
         }
@@ -71,7 +74,10 @@ pub async fn try_restore_session() {
     };
 
     match connect_vpn(params).await {
-        Ok(()) => info!("Session restored successfully for instance {}", restore_instance_id),
+        Ok(()) => info!(
+            "Session restored successfully for instance {}",
+            restore_instance_id
+        ),
         Err(error) => {
             warn!(
                 "Session restore failed for instance {}: {}",

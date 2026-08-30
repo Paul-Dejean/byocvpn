@@ -120,4 +120,3 @@ async fn handle_command(command: DaemonCommand) -> DaemonResponse {
         DaemonCommand::HealthCheck => DaemonResponse::Ok(Value::Null),
     }
 }
-

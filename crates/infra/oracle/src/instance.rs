@@ -99,7 +99,10 @@ pub async fn spawn_instance(
 
 pub async fn terminate_instance(client: &OciClient, instance_ocid: &str) -> Result<()> {
     debug!("Terminating OCI instance {}", instance_ocid);
-    let url = client.build_core_url(&format!("/instances/{}?preserveBootVolume=false", instance_ocid));
+    let url = client.build_core_url(&format!(
+        "/instances/{}?preserveBootVolume=false",
+        instance_ocid
+    ));
     client.delete(&url).await.map_err(|error| {
         CoreError::from(ComputeProvisioningError::InstanceTerminationFailed {
             instance_identifier: instance_ocid.to_string(),
@@ -171,7 +174,10 @@ async fn get_first_availability_domain(
     client: &OciClient,
     compartment_ocid: &str,
 ) -> Result<String> {
-    let url = client.build_identity_url(&format!("/availabilityDomains?compartmentId={}", compartment_ocid));
+    let url = client.build_identity_url(&format!(
+        "/availabilityDomains?compartmentId={}",
+        compartment_ocid
+    ));
     let domains: Vec<AvailabilityDomain> = client.get(&url).await?;
     domains
         .into_iter()
@@ -243,7 +249,10 @@ async fn get_public_ips(
     instance_ocid: &str,
     compartment_ocid: &str,
 ) -> (String, String) {
-    let vnic_url = client.build_core_url(&format!("/vnicAttachments?compartmentId={}&instanceId={}", compartment_ocid, instance_ocid));
+    let vnic_url = client.build_core_url(&format!(
+        "/vnicAttachments?compartmentId={}&instanceId={}",
+        compartment_ocid, instance_ocid
+    ));
     let Ok(vnic_attachments): Result<Vec<VnicAttachment>> = client.get(&vnic_url).await else {
         warn!(
             "Failed to fetch VNIC attachments for instance {}",
@@ -251,7 +260,11 @@ async fn get_public_ips(
         );
         return (String::new(), String::new());
     };
-    let Some(vnic_ocid) = vnic_attachments.into_iter().next().map(|attachment| attachment.vnic_id) else {
+    let Some(vnic_ocid) = vnic_attachments
+        .into_iter()
+        .next()
+        .map(|attachment| attachment.vnic_id)
+    else {
         warn!("No VNIC attachment found for instance {}", instance_ocid);
         return (String::new(), String::new());
     };

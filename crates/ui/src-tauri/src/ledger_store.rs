@@ -2,7 +2,6 @@ use std::{collections::HashSet, sync::Arc};
 
 use byocvpn_core::{cloud_provider::CloudProviderName, ledger::LedgerEntry};
 use log::*;
-use serde_json::Value;
 use tauri::{AppHandle, Wry};
 use tauri_plugin_store::{Store, StoreExt};
 
@@ -128,12 +127,12 @@ impl LedgerStore {
             .collect()
     }
 
-    pub fn all_entries(&self) -> Vec<Value> {
+    pub fn all_entries(&self) -> Vec<LedgerEntry> {
         self.0
             .keys()
             .into_iter()
             .filter(|key| key.starts_with("ledger/"))
-            .filter_map(|key| self.0.get(&key))
+            .filter_map(|key| self.deserialize_entry_by_key(&key))
             .collect()
     }
 

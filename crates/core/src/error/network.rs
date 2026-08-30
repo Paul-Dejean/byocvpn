@@ -82,5 +82,8 @@ pub enum NetworkProvisioningError {
     ResourceNotFound { url: String },
 
     #[error("missing field '{field}' on resource '{resource}'")]
-    MissingResourceField { field: &'static str, resource: &'static str },
+    MissingResourceField {
+        field: &'static str,
+        resource: &'static str,
+    },
 }

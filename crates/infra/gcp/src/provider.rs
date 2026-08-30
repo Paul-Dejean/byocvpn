@@ -12,7 +12,6 @@ use byocvpn_core::{
 };
 use log::*;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 use crate::{
     auth::parse_credentials_from_service_account_json, client::GcpClient, instance, network,
@@ -172,7 +171,7 @@ impl CloudProvider for GcpProvider {
         }
     }
 
-    async fn verify_permissions(&self) -> Result<Value> {
+    async fn verify_permissions(&self) -> Result<Vec<PermissionStatus>> {
         network::ensure_cloud_resource_manager_api_enabled(&self.client).await?;
 
         let url = format!(
@@ -209,12 +208,7 @@ impl CloudProvider for GcpProvider {
             })
             .collect();
 
-        let value = serde_json::to_value(&permissions).map_err(|error| {
-            NetworkProvisioningError::NetworkQueryFailed {
-                reason: error.to_string(),
-            }
-        })?;
-        Ok(value)
+        Ok(permissions)
     }
 
     async fn setup(&self) -> Result<()> {

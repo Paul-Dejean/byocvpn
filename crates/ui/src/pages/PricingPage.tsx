@@ -85,9 +85,12 @@ export function PricingPage() {
   }, [filteredByMonth, selectedProvider]);
 
   const totalCost = visibleEntries.reduce(
-    (sum, entry) => sum + entry.estimatedCost,
+    (sum, entry) => (entry.isPricingUnknown ? sum : sum + entry.estimatedCost),
     0,
   );
+  const unknownPricingCount = visibleEntries.filter(
+    (entry) => entry.isPricingUnknown,
+  ).length;
 
   if (error) {
     return (
@@ -127,6 +130,11 @@ export function PricingPage() {
             <div className="flex items-baseline gap-2">
               <span className="text-xs text-gray-500 uppercase tracking-widest">Total</span>
               <span className="text-2xl font-bold text-warning-300">${totalCost.toFixed(4)}</span>
+              {unknownPricingCount > 0 && (
+                <span className="text-xs text-gray-500">
+                  excludes {unknownPricingCount} with unknown pricing
+                </span>
+              )}
             </div>
           )}
           <div className="flex items-center gap-1 flex-shrink-0">

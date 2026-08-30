@@ -1,8 +1,8 @@
 use std::{
     path::PathBuf,
     sync::{
-        atomic::{AtomicU64, Ordering},
         Mutex as StdMutex,
+        atomic::{AtomicU64, Ordering},
     },
     time::Duration,
 };

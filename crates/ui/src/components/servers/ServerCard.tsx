@@ -1,7 +1,6 @@
 import {
   Instance,
   InstanceState,
-  RegionGroup,
   SpawnJob,
   JobStepStatus,
 } from "../../types";
@@ -15,7 +14,6 @@ import { PROVIDER_STRIPE } from "./providerStripe";
 interface ServerCardProps {
   instance: Instance;
   isSelected: boolean;
-  groupedRegions: RegionGroup[];
   spawnJob?: SpawnJob;
   onSelect: (instance: Instance) => void;
 }
@@ -50,12 +48,15 @@ const STATE_BADGE: Record<
     variant: "neutral",
     label: "stopped",
   },
+  [InstanceState.Unknown]: {
+    variant: "neutral",
+    label: "unknown",
+  },
 };
 
 export function ServerCard({
   instance,
   isSelected,
-  groupedRegions: _groupedRegions,
   spawnJob,
   onSelect,
 }: ServerCardProps) {
@@ -64,11 +65,12 @@ export function ServerCard({
 
   const isInProgress = instance.state === InstanceState.Installing;
 
-  const isInteractive = [
+  const interactiveStates: InstanceState[] = [
     InstanceState.Installing,
     InstanceState.Running,
     InstanceState.Error,
-  ].includes(instance.state);
+  ];
+  const isInteractive = interactiveStates.includes(instance.state);
 
   const badge = STATE_BADGE[instance.state] ?? {
     variant: "neutral",

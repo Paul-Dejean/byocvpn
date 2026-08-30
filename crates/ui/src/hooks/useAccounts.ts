@@ -1,32 +1,15 @@
 import { useState } from "react";
 import { Channel } from "@tauri-apps/api/core";
 import toast from "react-hot-toast";
-import { extractErrorMessage } from "../lib/extractErrorMessage";
-import { invokeCommand } from "../lib/invokeCommand";
-import {
-  CloudProviderName,
-  JobStep,
-  JobStepState,
-  JobStepStatus,
-} from "../types";
+import { ProvisionAccountEvent, commands } from "../bindings";
+import { CloudProviderName, JobStepState, JobStepStatus } from "../types";
 
-enum ProvisionEventKind {
-  Started = "STARTED",
-  Progress = "PROGRESS",
-  Complete = "COMPLETE",
-  Failed = "FAILED",
-}
-
-type ProvisionAccountEvent =
-  | { kind: ProvisionEventKind.Started; jobId: string; steps: JobStep[] }
-  | {
-      kind: ProvisionEventKind.Progress;
-      stepId: string;
-      status: JobStepStatus;
-      error?: string;
-    }
-  | { kind: ProvisionEventKind.Complete; provider: CloudProviderName }
-  | { kind: ProvisionEventKind.Failed; error: string };
+const ProvisionEventKind = {
+  Started: "STARTED",
+  Progress: "PROGRESS",
+  Complete: "COMPLETE",
+  Failed: "FAILED",
+} as const satisfies Record<string, ProvisionAccountEvent["kind"]>;
 
 export interface ProvisionJobState {
   jobId: string;
@@ -51,10 +34,9 @@ export function useAccounts({ onComplete, onFailed }: UseAccountsOptions = {}) {
 
     resetProvisionState();
 
-    try {
-      await invokeCommand("provision_account", { provider, onEvent });
-    } catch (error) {
-      toast.error(extractErrorMessage(error, "Failed to start provisioning"));
+    const result = await commands.provisionAccount(provider, onEvent);
+    if (result.status === "error") {
+      toast.error(result.error);
     }
   }
 
@@ -70,6 +52,7 @@ export function useAccounts({ onComplete, onFailed }: UseAccountsOptions = {}) {
           steps: event.steps.map((step) => ({
             ...step,
             status: JobStepStatus.Pending,
+            error: null,
           })),
         });
         return;

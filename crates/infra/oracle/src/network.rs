@@ -30,7 +30,10 @@ async fn get_vcn(
     client: &OciClient,
     compartment_ocid: &str,
 ) -> Result<Option<(String, String, String)>> {
-    let url = client.build_core_url(&format!("/vcns?compartmentId={}&displayName={}", compartment_ocid, VCN_DISPLAY_NAME));
+    let url = client.build_core_url(&format!(
+        "/vcns?compartmentId={}&displayName={}",
+        compartment_ocid, VCN_DISPLAY_NAME
+    ));
     let vcns: Vec<Vcn> = client.get(&url).await?;
     let vcn = vcns
         .into_iter()
@@ -89,7 +92,10 @@ async fn get_internet_gateway(
     compartment_ocid: &str,
     vcn_id: &str,
 ) -> Result<Option<String>> {
-    let url = client.build_core_url(&format!("/internetGateways?compartmentId={}&vcnId={}", compartment_ocid, vcn_id));
+    let url = client.build_core_url(&format!(
+        "/internetGateways?compartmentId={}&vcnId={}",
+        compartment_ocid, vcn_id
+    ));
     let existing: Vec<InternetGateway> = client.get(&url).await?;
     Ok(existing.into_iter().next().map(|igw| igw.id))
 }
@@ -176,7 +182,10 @@ async fn get_security_list(
     compartment_ocid: &str,
     vcn_id: &str,
 ) -> Result<Option<SecurityListResponse>> {
-    let url = client.build_core_url(&format!("/securityLists?compartmentId={}&vcnId={}&displayName={}", compartment_ocid, vcn_id, SECURITY_LIST_NAME));
+    let url = client.build_core_url(&format!(
+        "/securityLists?compartmentId={}&vcnId={}&displayName={}",
+        compartment_ocid, vcn_id, SECURITY_LIST_NAME
+    ));
     let existing: Vec<SecurityListResponse> = client.get(&url).await?;
     Ok(existing.into_iter().next())
 }
@@ -188,8 +197,12 @@ fn security_list_contains_all_desired_rules(
 ) -> bool {
     let existing_ingress = existing.ingress_security_rules.as_deref().unwrap_or(&[]);
     let existing_egress = existing.egress_security_rules.as_deref().unwrap_or(&[]);
-    desired_ingress.iter().all(|rule| existing_ingress.contains(rule))
-        && desired_egress.iter().all(|rule| existing_egress.contains(rule))
+    desired_ingress
+        .iter()
+        .all(|rule| existing_ingress.contains(rule))
+        && desired_egress
+            .iter()
+            .all(|rule| existing_egress.contains(rule))
 }
 
 async fn create_security_list(
@@ -317,7 +330,10 @@ async fn get_subnet(
     compartment_ocid: &str,
     vcn_id: &str,
 ) -> Result<Option<(String, bool, Vec<String>)>> {
-    let url = client.build_core_url(&format!("/subnets?compartmentId={}&vcnId={}&displayName={}", compartment_ocid, vcn_id, SUBNET_DISPLAY_NAME));
+    let url = client.build_core_url(&format!(
+        "/subnets?compartmentId={}&vcnId={}&displayName={}",
+        compartment_ocid, vcn_id, SUBNET_DISPLAY_NAME
+    ));
     let subnets: Vec<SubnetResponse> = client.get(&url).await?;
     let found = subnets
         .into_iter()
@@ -398,13 +414,23 @@ pub async fn ensure_subnet(
     route_table_id: &str,
     ipv6_prefix: &str,
 ) -> Result<String> {
-    if let Some((existing_id, _, existing_security_list_ids)) = get_subnet(client, compartment_ocid, vcn_id).await? {
+    if let Some((existing_id, _, existing_security_list_ids)) =
+        get_subnet(client, compartment_ocid, vcn_id).await?
+    {
         if !existing_security_list_ids.contains(&security_list_id.to_string()) {
             ensure_subnet_security_list(client, &existing_id, security_list_id).await?;
         }
         return Ok(existing_id);
     }
-    create_subnet(client, compartment_ocid, vcn_id, security_list_id, route_table_id, ipv6_prefix).await
+    create_subnet(
+        client,
+        compartment_ocid,
+        vcn_id,
+        security_list_id,
+        route_table_id,
+        ipv6_prefix,
+    )
+    .await
 }
 
 pub async fn get_ubuntu_image(client: &OciClient, compartment_ocid: &str) -> Result<String> {
@@ -427,7 +453,8 @@ pub async fn ensure_region_subscribed(
     tenancy_ocid: &str,
     region_name: &str,
 ) -> Result<()> {
-    let subscriptions_url = client.build_identity_url(&format!("/tenancies/{}/regionSubscriptions", tenancy_ocid));
+    let subscriptions_url =
+        client.build_identity_url(&format!("/tenancies/{}/regionSubscriptions", tenancy_ocid));
 
     let subscriptions: Vec<RegionSubscription> =
         client.get(&subscriptions_url).await.map_err(|error| {
@@ -540,7 +567,8 @@ pub async fn list_all_regions(client: &OciClient) -> Result<Vec<(String, String)
 }
 
 pub async fn list_regions(client: &OciClient, tenancy_ocid: &str) -> Result<Vec<(String, String)>> {
-    let url = client.build_identity_url(&format!("/tenancies/{}/regionSubscriptions", tenancy_ocid));
+    let url =
+        client.build_identity_url(&format!("/tenancies/{}/regionSubscriptions", tenancy_ocid));
     let subscriptions: Vec<RegionSubscription> =
         client
             .get(&url)

@@ -22,6 +22,7 @@ pub async fn enable_region(provider: &dyn CloudProvider, region: &str) -> Result
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Region {
     pub name: String,
     pub country: String,

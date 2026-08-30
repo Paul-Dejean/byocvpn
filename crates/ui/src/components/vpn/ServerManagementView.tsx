@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { CloudProviderName, Instance, SpawnJob } from "../../types";
 import { ServerList } from "../servers/ServerList";
 import { RegionSelector } from "../regions/RegionSelector";
@@ -7,9 +8,9 @@ import { SpawnJobDetails } from "../jobs/SpawnJobDetails";
 import { EmptyState } from "../primitives/EmptyState";
 import { ProviderSelector } from "../providers/ProviderSelector";
 
-import { useInstancesContext, useRegionsContext } from "../../contexts";
+import { useInstances } from "../../hooks/useInstances";
 import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
-import { fetchConfiguredProviders } from "../../lib/fetchConfiguredProviders";
+import { configuredProvidersQueryOptions } from "../../queries/configuredProviders";
 
 enum CreationStep {
   Idle = "IDLE",
@@ -35,17 +36,17 @@ export function ServerManagementView() {
   );
   const [selection, setSelection] = useState<Selection | null>(null);
 
-  const { groupedRegions, isLoading: regionsLoading } = useRegionsContext();
+  const queryClient = useQueryClient();
   const {
     instances,
     spawnJobs,
     pendingSpawnJobs,
-    isLoading: instancesLoading,
+    isLoading,
     isRefreshing,
     terminatingInstanceId,
     terminateInstance,
     dismissSpawnJob,
-  } = useInstancesContext();
+  } = useInstances();
 
   const {
     isConnecting,
@@ -53,8 +54,6 @@ export function ServerManagementView() {
     connectToVpn,
     clearError,
   } = useVpnConnectionContext();
-
-  const isLoading = regionsLoading || instancesLoading;
 
   const selectedSpawnJob =
     selection?.kind === SelectionKind.SpawnJob
@@ -85,15 +84,13 @@ export function ServerManagementView() {
   async function handleTerminate() {
     if (!selectedInstance) return;
 
-    try {
-      await terminateInstance(
-        selectedInstance.id,
-        selectedInstance.region,
-        selectedInstance.provider,
-      );
+    const result = await terminateInstance(
+      selectedInstance.id,
+      selectedInstance.region,
+      selectedInstance.provider,
+    );
+    if (result.status === "ok") {
       setSelection(null);
-    } catch (error) {
-      console.error("Failed to terminate server:", error);
     }
   }
 
@@ -103,7 +100,9 @@ export function ServerManagementView() {
   }
 
   async function handleAddNewServer() {
-    const configuredProviders = await fetchConfiguredProviders();
+    const configuredProviders = await queryClient.ensureQueryData(
+      configuredProvidersQueryOptions,
+    );
     if (configuredProviders.length === 1) {
       setSelectedProvider(configuredProviders[0]);
       setCreationStep(CreationStep.SelectingRegion);
@@ -138,7 +137,6 @@ export function ServerManagementView() {
             spawnJobs={pendingSpawnJobs}
             selectedInstanceId={selectedInstance?.id ?? null}
             selectedJobId={selectedSpawnJob?.jobId ?? null}
-            groupedRegions={groupedRegions}
             isLoading={isLoading}
             isRefreshing={isRefreshing}
             onSelectInstance={handleSelectInstance}
@@ -148,6 +146,7 @@ export function ServerManagementView() {
 
           {selectedInstance ? (
             <ServerDetails
+              key={selectedInstance.id}
               instance={selectedInstance}
               isConnecting={isConnecting}
               isTerminating={terminatingInstanceId === selectedInstance.id}

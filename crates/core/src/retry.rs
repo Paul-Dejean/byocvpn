@@ -2,11 +2,7 @@ use std::future::Future;
 
 use tokio::time::{Duration, sleep};
 
-pub async fn retry<F, Fut, T, E>(
-    mut task: F,
-    max_attempts: u32,
-    interval: Duration,
-) -> Result<T, E>
+pub async fn retry<F, Fut, T, E>(mut task: F, max_attempts: u32, interval: Duration) -> Result<T, E>
 where
     F: FnMut() -> Fut,
     Fut: Future<Output = Result<T, E>>,

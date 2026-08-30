@@ -3,20 +3,21 @@ import { Button } from "../components/primitives/Button";
 import { IconButton } from "../components/primitives/IconButton";
 import { Alert } from "../components/primitives/Alert";
 import { FormField } from "../components/primitives/FormField";
-import { invokeCommand } from "../lib/invokeCommand";
+import { commands } from "../bindings";
+import { fromPromise } from "../lib/result";
 import { save } from "@tauri-apps/plugin-dialog";
 import toast from "react-hot-toast";
-import {
-  useCredentials,
-  AwsCredentials,
-  GcpCredentials,
-  AzureCredentials,
-} from "../hooks/useCredentials";
+import { useCredentials } from "../hooks/useCredentials";
 import { useAccounts } from "../hooks/useAccounts";
 import { usePermissions } from "../hooks/usePermissions";
-import { CloudProviderName, areAllPermissionsGranted } from "../types";
-
-type VerifiableCredentials = AwsCredentials | GcpCredentials | AzureCredentials;
+import {
+  AwsCredentials,
+  AzureCredentials,
+  CloudProviderName,
+  GcpCredentials,
+  VerifiableCredentialsRequest,
+  areAllPermissionsGranted,
+} from "../types";
 import { PROVIDER_METADATA } from "../constants/providers";
 import { JobProgressDrawer } from "../components/common/JobProgressDrawer";
 import { ProviderSelector } from "../components/providers/ProviderSelector";
@@ -333,10 +334,8 @@ export function AddAccountPage({
   const { saveCredentials } = useCredentials();
   const { permissions, isVerifying, verifyPermissions, clearPermissions } =
     usePermissions();
-  const [pendingCredentials, setPendingCredentials] = useState<{
-    provider: CloudProviderName;
-    credentials: VerifiableCredentials;
-  } | null>(null);
+  const [pendingCredentials, setPendingCredentials] =
+    useState<VerifiableCredentialsRequest | null>(null);
   const [verificationFailed, setVerificationFailed] = useState(false);
   const [isVerificationDrawerOpen, setIsVerificationDrawerOpen] =
     useState(false);
@@ -360,18 +359,18 @@ export function AddAccountPage({
     provisionAccount(provider);
   };
 
-  const verifyAndProvision = async (
-    provider: CloudProviderName,
-    credentials: VerifiableCredentials,
-  ) => {
-    setPendingCredentials({ provider, credentials });
+  const verifyAndProvision = async (request: VerifiableCredentialsRequest) => {
+    setPendingCredentials(request);
     setVerificationFailed(false);
     setIsVerificationDrawerOpen(true);
-    const result = await verifyPermissions(provider, credentials);
+    const result = await verifyPermissions(
+      request.provider,
+      request.credentials,
+    );
     if (result && areAllPermissionsGranted(result)) {
-      const saved = await saveCredentials(provider, credentials);
+      const saved = await saveCredentials(request.provider, request.credentials);
       if (saved) {
-        provisionAccount(provider);
+        provisionAccount(request.provider);
         return;
       }
     }
@@ -380,10 +379,7 @@ export function AddAccountPage({
 
   const handleRetryVerification = () => {
     if (pendingCredentials) {
-      verifyAndProvision(
-        pendingCredentials.provider,
-        pendingCredentials.credentials,
-      );
+      verifyAndProvision(pendingCredentials);
     }
   };
 
@@ -485,10 +481,7 @@ interface CredentialsStepProps {
   provider: CloudProviderName;
   instructions: { title: string; steps: SetupStep[] };
   onCredentialsSaved: (provider: CloudProviderName) => void;
-  onVerifiableSubmit: (
-    provider: CloudProviderName,
-    credentials: VerifiableCredentials,
-  ) => void;
+  onVerifiableSubmit: (request: VerifiableCredentialsRequest) => void;
   isSubmitting: boolean;
   onCancel: () => void;
 }
@@ -528,7 +521,10 @@ function CredentialsStep({
           {provider === CloudProviderName.Aws && (
             <AwsCredentialsForm
               onSubmit={(credentials) =>
-                onVerifiableSubmit(CloudProviderName.Aws, credentials)
+                onVerifiableSubmit({
+                  provider: CloudProviderName.Aws,
+                  credentials,
+                })
               }
               isSubmitting={isSubmitting}
               onCancel={onCancel}
@@ -543,7 +539,10 @@ function CredentialsStep({
           {provider === CloudProviderName.Gcp && (
             <GcpCredentialsForm
               onSubmit={(credentials) =>
-                onVerifiableSubmit(CloudProviderName.Gcp, credentials)
+                onVerifiableSubmit({
+                  provider: CloudProviderName.Gcp,
+                  credentials,
+                })
               }
               isSubmitting={isSubmitting}
               onCancel={onCancel}
@@ -552,7 +551,10 @@ function CredentialsStep({
           {provider === CloudProviderName.Azure && (
             <AzureCredentialsForm
               onSubmit={(credentials) =>
-                onVerifiableSubmit(CloudProviderName.Azure, credentials)
+                onVerifiableSubmit({
+                  provider: CloudProviderName.Azure,
+                  credentials,
+                })
               }
               isSubmitting={isSubmitting}
               onCancel={onCancel}
@@ -921,12 +923,18 @@ function PolicyBox({ policy }: PolicyBoxProps) {
   };
 
   const handleDownload = async () => {
-    const savePath = await save({ defaultPath: policy.filename });
-    if (savePath) {
-      await invokeCommand("save_file", {
-        path: savePath,
-        content: policy.content,
-      });
+    const dialogResult = await fromPromise(save({ defaultPath: policy.filename }));
+    if (dialogResult.status === "error") {
+      toast.error(dialogResult.error);
+      return;
+    }
+    const savePath = dialogResult.data;
+    if (!savePath) {
+      return;
+    }
+    const saveResult = await commands.saveFile(savePath, policy.content);
+    if (saveResult.status === "error") {
+      toast.error(saveResult.error);
     }
   };
 

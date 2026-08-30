@@ -3,13 +3,12 @@ use std::str::FromStr;
 use async_trait::async_trait;
 use byocvpn_core::{
     cloud_provider::{
-        CloudProvider, CloudProviderName, InstanceInfo, SpawnInstanceParams, SpawnStep,
-        TerminateInstanceParams,
+        CloudProvider, CloudProviderName, InstanceInfo, PermissionStatus, SpawnInstanceParams,
+        SpawnStep, TerminateInstanceParams,
     },
     commands::setup::Region,
     error::Result,
 };
-use serde_json::Value;
 
 use crate::{auth::OciCredentials, client::OciClient, instance, network};
 use log::*;
@@ -142,12 +141,19 @@ impl CloudProvider for OracleProvider {
                     network::ensure_vcn(&client, compartment).await?;
                 let igw_id =
                     network::ensure_internet_gateway(&client, compartment, &vcn_id).await?;
-                network::add_default_route_to_table(&client, &route_table_id, &igw_id, &ipv6_prefix).await?;
+                network::add_default_route_to_table(
+                    &client,
+                    &route_table_id,
+                    &igw_id,
+                    &ipv6_prefix,
+                )
+                .await?;
                 Ok(())
             }
             OracleSpawnStepId::RegionSubscribe => {
                 let home_client = self.make_client(None);
-                network::ensure_region_subscribed(&home_client, self.get_compartment_ocid(), region).await
+                network::ensure_region_subscribed(&home_client, self.get_compartment_ocid(), region)
+                    .await
             }
             OracleSpawnStepId::RegionVcn => {
                 let client = self.make_client(Some(region));
@@ -162,7 +168,13 @@ impl CloudProvider for OracleProvider {
                     network::ensure_vcn(&client, compartment).await?;
                 let igw_id =
                     network::ensure_internet_gateway(&client, compartment, &vcn_id).await?;
-                network::add_default_route_to_table(&client, &route_table_id, &igw_id, &ipv6_prefix).await?;
+                network::add_default_route_to_table(
+                    &client,
+                    &route_table_id,
+                    &igw_id,
+                    &ipv6_prefix,
+                )
+                .await?;
                 Ok(())
             }
             OracleSpawnStepId::RegionSecurityList => {
@@ -178,16 +190,25 @@ impl CloudProvider for OracleProvider {
                 let (vcn_id, route_table_id, ipv6_prefix) =
                     network::ensure_vcn(&client, compartment).await?;
                 let security_list_id =
-                    network::ensure_security_list(&client, compartment, &vcn_id, &ipv6_prefix).await?;
-                network::ensure_subnet(&client, compartment, &vcn_id, &security_list_id, &route_table_id, &ipv6_prefix).await?;
+                    network::ensure_security_list(&client, compartment, &vcn_id, &ipv6_prefix)
+                        .await?;
+                network::ensure_subnet(
+                    &client,
+                    compartment,
+                    &vcn_id,
+                    &security_list_id,
+                    &route_table_id,
+                    &ipv6_prefix,
+                )
+                .await?;
                 Ok(())
             }
             _ => Ok(()),
         }
     }
 
-    async fn verify_permissions(&self) -> Result<Value> {
-        Ok(serde_json::json!({ "status": "not_implemented" }))
+    async fn verify_permissions(&self) -> Result<Vec<PermissionStatus>> {
+        Ok(Vec::new())
     }
 
     async fn setup(&self) -> Result<()> {
@@ -255,17 +276,23 @@ impl CloudProvider for OracleProvider {
         let (vcn_id, route_table_id, ipv6_prefix) =
             network::ensure_vcn(&client, compartment_ocid).await?;
 
-        let igw_id =
-            network::ensure_internet_gateway(&client, compartment_ocid, &vcn_id).await?;
+        let igw_id = network::ensure_internet_gateway(&client, compartment_ocid, &vcn_id).await?;
         network::add_default_route_to_table(&client, &route_table_id, &igw_id, &ipv6_prefix)
             .await?;
         info!("IGW + default route ensured in {}.", region);
 
         let security_list_id =
-            network::ensure_security_list(&client, compartment_ocid, &vcn_id, &ipv6_prefix)
-                .await?;
+            network::ensure_security_list(&client, compartment_ocid, &vcn_id, &ipv6_prefix).await?;
 
-        network::ensure_subnet(&client, compartment_ocid, &vcn_id, &security_list_id, &route_table_id, &ipv6_prefix).await?;
+        network::ensure_subnet(
+            &client,
+            compartment_ocid,
+            &vcn_id,
+            &security_list_id,
+            &route_table_id,
+            &ipv6_prefix,
+        )
+        .await?;
         info!("Security list attached to subnet in {}.", region);
 
         Ok(())
@@ -282,8 +309,15 @@ impl CloudProvider for OracleProvider {
         let security_list_id =
             network::ensure_security_list(&client, compartment_ocid, &vcn_id, &ipv6_prefix).await?;
 
-        let subnet_ocid =
-            network::ensure_subnet(&client, compartment_ocid, &vcn_id, &security_list_id, &route_table_id, &ipv6_prefix).await?;
+        let subnet_ocid = network::ensure_subnet(
+            &client,
+            compartment_ocid,
+            &vcn_id,
+            &security_list_id,
+            &route_table_id,
+            &ipv6_prefix,
+        )
+        .await?;
         let subnet_has_ipv6 = !ipv6_prefix.is_empty();
         debug!(
             "Resolved subnet {} (IPv6: {}) in {}",

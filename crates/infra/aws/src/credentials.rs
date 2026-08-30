@@ -11,6 +11,7 @@ const SECRET_ACCESS_KEY_FIELD: &str = "secret_access_key";
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct AwsCredentials {
     pub access_key_id: String,
     pub secret_access_key: String,

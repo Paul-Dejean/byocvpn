@@ -8,12 +8,13 @@ use byocvpn_core::{commands, ledger::LedgerEntry};
 use chrono::Utc;
 use humantime::format_duration;
 use log::{debug, info, warn};
-use serde::Serialize;
-use tauri::{AppHandle, Emitter, async_runtime};
+use tauri::{AppHandle, async_runtime};
 use tauri_plugin_notification::NotificationExt;
+use tauri_specta::Event;
 use tokio::time::interval;
 
 use crate::commands::{create_cloud_provider, fetch_vpn_status};
+use crate::events::InstanceAutoTerminatedEvent;
 use crate::ledger_store::LedgerStore;
 use crate::settings_store::SettingsStore;
 
@@ -22,11 +23,6 @@ const MIN_AUTO_TERMINATE_MINUTES: u64 = 5;
 
 static LAST_NOTIFIED_AT: Mutex<Option<HashMap<String, SystemTime>>> = Mutex::new(None);
 
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct InstanceAutoTerminatedEvent {
-    instance_id: String,
-}
 
 pub fn start_server_monitor(app_handle: AppHandle) {
     async_runtime::spawn(async move {
@@ -258,12 +254,11 @@ async fn auto_terminate_expired(
                 if notifications_enabled {
                     notify_terminated(app_handle, &entry.provider.to_string(), &entry.region);
                 }
-                if let Err(error) = app_handle.emit(
-                    "instance-auto-terminated",
-                    InstanceAutoTerminatedEvent {
-                        instance_id: entry.instance_id.clone(),
-                    },
-                ) {
+                if let Err(error) = (InstanceAutoTerminatedEvent {
+                    instance_id: entry.instance_id.clone(),
+                })
+                .emit(app_handle)
+                {
                     warn!("[auto-terminate] failed to emit event: {}", error);
                 }
             }

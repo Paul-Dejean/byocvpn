@@ -1,25 +1,9 @@
-import { CloudProviderName } from "./providers";
+import type { LedgerEntry, PricingInfo } from "../bindings";
 
-export interface LedgerEntry {
-  instanceId: string;
-  provider: CloudProviderName;
-  region: string;
-  instanceType: string;
-  launchedAt: string;
-  terminatedAt: string | null;
-  bytesSent: number;
-  bytesReceived: number;
-}
-
-export interface PricingInfo {
-  hourlyRate: number;
-  ipHourlyRate: number;
-  egressRatePerGb: number;
-  storageGb: number;
-  storageRatePerGbMonth: number;
-}
+export type { LedgerEntry, PricingInfo };
 
 export interface LedgerEntryWithCost extends LedgerEntry {
+  isPricingUnknown: boolean;
   estimatedCost: number;
   uptimeHours: number;
   computeCost: number;

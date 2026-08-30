@@ -3,7 +3,7 @@ import { ProviderIcon } from "../providers/ProviderIcon";
 import { PROVIDER_METADATA } from "../../constants/providers";
 import { Button } from "../primitives/Button";
 import { IconButton } from "../primitives/IconButton";
-import { useInstancesContext } from "../../contexts";
+import { useInstances } from "../../hooks/useInstances";
 import { getRegionInfo } from "../../constants/regionInfo";
 import { FlagIcon } from "../FlagIcon";
 import { useEffect, useState } from "react";
@@ -39,7 +39,7 @@ export function RegionSelector({
     setSelectedRegion(null);
   }, [provider]);
 
-  const { startSpawnJob, instances } = useInstancesContext();
+  const { startSpawnJob, instances } = useInstances();
 
   const handleEnableRegion = async (region: Region, event: React.MouseEvent) => {
     event.stopPropagation();

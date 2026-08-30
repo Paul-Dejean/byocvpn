@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-
-export type DurationUnit = "minutes" | "hours";
+import type { DurationUnit } from "../../bindings";
 
 interface DurationFieldProps {
   minutes: number;

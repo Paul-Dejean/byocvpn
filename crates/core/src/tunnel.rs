@@ -16,17 +16,25 @@ use log::*;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct TunnelMetrics {
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub bytes_sent: u64,
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub bytes_received: u64,
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub packets_sent: u64,
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub packets_received: u64,
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub upload_rate: u64,
+    #[cfg_attr(feature = "specta", specta(type = u32))]
     pub download_rate: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct ConnectedInstance {
     pub instance_id: String,
     pub public_ip_v4: Option<String>,
@@ -37,10 +45,12 @@ pub struct ConnectedInstance {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct VpnStatus {
     pub connected: bool,
     pub instance: Option<ConnectedInstance>,
     pub metrics: Option<TunnelMetrics>,
+    #[cfg_attr(feature = "specta", specta(type = Option<u32>))]
     pub connected_at: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub connection_error: Option<String>,

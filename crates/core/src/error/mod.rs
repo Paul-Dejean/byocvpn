@@ -11,6 +11,8 @@ pub use credentials::CredentialsError;
 pub use daemon::DaemonError;
 pub use network::NetworkProvisioningError;
 use serde::Serialize;
+#[cfg(feature = "specta")]
+use specta::{Type, Types, datatype::DataType};
 pub use system::SystemError;
 use thiserror::Error;
 
@@ -68,6 +70,13 @@ impl Serialize for Error {
         S: serde::Serializer,
     {
         serializer.serialize_str(&self.to_string())
+    }
+}
+
+#[cfg(feature = "specta")]
+impl Type for Error {
+    fn definition(types: &mut Types) -> DataType {
+        <String as Type>::definition(types)
     }
 }
 

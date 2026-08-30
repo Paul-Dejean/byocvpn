@@ -1,40 +1,46 @@
 import { useCallback, useState } from "react";
-import { extractErrorMessage } from "../lib/extractErrorMessage";
-import { invokeCommand } from "../lib/invokeCommand";
-import { Permissions, CloudProviderName } from "../types";
+import { ProviderCredentials, commands } from "../bindings";
 import {
-  AwsCredentials,
-  GcpCredentials,
-  AzureCredentials,
-} from "./useCredentials";
+  CloudProviderName,
+  Permissions,
+  VerifiableCredentials,
+  VerifiableCredentialsMap,
+  VerifiableProvider,
+} from "../types";
 
-type VerifiableCredentials = AwsCredentials | GcpCredentials | AzureCredentials;
+type VerifyPermissionsFunction = {
+  (provider: CloudProviderName): Promise<Permissions | null>;
+  <Provider extends VerifiableProvider>(
+    provider: Provider,
+    credentials: VerifiableCredentialsMap[Provider],
+  ): Promise<Permissions | null>;
+};
 
 export function usePermissions() {
   const [permissions, setPermissions] = useState<Permissions | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const verifyPermissions = useCallback(
+  const verifyPermissions = useCallback<VerifyPermissionsFunction>(
     async (
       provider: CloudProviderName,
       credentials?: VerifiableCredentials,
     ): Promise<Permissions | null> => {
       setIsVerifying(true);
       setError(null);
-      try {
-        const result = await invokeCommand<Permissions>("verify_permissions", {
-          provider,
-          credentials: credentials ? { provider, ...credentials } : null,
-        });
-        setPermissions(result);
-        return result;
-      } catch (error) {
-        setError(extractErrorMessage(error, "Failed to verify permissions"));
+      const result = await commands.verifyPermissions(
+        provider,
+        credentials
+          ? ({ provider, ...credentials } as ProviderCredentials)
+          : null,
+      );
+      setIsVerifying(false);
+      if (result.status === "error") {
+        setError(result.error);
         return null;
-      } finally {
-        setIsVerifying(false);
       }
+      setPermissions(result.data);
+      return result.data;
     },
     [],
   );

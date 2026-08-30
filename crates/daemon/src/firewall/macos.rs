@@ -20,7 +20,10 @@ pub fn apply(server_ip: &str, tun_name: &str) -> Result<()> {
     run_pfctl(&["-a", ANCHOR_NAME, "-f", ANCHOR_FILE])?;
     enable_pf();
 
-    info!("[KillSwitch] pf anchor applied (server={}, tun={})", server_ip, tun_name);
+    info!(
+        "[KillSwitch] pf anchor applied (server={}, tun={})",
+        server_ip, tun_name
+    );
     Ok(())
 }
 
@@ -38,9 +41,10 @@ fn is_anchor_line(line: &str) -> bool {
 }
 
 fn ensure_anchor_in_pf_conf() -> Result<()> {
-    let content = std::fs::read_to_string(PF_CONF).map_err(|error| SystemError::KillSwitchFailed {
-        reason: format!("failed to read {}: {}", PF_CONF, error),
-    })?;
+    let content =
+        std::fs::read_to_string(PF_CONF).map_err(|error| SystemError::KillSwitchFailed {
+            reason: format!("failed to read {}: {}", PF_CONF, error),
+        })?;
 
     if content.lines().any(is_anchor_line) {
         return Ok(());
@@ -56,9 +60,10 @@ fn ensure_anchor_in_pf_conf() -> Result<()> {
 }
 
 fn remove_anchor_from_pf_conf() -> Result<()> {
-    let content = std::fs::read_to_string(PF_CONF).map_err(|error| SystemError::KillSwitchFailed {
-        reason: format!("failed to read {}: {}", PF_CONF, error),
-    })?;
+    let content =
+        std::fs::read_to_string(PF_CONF).map_err(|error| SystemError::KillSwitchFailed {
+            reason: format!("failed to read {}: {}", PF_CONF, error),
+        })?;
 
     if !content.lines().any(is_anchor_line) {
         return Ok(());
@@ -70,8 +75,10 @@ fn remove_anchor_from_pf_conf() -> Result<()> {
         .collect::<Vec<_>>()
         .join("\n");
 
-    std::fs::write(PF_CONF, format!("{}\n", updated)).map_err(|error| SystemError::KillSwitchFailed {
-        reason: format!("failed to write {}: {}", PF_CONF, error),
+    std::fs::write(PF_CONF, format!("{}\n", updated)).map_err(|error| {
+        SystemError::KillSwitchFailed {
+            reason: format!("failed to write {}: {}", PF_CONF, error),
+        }
     })?;
 
     run_pfctl(&["-f", PF_CONF])?;
@@ -84,12 +91,11 @@ fn enable_pf() {
 }
 
 fn run_pfctl(args: &[&str]) -> Result<()> {
-    let output = Command::new("pfctl")
-        .args(args)
-        .output()
-        .map_err(|error| SystemError::KillSwitchFailed {
+    let output = Command::new("pfctl").args(args).output().map_err(|error| {
+        SystemError::KillSwitchFailed {
             reason: format!("pfctl exec failed: {}", error),
-        })?;
+        }
+    })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

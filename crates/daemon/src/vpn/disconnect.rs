@@ -1,7 +1,9 @@
 use byocvpn_core::error::{Result, SystemError};
 use log::*;
 
-use crate::{firewall, routing::routes::remove_vpn_routes, tunnel_manager::TUNNEL_MANAGER, vpn::session};
+use crate::{
+    firewall, routing::routes::remove_vpn_routes, tunnel_manager::TUNNEL_MANAGER, vpn::session,
+};
 
 pub async fn disconnect_vpn() -> Result<()> {
     info!("[VPN Disconnect] Disconnecting VPN tunnel...");
@@ -11,7 +13,9 @@ pub async fn disconnect_vpn() -> Result<()> {
         .map_err(|_| SystemError::MutexPoisoned("TUNNEL_MANAGER".to_string()))?
         .take()
     else {
-        warn!("[VPN Disconnect] No active tunnel in memory (daemon restarted?), clearing firewall rules.");
+        warn!(
+            "[VPN Disconnect] No active tunnel in memory (daemon restarted?), clearing firewall rules."
+        );
         if let Err(error) = firewall::remove() {
             warn!("[VPN Disconnect] Kill switch removal failed: {}", error);
         }
@@ -38,9 +42,7 @@ pub async fn disconnect_vpn() -> Result<()> {
     remove_vpn_routes(handle.interface_index, &handle.server_ip).await;
     info!("[VPN Disconnect] Removed VPN routes.");
 
-    if let Some(mut dns_override_guard) =
-        handle.dns_override_guard.take()
-    {
+    if let Some(mut dns_override_guard) = handle.dns_override_guard.take() {
         match dns_override_guard.restore_previous_dns_configuration() {
             Ok(_) => info!("[VPN Disconnect] Restored original DNS."),
             Err(error) => warn!("[VPN Disconnect] Failed to restore DNS: {error}"),

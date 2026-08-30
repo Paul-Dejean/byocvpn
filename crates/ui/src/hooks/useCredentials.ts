@@ -1,33 +1,16 @@
 import { useState } from "react";
-import { extractErrorMessage } from "../lib/extractErrorMessage";
-import { invokeCommand } from "../lib/invokeCommand";
+import { useQueryClient } from "@tanstack/react-query";
+import { commands } from "../bindings";
+import { configuredProvidersQueryOptions } from "../queries/configuredProviders";
 import toast from "react-hot-toast";
 import { CloudProviderName } from "../types";
 
-export interface AwsCredentials {
-  accessKeyId: string;
-  secretAccessKey: string;
-}
-
-export interface OracleCredentials {
-  tenancyOcid: string;
-  userOcid: string;
-  fingerprint: string;
-  privateKeyPem: string;
-  region: string;
-}
-
-export interface GcpCredentials {
-  projectId: string;
-  serviceAccountJson: string;
-}
-
-export interface AzureCredentials {
-  subscriptionId: string;
-  tenantId: string;
-  applicationId: string;
-  secretValue: string;
-}
+import type {
+  AwsCredentials,
+  AzureCredentials,
+  GcpCredentials,
+  OracleCredentials,
+} from "../types";
 
 type CredentialsMap = {
   [CloudProviderName.Aws]: AwsCredentials;
@@ -37,17 +20,24 @@ type CredentialsMap = {
 };
 
 export function useCredentials() {
+  const queryClient = useQueryClient();
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const invalidateConfiguredProviders = () => {
+    queryClient.invalidateQueries({
+      queryKey: configuredProvidersQueryOptions.queryKey,
+    });
+  };
 
   const loadCredentials = async <T extends CloudProviderName>(
     provider: T,
   ): Promise<(CredentialsMap[T] & { provider: T }) | null> => {
-    try {
-      return await invokeCommand("get_credentials", { provider });
-    } catch {
+    const result = await commands.getCredentials(provider);
+    if (result.status === "error") {
       return null;
     }
+    return result.data as (CredentialsMap[T] & { provider: T }) | null;
   };
 
   const saveCredentials = async <T extends CloudProviderName>(
@@ -57,35 +47,32 @@ export function useCredentials() {
     setIsSaving(true);
     setError(null);
 
-    try {
-      await invokeCommand("save_credentials", { credentials: { provider, ...credentials } });
-      return true;
-    } catch (error) {
-      const message = extractErrorMessage(error, "Failed to save credentials");
-      setError(message);
-      toast.error(message);
-      console.error("Failed to save credentials:", error);
+    const result = await commands.saveCredentials({
+      provider,
+      ...credentials,
+    } as Parameters<typeof commands.saveCredentials>[0]);
+    setIsSaving(false);
+    if (result.status === "error") {
+      setError(result.error);
+      toast.error(result.error);
+      console.error("Failed to save credentials:", result.error);
       return false;
-    } finally {
-      setIsSaving(false);
     }
+    invalidateConfiguredProviders();
+    return true;
   };
 
   const deleteCredentials = async (
     provider: CloudProviderName,
   ): Promise<boolean> => {
-    try {
-      await invokeCommand("delete_credentials", { provider });
-      return true;
-    } catch (error) {
-      const message = extractErrorMessage(
-        error,
-        "Failed to delete credentials",
-      );
-      toast.error(message);
-      console.error("Failed to delete credentials:", error);
+    const result = await commands.deleteCredentials(provider);
+    if (result.status === "error") {
+      toast.error(result.error);
+      console.error("Failed to delete credentials:", result.error);
       return false;
     }
+    invalidateConfiguredProviders();
+    return true;
   };
 
   const clearError = () => setError(null);

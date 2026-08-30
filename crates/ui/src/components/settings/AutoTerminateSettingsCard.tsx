@@ -1,13 +1,7 @@
 import { useEffect, useState } from "react";
-import { invokeCommand } from "../../lib/invokeCommand";
+import { AutoTerminateSettings, commands } from "../../bindings";
 import { Toggle } from "../primitives/Toggle";
-import { DurationField, DurationUnit } from "./DurationField";
-
-interface AutoTerminateSettings {
-  autoTerminateEnabled: boolean;
-  autoTerminateThresholdMinutes: number;
-  autoTerminateUnit: DurationUnit;
-}
+import { DurationField } from "./DurationField";
 
 const DEFAULT_SETTINGS: AutoTerminateSettings = {
   autoTerminateEnabled: false,
@@ -22,7 +16,8 @@ export function AutoTerminateSettingsCard() {
     useState<AutoTerminateSettings>(DEFAULT_SETTINGS);
 
   useEffect(() => {
-    invokeCommand<AutoTerminateSettings>("get_auto_terminate_settings")
+    commands
+      .getAutoTerminateSettings()
       .then(setSettings)
       .catch((error) =>
         console.error("Failed to load auto-terminate settings:", error),
@@ -31,10 +26,11 @@ export function AutoTerminateSettingsCard() {
 
   const updateSettings = (updated: AutoTerminateSettings) => {
     setSettings(updated);
-    invokeCommand("save_auto_terminate_settings", { settings: updated }).catch(
-      (error) =>
-        console.error("Failed to save auto-terminate settings:", error),
-    );
+    commands.saveAutoTerminateSettings(updated).then((result) => {
+      if (result.status === "error") {
+        console.error("Failed to save auto-terminate settings:", result.error);
+      }
+    });
   };
 
   const toggleEnabled = () => {

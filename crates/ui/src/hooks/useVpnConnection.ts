@@ -1,34 +1,14 @@
 import { useState, useEffect } from "react";
-import { extractErrorMessage } from "../lib/extractErrorMessage";
-import { invokeCommand } from "../lib/invokeCommand";
-import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import toast from "react-hot-toast";
-import { Instance } from "../types";
-
-export enum ServerStatus {
-  IDLE = "idle",
-  CONNECTING = "connecting",
-  CONNECTED = "connected",
-}
-
-export interface VpnMetrics {
-  bytesSent: number;
-  bytesReceived: number;
-  packetsSent: number;
-  packetsReceived: number;
-  uploadRate: number;
-  downloadRate: number;
-}
-
-export type VpnStatus =
-  | { connected: true; instance: Instance; metrics: VpnMetrics | null; connectionError: string | null }
-  | { connected: false; instance: null; metrics: null; connectionError: string | null };
+import { commands, events } from "../bindings";
+import { Instance, VpnStatus } from "../types";
 
 const initialVpnStatus: VpnStatus = {
   connected: false,
   instance: null,
   metrics: null,
+  connectedAt: null,
   connectionError: null,
 };
 
@@ -41,7 +21,7 @@ export function useVpnConnection() {
   useEffect(() => {
     checkVpnStatus();
 
-    const unlistenPromise = listen<VpnStatus>("vpn-status", (event) => {
+    const unlistenPromise = events.vpnStatus.listen((event) => {
       setVpnStatus(event.payload);
     });
 
@@ -56,21 +36,26 @@ export function useVpnConnection() {
   }, []);
 
   const checkVpnStatus = async () => {
-    try {
-      const status = await invokeCommand<VpnStatus>("get_vpn_status");
-      setVpnStatus((current) => {
-        if (current.connectionError && !status.connected && !status.connectionError) {
-          return current;
-        }
-        return status;
-      });
-      if (status.connected) {
-        invokeCommand("subscribe_to_vpn_status").catch((error) =>
-          console.error("Failed to resume metrics stream:", error),
+    const result = await commands.getVpnStatus();
+    if (result.status === "error") {
+      console.error("Failed to check VPN status:", result.error);
+      return;
+    }
+    const status = result.data;
+    setVpnStatus((current) => {
+      if (current.connectionError && !status.connected && !status.connectionError) {
+        return current;
+      }
+      return status;
+    });
+    if (status.connected) {
+      const subscribeResult = await commands.subscribeToVpnStatus();
+      if (subscribeResult.status === "error") {
+        console.error(
+          "Failed to resume metrics stream:",
+          subscribeResult.error,
         );
       }
-    } catch (error) {
-      console.error("Failed to check VPN status:", error);
     }
   };
 
@@ -80,47 +65,36 @@ export function useVpnConnection() {
     setIsConnecting(true);
     setError(null);
 
-    try {
-      const response = await invokeCommand("connect", {
-        instanceId: selectedInstance.id,
-        region: selectedInstance.region,
-        provider: selectedInstance.provider,
-        publicIpV4: selectedInstance.publicIpV4 || null,
-        publicIpV6: selectedInstance.publicIpV6 || null,
-      });
-
-      console.log("VPN connected:", response);
-    } catch (error) {
-      const errorMessage = extractErrorMessage(
-        error,
-        "Failed to connect to VPN",
-      );
-      setError(errorMessage);
-      console.error("Failed to connect to VPN:", error);
-      toast.error(errorMessage);
-    } finally {
-      setIsConnecting(false);
+    const result = await commands.connect(
+      selectedInstance.id,
+      selectedInstance.region,
+      selectedInstance.provider,
+      selectedInstance.publicIpV4 || null,
+      selectedInstance.publicIpV6 || null,
+    );
+    setIsConnecting(false);
+    if (result.status === "error") {
+      setError(result.error);
+      console.error("Failed to connect to VPN:", result.error);
+      toast.error(result.error);
+      return;
     }
+    console.log("VPN connected:", result.data);
   };
 
   const disconnectFromVpn = async () => {
     setError(null);
     setIsDisconnecting(true);
 
-    try {
-      const response = await invokeCommand("disconnect");
-      console.log("VPN disconnected:", response);
-    } catch (error) {
-      const errorMessage = extractErrorMessage(
-        error,
-        "Failed to disconnect from VPN",
-      );
-      setError(errorMessage);
-      toast.error(errorMessage);
-      console.error("Failed to disconnect from VPN:", error);
-    } finally {
-      setIsDisconnecting(false);
+    const result = await commands.disconnect();
+    setIsDisconnecting(false);
+    if (result.status === "error") {
+      setError(result.error);
+      toast.error(result.error);
+      console.error("Failed to disconnect from VPN:", result.error);
+      return;
     }
+    console.log("VPN disconnected:", result.data);
   };
 
   const clearError = () => {

@@ -1,6 +1,7 @@
 import { createContext, useContext, ReactNode } from "react";
 import { Instance } from "../types";
-import { useVpnConnection, VpnStatus } from "../hooks/useVpnConnection";
+import { useVpnConnection } from "../hooks/useVpnConnection";
+import { VpnStatus } from "../types";
 
 interface VpnConnectionContextValue {
   vpnStatus: VpnStatus;

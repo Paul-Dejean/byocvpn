@@ -1,3 +1,1 @@
-export enum VpnEvent {
-  Status = "vpn-status",
-}
+export type { TunnelMetrics, VpnStatus } from "../bindings";

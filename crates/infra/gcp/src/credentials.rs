@@ -11,6 +11,7 @@ const SERVICE_ACCOUNT_JSON_FIELD: &str = "service_account_json";
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct GcpCredentials {
     pub project_id: String,
     pub service_account_json: String,
@@ -35,8 +36,16 @@ impl StoredCredentials for GcpCredentials {
             .ok()
             .and_then(|value| serde_json::to_string(&value).ok())
             .unwrap_or_else(|| self.service_account_json.clone());
-        store.set(Self::CREDENTIALS_SECTION, PROJECT_ID_FIELD, &self.project_id);
-        store.set(Self::CREDENTIALS_SECTION, SERVICE_ACCOUNT_JSON_FIELD, &compact);
+        store.set(
+            Self::CREDENTIALS_SECTION,
+            PROJECT_ID_FIELD,
+            &self.project_id,
+        );
+        store.set(
+            Self::CREDENTIALS_SECTION,
+            SERVICE_ACCOUNT_JSON_FIELD,
+            &compact,
+        );
     }
 }
 

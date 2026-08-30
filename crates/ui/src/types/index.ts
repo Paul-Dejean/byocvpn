@@ -1,4 +1,5 @@
 export * from "./calendar";
+export * from "./credentials";
 export * from "./regions";
 export * from "./providers";
 export * from "./instances";
@@ -6,4 +7,5 @@ export * from "./job";
 export * from "./ledger";
 export * from "./pages";
 export * from "./permissions";
+export * from "./theme";
 export * from "./vpn";

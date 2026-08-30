@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCredentials } from "../../hooks";
 import { CloudProviderName } from "../../types";
-import { ProviderIcon } from "../providers/ProviderIcon";
 import { Spinner } from "../primitives/Spinner";
 import { Badge } from "../primitives/Badge";
 import { Button } from "../primitives/Button";
@@ -9,43 +8,55 @@ import { IconButton } from "../primitives/IconButton";
 import { Alert } from "../primitives/Alert";
 import { FormField } from "../primitives/FormField";
 
-interface AwsProfileCardProps {
+interface GcpAccountCardProps {
   onCredentialsSaved: (provider: CloudProviderName) => void;
   onCredentialsDeleted: () => void;
   onProvisionRequested: (provider: CloudProviderName) => void;
   isProvisioned: boolean;
 }
 
-function AwsIcon() {
+function GcpIcon() {
   return (
-    <div className="w-12 h-12 rounded-xl flex items-center justify-center p-2.5 flex-shrink-0">
-      <ProviderIcon provider={CloudProviderName.Aws} className="w-full h-full" />
+    <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 p-2.5">
+      <img src="/cloud-providers/google-cloud-icon.svg" alt="GCP" className="w-full h-full object-contain" />
     </div>
   );
 }
 
-export function AwsProfileCard({ onCredentialsSaved, onCredentialsDeleted, onProvisionRequested, isProvisioned }: AwsProfileCardProps) {
+export function GcpAccountCard({ onCredentialsSaved, onCredentialsDeleted, onProvisionRequested, isProvisioned }: GcpAccountCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [hasCredentials, setHasCredentials] = useState<boolean | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-  const [formFields, setFormFields] = useState({ accessKey: "", secretKey: "" });
+  const [jsonAlreadySet, setJsonAlreadySet] = useState(false);
+  const [formFields, setFormFields] = useState({ projectId: "", serviceAccountJson: "" });
 
-  const { isSaving, error, saveCredentials, deleteCredentials, loadCredentials, clearError } = useCredentials();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const {
+    isSaving,
+    error,
+    saveCredentials,
+    deleteCredentials,
+    loadCredentials,
+    clearError,
+  } = useCredentials();
 
   useEffect(() => {
-    loadCredentials(CloudProviderName.Aws).then((existing) => {
+    loadCredentials(CloudProviderName.Gcp).then((existing) => {
       setHasCredentials(existing !== null);
     });
   }, []);
 
   const resetForm = () => {
-    setFormFields({ accessKey: "", secretKey: "" });
+    setFormFields({ projectId: "", serviceAccountJson: "" });
+    setJsonAlreadySet(false);
   };
 
   const handleEditOpen = async () => {
-    const existing = await loadCredentials(CloudProviderName.Aws);
+    const existing = await loadCredentials(CloudProviderName.Gcp);
     if (existing) {
-      setFormFields({ accessKey: existing.accessKeyId, secretKey: "" });
+      setFormFields({ projectId: existing.projectId, serviceAccountJson: "" });
+      setJsonAlreadySet(!!existing.serviceAccountJson);
     }
     setIsEditing(true);
   };
@@ -57,28 +68,52 @@ export function AwsProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
   };
 
   const handleSave = async () => {
-    if (!formFields.accessKey.trim()) return;
-    const success = await saveCredentials(CloudProviderName.Aws, {
-      accessKeyId: formFields.accessKey.trim(),
-      secretAccessKey: formFields.secretKey.trim(),
+    const success = await saveCredentials(CloudProviderName.Gcp, {
+      projectId: formFields.projectId.trim(),
+      serviceAccountJson: formFields.serviceAccountJson.trim(),
     });
+
     if (success) {
       resetForm();
       setIsEditing(false);
       setHasCredentials(true);
-      onCredentialsSaved(CloudProviderName.Aws);
+      onCredentialsSaved(CloudProviderName.Gcp);
     }
   };
 
-  const handleDelete = async () => {
-    const success = await deleteCredentials(CloudProviderName.Aws);
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (loadEvent) => {
+      const content = loadEvent.target?.result;
+      if (typeof content === "string") {
+        try {
+          const parsed = JSON.parse(content);
+          setFormFields((prev) => ({
+            serviceAccountJson: content,
+            projectId: parsed.project_id && !prev.projectId ? parsed.project_id : prev.projectId,
+          }));
+        } catch {
+          setFormFields((prev) => ({ ...prev, serviceAccountJson: content }));
+        }
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = "";
+  };
+
+  const handleDeleteCredentials = async () => {
+    const success = await deleteCredentials(CloudProviderName.Gcp);
     if (success) {
       setHasCredentials(false);
       setIsConfirmingDelete(false);
-      setIsEditing(false);
       onCredentialsDeleted();
     }
   };
+
+  const isFormValid =
+    formFields.projectId.trim() && (formFields.serviceAccountJson.trim() || jsonAlreadySet);
 
   const showNotProvisionedWarning = hasCredentials === true && !isProvisioned;
 
@@ -87,10 +122,10 @@ export function AwsProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
       {!isEditing ? (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <AwsIcon />
+            <GcpIcon />
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-lg text-primary">AWS Account</h3>
+                <h3 className="font-semibold text-lg text-primary">Google Cloud Account</h3>
                 {hasCredentials && isProvisioned && (
                   <Badge variant="success" shape="pill">
                     Provisioned
@@ -104,7 +139,6 @@ export function AwsProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
               </div>
             </div>
           </div>
-
           {hasCredentials === null ? (
             <Spinner color="border-gray-400" />
           ) : hasCredentials ? (
@@ -113,18 +147,18 @@ export function AwsProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
                 <>
                   <span className="text-sm text-gray-300">Delete?</span>
                   <Button variant="secondary" size="sm" onClick={() => setIsConfirmingDelete(false)}>Cancel</Button>
-                  <Button variant="danger" size="sm" onClick={handleDelete}>Confirm</Button>
+                  <Button variant="danger" size="sm" onClick={handleDeleteCredentials}>Confirm</Button>
                 </>
               ) : (
                 <>
                   {isProvisioned ? (
-                    <IconButton accent="blue" onClick={() => onProvisionRequested(CloudProviderName.Aws)} title="Re-provision">
+                    <IconButton accent="blue" onClick={() => onProvisionRequested(CloudProviderName.Gcp)} title="Re-provision">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
                     </IconButton>
                   ) : (
-                    <IconButton accent="amber" onClick={() => onProvisionRequested(CloudProviderName.Aws)} title="Provision">
+                    <IconButton accent="amber" onClick={() => onProvisionRequested(CloudProviderName.Gcp)} title="Provision">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>
@@ -166,30 +200,88 @@ export function AwsProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
       ) : (
         <div className="space-y-6">
           <div className="flex items-center gap-4">
-            <AwsIcon />
+            <GcpIcon />
             <div>
-              <h3 className="font-semibold text-lg text-primary">{hasCredentials ? "Edit AWS Account" : "Add AWS Account"}</h3>
-              <p className="text-sm text-gray-400">{hasCredentials ? "Update your AWS access credentials" : "Enter your AWS access credentials"}</p>
+              <h3 className="font-semibold text-lg text-primary">
+                {hasCredentials
+                  ? "Edit Google Cloud Account"
+                  : "Add Google Cloud Account"}
+              </h3>
+              <p className="text-sm text-gray-400">
+                {hasCredentials
+                  ? "Update your GCP service-account key"
+                  : "Enter your GCP service-account key"}
+              </p>
             </div>
           </div>
 
           <div className="space-y-4">
             <FormField
-              label="Access Key ID"
-              hint="e.g. AKIAIOSFODNN7EXAMPLE"
+              label="Project ID"
+              hint="e.g. my-project-123456"
               type="text"
               mono
-              value={formFields.accessKey}
-              onChange={(value) => setFormFields((prev) => ({ ...prev, accessKey: value }))}
+              value={formFields.projectId}
+              onChange={(value) => setFormFields((prev) => ({ ...prev, projectId: value }))}
+              placeholder="my-gcp-project"
             />
-            <FormField
-              label="Secret Access Key"
-              hint="Leave blank to keep your existing key"
-              type="password"
-              mono
-              value={formFields.secretKey}
-              onChange={(value) => setFormFields((prev) => ({ ...prev, secretKey: value }))}
-            />
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-gray-300">
+                  Service Account Key (.json)
+                </label>
+                <Button
+                  variant="secondary"
+                  size="none"
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-xs px-3 py-1"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-3.5 w-3.5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+                    />
+                  </svg>
+                  Load from file
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+              </div>
+              {jsonAlreadySet && !formFields.serviceAccountJson && (
+                <p className="text-xs text-success-400 mb-2">
+                  ✓ Service account key already configured — load a new file or
+                  paste below to replace it
+                </p>
+              )}
+              {!jsonAlreadySet && !formFields.serviceAccountJson && (
+                <p className="text-xs text-gray-500 mb-2">
+                  Paste the contents of your service-account JSON key file or
+                  use "Load from file"
+                </p>
+              )}
+              <textarea
+                value={formFields.serviceAccountJson}
+                onChange={(e) => setFormFields((prev) => ({ ...prev, serviceAccountJson: e.target.value }))}
+                rows={6}
+                className="input font-mono text-xs resize-none"
+                placeholder='{"type":"service_account","project_id":"..."}'
+              />
+            </div>
 
             {error && <Alert variant="error">{error}</Alert>}
 
@@ -199,7 +291,7 @@ export function AwsProfileCard({ onCredentialsSaved, onCredentialsDeleted, onPro
                 variant="primary"
                 onClick={handleSave}
                 loading={isSaving}
-                disabled={!formFields.accessKey.trim()}
+                disabled={!isFormValid}
                 className="flex-1"
               >
                 {isSaving ? "Saving..." : "Save Account"}

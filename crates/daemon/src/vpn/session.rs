@@ -22,11 +22,15 @@ pub struct PersistedSession {
 
 pub fn write_session(session: &PersistedSession) -> Result<()> {
     let path = byocvpn_core::config::session_file_path()?;
-    let json = serde_json::to_string(session).map_err(|error| ConfigurationError::TunnelConfiguration {
-        reason: format!("failed to serialize session: {}", error),
+    let json = serde_json::to_string(session).map_err(|error| {
+        ConfigurationError::TunnelConfiguration {
+            reason: format!("failed to serialize session: {}", error),
+        }
     })?;
-    std::fs::write(&path, json.as_bytes()).map_err(|error| ConfigurationError::TunnelConfiguration {
-        reason: format!("failed to write session file: {}", error),
+    std::fs::write(&path, json.as_bytes()).map_err(|error| {
+        ConfigurationError::TunnelConfiguration {
+            reason: format!("failed to write session file: {}", error),
+        }
     })?;
     debug!("Session persisted to {}", path.display());
     Ok(())

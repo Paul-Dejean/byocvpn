@@ -11,15 +11,17 @@ pub fn create_credential(
     secret_value: &str,
 ) -> Result<Arc<ClientSecretCredential>> {
     let secret = Secret::new(secret_value.to_string());
-    ClientSecretCredential::new(tenant_id, application_id.to_string(), secret, None).map_err(|error| {
-        CredentialsError::InvalidFormat {
-            reason: format!(
-                "Failed to create Azure service-principal credential: {}",
-                error
-            ),
-        }
-        .into()
-    })
+    ClientSecretCredential::new(tenant_id, application_id.to_string(), secret, None).map_err(
+        |error| {
+            CredentialsError::InvalidFormat {
+                reason: format!(
+                    "Failed to create Azure service-principal credential: {}",
+                    error
+                ),
+            }
+            .into()
+        },
+    )
 }
 
 pub async fn get_access_token(credential: &Arc<ClientSecretCredential>) -> Result<String> {

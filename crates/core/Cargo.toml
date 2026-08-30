@@ -24,6 +24,10 @@ rand = { workspace = true }
 handlebars = { workspace = true }
 chrono = { version = "0.4", features = ["serde"] }
 strum = { workspace = true }
+specta = { workspace = true, optional = true }
+
+[features]
+specta = ["dep:specta"]
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [

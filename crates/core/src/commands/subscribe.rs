@@ -23,26 +23,31 @@ where
         "Starting metrics subscription via socket: {}",
         socket_path.display()
     );
-    metrics_stream::start(socket_path, connected_instance, connected_at, move |vpn_status| {
-        thread_local! {
-            static LAST_PERSIST: Cell<Option<Instant>> = const { Cell::new(None) };
-        }
-        let should_persist = LAST_PERSIST.with(|last| {
-            let now = Instant::now();
-            let due = last.get().map_or(true, |t| t.elapsed().as_secs() >= 60);
-            if due {
-                last.set(Some(now));
+    metrics_stream::start(
+        socket_path,
+        connected_instance,
+        connected_at,
+        move |vpn_status| {
+            thread_local! {
+                static LAST_PERSIST: Cell<Option<Instant>> = const { Cell::new(None) };
             }
-            due
-        });
+            let should_persist = LAST_PERSIST.with(|last| {
+                let now = Instant::now();
+                let due = last.get().map_or(true, |t| t.elapsed().as_secs() >= 60);
+                if due {
+                    last.set(Some(now));
+                }
+                due
+            });
 
-        if should_persist {
-            if let Some(ref metrics) = vpn_status.metrics {
-                on_metrics_persist(metrics.bytes_sent, metrics.bytes_received);
+            if should_persist {
+                if let Some(ref metrics) = vpn_status.metrics {
+                    on_metrics_persist(metrics.bytes_sent, metrics.bytes_received);
+                }
             }
-        }
 
-        on_status_update(vpn_status);
-    })
+            on_status_update(vpn_status);
+        },
+    )
     .await
 }

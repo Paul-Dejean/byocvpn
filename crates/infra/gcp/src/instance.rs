@@ -56,7 +56,10 @@ pub async fn spawn_instance(
     );
 
     let mut labels = HashMap::new();
-    labels.insert(INSTANCE_LABEL_KEY.to_string(), INSTANCE_LABEL_VALUE.to_string());
+    labels.insert(
+        INSTANCE_LABEL_KEY.to_string(),
+        INSTANCE_LABEL_VALUE.to_string(),
+    );
     labels.insert("byocvpn-spawn-id".to_string(), spawn_id.to_string());
 
     let body = CreateInstanceRequest {

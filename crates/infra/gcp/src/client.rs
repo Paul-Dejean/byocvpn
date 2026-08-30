@@ -104,7 +104,11 @@ impl GcpClient {
     }
 }
 
-async fn parse_response<T: DeserializeOwned>(method: &str, url: &str, response: Response) -> Result<T> {
+async fn parse_response<T: DeserializeOwned>(
+    method: &str,
+    url: &str,
+    response: Response,
+) -> Result<T> {
     let status = response.status();
     let body =
         response
@@ -116,7 +120,11 @@ async fn parse_response<T: DeserializeOwned>(method: &str, url: &str, response: 
 
     if status.is_success() {
         debug!("[GCP] {} {} → {}", method, url, status);
-        let json_str = if body.is_empty() { "null" } else { body.as_str() };
+        let json_str = if body.is_empty() {
+            "null"
+        } else {
+            body.as_str()
+        };
         from_str(json_str).map_err(|error| {
             NetworkProvisioningError::NetworkQueryFailed {
                 reason: format!("Failed to parse GCP JSON: {} — body: {}", error, body),
@@ -124,7 +132,10 @@ async fn parse_response<T: DeserializeOwned>(method: &str, url: &str, response: 
             .into()
         })
     } else if status == StatusCode::NOT_FOUND {
-        Err(NetworkProvisioningError::ResourceNotFound { url: url.to_string() }.into())
+        Err(NetworkProvisioningError::ResourceNotFound {
+            url: url.to_string(),
+        }
+        .into())
     } else {
         error!("[GCP] {} {} → {} — {}", method, url, status, body);
         Err(NetworkProvisioningError::NetworkQueryFailed {

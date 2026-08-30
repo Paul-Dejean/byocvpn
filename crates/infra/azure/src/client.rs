@@ -149,7 +149,11 @@ impl AzureClient {
     }
 }
 
-async fn parse_json_response<T: DeserializeOwned>(method: &str, url: &str, response: Response) -> Result<T> {
+async fn parse_json_response<T: DeserializeOwned>(
+    method: &str,
+    url: &str,
+    response: Response,
+) -> Result<T> {
     let status = response.status();
 
     if status.is_success() {
@@ -158,7 +162,11 @@ async fn parse_json_response<T: DeserializeOwned>(method: &str, url: &str, respo
                 reason: format!("Azure {} {} failed to read body: {}", method, url, error),
             }
         })?;
-        let json_str = if body.is_empty() { "null" } else { body.as_str() };
+        let json_str = if body.is_empty() {
+            "null"
+        } else {
+            body.as_str()
+        };
         from_str(json_str).map_err(|error| {
             NetworkProvisioningError::NetworkQueryFailed {
                 reason: format!(

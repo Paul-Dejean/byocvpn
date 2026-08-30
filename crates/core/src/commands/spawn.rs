@@ -36,7 +36,14 @@ where
         match step.id.as_str() {
             "launch" => {
                 on_step_progress("launch", SpawnStepStatus::Running, None);
-                match launch_instance(provider, region, spawn_id, server_private_key, client_public_key).await
+                match launch_instance(
+                    provider,
+                    region,
+                    spawn_id,
+                    server_private_key,
+                    client_public_key,
+                )
+                .await
                 {
                     Ok(instance) => {
                         on_step_progress("launch", SpawnStepStatus::Completed, None);

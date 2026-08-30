@@ -13,9 +13,8 @@ use crate::{
     client::AzureClient,
     models::{
         AsyncOperationResponse, HardwareProfile, ImageReference, LinuxConfiguration,
-        NetworkInterfaceReference, NetworkProfile, OsDisk,
-        OsProfile, StorageProfile, VmListResponse, VmProperties, VmRequest, VmResponse,
-        byocvpn_tags,
+        NetworkInterfaceReference, NetworkProfile, OsDisk, OsProfile, StorageProfile,
+        VmListResponse, VmProperties, VmRequest, VmResponse, byocvpn_tags,
     },
     network::{
         IpVersion, build_resource_group_name, cleanup_vm_resources, create_nic,
@@ -80,10 +79,9 @@ pub async fn spawn_instance(
 
     let resource_group = build_resource_group_name(location);
 
-    let public_ipv4_id =
-        ensure_public_ip(client, location, &vm_name, IpVersion::V4)
-            .await
-            .map_err(|error| build_spawn_error(location, "Public IP", error))?;
+    let public_ipv4_id = ensure_public_ip(client, location, &vm_name, IpVersion::V4)
+        .await
+        .map_err(|error| build_spawn_error(location, "Public IP", error))?;
 
     let public_ipv6_id = match ensure_public_ip(client, location, &vm_name, IpVersion::V6).await {
         Ok(id) => id,
@@ -163,9 +161,7 @@ pub async fn spawn_instance(
                         },
                     },
                     network_profile: NetworkProfile {
-                        network_interfaces: vec![NetworkInterfaceReference {
-                            id: nic_id.clone(),
-                        }],
+                        network_interfaces: vec![NetworkInterfaceReference { id: nic_id.clone() }],
                     },
                 },
             };

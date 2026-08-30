@@ -7,11 +7,10 @@ use byocvpn_core::{
         SpawnStep, TerminateInstanceParams,
     },
     commands::setup::Region,
-    error::{NetworkProvisioningError, Result},
+    error::Result,
 };
 use log::*;
 use serde::Deserialize;
-use serde_json::Value;
 
 use crate::{auth::create_credential, client::AzureClient, instance, network};
 
@@ -206,7 +205,7 @@ impl CloudProvider for AzureProvider {
         }
     }
 
-    async fn verify_permissions(&self) -> Result<Value> {
+    async fn verify_permissions(&self) -> Result<Vec<PermissionStatus>> {
         let path = self
             .client
             .build_subscription_path("/providers/Microsoft.Authorization/permissions");
@@ -230,12 +229,7 @@ impl CloudProvider for AzureProvider {
             })
             .collect();
 
-        let value = serde_json::to_value(&permissions).map_err(|error| {
-            NetworkProvisioningError::NetworkQueryFailed {
-                reason: error.to_string(),
-            }
-        })?;
-        Ok(value)
+        Ok(permissions)
     }
 
     async fn setup(&self) -> Result<()> {

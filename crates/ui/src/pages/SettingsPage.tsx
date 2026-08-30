@@ -5,10 +5,10 @@ import { useCredentials } from "../hooks/useCredentials";
 import { useAccounts } from "../hooks/useAccounts";
 import { usePermissions } from "../hooks/usePermissions";
 import { CloudProviderName } from "../types";
-import { AwsProfileCard } from "../components/settings/AwsProfileCard";
-import { OracleProfileCard } from "../components/settings/OracleProfileCard";
-import { GcpProfileCard } from "../components/settings/GcpProfileCard";
-import { AzureProfileCard } from "../components/settings/AzureProfileCard";
+import { AwsAccountCard } from "../components/settings/AwsAccountCard";
+import { OracleAccountCard } from "../components/settings/OracleAccountCard";
+import { GcpAccountCard } from "../components/settings/GcpAccountCard";
+import { AzureAccountCard } from "../components/settings/AzureAccountCard";
 import { JobProgressDrawer } from "../components/common/JobProgressDrawer";
 import { NotificationSettingsCard } from "../components/settings/NotificationSettingsCard";
 import { SessionKillswitchCard } from "../components/settings/SessionKillswitchCard";
@@ -116,7 +116,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
             </h2>
             <div className="divide-y divide-gray-700/50">
               {awsHasCredentials === true && (
-                <AwsProfileCard
+                <AwsAccountCard
                   onCredentialsSaved={provisionAccount}
                   onProvisionRequested={provisionAccount}
                   isProvisioned={provisionedProviders.has(
@@ -134,7 +134,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
               )}
 
               {oracleHasCredentials === true && (
-                <OracleProfileCard
+                <OracleAccountCard
                   onCredentialsSaved={provisionAccount}
                   onProvisionRequested={provisionAccount}
                   isProvisioned={provisionedProviders.has(
@@ -152,7 +152,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
               )}
 
               {gcpHasCredentials === true && (
-                <GcpProfileCard
+                <GcpAccountCard
                   onCredentialsSaved={provisionAccount}
                   onProvisionRequested={provisionAccount}
                   isProvisioned={provisionedProviders.has(
@@ -170,7 +170,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
               )}
 
               {azureHasCredentials === true && (
-                <AzureProfileCard
+                <AzureAccountCard
                   onCredentialsSaved={provisionAccount}
                   onProvisionRequested={provisionAccount}
                   isProvisioned={provisionedProviders.has(

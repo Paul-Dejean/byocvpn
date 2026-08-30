@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Instance } from "../../types";
+import { ConnectedInstance } from "../../bindings";
 import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
 import { getRegionInfo } from "../../constants/regionInfo";
 import { FlagIcon } from "../FlagIcon";
@@ -9,12 +9,16 @@ import { formatBytes } from "../../lib/bytes";
 import { formatDuration } from "../../lib/time";
 
 interface ConnectedViewProps {
-  connectedInstance: Instance;
+  connectedInstance: ConnectedInstance;
 }
 
 export function ConnectedView({ connectedInstance }: ConnectedViewProps) {
   const { disconnectFromVpn, vpnStatus, isDaemonRunning, isDisconnecting } = useVpnConnectionContext();
-  const [startTime] = useState(() => Date.now());
+  const [fallbackStartTime] = useState(() => Date.now());
+  const startTime =
+    vpnStatus.connectedAt !== null
+      ? vpnStatus.connectedAt * 1000
+      : fallbackStartTime;
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const regionInfo = getRegionInfo(
     connectedInstance.provider,
@@ -23,9 +27,11 @@ export function ConnectedView({ connectedInstance }: ConnectedViewProps) {
   const metrics = vpnStatus.metrics;
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
-    }, 1000);
+    function updateElapsedSeconds() {
+      setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startTime) / 1000)));
+    }
+    updateElapsedSeconds();
+    const interval = setInterval(updateElapsedSeconds, 1000);
     return () => clearInterval(interval);
   }, [startTime]);
 

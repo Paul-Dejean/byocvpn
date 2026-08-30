@@ -60,7 +60,10 @@ impl Drop for IpcSocket {
     }
 }
 
-fn create_pipe_server_with_null_dacl(path: &PathBuf, first_instance: bool) -> Result<NamedPipeServer> {
+fn create_pipe_server_with_null_dacl(
+    path: &PathBuf,
+    first_instance: bool,
+) -> Result<NamedPipeServer> {
     unsafe {
         let mut security_descriptor: SECURITY_DESCRIPTOR = std::mem::zeroed();
         let security_descriptor_ptr: PSECURITY_DESCRIPTOR =

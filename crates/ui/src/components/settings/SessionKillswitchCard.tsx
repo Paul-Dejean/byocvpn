@@ -1,10 +1,6 @@
 import { useEffect, useState } from "react";
-import { invokeCommand } from "../../lib/invokeCommand";
+import { VpnSettings, commands } from "../../bindings";
 import { Toggle } from "../primitives/Toggle";
-
-interface VpnSettings {
-  sessionKillswitch: boolean;
-}
 
 const DEFAULT_SETTINGS: VpnSettings = {
   sessionKillswitch: true,
@@ -14,7 +10,8 @@ export function SessionKillswitchCard() {
   const [settings, setSettings] = useState<VpnSettings>(DEFAULT_SETTINGS);
 
   useEffect(() => {
-    invokeCommand<VpnSettings>("get_vpn_settings")
+    commands
+      .getVpnSettings()
       .then(setSettings)
       .catch((error) => console.error("Failed to load VPN settings:", error));
   }, []);
@@ -25,9 +22,11 @@ export function SessionKillswitchCard() {
       sessionKillswitch: !settings.sessionKillswitch,
     };
     setSettings(updated);
-    invokeCommand("save_vpn_settings", { settings: updated }).catch((error) =>
-      console.error("Failed to save VPN settings:", error),
-    );
+    commands.saveVpnSettings(updated).then((result) => {
+      if (result.status === "error") {
+        console.error("Failed to save VPN settings:", result.error);
+      }
+    });
   };
 
   return (

@@ -1,7 +1,6 @@
 pub const STATUS_SERVER_SCRIPT: &str = include_str!("templates/status_server.py");
 
 pub mod cloud_provider;
-pub mod retry;
 pub mod commands;
 pub mod config;
 pub mod connectivity;
@@ -12,5 +11,6 @@ pub mod error;
 pub mod ipc;
 pub mod ledger;
 pub mod metrics_stream;
+pub mod retry;
 pub mod tunnel;
 pub mod wireguard_config;

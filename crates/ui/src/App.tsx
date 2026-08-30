@@ -13,11 +13,12 @@ import {
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { Navbar } from "./components/common/Navbar";
 import { VpnConnectionProvider } from "./contexts/VpnConnectionContext";
-import { RegionsProvider, InstancesProvider } from "./contexts";
+import { useAutoTerminatedInstanceListener } from "./hooks/useAutoTerminatedInstanceListener";
 import { Page } from "./types/pages";
 export { Page };
 function App() {
   const [page, setPage] = useState(Page.LANDING);
+  useAutoTerminatedInstanceListener();
 
   return (
     <main className="bg-grid">
@@ -59,22 +60,18 @@ function App() {
           page === Page.PRICING ||
           page === Page.SETTINGS) && (
           <VpnConnectionProvider>
-            <RegionsProvider>
-              <InstancesProvider>
-                <div className="flex h-screen">
-                  <Navbar currentPage={page} onNavigate={setPage} />
-                  <div className="flex-1 min-w-0 overflow-hidden">
-                    {page === Page.VPN && <VpnPage />}
-                    {page === Page.PRICING && <PricingPage />}
-                    {page === Page.SETTINGS && (
-                      <SettingsPage
-                        onNavigateToAddAccount={() => setPage(Page.ADD_ACCOUNT)}
-                      />
-                    )}
-                  </div>
-                </div>
-              </InstancesProvider>
-            </RegionsProvider>
+            <div className="flex h-screen">
+              <Navbar currentPage={page} onNavigate={setPage} />
+              <div className="flex-1 min-w-0 overflow-hidden">
+                {page === Page.VPN && <VpnPage />}
+                {page === Page.PRICING && <PricingPage />}
+                {page === Page.SETTINGS && (
+                  <SettingsPage
+                    onNavigateToAddAccount={() => setPage(Page.ADD_ACCOUNT)}
+                  />
+                )}
+              </div>
+            </div>
           </VpnConnectionProvider>
         )}
       </ErrorBoundary>

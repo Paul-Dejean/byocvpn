@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "provider", rename_all = "SCREAMING_SNAKE_CASE")]
+#[derive(specta::Type)]
 pub enum ProviderCredentials {
     Aws(AwsCredentials),
     Oracle(OracleCredentials),

@@ -37,6 +37,7 @@ fn normalize_pem(raw: &str) -> String {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct OracleCredentials {
     pub tenancy_ocid: String,
     pub user_ocid: String,
@@ -62,10 +63,22 @@ impl StoredCredentials for OracleCredentials {
     fn write_to_store(&self, store: &mut CredentialStore) {
         let cleaned_pem = normalize_pem(&self.private_key_pem);
         let pem_single_line = cleaned_pem.replace('\n', "\\n");
-        store.set(Self::CREDENTIALS_SECTION, TENANCY_OCID_FIELD, &self.tenancy_ocid);
+        store.set(
+            Self::CREDENTIALS_SECTION,
+            TENANCY_OCID_FIELD,
+            &self.tenancy_ocid,
+        );
         store.set(Self::CREDENTIALS_SECTION, USER_OCID_FIELD, &self.user_ocid);
-        store.set(Self::CREDENTIALS_SECTION, FINGERPRINT_FIELD, &self.fingerprint);
-        store.set(Self::CREDENTIALS_SECTION, PRIVATE_KEY_PEM_FIELD, &pem_single_line);
+        store.set(
+            Self::CREDENTIALS_SECTION,
+            FINGERPRINT_FIELD,
+            &self.fingerprint,
+        );
+        store.set(
+            Self::CREDENTIALS_SECTION,
+            PRIVATE_KEY_PEM_FIELD,
+            &pem_single_line,
+        );
         store.set(Self::CREDENTIALS_SECTION, REGION_FIELD, &self.region);
     }
 }

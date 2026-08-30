@@ -1,13 +1,6 @@
-export enum EnableRegionEvent {
-  Progress = "enable-region-progress",
-  Complete = "enable-region-complete",
-  Failed = "enable-region-failed",
-}
+import type { Region } from "../bindings";
 
-export interface Region {
-  name: string;
-  country: string;
-}
+export type { Region };
 
 export interface RegionGroup {
   continent: string;

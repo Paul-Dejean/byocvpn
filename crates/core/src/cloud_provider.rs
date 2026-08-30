@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use strum::{Display, EnumString};
 
 use crate::{commands::setup::Region, error::Result};
@@ -21,7 +20,7 @@ pub struct TerminateInstanceParams<'a> {
 #[async_trait]
 pub trait CloudProvider: Send + Sync {
     async fn setup(&self) -> Result<()>;
-    async fn verify_permissions(&self) -> Result<Value>;
+    async fn verify_permissions(&self) -> Result<Vec<PermissionStatus>>;
     async fn enable_region(&self, region: &str) -> Result<()>;
     async fn spawn_instance(&self, params: &SpawnInstanceParams) -> Result<InstanceInfo>;
     async fn terminate_instance(&self, params: &TerminateInstanceParams) -> Result<()>;
@@ -40,6 +39,7 @@ pub trait CloudProvider: Send + Sync {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct PermissionStatus {
     pub permission: String,
     pub granted: bool,
@@ -48,6 +48,7 @@ pub struct PermissionStatus {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Display, EnumString)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "lowercase", ascii_case_insensitive)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum CloudProviderName {
     Aws,
     Azure,
@@ -58,6 +59,7 @@ pub enum CloudProviderName {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum InstanceState {
     Spawning,
     Installing,
@@ -70,6 +72,7 @@ pub enum InstanceState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct InstanceInfo {
     pub id: String,
     pub name: Option<String>,
@@ -86,6 +89,7 @@ pub struct InstanceInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct PricingInfo {
     pub hourly_rate: f64,
     pub ip_hourly_rate: f64,
@@ -96,6 +100,7 @@ pub struct PricingInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct SpawnStep {
     pub id: String,
     pub label: String,
@@ -103,6 +108,7 @@ pub struct SpawnStep {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct SpawnJob {
     pub job_id: String,
     pub steps: Vec<SpawnStep>,
@@ -112,6 +118,7 @@ pub struct SpawnJob {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum SpawnStepStatus {
     Pending,
     Running,

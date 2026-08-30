@@ -9,17 +9,35 @@ const NOTIFICATION_ENABLED_KEY: &str = "notificationEnabled";
 const NOTIFICATION_THRESHOLD_MINUTES_KEY: &str = "notificationThresholdMinutes";
 const NOTIFICATION_UNIT_KEY: &str = "notificationUnit";
 const DEFAULT_THRESHOLD_MINUTES: u64 = 60;
-const DEFAULT_NOTIFICATION_UNIT: &str = "minutes";
+const DEFAULT_NOTIFICATION_UNIT: DurationUnit = DurationUnit::Minutes;
 const SESSION_KILLSWITCH_KEY: &str = "sessionKillswitch";
 const DEFAULT_SESSION_KILLSWITCH: bool = true;
 const AUTO_TERMINATE_ENABLED_KEY: &str = "autoTerminateEnabled";
 const AUTO_TERMINATE_THRESHOLD_MINUTES_KEY: &str = "autoTerminateThresholdMinutes";
 const AUTO_TERMINATE_UNIT_KEY: &str = "autoTerminateUnit";
 const DEFAULT_AUTO_TERMINATE_THRESHOLD_MINUTES: u64 = 720;
-const DEFAULT_AUTO_TERMINATE_UNIT: &str = "hours";
+const DEFAULT_AUTO_TERMINATE_UNIT: DurationUnit = DurationUnit::Hours;
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(specta::Type)]
+#[serde(rename_all = "lowercase")]
+pub enum DurationUnit {
+    Minutes,
+    Hours,
+}
+
+impl DurationUnit {
+    fn as_str(self) -> &'static str {
+        match self {
+            DurationUnit::Minutes => "minutes",
+            DurationUnit::Hours => "hours",
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(specta::Type)]
 pub struct VpnSettings {
     pub session_killswitch: bool,
 }
@@ -34,10 +52,12 @@ impl Default for VpnSettings {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(specta::Type)]
 pub struct NotificationSettings {
     pub notification_enabled: bool,
+    #[specta(type = u32)]
     pub notification_threshold_minutes: u64,
-    pub notification_unit: String,
+    pub notification_unit: DurationUnit,
 }
 
 impl Default for NotificationSettings {
@@ -45,17 +65,19 @@ impl Default for NotificationSettings {
         Self {
             notification_enabled: false,
             notification_threshold_minutes: DEFAULT_THRESHOLD_MINUTES,
-            notification_unit: DEFAULT_NOTIFICATION_UNIT.to_string(),
+            notification_unit: DEFAULT_NOTIFICATION_UNIT,
         }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(specta::Type)]
 pub struct AutoTerminateSettings {
     pub auto_terminate_enabled: bool,
+    #[specta(type = u32)]
     pub auto_terminate_threshold_minutes: u64,
-    pub auto_terminate_unit: String,
+    pub auto_terminate_unit: DurationUnit,
 }
 
 impl Default for AutoTerminateSettings {
@@ -63,7 +85,7 @@ impl Default for AutoTerminateSettings {
         Self {
             auto_terminate_enabled: false,
             auto_terminate_threshold_minutes: DEFAULT_AUTO_TERMINATE_THRESHOLD_MINUTES,
-            auto_terminate_unit: DEFAULT_AUTO_TERMINATE_UNIT.to_string(),
+            auto_terminate_unit: DEFAULT_AUTO_TERMINATE_UNIT,
         }
     }
 }
@@ -92,7 +114,7 @@ impl SettingsStore {
             .0
             .get(NOTIFICATION_UNIT_KEY)
             .and_then(|value| serde_json::from_value(value).ok())
-            .unwrap_or_else(|| DEFAULT_NOTIFICATION_UNIT.to_string());
+            .unwrap_or(DEFAULT_NOTIFICATION_UNIT);
 
         NotificationSettings {
             notification_enabled,
@@ -112,7 +134,7 @@ impl SettingsStore {
         );
         self.0.set(
             NOTIFICATION_UNIT_KEY,
-            serde_json::Value::String(settings.notification_unit.clone()),
+            serde_json::Value::String(settings.notification_unit.as_str().to_string()),
         );
         if let Err(error) = self.0.save() {
             warn!("Failed to save notification settings: {}", error);
@@ -136,7 +158,7 @@ impl SettingsStore {
             .0
             .get(AUTO_TERMINATE_UNIT_KEY)
             .and_then(|value| serde_json::from_value(value).ok())
-            .unwrap_or_else(|| DEFAULT_AUTO_TERMINATE_UNIT.to_string());
+            .unwrap_or(DEFAULT_AUTO_TERMINATE_UNIT);
 
         AutoTerminateSettings {
             auto_terminate_enabled,
@@ -156,7 +178,7 @@ impl SettingsStore {
         );
         self.0.set(
             AUTO_TERMINATE_UNIT_KEY,
-            serde_json::Value::String(settings.auto_terminate_unit.clone()),
+            serde_json::Value::String(settings.auto_terminate_unit.as_str().to_string()),
         );
         if let Err(error) = self.0.save() {
             warn!("Failed to save auto-terminate settings: {}", error);
@@ -185,6 +207,7 @@ impl SettingsStore {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn get_notification_settings(app_handle: AppHandle) -> NotificationSettings {
     SettingsStore::open(&app_handle)
         .map(|store| store.load_notification_settings())
@@ -192,6 +215,7 @@ pub fn get_notification_settings(app_handle: AppHandle) -> NotificationSettings 
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn save_notification_settings(
     app_handle: AppHandle,
     settings: NotificationSettings,
@@ -206,6 +230,7 @@ pub fn save_notification_settings(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn get_auto_terminate_settings(app_handle: AppHandle) -> AutoTerminateSettings {
     SettingsStore::open(&app_handle)
         .map(|store| store.load_auto_terminate_settings())
@@ -213,6 +238,7 @@ pub fn get_auto_terminate_settings(app_handle: AppHandle) -> AutoTerminateSettin
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn save_auto_terminate_settings(
     app_handle: AppHandle,
     settings: AutoTerminateSettings,
@@ -227,6 +253,7 @@ pub fn save_auto_terminate_settings(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn get_vpn_settings(app_handle: AppHandle) -> VpnSettings {
     SettingsStore::open(&app_handle)
         .map(|store| store.load_vpn_settings())
@@ -234,6 +261,7 @@ pub fn get_vpn_settings(app_handle: AppHandle) -> VpnSettings {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn save_vpn_settings(app_handle: AppHandle, settings: VpnSettings) -> Result<(), String> {
     match SettingsStore::open(&app_handle) {
         Some(store) => {

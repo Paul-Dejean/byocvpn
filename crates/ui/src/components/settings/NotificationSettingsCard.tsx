@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { invokeCommand } from "../../lib/invokeCommand";
+import { NotificationSettings, commands } from "../../bindings";
 import {
   isPermissionGranted,
   requestPermission,
@@ -8,13 +8,7 @@ import {
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Toggle } from "../primitives/Toggle";
 import { Button } from "../primitives/Button";
-import { DurationField, DurationUnit } from "./DurationField";
-
-interface NotificationSettings {
-  notificationEnabled: boolean;
-  notificationThresholdMinutes: number;
-  notificationUnit: DurationUnit;
-}
+import { DurationField } from "./DurationField";
 
 const DEFAULT_SETTINGS: NotificationSettings = {
   notificationEnabled: false,
@@ -28,7 +22,8 @@ export function NotificationSettingsCard() {
   const [permissionError, setPermissionError] = useState<string | null>(null);
 
   useEffect(() => {
-    invokeCommand<NotificationSettings>("get_notification_settings")
+    commands
+      .getNotificationSettings()
       .then(setSettings)
       .catch((error) =>
         console.error("Failed to load notification settings:", error),
@@ -37,9 +32,11 @@ export function NotificationSettingsCard() {
 
   const updateSettings = (updated: NotificationSettings) => {
     setSettings(updated);
-    invokeCommand("save_notification_settings", { settings: updated }).catch(
-      (error) => console.error("Failed to save notification settings:", error),
-    );
+    commands.saveNotificationSettings(updated).then((result) => {
+      if (result.status === "error") {
+        console.error("Failed to save notification settings:", result.error);
+      }
+    });
   };
 
   const toggleEnabled = async () => {

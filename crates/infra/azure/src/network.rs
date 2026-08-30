@@ -178,7 +178,10 @@ async fn put_with_provider_retry<B: Serialize>(
                         client.build_subscription_path("/providers/Microsoft.Network/register");
                     let register_url =
                         client.build_arm_url(&register_path, API_VERSION_RESOURCE_GROUPS);
-                    match client.post::<_, ProviderRegistrationResponse>(&register_url, &EmptyRequest {}).await {
+                    match client
+                        .post::<_, ProviderRegistrationResponse>(&register_url, &EmptyRequest {})
+                        .await
+                    {
                         Ok(_) => debug!("[Azure] Re-registration POST succeeded"),
                         Err(reg_error) => {
                             warn!("[Azure] Re-registration POST failed: {}", reg_error)
@@ -236,12 +239,12 @@ pub async fn ensure_providers_registered(client: &AzureClient) -> Result<()> {
             || {
                 let status_url = status_url.clone();
                 async move {
-                    let response: ProviderRegistrationResponse =
-                        client.get(&status_url).await.map_err(|error| {
-                            NetworkProvisioningError::ProviderSetupFailed {
-                                step: namespace.to_string(),
-                                reason: error.to_string(),
-                            }
+                    let response: ProviderRegistrationResponse = client
+                        .get(&status_url)
+                        .await
+                        .map_err(|error| NetworkProvisioningError::ProviderSetupFailed {
+                            step: namespace.to_string(),
+                            reason: error.to_string(),
                         })?;
                     let state = response.registration_state.as_deref().unwrap_or("Unknown");
                     debug!(
@@ -394,12 +397,13 @@ async fn patch_nsg_rules(client: &AzureClient, location: &str) -> Result<()> {
     ));
     let url = client.build_arm_url(&path, "2023-05-01");
 
-    let current_nsg: NsgResponse = client
-        .get(&url)
-        .await
-        .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!("Failed to fetch NSG for drift check: {}", error),
-        })?;
+    let current_nsg: NsgResponse =
+        client
+            .get(&url)
+            .await
+            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+                reason: format!("Failed to fetch NSG for drift check: {}", error),
+            })?;
 
     let security_rules = current_nsg
         .properties
@@ -445,9 +449,11 @@ async fn patch_nsg_rules(client: &AzureClient, location: &str) -> Result<()> {
         &format!("NSG '{}' patch", NSG_NAME),
     )
     .await
-    .map_err(|error| NetworkProvisioningError::SecurityGroupCreationFailed {
-        reason: format!("Failed to patch NSG rules: {}", error),
-    })?;
+    .map_err(
+        |error| NetworkProvisioningError::SecurityGroupCreationFailed {
+            reason: format!("Failed to patch NSG rules: {}", error),
+        },
+    )?;
 
     if let Some(operation_url) = async_op_url {
         client.wait_for_async_operation(&operation_url).await?;
@@ -534,10 +540,7 @@ async fn create_vnet(client: &AzureClient, location: &str) -> Result<String> {
         tags: byocvpn_tags(),
         properties: VnetProperties {
             address_space: AddressSpace {
-                address_prefixes: vec![
-                    VNET_CIDR.to_string(),
-                    VNET_IPV6_CIDR.to_string(),
-                ],
+                address_prefixes: vec![VNET_CIDR.to_string(), VNET_IPV6_CIDR.to_string()],
             },
         },
     };
@@ -574,10 +577,7 @@ struct ExistingSubnet {
     address_prefixes: Vec<String>,
 }
 
-async fn get_subnet(
-    client: &AzureClient,
-    location: &str,
-) -> Result<Option<ExistingSubnet>> {
+async fn get_subnet(client: &AzureClient, location: &str) -> Result<Option<ExistingSubnet>> {
     let resource_group = build_resource_group_name(location);
     let path = client.build_subscription_path(&format!(
         "/resourceGroups/{}/providers/Microsoft.Network/virtualNetworks/{}/subnets/{}",
@@ -696,10 +696,7 @@ async fn patch_subnet_nsg_association(
         client.wait_for_async_operation(&operation_url).await?;
     }
 
-    info!(
-        "[Azure] Subnet '{}' NSG association patched.",
-        SUBNET_NAME
-    );
+    info!("[Azure] Subnet '{}' NSG association patched.", SUBNET_NAME);
     Ok(())
 }
 
@@ -716,12 +713,11 @@ pub async fn ensure_subnet(client: &AzureClient, location: &str, nsg_id: &str) -
             resource_group, VPC_NAME, SUBNET_NAME
         ));
         let url = client.build_arm_url(&path, API_VERSION_NETWORK);
-        let subnet_body: SubnetResponse = client
-            .get(&url)
-            .await
-            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+        let subnet_body: SubnetResponse = client.get(&url).await.map_err(|error| {
+            NetworkProvisioningError::NetworkQueryFailed {
                 reason: format!("Failed to fetch subnet for drift check: {}", error),
-            })?;
+            }
+        })?;
 
         let current_nsg_id = subnet_body
             .properties
@@ -1000,7 +996,12 @@ pub async fn delete_nic(client: &AzureClient, resource_group: &str, vm_name: &st
     .await;
 }
 
-async fn delete_public_ip(client: &AzureClient, resource_group: &str, vm_name: &str, version: IpVersion) {
+async fn delete_public_ip(
+    client: &AzureClient,
+    resource_group: &str,
+    vm_name: &str,
+    version: IpVersion,
+) {
     let name = build_public_ip_resource_name(vm_name, version);
     delete_network_resource(client, resource_group, "publicIPAddresses", &name).await;
 }

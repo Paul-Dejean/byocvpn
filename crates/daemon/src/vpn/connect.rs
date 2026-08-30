@@ -22,8 +22,7 @@ use tokio::{
 use tun_rs::{AsyncDevice, DeviceBuilder};
 
 use crate::{
-    constants,
-    firewall,
+    constants, firewall,
     routing::{
         dns::DnsOverrideGuard,
         routes::{add_vpn_routes, update_server_host_route},
@@ -68,7 +67,9 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
     }
 
     let (tun, interface_index) = setup_tun_device(private_ipv4, private_ipv6)?;
-    let interface_name = tun.name().unwrap_or_else(|_| format!("tun{}", interface_index));
+    let interface_name = tun
+        .name()
+        .unwrap_or_else(|_| format!("tun{}", interface_index));
 
     if kill_switch_enabled {
         if let Err(error) = firewall::apply(&server_endpoint.ip().to_string(), &interface_name) {
@@ -163,7 +164,10 @@ fn setup_tun_device(private_ipv4: IpNet, private_ipv6: IpNet) -> Result<(AsyncDe
             })?;
 
     let interface_name = tun.name().unwrap_or_else(|_| "unknown".to_string());
-    info!("Created TUN device: {} (index: {})", interface_name, interface_index);
+    info!(
+        "Created TUN device: {} (index: {})",
+        interface_name, interface_index
+    );
     Ok((tun, interface_index))
 }
 

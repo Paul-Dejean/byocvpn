@@ -1,12 +1,8 @@
 use aws_sdk_ec2::Client as Ec2Client;
 use aws_sdk_ec2::error::{ProvideErrorMetadata, SdkError};
 use aws_sdk_ssm::Client as SsmClient;
-use byocvpn_core::{
-    cloud_provider::PermissionStatus,
-    error::{NetworkProvisioningError, Result},
-};
+use byocvpn_core::{cloud_provider::PermissionStatus, error::Result};
 use log::*;
-use serde_json::Value;
 
 use crate::ami;
 use crate::constants::{
@@ -92,7 +88,7 @@ async fn get_default_security_group_id(ec2_client: &Ec2Client) -> Option<String>
 pub(super) async fn verify_permissions(
     ec2_client: &Ec2Client,
     ssm_client: &SsmClient,
-) -> Result<Value> {
+) -> Result<Vec<PermissionStatus>> {
     let ec2_run_instances = match ami::get_al2023_ami(ssm_client).await {
         Ok(image_id) => is_dry_run_authorized(
             "ec2:RunInstances",
@@ -376,11 +372,5 @@ pub(super) async fn verify_permissions(
     })
     .collect::<Vec<_>>();
 
-    let value =
-        serde_json::to_value(&permissions).map_err(|error| {
-            NetworkProvisioningError::NetworkQueryFailed {
-                reason: error.to_string(),
-            }
-        })?;
-    Ok(value)
+    Ok(permissions)
 }

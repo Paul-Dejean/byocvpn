@@ -22,3 +22,8 @@ uuid = { workspace = true }
 hex = { workspace = true }
 chrono = { workspace = true }
 strum = { workspace = true }
+
+specta = { workspace = true, optional = true }
+
+[features]
+specta = ["dep:specta"]

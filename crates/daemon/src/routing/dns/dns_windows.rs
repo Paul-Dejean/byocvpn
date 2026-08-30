@@ -9,8 +9,8 @@ use windows_sys::Win32::Foundation::FreeLibrary;
 use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
 use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
 use windows_sys::Win32::System::Registry::{
-    RegCloseKey, RegCreateKeyExW, RegDeleteKeyExW, RegSetValueExW, HKEY_LOCAL_MACHINE,
-    KEY_SET_VALUE, REG_DWORD, REG_MULTI_SZ, REG_OPTION_NON_VOLATILE, REG_SZ,
+    HKEY_LOCAL_MACHINE, KEY_SET_VALUE, REG_DWORD, REG_MULTI_SZ, REG_OPTION_NON_VOLATILE, REG_SZ,
+    RegCloseKey, RegCreateKeyExW, RegDeleteKeyExW, RegSetValueExW,
 };
 
 const NRPT_POLICY_KEY: &str =

@@ -13,6 +13,7 @@ const SECRET_VALUE_FIELD: &str = "secret_value";
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct AzureCredentials {
     pub subscription_id: String,
     pub tenant_id: String,

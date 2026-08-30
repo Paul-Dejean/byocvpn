@@ -11,8 +11,16 @@ pub fn apply(server_ip: &str, tun_name: &str) -> Result<()> {
     run_iptables(&["-A", CHAIN, "-o", "lo", "-j", "ACCEPT"])?;
     run_iptables(&["-A", CHAIN, "-i", "lo", "-j", "ACCEPT"])?;
     run_iptables(&[
-        "-A", CHAIN, "-d", &format!("{}/32", server_ip),
-        "-p", "udp", "--dport", "51820", "-j", "ACCEPT",
+        "-A",
+        CHAIN,
+        "-d",
+        &format!("{}/32", server_ip),
+        "-p",
+        "udp",
+        "--dport",
+        "51820",
+        "-j",
+        "ACCEPT",
     ])?;
     run_iptables(&["-A", CHAIN, "-o", tun_name, "-j", "ACCEPT"])?;
     run_iptables(&["-A", CHAIN, "-i", tun_name, "-j", "ACCEPT"])?;
@@ -21,7 +29,10 @@ pub fn apply(server_ip: &str, tun_name: &str) -> Result<()> {
     run_iptables(&["-I", "OUTPUT", "1", "-j", CHAIN])?;
     run_iptables(&["-I", "INPUT", "1", "-j", CHAIN])?;
 
-    info!("[KillSwitch] iptables chain applied (server={}, tun={})", server_ip, tun_name);
+    info!(
+        "[KillSwitch] iptables chain applied (server={}, tun={})",
+        server_ip, tun_name
+    );
     Ok(())
 }
 
@@ -39,13 +50,12 @@ fn remove_if_exists() {
 }
 
 fn run_iptables(args: &[&str]) -> Result<()> {
-    let output =
-        Command::new("iptables")
-            .args(args)
-            .output()
-            .map_err(|error| SystemError::KillSwitchFailed {
-                reason: format!("iptables exec failed: {}", error),
-            })?;
+    let output = Command::new("iptables")
+        .args(args)
+        .output()
+        .map_err(|error| SystemError::KillSwitchFailed {
+            reason: format!("iptables exec failed: {}", error),
+        })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

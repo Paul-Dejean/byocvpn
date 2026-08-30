@@ -3,14 +3,14 @@ use std::{collections::HashMap, sync::Mutex};
 use byocvpn_core::cloud_provider::{CloudProviderName, SpawnJob, SpawnStep, SpawnStepStatus};
 use serde::Serialize;
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, PartialEq, specta::Type)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SpawnJobStatus {
     Running,
     Failed,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SpawnJobStep {
     pub id: String,
@@ -19,7 +19,7 @@ pub struct SpawnJobStep {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SpawnJobState {
     pub job_id: String,
