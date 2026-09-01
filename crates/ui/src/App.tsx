@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Toaster } from "react-hot-toast";
 
 import "./App.css";
@@ -14,11 +15,23 @@ import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { Navbar } from "./components/common/Navbar";
 import { VpnConnectionProvider } from "./contexts/VpnConnectionContext";
 import { useAutoTerminatedInstanceListener } from "./hooks/useAutoTerminatedInstanceListener";
+import { configuredProvidersQueryOptions } from "./queries/configuredProviders";
 import { Page } from "./types/pages";
 export { Page };
 function App() {
-  const [page, setPage] = useState(Page.LANDING);
+  const [selectedPage, setSelectedPage] = useState<Page | null>(null);
+  const { data: configuredProviders, isError: isConfiguredProvidersError } =
+    useQuery(configuredProvidersQueryOptions);
   useAutoTerminatedInstanceListener();
+
+  if (configuredProviders === undefined && !isConfiguredProvidersError) {
+    return <main className="bg-grid h-screen" />;
+  }
+
+  const hasConfiguredProvider =
+    configuredProviders !== undefined && configuredProviders.length > 0;
+  const page = selectedPage ?? (hasConfiguredProvider ? Page.VPN : Page.LANDING);
+  const setPage = setSelectedPage;
 
   return (
     <main className="bg-grid">
