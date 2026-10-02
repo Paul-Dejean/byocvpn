@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "tauri": "cross-env CARGO_TARGET_DIR=../../../target/tauri tauri",
     "tauri:dev": "cargo build -p byocvpn_daemon --manifest-path ../../Cargo.toml && cross-env CARGO_TARGET_DIR=../../../target/tauri RUST_LOG_STYLE=always tauri dev",
-    "tauri:build": "cross-env CARGO_TARGET_DIR=../../../target/tauri tauri build"
+    "tauri:build": "cross-env CARGO_TARGET_DIR=../../../target/tauri node scripts/tauri-build.mjs"
   },
   "dependencies": {
     "@fontsource-variable/outfit": "^5.2.8",
