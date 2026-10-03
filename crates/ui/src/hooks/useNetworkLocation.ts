@@ -1,0 +1,25 @@
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { networkLocationQueryOptions } from "../queries/networkLocation";
+
+export function useNetworkLocation(isVpnConnected: boolean) {
+  const queryClient = useQueryClient();
+  const { data, isLoading, isError } = useQuery({
+    ...networkLocationQueryOptions,
+    enabled: !isVpnConnected,
+  });
+
+  useEffect(() => {
+    if (!isVpnConnected) {
+      queryClient.invalidateQueries({
+        queryKey: networkLocationQueryOptions.queryKey,
+      });
+    }
+  }, [isVpnConnected, queryClient]);
+
+  return {
+    location: data ?? null,
+    isLoading,
+    isError,
+  };
+}

@@ -5,7 +5,7 @@ import { Toaster } from "react-hot-toast";
 import "./App.css";
 import "flag-icons/css/flag-icons.min.css";
 import {
-  VpnPage,
+  ServersPage,
   OnboardingPage,
   SettingsPage,
   PricingPage,
@@ -13,7 +13,7 @@ import {
 } from "./pages";
 import { AppFrame } from "./components/common/AppFrame";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
-import { Navbar } from "./components/common/Navbar";
+import { Sidebar } from "./components/common/Sidebar";
 import { VpnConnectionProvider } from "./contexts/VpnConnectionContext";
 import { useAutoTerminatedInstanceListener } from "./hooks/useAutoTerminatedInstanceListener";
 import { configuredProvidersQueryOptions } from "./queries/configuredProviders";
@@ -40,7 +40,7 @@ function App() {
     configuredProviders.length > 0 &&
     !DEBUG_ALWAYS_START_ON_ONBOARDING;
   const page =
-    selectedPage ?? (hasConfiguredProvider ? Page.VPN : Page.ONBOARDING);
+    selectedPage ?? (hasConfiguredProvider ? Page.SERVERS : Page.ONBOARDING);
   const setPage = setSelectedPage;
 
   function openAddAccount(provider: CloudProviderName | null) {
@@ -78,7 +78,7 @@ function App() {
       <ErrorBoundary>
         {page === Page.ONBOARDING && (
           <OnboardingPage
-            onSkip={() => setPage(Page.VPN)}
+            onSkip={() => setPage(Page.SERVERS)}
             onProviderSelected={openAddAccount}
           />
         )}
@@ -86,19 +86,19 @@ function App() {
           <AddAccountPage
             key={addAccountProvider ?? "select"}
             initialProvider={addAccountProvider}
-            onNavigateBack={() => setPage(Page.VPN)}
-            onAccountAdded={() => setPage(Page.VPN)}
+            onNavigateBack={() => setPage(Page.SERVERS)}
+            onAccountAdded={() => setPage(Page.SERVERS)}
           />
         )}
 
-        {(page === Page.VPN ||
+        {(page === Page.SERVERS ||
           page === Page.PRICING ||
           page === Page.SETTINGS) && (
           <VpnConnectionProvider>
             <div className="flex h-full">
-              <Navbar currentPage={page} onNavigate={setPage} />
+              <Sidebar currentPage={page} onNavigate={setPage} />
               <div className="flex-1 min-w-0 overflow-hidden">
-                {page === Page.VPN && <VpnPage />}
+                {page === Page.SERVERS && <ServersPage />}
                 {page === Page.PRICING && <PricingPage />}
                 {page === Page.SETTINGS && (
                   <SettingsPage

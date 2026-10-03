@@ -1,4 +1,4 @@
-import { ReactNode, forwardRef } from "react";
+import { ReactNode } from "react";
 
 interface NavItemProps {
   icon: ReactNode;
@@ -7,21 +7,21 @@ interface NavItemProps {
   onClick: () => void;
 }
 
-export const NavItem = forwardRef<HTMLButtonElement, NavItemProps>(
-  function NavItem({ icon, label, isActive, onClick }, ref) {
-    return (
-      <button
-        ref={ref}
-        onClick={onClick}
-        title={label}
-        className={`relative flex flex-col items-center justify-center w-10 h-10 rounded-lg transition-colors duration-300 ${
-          isActive
-            ? "text-white"
-            : "text-gray-400 hover:bg-gray-700 hover:text-primary"
-        }`}
-      >
+export function NavItem({ icon, label, isActive, onClick }: NavItemProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm transition-colors ${
+        isActive
+          ? "bg-gray-700 text-primary"
+          : "text-gray-200 hover:bg-gray-750 hover:text-primary"
+      }`}
+    >
+      <span className="w-4 h-4 flex items-center justify-center text-gray-200">
         {icon}
-      </button>
-    );
-  },
-);
+      </span>
+      {label}
+    </button>
+  );
+}

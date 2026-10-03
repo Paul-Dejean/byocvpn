@@ -1,4 +1,4 @@
-export { VpnPage } from "./VpnPage";
+export { ServersPage } from "./ServersPage";
 export { SettingsPage } from "./SettingsPage";
 export { OnboardingPage } from "./OnboardingPage";
 export { PricingPage } from "./PricingPage";
