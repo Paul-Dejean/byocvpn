@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { ShieldCheck } from "lucide-react";
 import { VpnSettings, commands } from "../../bindings";
 import { Toggle } from "../primitives/Toggle";
+import { SettingsRow } from "./SettingsRow";
 
 const DEFAULT_SETTINGS: VpnSettings = {
   sessionKillswitch: true,
@@ -30,47 +32,23 @@ export function SessionKillswitchCard() {
   };
 
   return (
-    <div className="py-6">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4 min-w-0">
-          <div className="w-12 h-12 rounded-xl bg-success-900/50 flex items-center justify-center flex-shrink-0">
-            <ShieldIcon />
-          </div>
-          <div className="min-w-0">
-            <h3 className="font-semibold text-primary">Session Kill Switch</h3>
-            <p className="text-sm text-gray-400 mt-0.5">
-              Blocks all internet traffic that isn't going through the VPN tunnel
-            </p>
-          </div>
-        </div>
-
+    <SettingsRow
+      icon={<ShieldCheck size={16} />}
+      title="Session kill switch"
+      description="Blocks all internet traffic that isn't going through the VPN tunnel"
+      control={
         <Toggle
           checked={settings.sessionKillswitch}
           onChange={toggleKillswitch}
           ariaLabel="Toggle session kill switch"
         />
-      </div>
-
-      <div className="mt-3 pl-16">
-        <p className="text-xs text-gray-500">
-          Only allows the VPN tunnel and local traffic while connected, so your real IP address is
-          never leaked. But if the tunnel drops, all other traffic is blocked, which can lock you
-          out of the internet until you reconnect or disconnect.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function ShieldIcon() {
-  return (
-    <svg className="w-5 h-5 text-success-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={1.5}
-        d="M9 12.75L11.25 15 15 9.75M21 12c0 5.25-3.75 8.25-8.567 9.674a.75.75 0 01-.366 0C7.25 20.25 3.5 17.25 3.5 12V6.75a.75.75 0 01.44-.683 12.75 12.75 0 008.06-2.06.75.75 0 01.75 0 12.75 12.75 0 008.06 2.06.75.75 0 01.44.683V12z"
-      />
-    </svg>
+      }
+    >
+      <p className="text-xs text-gray-400">
+        Only allows the VPN tunnel and local traffic while connected, so your
+        real IP address is never leaked. If the tunnel drops, all other traffic
+        is blocked until you reconnect or disconnect.
+      </p>
+    </SettingsRow>
   );
 }
