@@ -5,90 +5,165 @@ import { Toaster } from "react-hot-toast";
 import "./App.css";
 import "flag-icons/css/flag-icons.min.css";
 import {
-  VpnPage,
-  LandingPage,
+  ServersPage,
+  OnboardingPage,
   SettingsPage,
   PricingPage,
   AddAccountPage,
 } from "./pages";
+import { AppFrame } from "./components/common/AppFrame";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
-import { Navbar } from "./components/common/Navbar";
+import { Sidebar } from "./components/common/Sidebar";
 import { VpnConnectionProvider } from "./contexts/VpnConnectionContext";
+import { DeploymentsProvider } from "./contexts/DeploymentsContext";
 import { useAutoTerminatedInstanceListener } from "./hooks/useAutoTerminatedInstanceListener";
 import { configuredProvidersQueryOptions } from "./queries/configuredProviders";
+import { CloudProviderName } from "./types";
+import { OnboardingStep } from "./types/onboarding";
 import { Page } from "./types/pages";
 export { Page };
+
+interface OnboardingState {
+  step: OnboardingStep;
+  provider: CloudProviderName | null;
+}
+
+const INITIAL_ONBOARDING_STATE: OnboardingState = {
+  step: OnboardingStep.WELCOME,
+  provider: null,
+};
+
 function App() {
   const [selectedPage, setSelectedPage] = useState<Page | null>(null);
+  const [addAccountProvider, setAddAccountProvider] =
+    useState<CloudProviderName | null>(null);
+  const [isAddingAccountFromOnboarding, setIsAddingAccountFromOnboarding] =
+    useState(false);
+  const [onboardingState, setOnboardingState] = useState<OnboardingState>(
+    INITIAL_ONBOARDING_STATE,
+  );
   const { data: configuredProviders, isError: isConfiguredProvidersError } =
     useQuery(configuredProvidersQueryOptions);
   useAutoTerminatedInstanceListener();
 
   if (configuredProviders === undefined && !isConfiguredProvidersError) {
-    return <main className="bg-grid h-screen" />;
+    return <AppFrame>{null}</AppFrame>;
   }
 
   const hasConfiguredProvider =
-    configuredProviders !== undefined && configuredProviders.length > 0;
-  const page = selectedPage ?? (hasConfiguredProvider ? Page.VPN : Page.LANDING);
+    configuredProviders !== undefined &&
+    configuredProviders.length > 0;
+  const page =
+    selectedPage ?? (hasConfiguredProvider ? Page.SERVERS : Page.ONBOARDING);
   const setPage = setSelectedPage;
 
+  function openAddAccount(
+    provider: CloudProviderName | null,
+    fromOnboarding: boolean,
+  ) {
+    setAddAccountProvider(provider);
+    setIsAddingAccountFromOnboarding(fromOnboarding);
+    setPage(Page.ADD_ACCOUNT);
+  }
+
+  function handleAccountAdded() {
+    if (isAddingAccountFromOnboarding && addAccountProvider) {
+      setOnboardingState({
+        step: OnboardingStep.DEPLOY_SERVER,
+        provider: addAccountProvider,
+      });
+      setPage(Page.ONBOARDING);
+      return;
+    }
+    setPage(Page.SETTINGS);
+  }
+
+  function handleAddAccountBack() {
+    if (isAddingAccountFromOnboarding) {
+      setOnboardingState({
+        step: OnboardingStep.CONNECT_ACCOUNT,
+        provider: null,
+      });
+      setPage(Page.ONBOARDING);
+      return;
+    }
+    setPage(Page.SETTINGS);
+  }
+
   return (
-    <main className="bg-grid">
+    <AppFrame>
       <Toaster
         position="top-right"
         toastOptions={{
           duration: 4000,
           style: {
-            background: "var(--color-gray-800)",
-            color: "var(--color-gray-100)",
-            border: "1px solid var(--color-gray-500)",
+            background: "var(--color-bg-medium)",
+            color: "var(--color-fg-lighter)",
             fontFamily: "var(--font-sans)",
+            fontSize: "14px",
+            lineHeight: "20px",
+            borderRadius: "12px",
+            padding: "12px 16px",
           },
           success: {
             iconTheme: {
-              primary: "var(--color-success-500)",
-              secondary: "var(--color-gray-800)",
+              primary: "var(--color-fg-success-moderate)",
+              secondary: "var(--color-bg-medium)",
             },
           },
           error: {
             iconTheme: {
-              primary: "var(--color-danger-500)",
-              secondary: "var(--color-gray-800)",
+              primary: "var(--color-fg-danger-moderate)",
+              secondary: "var(--color-bg-medium)",
             },
           },
         }}
       />
 
       <ErrorBoundary>
-        {page === Page.LANDING && <LandingPage setPage={setPage} />}
+        <DeploymentsProvider>
+          {page === Page.ONBOARDING && (
+          <VpnConnectionProvider>
+            <OnboardingPage
+              key={`${onboardingState.step}-${onboardingState.provider}`}
+              initialStep={onboardingState.step}
+              provider={onboardingState.provider}
+              onSkip={() => setPage(Page.SERVERS)}
+              onProviderSelected={(provider) => openAddAccount(provider, true)}
+              onFinished={() => setPage(Page.SERVERS)}
+            />
+          </VpnConnectionProvider>
+        )}
         {page === Page.ADD_ACCOUNT && (
           <AddAccountPage
-            onNavigateBack={() => setPage(Page.VPN)}
-            onAccountAdded={() => setPage(Page.VPN)}
+            key={addAccountProvider ?? "select"}
+            initialProvider={addAccountProvider}
+            onNavigateBack={handleAddAccountBack}
+            onAccountAdded={handleAccountAdded}
           />
         )}
 
-        {(page === Page.VPN ||
+        {(page === Page.SERVERS ||
           page === Page.PRICING ||
           page === Page.SETTINGS) && (
           <VpnConnectionProvider>
-            <div className="flex h-screen">
-              <Navbar currentPage={page} onNavigate={setPage} />
-              <div className="flex-1 min-w-0 overflow-hidden">
-                {page === Page.VPN && <VpnPage />}
+            <div className="flex h-full gap-4">
+              <Sidebar currentPage={page} onNavigate={setPage} />
+              <div className="flex-1 min-w-0 h-full overflow-hidden">
+                {page === Page.SERVERS && <ServersPage />}
                 {page === Page.PRICING && <PricingPage />}
                 {page === Page.SETTINGS && (
                   <SettingsPage
-                    onNavigateToAddAccount={() => setPage(Page.ADD_ACCOUNT)}
+                    onNavigateToAddAccount={() => openAddAccount(null, false)}
                   />
                 )}
               </div>
             </div>
           </VpnConnectionProvider>
         )}
+        </DeploymentsProvider>
       </ErrorBoundary>
-    </main>
+    </AppFrame>
   );
 }
 

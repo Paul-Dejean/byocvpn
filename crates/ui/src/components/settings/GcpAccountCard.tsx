@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useCredentials } from "../../hooks";
 import { CloudProviderName } from "../../types";
-import { Spinner } from "../primitives/Spinner";
-import { Badge } from "../primitives/Badge";
+import { Upload } from "lucide-react";
 import { Button } from "../primitives/Button";
-import { IconButton } from "../primitives/IconButton";
-import { Alert } from "../primitives/Alert";
+import { AccountIconTile, AccountRow } from "./AccountRow";
+import { Banner } from "../primitives/Banner";
 import { FormField } from "../primitives/FormField";
 
 interface GcpAccountCardProps {
@@ -15,13 +14,6 @@ interface GcpAccountCardProps {
   isProvisioned: boolean;
 }
 
-function GcpIcon() {
-  return (
-    <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 p-2.5">
-      <img src="/cloud-providers/google-cloud-icon.svg" alt="GCP" className="w-full h-full object-contain" />
-    </div>
-  );
-}
 
 export function GcpAccountCard({ onCredentialsSaved, onCredentialsDeleted, onProvisionRequested, isProvisioned }: GcpAccountCardProps) {
   const [isEditing, setIsEditing] = useState(false);
@@ -115,99 +107,32 @@ export function GcpAccountCard({ onCredentialsSaved, onCredentialsDeleted, onPro
   const isFormValid =
     formFields.projectId.trim() && (formFields.serviceAccountJson.trim() || jsonAlreadySet);
 
-  const showNotProvisionedWarning = hasCredentials === true && !isProvisioned;
-
   return (
-    <div className="py-4">
+    <div>
       {!isEditing ? (
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <GcpIcon />
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-lg text-primary">Google Cloud Account</h3>
-                {hasCredentials && isProvisioned && (
-                  <Badge variant="success" shape="pill">
-                    Provisioned
-                  </Badge>
-                )}
-                {showNotProvisionedWarning && (
-                  <Badge variant="warning" shape="pill">
-                    Not provisioned
-                  </Badge>
-                )}
-              </div>
-            </div>
-          </div>
-          {hasCredentials === null ? (
-            <Spinner color="border-gray-400" />
-          ) : hasCredentials ? (
-            <div className="flex items-center gap-2">
-              {isConfirmingDelete ? (
-                <>
-                  <span className="text-sm text-gray-300">Delete?</span>
-                  <Button variant="secondary" size="sm" onClick={() => setIsConfirmingDelete(false)}>Cancel</Button>
-                  <Button variant="danger" size="sm" onClick={handleDeleteCredentials}>Confirm</Button>
-                </>
-              ) : (
-                <>
-                  {isProvisioned ? (
-                    <IconButton accent="blue" onClick={() => onProvisionRequested(CloudProviderName.Gcp)} title="Re-provision">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                    </IconButton>
-                  ) : (
-                    <IconButton accent="amber" onClick={() => onProvisionRequested(CloudProviderName.Gcp)} title="Provision">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                    </IconButton>
-                  )}
-                  <IconButton accent="red" onClick={() => setIsConfirmingDelete(true)} title="Delete credentials">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </IconButton>
-                  <Button
-                    variant="primary"
-                    onClick={handleEditOpen}
-                    icon={
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    }
-                  >
-                    Edit
-                  </Button>
-                </>
-              )}
-            </div>
-          ) : (
-            <Button
-              variant="success"
-              onClick={handleEditOpen}
-              icon={
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              }
-            >
-              Add Provider
-            </Button>
-          )}
-        </div>
+        <AccountRow
+          provider={CloudProviderName.Gcp}
+          title="Google Cloud Account"
+          hasCredentials={hasCredentials}
+          isProvisioned={isProvisioned}
+          isConfirmingDelete={isConfirmingDelete}
+          onEdit={handleEditOpen}
+          onProvision={() => onProvisionRequested(CloudProviderName.Gcp)}
+          onRequestDelete={() => setIsConfirmingDelete(true)}
+          onCancelDelete={() => setIsConfirmingDelete(false)}
+          onConfirmDelete={handleDeleteCredentials}
+        />
       ) : (
-        <div className="space-y-6">
-          <div className="flex items-center gap-4">
-            <GcpIcon />
+        <div className="p-4 flex flex-col gap-5">
+          <div className="flex items-center gap-3">
+            <AccountIconTile provider={CloudProviderName.Gcp} />
             <div>
-              <h3 className="font-semibold text-lg text-primary">
+              <h3 className="text-body-sm text-fg-lighter">
                 {hasCredentials
                   ? "Edit Google Cloud Account"
                   : "Add Google Cloud Account"}
               </h3>
-              <p className="text-sm text-gray-400">
+              <p className="text-caption text-fg-medium">
                 {hasCredentials
                   ? "Update your GCP service-account key"
                   : "Enter your GCP service-account key"}
@@ -215,7 +140,7 @@ export function GcpAccountCard({ onCredentialsSaved, onCredentialsDeleted, onPro
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="flex flex-col gap-4">
             <FormField
               label="Project ID"
               hint="e.g. my-project-123456"
@@ -226,32 +151,18 @@ export function GcpAccountCard({ onCredentialsSaved, onCredentialsDeleted, onPro
               placeholder="my-gcp-project"
             />
 
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-sm font-medium text-gray-300">
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-caption text-fg-medium">
                   Service Account Key (.json)
                 </label>
                 <Button
                   variant="secondary"
-                  size="none"
+                  size="md"
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="text-xs px-3 py-1"
+                  icon={<Upload size={14} />}
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-3.5 w-3.5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
-                    />
-                  </svg>
                   Load from file
                 </Button>
                 <input
@@ -263,13 +174,13 @@ export function GcpAccountCard({ onCredentialsSaved, onCredentialsDeleted, onPro
                 />
               </div>
               {jsonAlreadySet && !formFields.serviceAccountJson && (
-                <p className="text-xs text-success-400 mb-2">
+                <p className="text-caption text-fg-success-moderate">
                   ✓ Service account key already configured — load a new file or
                   paste below to replace it
                 </p>
               )}
               {!jsonAlreadySet && !formFields.serviceAccountJson && (
-                <p className="text-xs text-gray-500 mb-2">
+                <p className="text-caption text-fg-moderate">
                   Paste the contents of your service-account JSON key file or
                   use "Load from file"
                 </p>
@@ -278,17 +189,18 @@ export function GcpAccountCard({ onCredentialsSaved, onCredentialsDeleted, onPro
                 value={formFields.serviceAccountJson}
                 onChange={(e) => setFormFields((prev) => ({ ...prev, serviceAccountJson: e.target.value }))}
                 rows={6}
-                className="input font-mono text-xs resize-none"
+                className="input font-mono text-caption resize-none"
                 placeholder='{"type":"service_account","project_id":"..."}'
               />
             </div>
 
-            {error && <Alert variant="error">{error}</Alert>}
+            {error && <Banner variant="danger">{error}</Banner>}
 
-            <div className="flex gap-3 pt-4">
-              <Button variant="secondary" onClick={handleCancel} className="flex-1">Cancel</Button>
+            <div className="flex gap-3 pt-2">
+              <Button variant="secondary" size="lg" onClick={handleCancel} className="flex-1">Cancel</Button>
               <Button
                 variant="primary"
+                size="lg"
                 onClick={handleSave}
                 loading={isSaving}
                 disabled={!isFormValid}

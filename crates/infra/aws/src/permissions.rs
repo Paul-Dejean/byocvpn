@@ -1,5 +1,5 @@
-use aws_sdk_ec2::Client as Ec2Client;
 use aws_sdk_ec2::error::{ProvideErrorMetadata, SdkError};
+use aws_sdk_ec2::Client as Ec2Client;
 use aws_sdk_ssm::Client as SsmClient;
 use byocvpn_core::{cloud_provider::PermissionStatus, error::Result};
 use log::*;
@@ -9,7 +9,23 @@ use crate::constants::{
     IPV4_ALL_CIDR, SECURITY_GROUP_NAME, SUBNET_CIDR_BLOCK, VPC_CIDR_BLOCK, VPC_NAME,
 };
 
+const PLACEHOLDER_INSTANCE_ID: &str = "i-0ba8dd7fe03dfbb57";
+const DRY_RUN_AUTHORIZED_CODES: &[&str] = &["DryRunOperation"];
+const TERMINATE_PLACEHOLDER_AUTHORIZED_CODES: &[&str] =
+    &["DryRunOperation", "InvalidInstanceID.NotFound"];
+
 fn is_dry_run_authorized<T, E>(operation: &str, result: std::result::Result<T, SdkError<E>>) -> bool
+where
+    E: ProvideErrorMetadata,
+{
+    is_dry_run_authorized_with_codes(operation, result, DRY_RUN_AUTHORIZED_CODES)
+}
+
+fn is_dry_run_authorized_with_codes<T, E>(
+    operation: &str,
+    result: std::result::Result<T, SdkError<E>>,
+    authorized_codes: &[&str],
+) -> bool
 where
     E: ProvideErrorMetadata,
 {
@@ -21,7 +37,7 @@ where
         Err(SdkError::ServiceError(service_error)) => {
             let error_code = service_error.err().code().unwrap_or("unknown");
             let error_message = service_error.err().message().unwrap_or("");
-            let authorized = is_authorized_error_code(service_error.err().code());
+            let authorized = is_authorized_error_code(service_error.err().code(), authorized_codes);
             if authorized {
                 info!(
                     "permission check {operation}: authorized (code={error_code}, message={error_message})"
@@ -43,8 +59,43 @@ where
     }
 }
 
-fn is_authorized_error_code(code: Option<&str>) -> bool {
-    code == Some("DryRunOperation")
+fn is_authorized_error_code(code: Option<&str>, authorized_codes: &[&str]) -> bool {
+    code.is_some_and(|error_code| authorized_codes.contains(&error_code))
+}
+
+async fn get_any_instance_id(ec2_client: &Ec2Client) -> Option<String> {
+    let response = ec2_client
+        .describe_instances()
+        .max_results(5)
+        .send()
+        .await
+        .ok()?;
+    response
+        .reservations()
+        .iter()
+        .flat_map(|reservation| reservation.instances())
+        .find_map(|instance| instance.instance_id())
+        .map(|instance_id| instance_id.to_string())
+}
+
+async fn is_terminate_instances_authorized(ec2_client: &Ec2Client) -> bool {
+    let (instance_id, authorized_codes) = match get_any_instance_id(ec2_client).await {
+        Some(existing_instance_id) => (existing_instance_id, DRY_RUN_AUTHORIZED_CODES),
+        None => (
+            PLACEHOLDER_INSTANCE_ID.to_string(),
+            TERMINATE_PLACEHOLDER_AUTHORIZED_CODES,
+        ),
+    };
+    is_dry_run_authorized_with_codes(
+        "ec2:TerminateInstances",
+        ec2_client
+            .terminate_instances()
+            .instance_ids(instance_id)
+            .dry_run(true)
+            .send()
+            .await,
+        authorized_codes,
+    )
 }
 
 async fn get_default_vpc_id(ec2_client: &Ec2Client) -> Option<String> {
@@ -107,15 +158,7 @@ pub(super) async fn verify_permissions(
         }
     };
 
-    let ec2_terminate_instances = is_dry_run_authorized(
-        "ec2:TerminateInstances",
-        ec2_client
-            .terminate_instances()
-            .instance_ids("i-0ba8dd7fe03dfbb57")
-            .dry_run(true)
-            .send()
-            .await,
-    );
+    let ec2_terminate_instances = is_terminate_instances_authorized(ec2_client).await;
 
     let ec2_create_vpc = is_dry_run_authorized(
         "ec2:CreateVpc",

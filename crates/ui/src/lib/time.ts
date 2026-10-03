@@ -4,16 +4,6 @@ export function computeElapsedHours(start: string, end: string | null): number {
   return Math.max(0, (endMs - startMs) / (1000 * 3600));
 }
 
-export function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 export function formatUptime(hours: number): string {
   if (hours < 1) return `${Math.round(hours * 60)}m`;
   if (hours < 24) return `${hours.toFixed(1)}h`;
@@ -26,4 +16,14 @@ export function formatDuration(seconds: number): string {
   const s = seconds % 60;
   if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+export function formatCompactDate(dateString: string): string {
+  return new Date(dateString).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 }

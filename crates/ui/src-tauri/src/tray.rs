@@ -27,7 +27,7 @@ pub fn build_tray(app: &AppHandle) -> tauri::Result<tauri::tray::TrayIcon> {
 
     TrayIconBuilder::with_id("main")
         .icon(tauri::include_image!("icons/tray-disconnected.png"))
-        .icon_as_template(false)
+        .icon_as_template(true)
         .menu(&menu)
         .show_menu_on_left_click(true)
         .tooltip("ByocVPN — Disconnected")

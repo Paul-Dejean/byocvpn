@@ -1,128 +1,152 @@
-import {
-  Instance,
-  InstanceState,
-  SpawnJob,
-  JobStepStatus,
-} from "../../types";
-import { getRegionInfo } from "../../constants/regionInfo";
-import { FlagIcon } from "../FlagIcon";
-import { ProviderIcon } from "../providers/ProviderIcon";
-import { Badge, BadgeVariant } from "../primitives/Badge";
-import { SelectableCard } from "../primitives/SelectableCard";
-import { PROVIDER_STRIPE } from "./providerStripe";
+import { useState } from "react";
+import { ChevronRight, Clock, DollarSign } from "lucide-react";
+import { Instance, InstanceState } from "../../types";
+import { useInstanceUptime } from "../../hooks/useInstanceUptime";
+import { useInstanceCost } from "../../hooks/useInstanceCost";
+import { formatDuration } from "../../lib/time";
+import { Button } from "../primitives/Button";
+import { Tag } from "../primitives/Tag";
+import { ServerLocation } from "./ServerLocation";
+import { DisconnectReminder } from "./DisconnectReminder";
 
 interface ServerCardProps {
   instance: Instance;
-  isSelected: boolean;
-  spawnJob?: SpawnJob;
-  onSelect: (instance: Instance) => void;
+  isConnected: boolean;
+  isConnecting: boolean;
+  isTerminating: boolean;
+  onConnect: (instance: Instance) => void;
+  onTerminate: (instance: Instance) => void;
 }
-
-const STATE_BADGE: Record<
-  InstanceState,
-  { variant: BadgeVariant; label: string; spinner?: boolean }
-> = {
-  [InstanceState.Spawning]: {
-    variant: "info",
-    label: "spawning",
-    spinner: true,
-  },
-  [InstanceState.Installing]: {
-    variant: "warning",
-    label: "installing",
-    spinner: true,
-  },
-  [InstanceState.Error]: {
-    variant: "danger",
-    label: "error",
-  },
-  [InstanceState.Running]: {
-    variant: "success",
-    label: "running",
-  },
-  [InstanceState.Stopping]: {
-    variant: "danger",
-    label: "stopping",
-  },
-  [InstanceState.Stopped]: {
-    variant: "neutral",
-    label: "stopped",
-  },
-  [InstanceState.Unknown]: {
-    variant: "neutral",
-    label: "unknown",
-  },
-};
 
 export function ServerCard({
   instance,
-  isSelected,
-  spawnJob,
-  onSelect,
+  isConnected,
+  isConnecting,
+  isTerminating,
+  onConnect,
+  onTerminate,
 }: ServerCardProps) {
-  const regionInfo = getRegionInfo(instance.provider, instance.region ?? "");
-  const stripeColor = PROVIDER_STRIPE[instance.provider] ?? "border-l-gray-600";
-
-  const isInProgress = instance.state === InstanceState.Installing;
-
-  const interactiveStates: InstanceState[] = [
-    InstanceState.Installing,
-    InstanceState.Running,
-    InstanceState.Error,
-  ];
-  const isInteractive = interactiveStates.includes(instance.state);
-
-  const badge = STATE_BADGE[instance.state] ?? {
-    variant: "neutral",
-    label: instance.state,
-  };
-
-  const runningStep = spawnJob?.steps.find(
-    (step) => step.status === JobStepStatus.Running,
+  const [isExpanded, setIsExpanded] = useState(false);
+  const uptimeSeconds = useInstanceUptime(instance.launchedAt);
+  const estimatedCost = useInstanceCost(
+    instance.provider,
+    instance.instanceType,
+    uptimeSeconds,
   );
-  const stepLabel = runningStep?.label ?? (isInProgress ? "Starting…" : null);
+
+  const isInstalling = instance.state === InstanceState.Installing;
+  const hasError = instance.state === InstanceState.Error;
+  const canConnect = instance.state === InstanceState.Running && !isConnected;
 
   return (
-    <SelectableCard
-      onClick={() => isInteractive && onSelect(instance)}
-      disabled={!isInteractive}
-      className={`p-3 rounded-lg border border-l-4 ${stripeColor} ${
-        !isInteractive
-          ? "bg-gray-800/50 text-gray-400 cursor-not-allowed border-gray-500/15 opacity-80"
-          : isInProgress
-            ? isSelected
-              ? "bg-blue-700/60 text-white glow-accent border-blue-500/40"
-              : "bg-gray-800 text-gray-300 hover:bg-gray-750 border-gray-500/25"
-            : isSelected
-              ? "bg-blue-600/80 text-white glow-accent border-blue-500/40"
-              : "bg-gray-800 hover:bg-gray-700 text-gray-200 border-gray-500/25"
-      }`}
-    >
-      <div
-        className={`flex items-center justify-between gap-4 ${isInProgress ? "mb-2" : ""}`}
-      >
-        <div className="flex items-center gap-3">
-          <FlagIcon
-            countryCode={regionInfo.countryCode}
-            className="text-xl flex-shrink-0"
+    <div className="rounded-xl bg-bg-medium border border-bd-moderate flex flex-col gap-3">
+      <div className="px-4 pt-4 flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-3 h-5">
+          <ServerLocation provider={instance.provider} region={instance.region} />
+          {isConnected && (
+            <Tag tone="success" dot>
+              Connected
+            </Tag>
+          )}
+          {hasError && <span className="text-caption text-fg-danger-moderate">Error</span>}
+        </div>
+
+        <div className="flex items-center gap-8">
+          <Metric
+            label="Duration"
+            icon={<Clock size={16} />}
+            value={formatDuration(uptimeSeconds)}
           />
-          <div>
-            <p className="font-medium text-sm">
-              {regionInfo.city || instance.name || "VPN Server"}
-            </p>
-            <p className="text-xs opacity-75 font-mono">{instance.region}</p>
-          </div>
+          <Metric
+            label="Cost"
+            icon={<DollarSign size={16} />}
+            value={estimatedCost === null ? "—" : estimatedCost.toFixed(4)}
+          />
+          <button
+            type="button"
+            onClick={() => setIsExpanded((previous) => !previous)}
+            aria-label={isExpanded ? "Hide details" : "Show details"}
+            className="ml-auto text-fg-medium hover:text-fg-lighter transition-colors"
+          >
+            <ChevronRight
+              size={16}
+              className={`transition-transform ${isExpanded ? "rotate-90" : ""}`}
+            />
+          </button>
         </div>
-        <div className="flex items-center gap-1.5">
-          <ProviderIcon provider={instance.provider} className="w-6 h-6" />
-          <Badge variant={badge.variant} spinner={badge.spinner}>
-            {badge.label}
-          </Badge>
-        </div>
+
+        {isExpanded && (
+          <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-caption">
+            <Detail label="Instance ID" value={instance.id} />
+            <Detail label="Type" value={instance.instanceType} />
+            <Detail label="IPv4" value={instance.publicIpV4} />
+            <Detail label="IPv6" value={instance.publicIpV6} />
+          </dl>
+        )}
+
+        {hasError && instance.errorReason && (
+          <p className="text-caption text-fg-danger-moderate">{instance.errorReason}</p>
+        )}
+
+        {!isTerminating && <DisconnectReminder instanceId={instance.id} />}
       </div>
-      {isInProgress && stepLabel && (
-        <p className="text-xs font-mono opacity-75 truncate">{stepLabel}</p>
-      )}
-    </SelectableCard>
+
+      <div className="border-t border-bd-moderate" />
+
+      <div className="px-4 pb-3 flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="lg"
+          loading={isTerminating}
+          disabledStyle="dim"
+          onClick={() => onTerminate(instance)}
+        >
+          Terminate server
+        </Button>
+        {!isInstalling && (
+          <Button
+            variant="primary"
+            size="lg"
+            loading={isConnecting}
+            disabled={!canConnect}
+            onClick={() => onConnect(instance)}
+          >
+            Connect to VPN
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface MetricProps {
+  label: string;
+  icon: React.ReactNode;
+  value: string;
+}
+
+function Metric({ label, icon, value }: MetricProps) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-caption text-fg-medium">{label}</span>
+      <span className="flex items-center gap-1.5 text-feature leading-[26px] text-fg-lighter tabular-nums">
+        <span className="text-fg-medium">{icon}</span>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+interface DetailProps {
+  label: string;
+  value: string;
+}
+
+function Detail({ label, value }: DetailProps) {
+  return (
+    <>
+      <dt className="text-fg-medium">{label}</dt>
+      <dd className="text-fg-lighter truncate">{value || "—"}</dd>
+    </>
   );
 }

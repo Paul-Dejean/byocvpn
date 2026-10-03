@@ -100,7 +100,7 @@ jobs:
           releaseName: ByocVPN ${{ github.ref_name }}
           releaseDraft: true
           prerelease: false
-          args: --target ${{ matrix.rust_target }} --verbose
+          args: --target ${{ matrix.rust_target }} --verbose ${{ startsWith(matrix.runner, 'macos') && '--config tauri.macos.release.conf.json' || '' }}
 
       - name: Repack and upload Linux deb
         if: startsWith(matrix.runner, 'ubuntu')

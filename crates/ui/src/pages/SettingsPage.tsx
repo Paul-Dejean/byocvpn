@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Plus } from "lucide-react";
 import { load as loadStore } from "@tauri-apps/plugin-store";
 import toast from "react-hot-toast";
 import { useCredentials } from "../hooks/useCredentials";
@@ -14,6 +15,7 @@ import { NotificationSettingsCard } from "../components/settings/NotificationSet
 import { SessionKillswitchCard } from "../components/settings/SessionKillswitchCard";
 import { AutoTerminateSettingsCard } from "../components/settings/AutoTerminateSettingsCard";
 import { AppearanceCard } from "../components/settings/AppearanceCard";
+import { SettingsSection } from "../components/settings/SettingsSection";
 import { Button } from "../components/primitives/Button";
 
 interface SettingsPageProps {
@@ -106,144 +108,104 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
     fetchProvisionedProviders();
   }, []);
 
+  function removeProvisionedProvider(provider: CloudProviderName) {
+    setProvisionedProviders((previous) => {
+      const next = new Set(previous);
+      next.delete(provider);
+      return next;
+    });
+  }
+
+  const hasConfiguredAccount =
+    awsHasCredentials || oracleHasCredentials || gcpHasCredentials || azureHasCredentials;
+  const canAddAccount =
+    onNavigateToAddAccount !== undefined &&
+    !(awsHasCredentials && oracleHasCredentials && gcpHasCredentials && azureHasCredentials);
+
   return (
-    <div className="flex flex-col h-full bg-gray-900 text-primary">
-      <div className="flex-1 overflow-y-auto">
-        <div className="px-6 pb-8">
-          <div>
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 pt-6 pb-2 border-b border-gray-700/50">
-              Accounts
-            </h2>
-            <div className="divide-y divide-gray-700/50">
-              {awsHasCredentials === true && (
-                <AwsAccountCard
-                  onCredentialsSaved={provisionAccount}
-                  onProvisionRequested={provisionAccount}
-                  isProvisioned={provisionedProviders.has(
-                    CloudProviderName.Aws,
-                  )}
-                  onCredentialsDeleted={() => {
-                    setAwsHasCredentials(false);
-                    setProvisionedProviders((previous) => {
-                      const next = new Set(previous);
-                      next.delete(CloudProviderName.Aws);
-                      return next;
-                    });
-                  }}
-                />
-              )}
+    <div className="flex flex-col h-full gap-3">
+      <header className="flex flex-col gap-1">
+        <h1 className="text-body-sm font-medium text-fg-lighter">Settings</h1>
+        <p className="text-caption text-fg-medium">
+          Manage your cloud accounts and how ByocVPN behaves.
+        </p>
+      </header>
 
-              {oracleHasCredentials === true && (
-                <OracleAccountCard
-                  onCredentialsSaved={provisionAccount}
-                  onProvisionRequested={provisionAccount}
-                  isProvisioned={provisionedProviders.has(
-                    CloudProviderName.Oracle,
-                  )}
-                  onCredentialsDeleted={() => {
-                    setOracleHasCredentials(false);
-                    setProvisionedProviders((previous) => {
-                      const next = new Set(previous);
-                      next.delete(CloudProviderName.Oracle);
-                      return next;
-                    });
-                  }}
-                />
-              )}
-
-              {gcpHasCredentials === true && (
-                <GcpAccountCard
-                  onCredentialsSaved={provisionAccount}
-                  onProvisionRequested={provisionAccount}
-                  isProvisioned={provisionedProviders.has(
-                    CloudProviderName.Gcp,
-                  )}
-                  onCredentialsDeleted={() => {
-                    setGcpHasCredentials(false);
-                    setProvisionedProviders((previous) => {
-                      const next = new Set(previous);
-                      next.delete(CloudProviderName.Gcp);
-                      return next;
-                    });
-                  }}
-                />
-              )}
-
-              {azureHasCredentials === true && (
-                <AzureAccountCard
-                  onCredentialsSaved={provisionAccount}
-                  onProvisionRequested={provisionAccount}
-                  isProvisioned={provisionedProviders.has(
-                    CloudProviderName.Azure,
-                  )}
-                  onCredentialsDeleted={() => {
-                    setAzureHasCredentials(false);
-                    setProvisionedProviders((previous) => {
-                      const next = new Set(previous);
-                      next.delete(CloudProviderName.Azure);
-                      return next;
-                    });
-                  }}
-                />
-              )}
-
-              {onNavigateToAddAccount &&
-                !(
-                  awsHasCredentials &&
-                  oracleHasCredentials &&
-                  gcpHasCredentials &&
-                  azureHasCredentials
-                ) && (
-                  <div className="py-4">
-                    <Button
-                      variant="primary"
-                      size="none"
-                      onClick={onNavigateToAddAccount}
-                      className="px-6 py-2.5 !rounded-xl"
-                      icon={
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 4v16m8-8H4"
-                          />
-                        </svg>
-                      }
-                    >
-                      Add Account
-                    </Button>
-                  </div>
-                )}
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-6 pr-1">
+        <SettingsSection
+          title="Cloud accounts"
+          description="Credentials stay on your device. We never store them."
+        >
+          {awsHasCredentials === true && (
+            <AwsAccountCard
+              onCredentialsSaved={provisionAccount}
+              onProvisionRequested={provisionAccount}
+              isProvisioned={provisionedProviders.has(CloudProviderName.Aws)}
+              onCredentialsDeleted={() => {
+                setAwsHasCredentials(false);
+                removeProvisionedProvider(CloudProviderName.Aws);
+              }}
+            />
+          )}
+          {oracleHasCredentials === true && (
+            <OracleAccountCard
+              onCredentialsSaved={provisionAccount}
+              onProvisionRequested={provisionAccount}
+              isProvisioned={provisionedProviders.has(CloudProviderName.Oracle)}
+              onCredentialsDeleted={() => {
+                setOracleHasCredentials(false);
+                removeProvisionedProvider(CloudProviderName.Oracle);
+              }}
+            />
+          )}
+          {gcpHasCredentials === true && (
+            <GcpAccountCard
+              onCredentialsSaved={provisionAccount}
+              onProvisionRequested={provisionAccount}
+              isProvisioned={provisionedProviders.has(CloudProviderName.Gcp)}
+              onCredentialsDeleted={() => {
+                setGcpHasCredentials(false);
+                removeProvisionedProvider(CloudProviderName.Gcp);
+              }}
+            />
+          )}
+          {azureHasCredentials === true && (
+            <AzureAccountCard
+              onCredentialsSaved={provisionAccount}
+              onProvisionRequested={provisionAccount}
+              isProvisioned={provisionedProviders.has(CloudProviderName.Azure)}
+              onCredentialsDeleted={() => {
+                setAzureHasCredentials(false);
+                removeProvisionedProvider(CloudProviderName.Azure);
+              }}
+            />
+          )}
+          {!hasConfiguredAccount && (
+            <p className="p-4 text-caption text-fg-medium">No cloud account connected yet.</p>
+          )}
+          {canAddAccount && (
+            <div className="p-4">
+              <Button
+                variant="secondary"
+                size="lg"
+                onClick={onNavigateToAddAccount}
+                icon={<Plus size={14} />}
+              >
+                Add account
+              </Button>
             </div>
-          </div>
+          )}
+        </SettingsSection>
 
-          <div className="mt-8">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 pb-2 border-b border-gray-700/50">
-              Appearance
-            </h2>
-            <div className="divide-y divide-gray-700/50">
-              <AppearanceCard />
-            </div>
-          </div>
+        <SettingsSection title="Appearance">
+          <AppearanceCard />
+        </SettingsSection>
 
-          <div className="mt-8">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 pb-2 border-b border-gray-700/50">
-              VPN Settings
-            </h2>
-            <div className="divide-y divide-gray-700/50">
-              <SessionKillswitchCard />
-              <NotificationSettingsCard />
-              <AutoTerminateSettingsCard />
-            </div>
-          </div>
-        </div>
+        <SettingsSection title="VPN">
+          <SessionKillswitchCard />
+          <NotificationSettingsCard />
+          <AutoTerminateSettingsCard />
+        </SettingsSection>
       </div>
 
       <JobProgressDrawer

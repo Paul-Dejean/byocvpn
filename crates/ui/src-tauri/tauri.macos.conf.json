@@ -1,9 +1,16 @@
 {
+  "app": {
+    "windows": [
+      {
+        "title": "ByocVPN",
+        "width": 1080,
+        "height": 748,
+        "maxWidth": 1080,
+        "maxHeight": 748
+      }
+    ]
+  },
   "bundle": {
-    "targets": ["app"],
-    "resources": {
-      "../../../target/release/byocvpn_daemon": "byocvpn-daemon",
-      "../../../scripts/com.byocvpn.daemon.plist": "com.byocvpn.daemon.plist"
-    }
+    "targets": ["app"]
   }
 }

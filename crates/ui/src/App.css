@@ -9,8 +9,8 @@
 ───────────────────────────────────────────────────────────────────────────── */
 
 @font-face {
-  font-family: "Outfit";
-  src: url("/fonts/outfit.woff2") format("woff2-variations");
+  font-family: "Inter";
+  src: url("/fonts/inter.woff2") format("woff2-variations");
   font-weight: 100 900;
   font-display: swap;
 }
@@ -25,139 +25,116 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    THEME
    Single source of truth for all design tokens.
-   Redefining Tailwind's built-in palettes means every existing utility class
-   (bg-gray-900, text-blue-400, …) automatically uses the new values.
+   Token names mirror the Figma design system (tokens/bg, tokens/fg, tokens/bd,
+   layout/gap, layout/radius, content/* text styles).
 ───────────────────────────────────────────────────────────────────────────── */
 
 @theme {
-  /* ── Blue-tinted dark grays ── */
-  --color-gray-950: #080e18;
-  --color-gray-900: #0d1525;   /* main app background — deep navy  */
-  --color-gray-800: #132030;   /* panel / header backgrounds        */
-  --color-gray-750: #172638;   /* intermediate hover state          */
-  --color-gray-700: #1c2f44;   /* card / secondary surface          */
-  --color-gray-600: #253d58;   /* input background, hover           */
-  --color-gray-500: #2f4d6e;   /* subtle border, divider            */
-  --color-gray-400: #5a7fa8;   /* muted / placeholder text          */
-  --color-gray-300: #8aafd4;   /* secondary text                    */
-  --color-gray-200: #b6cfe6;   /* labels, captions                  */
-  --color-gray-100: #deedf8;   /* near-primary body text            */
-  --color-gray-50:  #eef6fc;
+  /* ── Figma tokens: surfaces (tokens/bg/*) ── */
+  --color-bg-strong: #0f0f0f;
+  --color-bg-bolder: #141414;
+  --color-bg-medium: #1a1a1a;
+  --color-bg-light: rgb(255 255 255 / 5%);
+  --color-bg-lighter: rgb(255 255 255 / 10%); /* extension */
+  --color-bg-brand-bolder: #3738a4;
+  --color-bg-brand-bold: #4446b8; /* extension: hover */
+  --color-bg-brand-faint: rgb(55 56 164 / 35%);
+  --color-bg-danger-moderate: #ed2727;
+  --color-bg-danger-bold: #f03c3c;
+  --color-bg-danger-faint: rgb(237 39 39 / 22%);
+  --color-bg-success-faint: rgb(0 201 80 / 5%);
+  --color-bg-warning-faint: rgb(245 158 11 / 12%);
 
-  /* Primary foreground text — flips per theme (white here, near-black in light).
-     NOTE: this is the text color, distinct from the accent ("primary" button = blue). */
-  --color-primary: #ffffff;
+  /* ── Figma tokens: foreground (tokens/fg/*) ── */
+  --color-fg-lighter: rgb(255 255 255 / 90%);
+  --color-fg-medium: rgb(255 255 255 / 70%);
+  --color-fg-moderate: rgb(255 255 255 / 50%);
+  --color-fg-faint: rgb(255 255 255 / 30%);
+  --color-fg-on-brand: #ffffff;
+  --color-fg-brand: #9a9bf5; /* extension */
+  --color-fg-success-moderate: #31c164;
+  --color-fg-danger-moderate: #f05252;
+  --color-fg-warning-moderate: #f5b949;
 
-  /* ── Electric blue accent ── */
-  --color-blue-950: #020d1e;
-  --color-blue-900: #03162e;
-  --color-blue-800: #04306a;
-  --color-blue-700: #054d9c;
-  --color-blue-600: #0669c0;   /* primary buttons              */
-  --color-blue-500: #0888dc;
-  --color-blue-400: #20b4fa;   /* headings, title accent       */
-  --color-blue-300: #5dcfff;
-  --color-blue-200: #9ae2ff;
-  --color-blue-100: #ccf0ff;
+  /* ── Figma tokens: borders (tokens/bd/*) ── */
+  --color-bd-faint: rgb(255 255 255 / 5%); /* extension */
+  --color-bd-moderate: rgb(255 255 255 / 10%);
+  --color-bd-strong: rgb(255 255 255 / 20%);
+  --color-bd-brand: #5b5cd6;
+  --color-bd-brand-faint: rgb(91 92 214 / 40%);
+  --color-bd-success: rgb(49 193 100 / 35%);
+  --color-bd-danger: rgb(237 39 39 / 35%);
+  --color-bd-warning: rgb(245 158 11 / 35%);
 
-  /* ── Semantic status colors ──
-     blue = accent, gray = surface/neutral (both above). These three drive
-     success / warning / danger across Badge, Alert and buttons. Re-theme any
-     status color by editing only the ramp below. */
-
-  /* Success (green) */
-  --color-success-300: #86efac;
-  --color-success-400: #4ade80;
-  --color-success-500: #22c55e;
-  --color-success-600: #16a34a;
-  --color-success-700: #15803d;
-  --color-success-900: #14532d;
-
-  /* Warning (amber) */
-  --color-warning-300: #fde047;
-  --color-warning-400: #facc15;
-  --color-warning-700: #a16207;
-  --color-warning-900: #713f12;
-
-  /* Danger (red) */
-  --color-danger-300: #fca5a5;
-  --color-danger-400: #f87171;
-  --color-danger-500: #ef4444;
-  --color-danger-600: #dc2626;
-  --color-danger-700: #b91c1c;
-  --color-danger-900: #7f1d1d;
-
-  /* Depth shadow base — drives the dark drop-shadows under buttons/cards */
-  --color-shadow: #000000;
-
-  /* Modal/scrim overlay — intentionally dark in BOTH themes (not overridden below) */
+  /* Modal/scrim overlay — intentionally dark in BOTH themes */
   --color-overlay: #000000;
 
-  /* ── Animations ── */
-  --animate-fade-in: fade-in 1s ease-in-out forwards;
+  /* Spacing follows Figma layout/gap (xs 2, sm 4, md 8, lg 12, xl 16, 2xl 24),
+     which the default 4px Tailwind scale already expresses (gap-3 = lg). */
 
-  @keyframes fade-in {
-    from { opacity: 0; }
-    to   { opacity: 1; }
-  }
+  /* ── Figma tokens: radius (layout/radius/*) ── */
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+
+  /* ── Figma text styles (content/* and heading/*) ── */
+  --text-caption: 12px;
+  --text-caption--line-height: 16px;
+  --text-body-sm: 14px;
+  --text-body-sm--line-height: 20px;
+  --text-body: 16px;
+  --text-body--line-height: 24px;
+  --text-feature: 18px;
+  --text-feature--line-height: 26px;
+  --text-highlight: 20px;
+  --text-highlight--line-height: 28px;
+  --text-heading-sm: 20px;
+  --text-heading-sm--line-height: 28px;
+  --text-heading-md: 24px;
+  --text-heading-md--line-height: 32px;
+  --text-heading-lg: 30px;
+  --text-heading-lg--line-height: 40px;
+  --text-display: 36px;
+  --text-display--line-height: 46px;
 
   /* ── Typography ── */
-  --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    LIGHT THEME
-   Activated by data-theme="light" on <html>. Overrides only token VALUES — every
-   component utility (bg-gray-900, text-primary, bg-success-900, glow-*, …) picks
-   up the new value automatically. Retune the light palette entirely from here.
+   Activated by data-theme="light" on <html>. Overrides only token VALUES.
 ───────────────────────────────────────────────────────────────────────────── */
 
 :root[data-theme="light"] {
   color-scheme: light;
 
-  /* Primary foreground text flips to near-black */
-  --color-primary: #0f172a;
+  --color-bg-strong: #f4f4f5;
+  --color-bg-bolder: #ffffff;
+  --color-bg-medium: #f7f7f8;
+  --color-bg-light: rgb(0 0 0 / 5%);
+  --color-bg-lighter: rgb(0 0 0 / 8%);
+  --color-bg-brand-faint: rgb(55 56 164 / 12%);
+  --color-bg-danger-faint: rgb(237 39 39 / 8%);
+  --color-bg-success-faint: rgb(0 201 80 / 10%);
+  --color-bg-warning-faint: rgb(245 158 11 / 14%);
 
-  /* Slate grays — role-preserving inversion (900 = app bg … 50 = strongest text) */
-  --color-gray-950: #ffffff;
-  --color-gray-900: #f1f5f9;   /* app background       */
-  --color-gray-800: #ffffff;   /* cards / nav / panels */
-  --color-gray-750: #f8fafc;   /* hover                */
-  --color-gray-700: #c3cdda;   /* dividers / borders (must read at /50 over white), chips, hovers */
-  --color-gray-600: #dbe2ea;   /* input bg, secondary button */
-  --color-gray-500: #94a3b8;   /* borders + faint hint text  */
-  --color-gray-400: #64748b;   /* muted text           */
-  --color-gray-300: #475569;   /* secondary text       */
-  --color-gray-200: #334155;   /* labels               */
-  --color-gray-100: #1e293b;   /* body text            */
-  --color-gray-50:  #0f172a;   /* strongest text       */
+  --color-fg-lighter: rgb(0 0 0 / 90%);
+  --color-fg-medium: rgb(0 0 0 / 70%);
+  --color-fg-moderate: rgb(0 0 0 / 50%);
+  --color-fg-faint: rgb(0 0 0 / 30%);
+  --color-fg-brand: #3738a4;
+  --color-fg-success-moderate: #1f9d4d;
+  --color-fg-danger-moderate: #d12121;
+  --color-fg-warning-moderate: #b26a00;
 
-  /* Accent — darken the light end so blue text/icons keep contrast on light surfaces,
-     and lighten blue-900 (only ever used as a tinted background) to a soft blue tint.
-     blue-500/600/700 stay saturated: they back solid buttons/selections with white text. */
-  --color-blue-900: #dbeafe;
-  --color-blue-400: #0669c0;
-  --color-blue-300: #1f7fc4;
-
-  /* Status — flip dark fills (‑900) to light tints, and light text/icons (‑300/‑400) to dark */
-  --color-success-900: #dcfce7;
-  --color-success-700: #86efac;
-  --color-success-400: #16a34a;
-  --color-success-300: #15803d;
-
-  --color-warning-900: #fef9c3;
-  --color-warning-700: #fde047;
-  --color-warning-400: #a16207;
-  --color-warning-300: #a16207;
-
-  --color-danger-900: #fee2e2;
-  --color-danger-700: #fca5a5;
-  --color-danger-400: #dc2626;
-  --color-danger-300: #b91c1c;
-
-  /* Soft slate depth shadows instead of heavy black on light surfaces */
-  --color-shadow: #94a3b8;
+  --color-bd-faint: rgb(0 0 0 / 6%);
+  --color-bd-moderate: rgb(0 0 0 / 12%);
+  --color-bd-strong: rgb(0 0 0 / 24%);
+  --color-bd-brand: #3738a4;
+  --color-bd-brand-faint: rgb(55 56 164 / 30%);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -168,23 +145,7 @@
 
 @layer components {
   .input {
-    @apply w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg text-primary;
-  }
-
-  .btn-primary {
-    @apply bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition-colors;
-  }
-
-  .btn-secondary {
-    @apply bg-gray-600 hover:bg-gray-500 text-primary rounded-lg font-medium transition-colors;
-  }
-
-  .btn-danger {
-    @apply bg-danger-600 hover:bg-danger-500 text-white rounded-lg font-semibold transition-colors;
-  }
-
-  .btn-ghost-danger {
-    @apply bg-danger-500/10 border border-danger-500/25 hover:bg-danger-500/20 hover:glow-red text-primary rounded-lg font-semibold transition-colors;
+    @apply w-full px-3 py-2 bg-bg-medium border border-bd-moderate rounded-lg text-body-sm text-fg-lighter placeholder:text-fg-moderate;
   }
 }
 
@@ -198,72 +159,29 @@
   }
 
   body {
-    background-color: var(--color-gray-800);
-    color: var(--color-gray-100);
+    background-color: var(--color-bg-strong);
+    color: var(--color-fg-lighter);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* ── Typography scale ── */
-  /* Tight tracking on headings — signature of premium dark UIs (Linear, Raycast) */
-  h1, h2, h3 {
-    letter-spacing: -0.03em;
+  .scroll-fade {
+    mask-image: linear-gradient(to bottom, transparent, black 12px, black calc(100% - 12px), transparent);
   }
 
-  /* Wide tracking on small labels and badges */
-  .text-xs {
-    letter-spacing: 0.06em;
-  }
-
-  /* ── Scrollbar ── */
   ::-webkit-scrollbar        { width: 5px; height: 5px; }
-  ::-webkit-scrollbar-track  { background: var(--color-gray-800); }
-  ::-webkit-scrollbar-thumb  { background: var(--color-gray-500); border-radius: 9999px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--color-blue-600); }
+  ::-webkit-scrollbar-track  { background: transparent; }
+  ::-webkit-scrollbar-thumb  { background: var(--color-bd-strong); border-radius: 9999px; }
 
-  /* ── Focus ring ── */
   :focus-visible {
-    outline: 1.5px solid var(--color-blue-500);
+    outline: 1.5px solid var(--color-bd-brand);
     outline-offset: 2px;
   }
 
-  /* ── Input glow on focus ── */
-  input:focus,
-  textarea:focus {
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--color-blue-500) 60%, transparent),
-      0 0 12px color-mix(in srgb, var(--color-blue-500) 12%, transparent);
-  }
-
-  /* ── Primary button glow on hover ── */
-  button.bg-blue-600:hover,
-  a.bg-blue-600:hover {
-    box-shadow:
-      0 0 18px color-mix(in srgb, var(--color-blue-500) 40%, transparent),
-      0 0 4px color-mix(in srgb, var(--color-blue-500) 20%, transparent),
-      0 2px 8px color-mix(in srgb, var(--color-shadow) 50%, transparent);
-  }
-
-  /* ── Destructive button glow on hover ── */
-  button.bg-danger-600:hover {
-    box-shadow:
-      0 0 18px color-mix(in srgb, var(--color-danger-500) 35%, transparent),
-      0 0 4px color-mix(in srgb, var(--color-danger-500) 20%, transparent),
-      0 2px 8px color-mix(in srgb, var(--color-shadow) 50%, transparent);
-  }
-
-  /* ── Smooth border/shadow transitions on all rounded elements ── */
-  .rounded-lg,
-  .rounded-xl {
-    transition-property: border-color, box-shadow, background-color;
-    transition-duration: 150ms;
-  }
-
-  /* ── Tabular numbers — prevent layout shift on live metrics ── */
+  .tabular-nums,
   .font-mono {
     font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum" 1;
   }
 }
 
@@ -271,84 +189,12 @@
    UTILITIES
 ───────────────────────────────────────────────────────────────────────────── */
 
-/* Subtle dot-grid — apply to full-screen backgrounds */
+/* Subtle dot-grid — applied to the app frame background */
 @utility bg-grid {
   background-image: radial-gradient(
     circle,
-    color-mix(in srgb, var(--color-blue-400) 7%, transparent) 1px,
+    var(--color-bd-faint) 1px,
     transparent 1px
   );
-  background-size: 28px 28px;
-}
-
-
-/* Gradient border on cards — subtle illuminated edge effect */
-@utility card-border {
-  position: relative;
-  border: 1px solid transparent;
-  background-clip: padding-box;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-blue-400) 8%, transparent);
-}
-
-/* Strong glow ring — selected cards, active states */
-@utility glow-accent {
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--color-blue-500) 40%, transparent),
-    0 0 20px color-mix(in srgb, var(--color-blue-500) 20%, transparent),
-    0 2px 8px color-mix(in srgb, var(--color-shadow) 50%, transparent);
-}
-
-/* Soft glow — hover states */
-@utility glow-accent-sm {
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--color-blue-500) 20%, transparent),
-    0 0 8px color-mix(in srgb, var(--color-blue-500) 10%, transparent);
-}
-
-/* Gradient text — landing page headings */
-@utility text-gradient {
-  background: linear-gradient(
-    135deg,
-    var(--color-blue-300) 0%,
-    var(--color-blue-400) 45%,
-    var(--color-blue-500) 100%
-  );
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* Outer ring glow for blue icon hero (LandingPage, ConnectedView) */
-@utility glow-blue-ring {
-  box-shadow: 0 0 24px color-mix(in srgb, var(--color-blue-400) 12%, transparent);
-}
-
-/* Inner core glow for blue icon hero */
-@utility glow-blue-core {
-  box-shadow: 0 0 32px color-mix(in srgb, var(--color-blue-400) 20%, transparent);
-}
-
-/* Outer ring glow for green connected hero (ConnectedView) */
-@utility glow-green-ring {
-  box-shadow: 0 0 24px color-mix(in srgb, var(--color-success-400) 12%, transparent);
-}
-
-/* Inner core glow for green connected hero */
-@utility glow-green-core {
-  box-shadow: 0 0 32px color-mix(in srgb, var(--color-success-400) 20%, transparent);
-}
-
-/* Destructive red glow — ghost red buttons on hover */
-@utility glow-red {
-  box-shadow:
-    0 0 18px color-mix(in srgb, var(--color-danger-500) 35%, transparent),
-    0 0 4px color-mix(in srgb, var(--color-danger-500) 20%, transparent),
-    0 2px 8px color-mix(in srgb, var(--color-shadow) 50%, transparent);
-}
-
-/* Navbar connected status indicator */
-@utility glow-connected-indicator {
-  box-shadow:
-    0 0 6px color-mix(in srgb, var(--color-success-400) 90%, transparent),
-    0 0 12px color-mix(in srgb, var(--color-success-400) 40%, transparent);
+  background-size: 22px 22px;
 }

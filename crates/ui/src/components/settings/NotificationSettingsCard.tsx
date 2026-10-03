@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Bell } from "lucide-react";
 import { NotificationSettings, commands } from "../../bindings";
 import {
   isPermissionGranted,
@@ -6,9 +7,11 @@ import {
   sendNotification,
 } from "@tauri-apps/plugin-notification";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { Banner } from "../primitives/Banner";
 import { Toggle } from "../primitives/Toggle";
 import { Button } from "../primitives/Button";
 import { DurationField } from "./DurationField";
+import { SettingsRow } from "./SettingsRow";
 
 const DEFAULT_SETTINGS: NotificationSettings = {
   notificationEnabled: false,
@@ -91,33 +94,22 @@ export function NotificationSettingsCard() {
   };
 
   return (
-    <div className="py-6">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4 min-w-0">
-          <div className="w-12 h-12 rounded-xl bg-warning-900/50 flex items-center justify-center flex-shrink-0">
-            <BellIcon />
-          </div>
-          <div className="min-w-0">
-            <h3 className="font-semibold text-primary">
-              Server Uptime Notifications
-            </h3>
-            <p className="text-sm text-gray-400 mt-0.5">
-              Get notified when a server has been running too long
-            </p>
-          </div>
-        </div>
-
+    <SettingsRow
+      icon={<Bell size={16} />}
+      title="Server uptime notifications"
+      description="Get notified when a server has been running too long"
+      control={
         <Toggle
           checked={settings.notificationEnabled}
           onChange={toggleEnabled}
           ariaLabel="Toggle notifications"
         />
-      </div>
-
+      }
+    >
       {settings.notificationEnabled && (
-        <div className="mt-3 pl-16 space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400">Notify after</span>
+        <>
+          <div className="flex items-center gap-2 text-caption text-fg-medium">
+            <span>Notify after</span>
             <DurationField
               minutes={settings.notificationThresholdMinutes}
               unit={settings.notificationUnit}
@@ -130,59 +122,36 @@ export function NotificationSettingsCard() {
                 })
               }
             />
-            <span className="text-xs text-gray-400">of server uptime</span>
+            <span>of server uptime</span>
           </div>
 
-          <p className="text-xs text-gray-500">
+          <p className="text-caption text-fg-moderate">
             To verify notifications work, open System Settings and allow
-            notifications for this app. You can then send a test notification to
-            confirm everything is set up correctly.
+            notifications for this app, then send a test notification.
           </p>
 
-          {permissionError && (
-            <p className="text-xs text-danger-400">{permissionError}</p>
-          )}
+          {permissionError && <Banner variant="danger">{permissionError}</Banner>}
 
           <div className="flex items-center gap-2">
             {notificationSettingsUrl && (
               <Button
-                variant="ghost"
-                size="none"
+                variant="secondary"
+                size="md"
                 onClick={openNotificationSettings}
-                className="text-xs px-2.5 py-1 !rounded-md"
               >
                 Open Settings
               </Button>
             )}
             <Button
-              variant="ghost"
-              size="none"
+              variant="secondary"
+              size="md"
               onClick={sendTestNotification}
-              className="text-xs px-2.5 py-1 !rounded-md"
             >
-              Test Notification
+              Test notification
             </Button>
           </div>
-        </div>
+        </>
       )}
-    </div>
-  );
-}
-
-function BellIcon() {
-  return (
-    <svg
-      className="w-5 h-5 text-warning-400"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={1.5}
-        d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-      />
-    </svg>
+    </SettingsRow>
   );
 }

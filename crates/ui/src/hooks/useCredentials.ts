@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { commands } from "../bindings";
 import { configuredProvidersQueryOptions } from "../queries/configuredProviders";
+import { providerRegionsQueryOptions } from "../queries/providerRegions";
 import toast from "react-hot-toast";
 import { CloudProviderName } from "../types";
 
@@ -28,6 +29,12 @@ export function useCredentials() {
     queryClient.invalidateQueries({
       queryKey: configuredProvidersQueryOptions.queryKey,
     });
+  };
+
+  const preloadProviderRegions = (provider: CloudProviderName) => {
+    const regionsQueryOptions = providerRegionsQueryOptions(provider);
+    queryClient.removeQueries({ queryKey: regionsQueryOptions.queryKey });
+    queryClient.prefetchQuery(regionsQueryOptions);
   };
 
   const loadCredentials = async <T extends CloudProviderName>(
@@ -59,6 +66,7 @@ export function useCredentials() {
       return false;
     }
     invalidateConfiguredProviders();
+    preloadProviderRegions(provider);
     return true;
   };
 

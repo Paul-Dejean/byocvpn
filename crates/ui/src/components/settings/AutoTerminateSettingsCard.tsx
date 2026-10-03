@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { Clock } from "lucide-react";
 import { AutoTerminateSettings, commands } from "../../bindings";
 import { Toggle } from "../primitives/Toggle";
 import { DurationField } from "./DurationField";
+import { SettingsRow } from "./SettingsRow";
 
 const DEFAULT_SETTINGS: AutoTerminateSettings = {
   autoTerminateEnabled: false,
@@ -41,34 +43,22 @@ export function AutoTerminateSettingsCard() {
   };
 
   return (
-    <div className="py-6">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4 min-w-0">
-          <div className="w-12 h-12 rounded-xl bg-danger-900/50 flex items-center justify-center flex-shrink-0">
-            <ClockIcon />
-          </div>
-          <div className="min-w-0">
-            <h3 className="font-semibold text-primary">
-              Auto-Terminate Idle Servers
-            </h3>
-            <p className="text-sm text-gray-400 mt-0.5">
-              Automatically terminate servers left running without a VPN
-              connection
-            </p>
-          </div>
-        </div>
-
+    <SettingsRow
+      icon={<Clock size={16} />}
+      title="Auto-terminate idle servers"
+      description="Automatically terminate servers left running without a VPN connection"
+      control={
         <Toggle
           checked={settings.autoTerminateEnabled}
           onChange={toggleEnabled}
           ariaLabel="Toggle auto-terminate"
         />
-      </div>
-
+      }
+    >
       {settings.autoTerminateEnabled && (
-        <div className="mt-3 pl-16 space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400">Terminate after</span>
+        <>
+          <div className="flex items-center gap-2 text-caption text-fg-medium">
+            <span>Terminate after</span>
             <DurationField
               minutes={settings.autoTerminateThresholdMinutes}
               unit={settings.autoTerminateUnit}
@@ -81,34 +71,15 @@ export function AutoTerminateSettingsCard() {
                 })
               }
             />
-            <span className="text-xs text-gray-400">without a connection</span>
+            <span>without a connection</span>
           </div>
-
-          <p className="text-xs text-gray-500">
+          <p className="text-caption text-fg-moderate">
             The idle timer resets every time you connect. Only runs while the
             app is open. Servers are fully terminated, so a forgotten one won't
             keep costing you.
           </p>
-        </div>
+        </>
       )}
-    </div>
-  );
-}
-
-function ClockIcon() {
-  return (
-    <svg
-      className="w-5 h-5 text-danger-400"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={1.5}
-        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-      />
-    </svg>
+    </SettingsRow>
   );
 }

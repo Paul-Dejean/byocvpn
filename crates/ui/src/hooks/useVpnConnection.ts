@@ -65,6 +65,16 @@ export function useVpnConnection() {
     setIsConnecting(true);
     setError(null);
 
+    if (vpnStatus.connected) {
+      const disconnectResult = await commands.disconnect();
+      if (disconnectResult.status === "error") {
+        setIsConnecting(false);
+        setError(disconnectResult.error);
+        toast.error(disconnectResult.error);
+        return;
+      }
+    }
+
     const result = await commands.connect(
       selectedInstance.id,
       selectedInstance.region,

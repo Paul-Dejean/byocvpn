@@ -1,3 +1,4 @@
+import { Check, Circle, Sparkles, X } from "lucide-react";
 import {
   Permissions,
   CloudProviderName,
@@ -8,7 +9,7 @@ import { PROVIDER_METADATA } from "../../constants/providers";
 import { Drawer } from "../primitives/Drawer";
 import { Spinner } from "../primitives/Spinner";
 import { Button } from "../primitives/Button";
-import { Alert } from "../primitives/Alert";
+import { Banner } from "../primitives/Banner";
 import { PermissionsPanel } from "./PermissionsPanel";
 
 export interface VerificationState {
@@ -29,83 +30,6 @@ interface JobProgressDrawerProps {
   error: string | null;
   verification?: VerificationState;
   onRetry?: () => void;
-}
-
-function StepStatusIcon({ status }: { status: JobStepStatus }) {
-  switch (status) {
-    case JobStepStatus.Running:
-      return <Spinner size="w-5 h-5" color="border-blue-400" />;
-    case JobStepStatus.Completed:
-      return (
-        <svg
-          className="w-5 h-5 text-success-400 flex-shrink-0"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M5 13l4 4L19 7"
-          />
-        </svg>
-      );
-    case JobStepStatus.Failed:
-      return (
-        <svg
-          className="w-5 h-5 text-danger-400 flex-shrink-0"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M6 18L18 6M6 6l12 12"
-          />
-        </svg>
-      );
-    default:
-      return (
-        <div className="w-5 h-5 rounded-full border-2 border-gray-600 flex-shrink-0" />
-      );
-  }
-}
-
-function ProvisionSteps({ steps }: { steps: JobStepState[] }) {
-  return (
-    <div className="space-y-4">
-      {steps.map((step, index) => (
-        <div key={step.id} className="flex items-start gap-3">
-          <div className="mt-0.5">
-            <StepStatusIcon status={step.status} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500 font-mono tabular-nums">
-                {String(index + 1).padStart(2, "0")}
-              </span>
-              <span
-                className={`text-sm font-medium ${
-                  step.status === JobStepStatus.Completed
-                    ? "text-gray-300"
-                    : step.status === JobStepStatus.Running
-                      ? "text-primary"
-                      : step.status === JobStepStatus.Failed
-                        ? "text-danger-300"
-                        : "text-gray-500"
-                }`}
-              >
-                {step.label}
-              </span>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
 }
 
 export function JobProgressDrawer({
@@ -144,37 +68,35 @@ export function JobProgressDrawer({
       subtitle={drawerSubtitle}
       footer={
         verificationFailed ? (
-          <Button variant="primary" onClick={onRetry} className="w-full">
+          <Button variant="primary" size="lg" onClick={onRetry} className="w-full">
             Retry
           </Button>
         ) : (
-          <Button variant="secondary" onClick={onClose} className="w-full">
+          <Button variant="secondary" size="lg" onClick={onClose} className="w-full">
             Close
           </Button>
         )
       }
     >
       {isVerifying ? (
-        <div className="flex items-center gap-2 text-sm text-gray-400">
-          <Spinner color="border-blue-400" />
-          Verifying permissions…
+        <div className="flex items-center gap-2 text-body-sm text-fg-medium">
+          <Spinner color="border-bd-strong" />
+          Verifying permissions
         </div>
       ) : verificationFailed ? (
-        <>
-          <Alert variant="error" title="Update your permissions">
+        <div className="flex flex-col gap-4">
+          <Banner variant="danger" title="Update your permissions">
             Your credentials are missing the permissions marked below. Grant
             them in your cloud provider's console, then retry.
-          </Alert>
-          <div className="mt-4">
-            <PermissionsPanel
-              permissions={verification?.permissions ?? null}
-              isVerifying={false}
-              error={null}
-            />
-          </div>
-        </>
+          </Banner>
+          <PermissionsPanel
+            permissions={verification?.permissions ?? null}
+            isVerifying={false}
+            error={null}
+          />
+        </div>
       ) : (
-        <>
+        <div className="flex flex-col gap-6">
           <ProvisionSteps steps={steps} />
 
           {verification?.permissions && (
@@ -186,54 +108,57 @@ export function JobProgressDrawer({
           )}
 
           {isComplete && (
-            <Alert
+            <Banner
               variant="success"
-              className="mt-6"
-              icon={
-                <svg
-                  className="w-5 h-5 text-success-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-              }
+              icon={<Check size={16} className="text-fg-success-moderate" />}
               title={successMessage ?? "Account provisioned successfully"}
             />
           )}
 
           {error && (
-            <Alert
-              variant="error"
-              className="mt-6"
-              icon={
-                <svg
-                  className="w-5 h-5 text-danger-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                  />
-                </svg>
-              }
+            <Banner
+              variant="danger"
+              icon={<X size={16} className="text-fg-danger-moderate" />}
               title="Provisioning failed"
             >
               {error}
-            </Alert>
+            </Banner>
           )}
-        </>
+        </div>
       )}
     </Drawer>
   );
+}
+
+function ProvisionSteps({ steps }: { steps: JobStepState[] }) {
+  return (
+    <ol className="flex flex-col gap-4">
+      {steps.map((step) => (
+        <li key={step.id} className="flex items-center gap-3 text-body-sm">
+          <StepStatusIcon status={step.status} />
+          <span className={STEP_LABEL_CLASSES[step.status]}>{step.label}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+const STEP_LABEL_CLASSES: Record<JobStepStatus, string> = {
+  [JobStepStatus.Pending]: "text-fg-medium",
+  [JobStepStatus.Running]: "text-fg-lighter",
+  [JobStepStatus.Completed]: "text-fg-medium",
+  [JobStepStatus.Failed]: "text-fg-danger-moderate",
+};
+
+function StepStatusIcon({ status }: { status: JobStepStatus }) {
+  switch (status) {
+    case JobStepStatus.Running:
+      return <Sparkles size={16} className="text-fg-brand animate-pulse" />;
+    case JobStepStatus.Completed:
+      return <Check size={16} className="text-fg-success-moderate" />;
+    case JobStepStatus.Failed:
+      return <X size={16} className="text-fg-danger-moderate" />;
+    case JobStepStatus.Pending:
+      return <Circle size={16} className="text-fg-brand" />;
+  }
 }
