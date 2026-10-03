@@ -124,6 +124,7 @@ const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
       "- compute.firewalls.create",
       "- compute.firewalls.delete",
       "- compute.firewalls.get",
+      "- compute.firewalls.update",
       "- compute.globalOperations.get",
       "- compute.images.get",
       "- compute.instances.create",
@@ -137,6 +138,7 @@ const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
       "- compute.networks.delete",
       "- compute.networks.get",
       "- compute.networks.updatePolicy",
+      "- compute.regionOperations.get",
       "- compute.regions.list",
       "- compute.subnetworks.create",
       "- compute.subnetworks.delete",
@@ -276,7 +278,7 @@ const PROVIDER_SETUP_INSTRUCTIONS: Record<
       },
       {
         number: 3,
-        text: "Assign permissions to the service account. Quick setup: attach the built-in roles Compute Instance Admin (v1) and Service Usage Admin. Least-privilege setup: go to IAM & Admin → Roles → Create role, add each permission listed in the YAML below, then assign that custom role to the service account.",
+        text: "Assign permissions to the service account. Quick setup: attach the built-in roles Compute Admin and Service Usage Admin. Least-privilege setup: go to IAM & Admin → Roles → Create role, add each permission listed in the YAML below, then assign that custom role to the service account.",
       },
       {
         number: 4,
