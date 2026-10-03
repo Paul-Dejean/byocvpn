@@ -60,6 +60,9 @@ export function RegionList({
   const favoriteRows = visibleRows.filter((row) =>
     favoriteRegions.includes(row.region.name),
   );
+  const otherRows = visibleRows.filter(
+    (row) => !favoriteRegions.includes(row.region.name),
+  );
 
   function renderRow(row: RegionRowData) {
     return (
@@ -102,8 +105,11 @@ export function RegionList({
               {favoriteRows.map(renderRow)}
             </RegionSection>
           )}
-          <RegionSection title="All" count={visibleRows.length}>
-            {visibleRows.map(renderRow)}
+          <RegionSection
+            title={favoriteRows.length > 0 ? "Others" : "All"}
+            count={otherRows.length}
+          >
+            {otherRows.map(renderRow)}
           </RegionSection>
         </div>
       )}
@@ -194,7 +200,7 @@ function RegionRow({
       }}
       className={`group flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
         isSelected
-          ? "bg-bg-medium ring-1 ring-bd-brand"
+          ? "bg-bg-medium ring-1 ring-inset ring-bd-brand"
           : "hover:bg-bg-medium"
       } ${isSelectable ? "cursor-pointer" : ""}`}
     >
