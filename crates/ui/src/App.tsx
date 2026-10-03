@@ -15,14 +15,13 @@ import { AppFrame } from "./components/common/AppFrame";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { Sidebar } from "./components/common/Sidebar";
 import { VpnConnectionProvider } from "./contexts/VpnConnectionContext";
+import { DeploymentsProvider } from "./contexts/DeploymentsContext";
 import { useAutoTerminatedInstanceListener } from "./hooks/useAutoTerminatedInstanceListener";
 import { configuredProvidersQueryOptions } from "./queries/configuredProviders";
 import { CloudProviderName } from "./types";
 import { OnboardingStep } from "./types/onboarding";
 import { Page } from "./types/pages";
 export { Page };
-
-const DEBUG_ALWAYS_START_ON_ONBOARDING = true;
 
 interface OnboardingState {
   step: OnboardingStep;
@@ -53,8 +52,7 @@ function App() {
 
   const hasConfiguredProvider =
     configuredProviders !== undefined &&
-    configuredProviders.length > 0 &&
-    !DEBUG_ALWAYS_START_ON_ONBOARDING;
+    configuredProviders.length > 0;
   const page =
     selectedPage ?? (hasConfiguredProvider ? Page.SERVERS : Page.ONBOARDING);
   const setPage = setSelectedPage;
@@ -120,6 +118,7 @@ function App() {
       />
 
       <ErrorBoundary>
+        <DeploymentsProvider>
         {page === Page.ONBOARDING && (
           <VpnConnectionProvider>
             <OnboardingPage
@@ -159,6 +158,7 @@ function App() {
             </div>
           </VpnConnectionProvider>
         )}
+        </DeploymentsProvider>
       </ErrorBoundary>
     </AppFrame>
   );

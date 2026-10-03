@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChevronRight, Clock, DollarSign } from "lucide-react";
-import { Instance, InstanceState, JobStepStatus, SpawnJob } from "../../types";
+import { Instance, InstanceState } from "../../types";
 import { useInstanceUptime } from "../../hooks/useInstanceUptime";
 import { useInstanceCost } from "../../hooks/useInstanceCost";
 import { formatDuration } from "../../lib/time";
@@ -13,7 +13,6 @@ interface ServerCardProps {
   isConnected: boolean;
   isConnecting: boolean;
   isTerminating: boolean;
-  spawnJob?: SpawnJob;
   onConnect: (instance: Instance) => void;
   onTerminate: (instance: Instance) => void;
 }
@@ -23,7 +22,6 @@ export function ServerCard({
   isConnected,
   isConnecting,
   isTerminating,
-  spawnJob,
   onConnect,
   onTerminate,
 }: ServerCardProps) {
@@ -39,10 +37,6 @@ export function ServerCard({
   const hasError = instance.state === InstanceState.Error;
   const canConnect = instance.state === InstanceState.Running && !isConnected;
 
-  const runningStep = spawnJob?.steps.find(
-    (step) => step.status === JobStepStatus.Running,
-  );
-
   return (
     <div className="rounded-xl bg-gray-750 border border-gray-500/50">
       <div className="p-3 flex flex-col gap-3">
@@ -52,7 +46,7 @@ export function ServerCard({
           {isInstalling && (
             <span className="flex items-center gap-1.5 text-xs text-blue-300">
               <Spinner size="w-3 h-3" color="border-blue-300" />
-              {runningStep?.label ?? "Setting up"}
+              Installing
             </span>
           )}
           {hasError && (

@@ -42,27 +42,28 @@ export function SettingUpStep({
   const regionInfo = getRegionInfo(provider, region.name);
   const countryName = getCountryName(regionInfo.countryCode) || region.country;
 
+  function handleBack() {
+    deployment.reset();
+    onBack();
+  }
+
   return (
     <div className="h-full flex flex-col items-center justify-center gap-10">
       <div className="w-12 h-12 rounded-xl bg-gray-700 border border-gray-500/60 flex items-center justify-center">
         <Logo className="w-6 h-6" />
       </div>
 
-      <div className="flex flex-col items-center">
-        <DeploymentProgress
-          title={`Setting up your ${countryName} server`}
-          steps={deployment.steps}
-          error={deployment.error}
-          showIllustration={false}
-          centered
-        />
-      </div>
+      <DeploymentProgress
+        title={`Setting up your ${countryName} server`}
+        steps={deployment.steps}
+        error={deployment.error}
+      />
 
       {deployment.status === DeploymentStatus.FAILED && (
         <Button
           variant="secondary"
           size="none"
-          onClick={onBack}
+          onClick={handleBack}
           className="px-4 py-2 text-sm"
         >
           Back

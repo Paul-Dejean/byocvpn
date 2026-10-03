@@ -1,13 +1,18 @@
 import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { Instance } from "../types";
+import { Instance, SpawnJobStatus } from "../types";
 import { useInstances } from "../hooks/useInstances";
 import { useVpnConnectionContext } from "../contexts/VpnConnectionContext";
+import {
+  DeploymentStatus,
+  useDeployments,
+} from "../contexts/DeploymentsContext";
 import { configuredProvidersQueryOptions } from "../queries/configuredProviders";
+import { summarizeSpawnJobSteps } from "../lib/deploymentSteps";
 import { ServerCard } from "../components/servers/ServerCard";
 import { EmptyServers } from "../components/servers/EmptyServers";
-import { SpawnJobCard } from "../components/jobs/SpawnJobCard";
+import { DeploymentCard } from "../components/deploy/DeploymentCard";
 import { DeployServerModal } from "../components/deploy/DeployServerModal";
 import { InfoBanner } from "../components/common/InfoBanner";
 import { UnprotectedPanel } from "../components/vpn/UnprotectedPanel";
@@ -25,7 +30,6 @@ export function ServersPage() {
   );
   const {
     instances,
-    spawnJobs,
     pendingSpawnJobs,
     isLoading,
     terminatingInstanceId,
@@ -33,6 +37,7 @@ export function ServersPage() {
     dismissSpawnJob,
     refetchInstances,
   } = useInstances();
+  const { deployments, dismissDeployment } = useDeployments();
 
   const {
     vpnStatus,
@@ -51,8 +56,26 @@ export function ServersPage() {
     refetchInstances();
   }, []);
 
+  const activeDeployments = deployments.filter(
+    (deployment) => deployment.status !== DeploymentStatus.COMPLETE,
+  );
+  const trackedJobIds = new Set(
+    activeDeployments
+      .map((deployment) => deployment.jobId)
+      .filter((jobId): jobId is string => jobId !== null),
+  );
+  const untrackedSpawnJobs = pendingSpawnJobs.filter(
+    (spawnJob) => !trackedJobIds.has(spawnJob.jobId),
+  );
+  const visibleInstances = instances.filter(
+    (instance) => instance.spawnId === null || !trackedJobIds.has(instance.spawnId),
+  );
+
   const connectedInstance = vpnStatus.connected ? vpnStatus.instance : null;
-  const hasServers = instances.length > 0 || pendingSpawnJobs.length > 0;
+  const hasServers =
+    visibleInstances.length > 0 ||
+    untrackedSpawnJobs.length > 0 ||
+    activeDeployments.length > 0;
   const showBanner =
     hasServers && connectedInstance === null && !isBannerDismissed;
 
@@ -98,23 +121,40 @@ export function ServersPage() {
           </div>
         ) : hasServers ? (
           <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3">
-            {pendingSpawnJobs.map((spawnJob) => (
-              <SpawnJobCard
-                key={spawnJob.jobId}
-                spawnJob={spawnJob}
-                onDismiss={dismissSpawnJob}
+            {activeDeployments.map((deployment) => (
+              <DeploymentCard
+                key={deployment.id}
+                provider={deployment.provider}
+                region={deployment.region.name}
+                steps={deployment.steps}
+                hasFailed={deployment.status === DeploymentStatus.FAILED}
+                error={deployment.error}
+                onDismiss={() => {
+                  if (deployment.jobId) {
+                    dismissSpawnJob(deployment.jobId);
+                  }
+                  dismissDeployment(deployment.id);
+                }}
               />
             ))}
-            {instances.map((instance) => (
+            {untrackedSpawnJobs.map((spawnJob) => (
+              <DeploymentCard
+                key={spawnJob.jobId}
+                provider={spawnJob.provider}
+                region={spawnJob.region}
+                steps={summarizeSpawnJobSteps(spawnJob)}
+                hasFailed={spawnJob.status === SpawnJobStatus.Failed}
+                error={spawnJob.error}
+                onDismiss={() => dismissSpawnJob(spawnJob.jobId)}
+              />
+            ))}
+            {visibleInstances.map((instance) => (
               <ServerCard
                 key={instance.id}
                 instance={instance}
                 isConnected={connectedInstance?.instanceId === instance.id}
                 isConnecting={isConnecting}
                 isTerminating={terminatingInstanceId === instance.id}
-                spawnJob={spawnJobs.find(
-                  (spawnJob) => spawnJob.jobId === instance.spawnId,
-                )}
                 onConnect={handleConnect}
                 onTerminate={handleTerminate}
               />

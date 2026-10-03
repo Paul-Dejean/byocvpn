@@ -1,28 +1,31 @@
-import { JobStepStatus, SpawnJob, SpawnJobStatus } from "../../types";
+import { CloudProviderName, JobStepState } from "../../types";
 import { Button } from "../primitives/Button";
 import { Spinner } from "../primitives/Spinner";
 import { ServerLocation } from "../servers/ServerLocation";
+import { DeploymentStepList } from "./DeploymentStepList";
 
-interface SpawnJobCardProps {
-  spawnJob: SpawnJob;
-  onDismiss: (jobId: string) => void;
+interface DeploymentCardProps {
+  provider: CloudProviderName;
+  region: string;
+  steps: JobStepState[];
+  hasFailed: boolean;
+  error: string | null;
+  onDismiss: () => void;
 }
 
-export function SpawnJobCard({ spawnJob, onDismiss }: SpawnJobCardProps) {
-  const hasFailed = spawnJob.status === SpawnJobStatus.Failed;
-  const runningStep = spawnJob.steps.find(
-    (step) => step.status === JobStepStatus.Running,
-  );
-  const failedStep = spawnJob.steps.find(
-    (step) => step.status === JobStepStatus.Failed,
-  );
-  const stepLabel = failedStep?.label ?? runningStep?.label ?? "Starting";
-
+export function DeploymentCard({
+  provider,
+  region,
+  steps,
+  hasFailed,
+  error,
+  onDismiss,
+}: DeploymentCardProps) {
   return (
     <div className="rounded-xl bg-gray-750 border border-gray-500/50">
       <div className="p-3 flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
-          <ServerLocation provider={spawnJob.provider} region={spawnJob.region} />
+          <ServerLocation provider={provider} region={region} />
           {hasFailed ? (
             <span className="text-xs text-danger-400">Failed</span>
           ) : (
@@ -32,9 +35,16 @@ export function SpawnJobCard({ spawnJob, onDismiss }: SpawnJobCardProps) {
             </span>
           )}
         </div>
-        <p className={`text-xs ${hasFailed ? "text-danger-300" : "text-gray-300"}`}>
-          {hasFailed && spawnJob.error ? spawnJob.error : stepLabel}
-        </p>
+
+        {steps.length > 0 ? (
+          <DeploymentStepList steps={steps} compact />
+        ) : (
+          <p className="text-xs text-gray-300">Starting</p>
+        )}
+
+        {hasFailed && error && (
+          <p className="text-xs text-danger-300">{error}</p>
+        )}
       </div>
 
       {hasFailed && (
@@ -42,7 +52,7 @@ export function SpawnJobCard({ spawnJob, onDismiss }: SpawnJobCardProps) {
           <Button
             variant="secondary"
             size="none"
-            onClick={() => onDismiss(spawnJob.jobId)}
+            onClick={onDismiss}
             className="px-3 py-1.5 text-sm"
           >
             Dismiss
