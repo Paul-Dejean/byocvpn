@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CloudProviderName } from "../../types";
 import { Button } from "../primitives/Button";
-import { ProviderIcon } from "../providers/ProviderIcon";
+import { PROVIDER_TILE_LABELS, ProviderTile } from "../providers/ProviderTile";
 import { OnboardingHeading } from "./OnboardingHeading";
 
 interface ConnectAccountStepProps {
@@ -10,16 +10,11 @@ interface ConnectAccountStepProps {
   onContinue: (provider: CloudProviderName) => void;
 }
 
-interface ProviderTile {
-  provider: CloudProviderName;
-  label: string;
-}
-
-const PROVIDER_TILES: ProviderTile[] = [
-  { provider: CloudProviderName.Aws, label: "AWS Account" },
-  { provider: CloudProviderName.Oracle, label: "Oracle Cloud" },
-  { provider: CloudProviderName.Gcp, label: "Google Cloud" },
-  { provider: CloudProviderName.Azure, label: "Microsoft Azure" },
+const PROVIDER_TILES: CloudProviderName[] = [
+  CloudProviderName.Aws,
+  CloudProviderName.Oracle,
+  CloudProviderName.Gcp,
+  CloudProviderName.Azure,
 ];
 
 export function ConnectAccountStep({
@@ -44,12 +39,13 @@ export function ConnectAccountStep({
       />
 
       <div className="grid grid-cols-2 gap-3">
-        {PROVIDER_TILES.map((tile) => (
-          <ProviderTileButton
-            key={tile.provider}
-            tile={tile}
-            isSelected={selectedProvider === tile.provider}
-            onSelect={() => setSelectedProvider(tile.provider)}
+        {PROVIDER_TILES.map((provider) => (
+          <ProviderTile
+            key={provider}
+            provider={provider}
+            label={PROVIDER_TILE_LABELS[provider]}
+            isSelected={selectedProvider === provider}
+            onSelect={() => setSelectedProvider(provider)}
           />
         ))}
       </div>
@@ -82,32 +78,5 @@ export function ConnectAccountStep({
         </div>
       </div>
     </div>
-  );
-}
-
-interface ProviderTileButtonProps {
-  tile: ProviderTile;
-  isSelected: boolean;
-  onSelect: () => void;
-}
-
-function ProviderTileButton({
-  tile,
-  isSelected,
-  onSelect,
-}: ProviderTileButtonProps) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={`w-[124px] h-[78px] rounded-lg border p-4 flex flex-col justify-between items-start text-left transition-colors ${
-        isSelected
-          ? "bg-bg-medium border-bd-brand"
-          : "bg-bg-medium border-bd-moderate hover:bg-bg-light"
-      }`}
-    >
-      <ProviderIcon provider={tile.provider} className="w-6 h-6" />
-      <span className="text-caption text-fg-lighter">{tile.label}</span>
-    </button>
   );
 }

@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, ChevronRight } from "lucide-react";
-import { Spinner } from "../primitives/Spinner";
-import { IconButton } from "../primitives/IconButton";
-import { ProviderIcon } from "./ProviderIcon";
-import { useCredentials } from "../../hooks/useCredentials";
 import { CloudProviderName } from "../../types";
+import { useCredentials } from "../../hooks/useCredentials";
+import { OnboardingHeading } from "../onboarding/OnboardingHeading";
+import { Button } from "../primitives/Button";
+import { Spinner } from "../primitives/Spinner";
+import { PROVIDER_TILE_LABELS, ProviderTile } from "./ProviderTile";
 
 interface ProviderSelectorProps {
   onSelectProvider: (provider: CloudProviderName) => void;
@@ -14,103 +14,89 @@ interface ProviderSelectorProps {
   subtitle?: string;
 }
 
-interface ProviderOption {
-  name: CloudProviderName;
-  label: string;
-  description: string;
-}
-
-const providers: ProviderOption[] = [
-  {
-    name: CloudProviderName.Aws,
-    label: "Amazon Web Services",
-    description: "EC2 — 15+ regions worldwide",
-  },
-  {
-    name: CloudProviderName.Oracle,
-    label: "Oracle Cloud",
-    description: "OCI Compute — 40+ regions worldwide",
-  },
-  {
-    name: CloudProviderName.Gcp,
-    label: "Google Cloud",
-    description: "Compute Engine — 40+ regions worldwide",
-  },
-  {
-    name: CloudProviderName.Azure,
-    label: "Microsoft Azure",
-    description: "Azure VMs — 60+ regions worldwide",
-  },
+const ALL_PROVIDERS: CloudProviderName[] = [
+  CloudProviderName.Aws,
+  CloudProviderName.Oracle,
+  CloudProviderName.Gcp,
+  CloudProviderName.Azure,
 ];
 
 export function ProviderSelector({
   onSelectProvider,
   onClose,
   filter = "configured",
-  title = "Select cloud provider",
-  subtitle = "Choose which provider to deploy your VPN server on",
+  title = "Select a cloud account",
+  subtitle = "Your credentials stay on your device. We never store them.",
 }: ProviderSelectorProps) {
-  const [filteredProviders, setFilteredProviders] = useState<ProviderOption[]>([]);
+  const [availableProviders, setAvailableProviders] = useState<CloudProviderName[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState<CloudProviderName | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { loadCredentials } = useCredentials();
 
   useEffect(() => {
-    const loadFilteredProviders = async () => {
-      const result: ProviderOption[] = [];
-      for (const provider of providers) {
-        const existing = await loadCredentials(provider.name);
+    async function loadAvailableProviders() {
+      const result: CloudProviderName[] = [];
+      for (const provider of ALL_PROVIDERS) {
+        const existing = await loadCredentials(provider);
         const shouldInclude = filter === "unconfigured" ? existing === null : existing !== null;
         if (shouldInclude) {
           result.push(provider);
         }
       }
-      setFilteredProviders(result);
+      setAvailableProviders(result);
       setIsLoading(false);
-    };
-    loadFilteredProviders();
+    }
+    loadAvailableProviders();
   }, []);
 
-  return (
-    <div className="flex flex-col h-full gap-4">
-      <header className="flex items-center gap-3">
-        <IconButton accent="neutral" size="sm" onClick={onClose} aria-label="Back">
-          <ArrowLeft size={16} />
-        </IconButton>
-        <div className="flex flex-col gap-0.5">
-          <h1 className="text-body-sm font-medium text-fg-lighter">{title}</h1>
-          <p className="text-caption text-fg-medium">{subtitle}</p>
-        </div>
-      </header>
+  function handleContinue() {
+    if (selectedProvider) {
+      onSelectProvider(selectedProvider);
+    }
+  }
 
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Spinner size="w-6 h-6" color="border-bd-strong" />
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 max-w-2xl">
-            {filteredProviders.map((provider) => (
-              <button
-                key={provider.name}
-                type="button"
-                onClick={() => onSelectProvider(provider.name)}
-                className="group flex items-center gap-3 p-4 rounded-xl bg-bg-bolder border border-bd-moderate hover:bg-bg-medium hover:border-bd-moderate text-left transition-colors"
-              >
-                <div className="w-10 h-10 rounded-lg bg-bg-medium border border-bd-moderate flex items-center justify-center p-2 flex-shrink-0">
-                  <ProviderIcon provider={provider.name} className="w-full h-full" />
-                </div>
-                <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                  <span className="text-body-sm text-fg-lighter">{provider.label}</span>
-                  <span className="text-caption text-fg-medium truncate">{provider.description}</span>
-                </div>
-                <ChevronRight
-                  size={16}
-                  className="text-fg-moderate group-hover:text-fg-lighter transition-colors flex-shrink-0"
-                />
-              </button>
-            ))}
-          </div>
-        )}
+  return (
+    <div className="h-full flex flex-col items-center justify-center gap-8">
+      <OnboardingHeading title={title} subtitle={subtitle} />
+
+      {isLoading ? (
+        <div className="h-[168px] flex items-center justify-center">
+          <Spinner size="w-6 h-6" color="border-bd-strong" />
+        </div>
+      ) : availableProviders.length === 0 ? (
+        <p className="text-body-sm text-fg-medium">
+          Every supported cloud provider is already connected.
+        </p>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {availableProviders.map((provider) => (
+            <ProviderTile
+              key={provider}
+              provider={provider}
+              label={PROVIDER_TILE_LABELS[provider]}
+              isSelected={selectedProvider === provider}
+              onSelect={() => setSelectedProvider(provider)}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center gap-4">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-2 py-2 text-body-sm text-fg-lighter hover:text-fg-medium transition-colors"
+        >
+          Back
+        </button>
+        <Button
+          variant="primary"
+          size="lg"
+          disabled={selectedProvider === null}
+          onClick={handleContinue}
+        >
+          Next
+        </Button>
       </div>
     </div>
   );

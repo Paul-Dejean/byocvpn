@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Search, Star } from "lucide-react";
+import { Check, Search, Star } from "lucide-react";
 import { CloudProviderName, Region } from "../../types";
 import { getRegionInfo } from "../../constants/regionInfo";
 import { getCountryName } from "../../lib/countryName";
@@ -99,7 +99,7 @@ export function RegionList({
           <Spinner size="w-6 h-6" color="border-bd-strong" />
         </div>
       ) : (
-        <div className="flex flex-col gap-4 overflow-y-auto min-h-0 pr-1">
+        <div className="flex flex-col gap-2 overflow-y-auto min-h-0 pr-1 py-3 scroll-fade">
           {favoriteRows.length > 0 && (
             <RegionSection title="Favorite" count={favoriteRows.length}>
               {favoriteRows.map(renderRow)}
@@ -160,7 +160,7 @@ interface RegionSectionProps {
 function RegionSection({ title, count, children }: RegionSectionProps) {
   return (
     <section className="flex flex-col gap-1">
-      <h3 className="px-3 py-2 text-body-sm text-fg-medium">
+      <h3 className="px-3 py-1 text-body-sm text-fg-medium">
         {title} [{count}]
       </h3>
       {children}
@@ -198,10 +198,8 @@ function RegionRow({
           onSelect?.();
         }
       }}
-      className={`group flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-        isSelected
-          ? "bg-bg-medium ring-1 ring-inset ring-bd-brand"
-          : "hover:bg-bg-medium"
+      className={`group flex items-center gap-3 px-3 py-1.5 rounded-lg transition-colors ${
+        isSelected ? "bg-bg-medium" : "hover:bg-bg-light"
       } ${isSelectable ? "cursor-pointer" : ""}`}
     >
       <FlagIcon countryCode={row.countryCode} round size={24} />
@@ -209,6 +207,7 @@ function RegionRow({
         <span className="text-body-sm text-fg-lighter truncate">{row.countryName}</span>
         <span className="text-caption text-fg-moderate truncate">{row.city || row.region.name}</span>
       </div>
+      {isSelected && <Check size={16} className="text-fg-brand flex-shrink-0" />}
       {onDeploy && (
         <Button
           variant="outline"

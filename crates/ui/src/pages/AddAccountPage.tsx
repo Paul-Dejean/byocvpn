@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { ArrowLeft, Check, Copy, Download, FileText, Upload } from "lucide-react";
 import { Button } from "../components/primitives/Button";
+import { CollapsibleSection } from "../components/primitives/CollapsibleSection";
 import { IconButton } from "../components/primitives/IconButton";
 import { Banner } from "../components/primitives/Banner";
 import { FormField } from "../components/primitives/FormField";
@@ -408,8 +409,8 @@ export function AddAccountPage({
     return (
       <ProviderSelector
         filter="unconfigured"
-        title="Add Cloud Account"
-        subtitle="Connect a new cloud provider to deploy VPN servers"
+        title="Connect a cloud account"
+        subtitle="Your credentials stay on your device. We never store them."
         onSelectProvider={handleProviderSelected}
         onClose={onNavigateBack}
       />
@@ -437,7 +438,7 @@ export function AddAccountPage({
         </div>
       </header>
 
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto pr-1">
         {selectedProvider && instructions && (
           <CredentialsStep
             provider={selectedProvider}
@@ -490,77 +491,81 @@ function CredentialsStep({
   onCancel,
 }: CredentialsStepProps) {
   const policy = PROVIDER_POLICIES[provider] ?? null;
+  const [isPolicyOpen, setIsPolicyOpen] = useState(false);
 
   return (
-    <div className="flex gap-4 items-start">
-      <div className="flex-1 min-w-0 flex flex-col gap-4">
-        <section className="rounded-xl bg-bg-bolder border border-bd-moderate p-4 flex flex-col gap-4">
-          <h2 className="text-body-sm text-fg-lighter">{instructions.title}</h2>
-          <ol className="flex flex-col gap-3">
-            {instructions.steps.map((setupStep) => (
-              <li key={setupStep.number} className="flex gap-3">
-                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-bg-medium border border-bd-moderate text-fg-medium text-caption flex items-center justify-center mt-0.5">
-                  {setupStep.number}
-                </span>
-                <p className="text-caption text-fg-medium leading-relaxed">{setupStep.text}</p>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        <section className="rounded-xl bg-bg-bolder border border-bd-moderate p-4 flex flex-col gap-4">
-          <h2 className="text-body-sm text-fg-lighter">Credentials</h2>
-
-          {provider === CloudProviderName.Aws && (
-            <AwsCredentialsForm
-              onSubmit={(credentials) =>
-                onVerifiableSubmit({
-                  provider: CloudProviderName.Aws,
-                  credentials,
-                })
-              }
-              isSubmitting={isSubmitting}
-              onCancel={onCancel}
-            />
-          )}
-          {provider === CloudProviderName.Oracle && (
-            <OracleCredentialsForm
-              onSaved={() => onCredentialsSaved(CloudProviderName.Oracle)}
-              onCancel={onCancel}
-            />
-          )}
-          {provider === CloudProviderName.Gcp && (
-            <GcpCredentialsForm
-              onSubmit={(credentials) =>
-                onVerifiableSubmit({
-                  provider: CloudProviderName.Gcp,
-                  credentials,
-                })
-              }
-              isSubmitting={isSubmitting}
-              onCancel={onCancel}
-            />
-          )}
-          {provider === CloudProviderName.Azure && (
-            <AzureCredentialsForm
-              onSubmit={(credentials) =>
-                onVerifiableSubmit({
-                  provider: CloudProviderName.Azure,
-                  credentials,
-                })
-              }
-              isSubmitting={isSubmitting}
-              onCancel={onCancel}
-            />
-          )}
-        </section>
-      </div>
+    <div className="max-w-[640px] mx-auto flex flex-col gap-3">
+      <section className="rounded-xl bg-bg-bolder border border-bd-moderate p-4 flex flex-col gap-4">
+        <h2 className="text-body-sm text-fg-lighter">{instructions.title}</h2>
+        <ol className="flex flex-col gap-3">
+          {instructions.steps.map((setupStep) => (
+            <li key={setupStep.number} className="flex gap-3">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-bg-medium border border-bd-moderate text-fg-medium text-caption flex items-center justify-center mt-0.5">
+                {setupStep.number}
+              </span>
+              <p className="text-caption text-fg-medium leading-relaxed">{setupStep.text}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
 
       {policy && (
-        <div className="w-[360px] flex-shrink-0">
+        <CollapsibleSection
+          title="Permissions policy"
+          subtitle={policy.filename}
+          icon={<FileText size={16} />}
+          isOpen={isPolicyOpen}
+          onToggle={() => setIsPolicyOpen((previous) => !previous)}
+        >
           <PolicyBox policy={policy} />
-        </div>
+        </CollapsibleSection>
       )}
+
+      <section className="rounded-xl bg-bg-bolder border border-bd-moderate p-4 flex flex-col gap-4">
+        <h2 className="text-body-sm text-fg-lighter">Credentials</h2>
+        {provider === CloudProviderName.Aws && (
+          <AwsCredentialsForm
+            onSubmit={(credentials) =>
+              onVerifiableSubmit({
+                provider: CloudProviderName.Aws,
+                credentials,
+              })
+            }
+            isSubmitting={isSubmitting}
+            onCancel={onCancel}
+          />
+        )}
+        {provider === CloudProviderName.Oracle && (
+          <OracleCredentialsForm
+            onSaved={() => onCredentialsSaved(CloudProviderName.Oracle)}
+            onCancel={onCancel}
+          />
+        )}
+        {provider === CloudProviderName.Gcp && (
+          <GcpCredentialsForm
+            onSubmit={(credentials) =>
+              onVerifiableSubmit({
+                provider: CloudProviderName.Gcp,
+                credentials,
+              })
+            }
+            isSubmitting={isSubmitting}
+            onCancel={onCancel}
+          />
+        )}
+        {provider === CloudProviderName.Azure && (
+          <AzureCredentialsForm
+            onSubmit={(credentials) =>
+              onVerifiableSubmit({
+                provider: CloudProviderName.Azure,
+                credentials,
+              })
+            }
+            isSubmitting={isSubmitting}
+            onCancel={onCancel}
+          />
+        )}
+      </section>
     </div>
   );
 }
@@ -932,19 +937,15 @@ function PolicyBox({ policy }: PolicyBoxProps) {
   };
 
   return (
-    <div className="rounded-xl bg-bg-bolder border border-bd-moderate overflow-hidden flex flex-col max-h-[560px]">
-      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-bd-faint">
-        <div className="flex items-center gap-2 min-w-0">
-          <FileText size={14} className="text-fg-medium flex-shrink-0" />
-          <span className="text-caption text-fg-medium font-mono truncate">{policy.filename}</span>
-        </div>
+    <div className="rounded-lg bg-bg-medium border border-bd-moderate overflow-hidden flex flex-col max-h-[320px]">
+      <div className="flex items-center justify-between gap-3 px-4 py-2 border-b border-bd-faint">
+        <span className="text-caption text-fg-medium">Paste this when the console asks for a policy</span>
         <div className="flex items-center gap-2">
           <Button
             variant="secondary"
-            size="lg"
+            size="md"
             onClick={handleCopy}
             icon={copied ? <Check size={14} className="text-fg-success-moderate" /> : <Copy size={14} />}
-            className="px-2.5 py-1 text-caption"
           >
             {copied ? "Copied" : "Copy"}
           </Button>

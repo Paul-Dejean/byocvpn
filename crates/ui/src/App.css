@@ -166,6 +166,10 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
+  .scroll-fade {
+    mask-image: linear-gradient(to bottom, transparent, black 12px, black calc(100% - 12px), transparent);
+  }
+
   ::-webkit-scrollbar        { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track  { background: transparent; }
   ::-webkit-scrollbar-thumb  { background: var(--color-bd-strong); border-radius: 9999px; }

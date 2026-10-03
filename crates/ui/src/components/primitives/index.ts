@@ -1,5 +1,6 @@
 export { Banner } from "./Banner";
 export { Button } from "./Button";
+export { CollapsibleSection } from "./CollapsibleSection";
 export { Drawer } from "./Drawer";
 export { FilterChip } from "./FilterChip";
 export { FormField } from "./FormField";
