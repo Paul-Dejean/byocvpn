@@ -75,7 +75,7 @@ function App() {
       setPage(Page.ONBOARDING);
       return;
     }
-    setPage(Page.SERVERS);
+    setPage(Page.SETTINGS);
   }
 
   function handleAddAccountBack() {
@@ -87,7 +87,7 @@ function App() {
       setPage(Page.ONBOARDING);
       return;
     }
-    setPage(Page.SERVERS);
+    setPage(Page.SETTINGS);
   }
 
   return (

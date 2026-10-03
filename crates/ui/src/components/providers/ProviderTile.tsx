@@ -21,14 +21,14 @@ export function ProviderTile({ provider, label, isSelected, onSelect }: Provider
       type="button"
       onClick={onSelect}
       aria-pressed={isSelected}
-      className={`w-[124px] h-[78px] rounded-lg border p-4 flex flex-col justify-between items-start text-left transition-colors ${
+      className={`w-[124px] h-[78px] rounded-lg border p-3 flex flex-col justify-between items-start text-left transition-colors ${
         isSelected
           ? "bg-bg-medium border-bd-brand"
           : "bg-bg-medium border-bd-moderate hover:bg-bg-light"
       }`}
     >
       <ProviderIcon provider={provider} className="w-6 h-6" />
-      <span className="text-caption text-fg-lighter">{label}</span>
+      <span className="text-caption text-fg-lighter whitespace-nowrap">{label}</span>
     </button>
   );
 }
