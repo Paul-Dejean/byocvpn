@@ -1,5 +1,5 @@
 export enum Page {
-  LANDING = "LANDING",
+  WELCOME = "WELCOME",
   VPN = "VPN",
   PRICING = "PRICING",
   SETTINGS = "SETTINGS",

@@ -1,5 +1,5 @@
 export { VpnPage } from "./VpnPage";
 export { SettingsPage } from "./SettingsPage";
-export { LandingPage } from "./LandingPage";
+export { WelcomePage } from "./WelcomePage";
 export { PricingPage } from "./PricingPage";
 export { AddAccountPage } from "./AddAccountPage";
