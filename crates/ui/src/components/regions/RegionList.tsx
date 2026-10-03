@@ -198,7 +198,7 @@ function RegionRow({
           : "hover:bg-gray-700"
       } ${isSelectable ? "cursor-pointer" : ""}`}
     >
-      <FlagIcon countryCode={row.countryCode} round className="!w-6 !h-6" />
+      <FlagIcon countryCode={row.countryCode} round />
       <div className="flex-1 min-w-0 flex flex-col">
         <span className="text-sm text-primary truncate">{row.countryName}</span>
         <span className="text-xs text-gray-300 truncate">{row.city || row.region.name}</span>

@@ -8,8 +8,8 @@ export function buildDeploymentSteps(
   installingStatus: JobStepStatus,
 ): JobStepState[] {
   return [
-    { id: DEPLOYING_STEP_ID, label: "Deploying", status: deployingStatus, error: null },
-    { id: INSTALLING_STEP_ID, label: "Installing", status: installingStatus, error: null },
+    { id: DEPLOYING_STEP_ID, label: "Deploying the server", status: deployingStatus, error: null },
+    { id: INSTALLING_STEP_ID, label: "Installing the VPN software", status: installingStatus, error: null },
   ];
 }
 

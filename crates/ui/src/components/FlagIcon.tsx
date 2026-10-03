@@ -10,7 +10,7 @@ export function FlagIcon({
   className = "",
 }: FlagIconProps) {
   if (!countryCode) return null;
-  const shapeClasses = round ? "fis rounded-full w-5 h-5" : "";
+  const shapeClasses = round ? "fis rounded-full !w-5 !h-5" : "";
   return (
     <span
       className={`fi fi-${countryCode} ${shapeClasses} flex-shrink-0 ${className}`}

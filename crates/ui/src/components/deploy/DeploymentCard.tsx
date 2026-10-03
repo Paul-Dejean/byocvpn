@@ -1,6 +1,5 @@
 import { CloudProviderName, JobStepState } from "../../types";
 import { Button } from "../primitives/Button";
-import { Spinner } from "../primitives/Spinner";
 import { ServerLocation } from "../servers/ServerLocation";
 import { DeploymentStepList } from "./DeploymentStepList";
 
@@ -26,14 +25,7 @@ export function DeploymentCard({
       <div className="p-3 flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
           <ServerLocation provider={provider} region={region} />
-          {hasFailed ? (
-            <span className="text-xs text-danger-400">Failed</span>
-          ) : (
-            <span className="flex items-center gap-1.5 text-xs text-blue-300">
-              <Spinner size="w-3 h-3" color="border-blue-300" />
-              Deploying
-            </span>
-          )}
+          {hasFailed && <span className="text-xs text-danger-400">Failed</span>}
         </div>
 
         {steps.length > 0 ? (

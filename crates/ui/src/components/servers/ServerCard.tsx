@@ -46,7 +46,7 @@ export function ServerCard({
           {isInstalling && (
             <span className="flex items-center gap-1.5 text-xs text-blue-300">
               <Spinner size="w-3 h-3" color="border-blue-300" />
-              Installing
+              Installing the VPN software
             </span>
           )}
           {hasError && (
