@@ -3,6 +3,7 @@ import { version } from "../../../package.json";
 import { Page } from "../../types/pages";
 import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
 import { NavItem } from "../primitives/NavItem";
+import { Logo } from "./Logo";
 
 interface NavbarProps {
   currentPage: Page;
@@ -40,6 +41,9 @@ export function Navbar({ currentPage, onNavigate }: NavbarProps) {
 
   return (
     <nav className="flex flex-col items-center pt-4 pb-4 gap-2 w-14 bg-gray-800 border-r border-gray-700/50 flex-shrink-0">
+      <div className="w-10 h-10 rounded-xl bg-gray-700 flex items-center justify-center text-primary mb-1">
+        <Logo className="w-5 h-5" />
+      </div>
       <div className="flex flex-col items-center gap-1 mb-2">
         <div
           className={`w-2 h-2 rounded-full transition-all duration-500 ${

@@ -1,5 +1,6 @@
 import { Page } from "../types/pages";
 import { Button } from "../components/primitives/Button";
+import { Logo } from "../components/common/Logo";
 
 export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
 
@@ -19,20 +20,7 @@ export function LandingPage({ setPage }: { setPage: (page: Page) => void }) {
             <div className="absolute w-24 h-24 rounded-full border border-blue-400/25 animate-ping [animation-duration:2.5s] [animation-delay:1.25s]" />
             <div className="absolute w-20 h-20 rounded-full border border-blue-400/30 glow-blue-ring" />
             <div className="w-16 h-16 rounded-full bg-blue-500/20 backdrop-blur-sm flex items-center justify-center relative z-10 border border-blue-400/30 glow-blue-core">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-8 w-8 text-blue-300"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                />
-              </svg>
+              <Logo className="h-8 w-8 text-blue-300" />
             </div>
           </div>
 
