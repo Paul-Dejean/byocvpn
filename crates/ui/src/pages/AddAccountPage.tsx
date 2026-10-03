@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { ArrowLeft, Check, Copy, Download, FileText, Upload } from "lucide-react";
 import { Button } from "../components/primitives/Button";
 import { IconButton } from "../components/primitives/IconButton";
 import { Alert } from "../components/primitives/Alert";
@@ -416,37 +417,27 @@ export function AddAccountPage({
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-900 text-primary">
-      <div className="flex items-center gap-3 px-5 pt-5 pb-4 border-b border-gray-700/50 flex-shrink-0">
+    <div className="flex flex-col h-full p-4 gap-4">
+      <header className="flex items-center gap-3">
         <IconButton
           accent="white"
           size="sm"
           onClick={handleBackToProviderSelection}
-          className="flex-shrink-0"
+          aria-label="Back"
         >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
+          <ArrowLeft size={18} />
         </IconButton>
-        <div>
-          <h1 className="text-base font-semibold text-primary leading-tight">
-            {selectedProvider ? PROVIDER_METADATA[selectedProvider].label : ""}
+        <div className="flex flex-col gap-0.5">
+          <h1 className="text-base font-medium text-primary">
+            {selectedProvider ? `Connect ${PROVIDER_METADATA[selectedProvider].label}` : ""}
           </h1>
-          <p className="text-xs text-gray-500 mt-0.5">Enter your credentials</p>
+          <p className="text-xs text-gray-300">
+            Your credentials stay on your device. We never store them.
+          </p>
         </div>
-      </div>
+      </header>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         {selectedProvider && instructions && (
           <CredentialsStep
             provider={selectedProvider}
@@ -501,26 +492,24 @@ function CredentialsStep({
   const policy = PROVIDER_POLICIES[provider] ?? null;
 
   return (
-    <div className="px-6 py-6">
-      <div className="flex gap-8 items-stretch">
-        <div className="max-w-xl w-full space-y-6">
-          <div>
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 pb-3 border-b border-gray-700/50">
-              {instructions.title}
-            </h2>
-            <ol className="space-y-4 pt-4">
-              {instructions.steps.map((setupStep) => (
-                <li key={setupStep.number} className="flex gap-3">
-                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600/20 border border-blue-600/40 text-blue-400 text-xs font-bold flex items-center justify-center mt-0.5">
-                    {setupStep.number}
-                  </span>
-                  <p className="text-sm text-gray-300 leading-relaxed">
-                    {setupStep.text}
-                  </p>
-                </li>
-              ))}
-            </ol>
-          </div>
+    <div className="flex gap-4 items-start">
+      <div className="flex-1 min-w-0 flex flex-col gap-4">
+        <section className="rounded-xl bg-gray-750 border border-gray-500/50 p-4 flex flex-col gap-4">
+          <h2 className="text-sm text-primary">{instructions.title}</h2>
+          <ol className="flex flex-col gap-3">
+            {instructions.steps.map((setupStep) => (
+              <li key={setupStep.number} className="flex gap-3">
+                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-gray-700 border border-gray-500/60 text-gray-200 text-[11px] flex items-center justify-center mt-0.5">
+                  {setupStep.number}
+                </span>
+                <p className="text-xs text-gray-300 leading-relaxed">{setupStep.text}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className="rounded-xl bg-gray-750 border border-gray-500/50 p-4 flex flex-col gap-4">
+          <h2 className="text-sm text-primary">Credentials</h2>
 
           {provider === CloudProviderName.Aws && (
             <AwsCredentialsForm
@@ -564,14 +553,14 @@ function CredentialsStep({
               onCancel={onCancel}
             />
           )}
-        </div>
-
-        {policy && (
-          <div className="flex-1 h-full">
-            <PolicyBox policy={policy} />
-          </div>
-        )}
+        </section>
       </div>
+
+      {policy && (
+        <div className="w-[360px] flex-shrink-0">
+          <PolicyBox policy={policy} />
+        </div>
+      )}
     </div>
   );
 }
@@ -711,7 +700,7 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
       />
       <div>
         <div className="flex items-center justify-between mb-1">
-          <label className="block text-sm font-medium text-gray-300">
+          <label className="text-xs text-gray-200">
             Private Key (.pem)
           </label>
           <Button
@@ -719,7 +708,8 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
             size="none"
             type="button"
             onClick={() => pemFileInputRef.current?.click()}
-            className="text-xs px-3 py-1"
+            icon={<Upload size={12} />}
+            className="text-xs px-2.5 py-1"
           >
             Load from file
           </Button>
@@ -803,7 +793,7 @@ function GcpCredentialsForm({
       />
       <div>
         <div className="flex items-center justify-between mb-1">
-          <label className="block text-sm font-medium text-gray-300">
+          <label className="text-xs text-gray-200">
             Service Account Key (.json)
           </label>
           <Button
@@ -811,7 +801,8 @@ function GcpCredentialsForm({
             size="none"
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="text-xs px-3 py-1"
+            icon={<Upload size={12} />}
+            className="text-xs px-2.5 py-1"
           >
             Load from file
           </Button>
@@ -943,97 +934,34 @@ function PolicyBox({ policy }: PolicyBoxProps) {
   };
 
   return (
-    <div className="bg-gray-800 rounded-xl overflow-hidden h-full flex flex-col">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700/50">
-        <div className="flex items-center gap-2">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-4 w-4 text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-            />
-          </svg>
-          <span className="text-sm text-gray-300 font-mono">
-            {policy.filename}
-          </span>
+    <div className="rounded-xl bg-gray-750 border border-gray-500/50 overflow-hidden flex flex-col max-h-[560px]">
+      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-500/40">
+        <div className="flex items-center gap-2 min-w-0">
+          <FileText size={14} className="text-gray-300 flex-shrink-0" />
+          <span className="text-xs text-gray-200 font-mono truncate">{policy.filename}</span>
         </div>
         <div className="flex items-center gap-2">
           <Button
             variant="secondary"
             size="none"
             onClick={handleCopy}
-            className="px-3 py-1.5 text-xs"
+            icon={copied ? <Check size={14} className="text-success-400" /> : <Copy size={14} />}
+            className="px-2.5 py-1 text-xs"
           >
-            {copied ? (
-              <>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-3.5 w-3.5 text-success-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-                Copied
-              </>
-            ) : (
-              <>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-3.5 w-3.5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                  />
-                </svg>
-                Copy
-              </>
-            )}
+            {copied ? "Copied" : "Copy"}
           </Button>
           <Button
             variant="secondary"
             size="none"
             onClick={handleDownload}
-            className="px-3 py-1.5 text-xs"
+            icon={<Download size={14} />}
+            className="px-2.5 py-1 text-xs"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-3.5 w-3.5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-              />
-            </svg>
             Download
           </Button>
         </div>
       </div>
-      <pre className="p-4 text-xs font-mono text-gray-300 overflow-x-auto flex-1 overflow-y-auto leading-relaxed">
+      <pre className="p-4 text-xs font-mono text-gray-300 overflow-auto flex-1 leading-relaxed">
         {policy.content}
       </pre>
     </div>
@@ -1058,26 +986,31 @@ function CredentialsFormShell({
   children,
 }: CredentialsFormShellProps) {
   return (
-    <div>
-      <div className="space-y-4">
-        {children}
+    <div className="flex flex-col gap-4">
+      {children}
 
-        {error && <Alert variant="error">{error}</Alert>}
+      {error && <Alert variant="error">{error}</Alert>}
 
-        <div className="flex gap-3 pt-2">
-          <Button variant="secondary" onClick={onCancel} className="flex-1">
-            Back
-          </Button>
-          <Button
-            variant="primary"
-            onClick={onSubmit}
-            loading={isSaving}
-            disabled={!isFormValid}
-            className="flex-1"
-          >
-            {isSaving ? "Saving..." : "Connect"}
-          </Button>
-        </div>
+      <div className="flex gap-3 pt-1">
+        <Button
+          variant="secondary"
+          size="none"
+          onClick={onCancel}
+          className="flex-1 py-2 text-sm"
+        >
+          Back
+        </Button>
+        <Button
+          variant="primary"
+          size="none"
+          onClick={onSubmit}
+          loading={isSaving}
+          disabled={!isFormValid}
+          disabledStyle="dim"
+          className="flex-1 py-2 text-sm"
+        >
+          {isSaving ? "Saving" : "Connect"}
+        </Button>
       </div>
     </div>
   );

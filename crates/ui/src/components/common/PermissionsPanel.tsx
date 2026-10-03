@@ -1,48 +1,12 @@
+import { Check, X } from "lucide-react";
 import { Permissions } from "../../types";
 import { Spinner } from "../primitives/Spinner";
-import { Badge } from "../primitives/Badge";
 import { Alert } from "../primitives/Alert";
 
 interface PermissionsPanelProps {
   permissions: Permissions | null;
   isVerifying: boolean;
   error: string | null;
-}
-
-function CheckIcon() {
-  return (
-    <svg
-      className="w-3.5 h-3.5 text-success-300 flex-shrink-0"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2.5}
-        d="M5 13l4 4L19 7"
-      />
-    </svg>
-  );
-}
-
-function CrossIcon() {
-  return (
-    <svg
-      className="w-3.5 h-3.5 text-danger-300 flex-shrink-0"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2.5}
-        d="M6 18L18 6M6 6l12 12"
-      />
-    </svg>
-  );
 }
 
 export function PermissionsPanel({
@@ -52,19 +16,15 @@ export function PermissionsPanel({
 }: PermissionsPanelProps) {
   if (isVerifying) {
     return (
-      <div className="flex items-center gap-2 text-sm text-gray-400 mt-3">
+      <div className="flex items-center gap-2 text-sm text-gray-300">
         <Spinner color="border-gray-400" />
-        Verifying permissions…
+        Verifying permissions
       </div>
     );
   }
 
   if (error) {
-    return (
-      <Alert variant="error" className="mt-3">
-        {error}
-      </Alert>
-    );
+    return <Alert variant="error">{error}</Alert>;
   }
 
   if (!permissions) {
@@ -75,31 +35,28 @@ export function PermissionsPanel({
   const allGranted = missingCount === 0;
 
   return (
-    <div className="mt-3 rounded-xl border border-gray-500/15 bg-gray-800/40 p-4">
+    <div className="rounded-xl border border-gray-500/50 bg-gray-750 p-4 flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold text-primary">Permissions</h4>
+        <h4 className="text-sm text-primary">Permissions</h4>
         {allGranted ? (
-          <Badge variant="success" shape="pill">
+          <span className="px-2 py-0.5 rounded-full bg-success-900/50 text-[11px] text-success-300">
             All {permissions.length} granted
-          </Badge>
+          </span>
         ) : (
-          <Badge variant="warning" shape="pill">
+          <span className="px-2 py-0.5 rounded-full bg-warning-900/50 text-[11px] text-warning-300">
             {missingCount} missing
-          </Badge>
+          </span>
         )}
       </div>
-      <ul className="mt-3 flex flex-col gap-y-1.5">
+      <ul className="flex flex-col gap-1.5">
         {permissions.map((status) => (
-          <li
-            key={status.permission}
-            className="flex items-center gap-2 text-xs"
-          >
-            {status.granted ? <CheckIcon /> : <CrossIcon />}
-            <span
-              className={
-                status.granted ? "text-gray-300" : "text-danger-300 font-medium"
-              }
-            >
+          <li key={status.permission} className="flex items-center gap-2 text-xs">
+            {status.granted ? (
+              <Check size={14} className="text-success-400 flex-shrink-0" />
+            ) : (
+              <X size={14} className="text-danger-400 flex-shrink-0" />
+            )}
+            <span className={status.granted ? "text-gray-200" : "text-danger-300"}>
               {status.permission}
             </span>
           </li>

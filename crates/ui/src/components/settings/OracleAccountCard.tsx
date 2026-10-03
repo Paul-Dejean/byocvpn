@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useCredentials } from "../../hooks";
 import { CloudProviderName } from "../../types";
+import { Upload } from "lucide-react";
 import { Button } from "../primitives/Button";
 import { AccountIconTile, AccountRow } from "./AccountRow";
 import { Alert } from "../primitives/Alert";
@@ -189,7 +190,7 @@ export function OracleAccountCard({ onCredentialsSaved, onCredentialsDeleted, on
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-sm font-medium text-gray-300">
+                <label className="text-xs text-gray-200">
                   Private Key (.pem)
                 </label>
                 <Button
@@ -197,22 +198,9 @@ export function OracleAccountCard({ onCredentialsSaved, onCredentialsDeleted, on
                   size="none"
                   type="button"
                   onClick={() => pemFileInputRef.current?.click()}
-                  className="text-xs px-3 py-1"
+                  icon={<Upload size={12} />}
+                  className="text-xs px-2.5 py-1"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-3.5 w-3.5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
-                    />
-                  </svg>
                   Load from file
                 </Button>
                 <input

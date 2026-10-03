@@ -1,8 +1,8 @@
+import { useEffect, useState } from "react";
+import { ArrowLeft, ChevronRight } from "lucide-react";
 import { Spinner } from "../primitives/Spinner";
 import { IconButton } from "../primitives/IconButton";
-import { SelectableCard } from "../primitives/SelectableCard";
 import { ProviderIcon } from "./ProviderIcon";
-import { useEffect, useState } from "react";
 import { useCredentials } from "../../hooks/useCredentials";
 import { CloudProviderName } from "../../types";
 
@@ -47,7 +47,7 @@ export function ProviderSelector({
   onSelectProvider,
   onClose,
   filter = "configured",
-  title = "Select Cloud Provider",
+  title = "Select cloud provider",
   subtitle = "Choose which provider to deploy your VPN server on",
 }: ProviderSelectorProps) {
   const [filteredProviders, setFilteredProviders] = useState<ProviderOption[]>([]);
@@ -71,66 +71,43 @@ export function ProviderSelector({
   }, []);
 
   return (
-    <div className="flex flex-col h-full bg-gray-900">
-      <div className="flex items-center gap-3 px-5 pt-5 pb-4 border-b border-gray-700/50">
-        <IconButton accent="white" size="sm" onClick={onClose} className="flex-shrink-0">
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
+    <div className="flex flex-col h-full p-4 gap-4">
+      <header className="flex items-center gap-3">
+        <IconButton accent="white" size="sm" onClick={onClose} aria-label="Back">
+          <ArrowLeft size={18} />
         </IconButton>
-        <div>
-          <h1 className="text-base font-semibold text-primary leading-tight">
-            {title}
-          </h1>
-          <p className="text-xs text-gray-500 mt-0.5">
-            {subtitle}
-          </p>
+        <div className="flex flex-col gap-0.5">
+          <h1 className="text-base font-medium text-primary">{title}</h1>
+          <p className="text-xs text-gray-300">{subtitle}</p>
         </div>
-      </div>
+      </header>
 
-      <div className="flex-1 overflow-y-auto px-5 pt-5 pb-5">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
-            <Spinner size="w-6 h-6" color="border-blue-400" />
+            <Spinner size="w-6 h-6" color="border-gray-400" />
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-3 max-w-2xl">
             {filteredProviders.map((provider) => (
-              <SelectableCard
+              <button
                 key={provider.name}
+                type="button"
                 onClick={() => onSelectProvider(provider.name)}
-                className="flex items-center gap-4 p-4 bg-gray-800/60 border border-gray-500/15 rounded-xl hover:border-blue-500/40 hover:bg-gray-800 group"
+                className="group flex items-center gap-3 p-4 rounded-xl bg-gray-750 border border-gray-500/50 hover:bg-gray-700 hover:border-gray-500 text-left transition-colors"
               >
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center p-2 flex-shrink-0">
+                <div className="w-10 h-10 rounded-lg bg-gray-700 border border-gray-500/60 flex items-center justify-center p-2 flex-shrink-0">
                   <ProviderIcon provider={provider.name} className="w-full h-full" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-primary group-hover:text-blue-300 transition-colors">
-                    {provider.label}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-0.5 truncate">
-                    {provider.description}
-                  </p>
+                <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                  <span className="text-sm text-primary">{provider.label}</span>
+                  <span className="text-xs text-gray-300 truncate">{provider.description}</span>
                 </div>
-                <svg
-                  className="w-4 h-4 text-gray-600 group-hover:text-blue-400 transition-colors flex-shrink-0"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </SelectableCard>
+                <ChevronRight
+                  size={16}
+                  className="text-gray-400 group-hover:text-primary transition-colors flex-shrink-0"
+                />
+              </button>
             ))}
           </div>
         )}

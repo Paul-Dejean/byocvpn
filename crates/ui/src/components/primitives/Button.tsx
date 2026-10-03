@@ -5,7 +5,6 @@ export type ButtonVariant =
   | "primary"
   | "secondary"
   | "danger"
-  | "ghostDanger"
   | "success"
   | "ghost";
 export type ButtonSize = "sm" | "md" | "lg" | "none";
@@ -24,7 +23,6 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary: "btn-primary",
   secondary: "btn-secondary",
   danger: "btn-danger",
-  ghostDanger: "btn-ghost-danger",
   success: "bg-success-600 hover:bg-success-700 text-white rounded-lg font-medium transition-colors",
   ghost: "bg-transparent border border-gray-600 hover:border-gray-400 text-gray-400 hover:text-primary rounded-lg transition-colors",
 };
@@ -46,7 +44,6 @@ const SPINNER_COLOR: Record<ButtonVariant, string> = {
   danger: "border-white",
   success: "border-white",
   secondary: "border-current",
-  ghostDanger: "border-current",
   ghost: "border-current",
 };
 
