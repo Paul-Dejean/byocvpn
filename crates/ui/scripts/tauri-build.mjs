@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 
 const RELEASE_CONFIG_BY_PLATFORM = {
-  darwin: "tauri.macos.release.conf.json",
+  darwin: "src-tauri/tauri.macos.release.conf.json",
 };
 
 const releaseConfiguration = RELEASE_CONFIG_BY_PLATFORM[process.platform];
