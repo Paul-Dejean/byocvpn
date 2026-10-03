@@ -1,11 +1,11 @@
-import { Button } from "../components/primitives/Button";
-import { Logo } from "../components/common/Logo";
+import { Button } from "../primitives/Button";
+import { Logo } from "../common/Logo";
 
-interface WelcomePageProps {
+interface WelcomeStepProps {
   onGetStarted: () => void;
 }
 
-export function WelcomePage({ onGetStarted }: WelcomePageProps) {
+export function WelcomeStep({ onGetStarted }: WelcomeStepProps) {
   return (
     <div className="h-full flex flex-col items-center justify-center gap-10">
       <div className="w-[72px] h-[72px] rounded-2xl bg-gray-700 border border-gray-500/60 flex items-center justify-center">

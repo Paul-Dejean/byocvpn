@@ -23,6 +23,7 @@ import { JobProgressDrawer } from "../components/common/JobProgressDrawer";
 import { ProviderSelector } from "../components/providers/ProviderSelector";
 
 interface AddAccountPageProps {
+  initialProvider?: CloudProviderName | null;
   onNavigateBack: () => void;
   onAccountAdded: () => void;
 }
@@ -314,12 +315,15 @@ const PROVIDER_SETUP_INSTRUCTIONS: Record<
 };
 
 export function AddAccountPage({
+  initialProvider = null,
   onNavigateBack,
   onAccountAdded,
 }: AddAccountPageProps) {
-  const [step, setStep] = useState<AddAccountStep>("selecting-provider");
+  const [step, setStep] = useState<AddAccountStep>(
+    initialProvider ? "entering-credentials" : "selecting-provider",
+  );
   const [selectedProvider, setSelectedProvider] =
-    useState<CloudProviderName | null>(null);
+    useState<CloudProviderName | null>(initialProvider);
 
   const {
     activeProvisionJob,

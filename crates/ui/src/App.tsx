@@ -6,7 +6,7 @@ import "./App.css";
 import "flag-icons/css/flag-icons.min.css";
 import {
   VpnPage,
-  WelcomePage,
+  OnboardingPage,
   SettingsPage,
   PricingPage,
   AddAccountPage,
@@ -17,13 +17,16 @@ import { Navbar } from "./components/common/Navbar";
 import { VpnConnectionProvider } from "./contexts/VpnConnectionContext";
 import { useAutoTerminatedInstanceListener } from "./hooks/useAutoTerminatedInstanceListener";
 import { configuredProvidersQueryOptions } from "./queries/configuredProviders";
+import { CloudProviderName } from "./types";
 import { Page } from "./types/pages";
 export { Page };
 
-const DEBUG_ALWAYS_START_ON_WELCOME = true;
+const DEBUG_ALWAYS_START_ON_ONBOARDING = true;
 
 function App() {
   const [selectedPage, setSelectedPage] = useState<Page | null>(null);
+  const [addAccountProvider, setAddAccountProvider] =
+    useState<CloudProviderName | null>(null);
   const { data: configuredProviders, isError: isConfiguredProvidersError } =
     useQuery(configuredProvidersQueryOptions);
   useAutoTerminatedInstanceListener();
@@ -35,9 +38,15 @@ function App() {
   const hasConfiguredProvider =
     configuredProviders !== undefined &&
     configuredProviders.length > 0 &&
-    !DEBUG_ALWAYS_START_ON_WELCOME;
-  const page = selectedPage ?? (hasConfiguredProvider ? Page.VPN : Page.WELCOME);
+    !DEBUG_ALWAYS_START_ON_ONBOARDING;
+  const page =
+    selectedPage ?? (hasConfiguredProvider ? Page.VPN : Page.ONBOARDING);
   const setPage = setSelectedPage;
+
+  function openAddAccount(provider: CloudProviderName | null) {
+    setAddAccountProvider(provider);
+    setPage(Page.ADD_ACCOUNT);
+  }
 
   return (
     <AppFrame>
@@ -67,11 +76,16 @@ function App() {
       />
 
       <ErrorBoundary>
-        {page === Page.WELCOME && (
-          <WelcomePage onGetStarted={() => setPage(Page.ADD_ACCOUNT)} />
+        {page === Page.ONBOARDING && (
+          <OnboardingPage
+            onSkip={() => setPage(Page.VPN)}
+            onProviderSelected={openAddAccount}
+          />
         )}
         {page === Page.ADD_ACCOUNT && (
           <AddAccountPage
+            key={addAccountProvider ?? "select"}
+            initialProvider={addAccountProvider}
             onNavigateBack={() => setPage(Page.VPN)}
             onAccountAdded={() => setPage(Page.VPN)}
           />
@@ -88,7 +102,7 @@ function App() {
                 {page === Page.PRICING && <PricingPage />}
                 {page === Page.SETTINGS && (
                   <SettingsPage
-                    onNavigateToAddAccount={() => setPage(Page.ADD_ACCOUNT)}
+                    onNavigateToAddAccount={() => openAddAccount(null)}
                   />
                 )}
               </div>
