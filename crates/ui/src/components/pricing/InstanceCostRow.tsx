@@ -4,6 +4,7 @@ import { LedgerEntryWithCost } from "../../types/ledger";
 import { ProviderIcon } from "../providers/ProviderIcon";
 import { formatCompactDate, formatUptime } from "../../lib/time";
 import { formatBytes } from "../../lib/bytes";
+import { Tag } from "../primitives/Tag";
 
 interface InstanceCostRowProps {
   entry: LedgerEntryWithCost;
@@ -49,10 +50,9 @@ export function InstanceCostRow({ entry }: InstanceCostRowProps) {
         </td>
         <td className="py-2.5 px-3 tabular-nums">
           {isActive ? (
-            <span className="inline-flex items-center gap-1.5 text-fg-success-moderate">
-              <span className="w-1.5 h-1.5 rounded-full bg-current inline-block" />
+            <Tag tone="success" dot>
               Active
-            </span>
+            </Tag>
           ) : (
             <span className="text-fg-medium">{formatCompactDate(entry.terminatedAt ?? "")}</span>
           )}
@@ -81,7 +81,7 @@ export function InstanceCostRow({ entry }: InstanceCostRowProps) {
         </td>
       </tr>
       {isExpanded && (
-        <tr className="border-b border-bd-faint bg-bg-strong/60">
+        <tr className="border-b border-bd-faint bg-bg-medium">
           <td colSpan={8} className="px-4 py-3">
             {entry.isPricingUnknown ? (
               <p className="text-caption text-fg-medium">

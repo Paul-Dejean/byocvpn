@@ -43,9 +43,9 @@ export class ErrorBoundary extends Component<
           <div className="w-full max-w-md rounded-xl bg-bg-bolder border border-bd-danger p-6 flex flex-col gap-4">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-bg-danger-faint flex items-center justify-center flex-shrink-0">
-                <AlertTriangle size={18} className="text-fg-danger-moderate" />
+                <AlertTriangle size={16} className="text-fg-danger-moderate" />
               </div>
-              <h1 className="text-body font-medium text-fg-lighter">
+              <h1 className="text-body-sm font-medium text-fg-lighter">
                 Something went wrong
               </h1>
             </div>
@@ -56,15 +56,15 @@ export class ErrorBoundary extends Component<
             </p>
 
             {this.state.error && (
-              <details>
+              <details className="flex flex-col gap-2">
                 <summary className="cursor-pointer text-caption text-fg-medium hover:text-fg-lighter">
                   Technical details
                 </summary>
-                <div className="mt-2 rounded-lg bg-bg-strong border border-bd-faint p-3 text-caption font-mono text-fg-danger-moderate overflow-auto max-h-40">
+                <div className="rounded-lg bg-bg-strong border border-bd-faint p-3 text-caption font-mono text-fg-danger-moderate overflow-auto max-h-40">
                   <p className="font-semibold">{this.state.error.name}</p>
                   <p className="text-fg-medium">{this.state.error.message}</p>
                   {this.state.error.stack && (
-                    <pre className="mt-2 text-fg-moderate">{this.state.error.stack}</pre>
+                    <pre className="pt-2 text-fg-moderate">{this.state.error.stack}</pre>
                   )}
                 </div>
               </details>

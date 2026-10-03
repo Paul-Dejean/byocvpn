@@ -41,6 +41,7 @@ export function ProtectedPanel({
           <ServerLocation
             provider={connectedInstance.provider}
             region={connectedInstance.region}
+            layout="stacked"
           />
         </StatusHero>
 

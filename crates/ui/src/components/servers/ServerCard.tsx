@@ -102,7 +102,7 @@ export function ServerCard({
 
       <div className="px-4 pb-3 flex items-center gap-2">
         <Button
-          variant="secondary"
+          variant="outline"
           size="lg"
           loading={isTerminating}
           disabledStyle="dim"
@@ -116,7 +116,6 @@ export function ServerCard({
             size="lg"
             loading={isConnecting}
             disabled={!canConnect}
-            disabledStyle="dim"
             onClick={() => onConnect(instance)}
           >
             Connect to VPN
@@ -126,7 +125,6 @@ export function ServerCard({
     </div>
   );
 }
-
 
 interface MetricProps {
   label: string;

@@ -25,7 +25,7 @@ export function ReadyStep({ instance, onConnected }: ReadyStepProps) {
         subtitle="Your server is ready. Connect to activate your VPN protection."
       />
 
-      <div className="w-[486px] rounded-xl bg-bg-bolder border border-bd-moderate p-4 flex flex-col gap-4">
+      <div className="w-[486px] rounded-xl bg-bg-medium border border-bd-moderate p-4 flex flex-col gap-4">
         <ServerLocation provider={instance.provider} region={instance.region} size="lg" />
         <Button
           variant="primary"

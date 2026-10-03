@@ -12,7 +12,7 @@ export function WelcomeStep({ onGetStarted }: WelcomeStepProps) {
         <Logo className="w-9 h-9" />
       </div>
 
-      <div className="flex flex-col items-center gap-3 text-center">
+      <div className="flex flex-col items-center gap-2 text-center">
         <h1 className="text-heading-lg font-medium text-fg-lighter">Welcome to ByocVPN</h1>
         <p className="text-feature text-fg-medium">A VPN you actually own.</p>
       </div>

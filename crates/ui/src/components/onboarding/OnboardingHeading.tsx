@@ -7,7 +7,7 @@ interface OnboardingHeadingProps {
 
 export function OnboardingHeading({ title, subtitle }: OnboardingHeadingProps) {
   return (
-    <div className="flex flex-col items-center gap-6 text-center">
+    <div className="flex flex-col items-center gap-8 text-center">
       <div className="w-12 h-12 rounded-xl bg-bg-medium border border-bd-moderate flex items-center justify-center">
         <Logo className="w-6 h-6" />
       </div>

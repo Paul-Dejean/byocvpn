@@ -68,7 +68,7 @@ export function AccountRow({
           ) : (
             <>
               <IconButton
-                accent={isProvisioned ? "blue" : "amber"}
+                accent={isProvisioned ? "brand" : "warning"}
                 size="sm"
                 onClick={onProvision}
                 title={isProvisioned ? "Re-provision" : "Provision"}
@@ -76,7 +76,7 @@ export function AccountRow({
                 {isProvisioned ? <RefreshCw size={16} /> : <Zap size={16} />}
               </IconButton>
               <IconButton
-                accent="red"
+                accent="danger"
                 size="sm"
                 onClick={onRequestDelete}
                 title="Delete credentials"

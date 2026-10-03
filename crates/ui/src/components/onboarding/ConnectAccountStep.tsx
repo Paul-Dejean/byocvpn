@@ -54,7 +54,7 @@ export function ConnectAccountStep({
         ))}
       </div>
 
-      <div className="flex flex-col items-center gap-6">
+      <div className="flex flex-col items-center gap-10">
         <button
           type="button"
           onClick={onSkip}
@@ -74,7 +74,6 @@ export function ConnectAccountStep({
           <Button
             variant="primary"
             size="lg"
-            disabledStyle="dim"
             disabled={selectedProvider === null}
             onClick={handleContinue}
           >
@@ -101,10 +100,10 @@ function ProviderTileButton({
     <button
       type="button"
       onClick={onSelect}
-      className={`w-[124px] h-[78px] rounded-lg border p-3 flex flex-col justify-between items-start text-left transition-colors ${
+      className={`w-[124px] h-[78px] rounded-lg border p-4 flex flex-col justify-between items-start text-left transition-colors ${
         isSelected
           ? "bg-bg-medium border-bd-brand"
-          : "bg-bg-bolder border-bd-moderate hover:bg-bg-medium hover:border-bd-moderate"
+          : "bg-bg-medium border-bd-moderate hover:bg-bg-light"
       }`}
     >
       <ProviderIcon provider={tile.provider} className="w-6 h-6" />

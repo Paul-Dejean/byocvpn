@@ -140,7 +140,7 @@ export function GcpAccountCard({ onCredentialsSaved, onCredentialsDeleted, onPro
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="flex flex-col gap-4">
             <FormField
               label="Project ID"
               hint="e.g. my-project-123456"
@@ -151,8 +151,8 @@ export function GcpAccountCard({ onCredentialsSaved, onCredentialsDeleted, onPro
               placeholder="my-gcp-project"
             />
 
-            <div>
-              <div className="flex items-center justify-between mb-1">
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
                 <label className="text-caption text-fg-medium">
                   Service Account Key (.json)
                 </label>
@@ -161,7 +161,7 @@ export function GcpAccountCard({ onCredentialsSaved, onCredentialsDeleted, onPro
                   size="md"
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  icon={<Upload size={12} />}
+                  icon={<Upload size={14} />}
                 >
                   Load from file
                 </Button>
@@ -174,13 +174,13 @@ export function GcpAccountCard({ onCredentialsSaved, onCredentialsDeleted, onPro
                 />
               </div>
               {jsonAlreadySet && !formFields.serviceAccountJson && (
-                <p className="text-caption text-fg-success-moderate mb-2">
+                <p className="text-caption text-fg-success-moderate">
                   ✓ Service account key already configured — load a new file or
                   paste below to replace it
                 </p>
               )}
               {!jsonAlreadySet && !formFields.serviceAccountJson && (
-                <p className="text-caption text-fg-moderate mb-2">
+                <p className="text-caption text-fg-moderate">
                   Paste the contents of your service-account JSON key file or
                   use "Load from file"
                 </p>
@@ -196,10 +196,11 @@ export function GcpAccountCard({ onCredentialsSaved, onCredentialsDeleted, onPro
 
             {error && <Banner variant="danger">{error}</Banner>}
 
-            <div className="flex gap-3 pt-4">
-              <Button variant="secondary" onClick={handleCancel} className="flex-1">Cancel</Button>
+            <div className="flex gap-3 pt-2">
+              <Button variant="secondary" size="lg" onClick={handleCancel} className="flex-1">Cancel</Button>
               <Button
                 variant="primary"
+                size="lg"
                 onClick={handleSave}
                 loading={isSaving}
                 disabled={!isFormValid}

@@ -1,7 +1,7 @@
 import { ButtonHTMLAttributes, ReactNode } from "react";
 import { Spinner } from "./Spinner";
 
-export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
+export type ButtonVariant = "primary" | "secondary" | "outline" | "danger" | "ghost";
 export type ButtonSize = "md" | "lg";
 export type ButtonDisabledStyle = "grey" | "dim";
 
@@ -19,24 +19,26 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary: "bg-bg-brand-bolder hover:bg-bg-brand-bold text-fg-on-brand",
   secondary:
     "bg-bg-light hover:bg-bg-lighter border border-bd-moderate text-fg-lighter",
+  outline: "bg-transparent hover:bg-bg-light border border-bd-moderate text-fg-lighter",
   danger: "bg-bg-danger-moderate hover:bg-bg-danger-bold text-fg-on-brand",
   ghost: "bg-transparent hover:bg-bg-light text-fg-lighter",
 };
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
-  md: "h-7 px-2 gap-1 rounded-md text-body-sm font-medium",
+  md: "h-7 px-2 gap-0.5 rounded-md text-body-sm font-medium",
   lg: "h-7 px-3 gap-1 rounded-lg text-body-sm font-medium",
 };
 
 const DISABLED_CLASSES: Record<ButtonDisabledStyle, string> = {
-  grey: "disabled:bg-bg-lighter disabled:text-fg-moderate disabled:cursor-not-allowed disabled:hover:bg-bg-lighter",
+  grey: "disabled:bg-bg-lighter disabled:border-transparent disabled:text-fg-faint disabled:cursor-not-allowed disabled:hover:bg-bg-lighter",
   dim: "disabled:opacity-50 disabled:cursor-not-allowed",
 };
 
 const SPINNER_COLOR: Record<ButtonVariant, string> = {
-  primary: "border-white",
-  danger: "border-white",
+  primary: "border-fg-on-brand",
+  danger: "border-fg-on-brand",
   secondary: "border-current",
+  outline: "border-current",
   ghost: "border-current",
 };
 

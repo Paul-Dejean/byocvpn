@@ -133,7 +133,7 @@ export function AzureAccountCard({
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="flex flex-col gap-4">
             <FormField
               label="Subscription ID"
               hint="e.g. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
@@ -164,36 +164,27 @@ export function AzureAccountCard({
               placeholder="00000000-0000-0000-0000-000000000000"
             />
 
-            <div>
-              <label className="block text-body-sm font-medium text-fg-medium mb-1">
-                Secret Value
-              </label>
-              {secretAlreadySet && !formFields.secretValue && (
-                <p className="text-caption text-fg-success-moderate mb-2">
-                  ✓ Secret value already configured — enter a new value to
-                  replace it
-                </p>
-              )}
-              {!secretAlreadySet && !formFields.secretValue && (
-                <p className="text-caption text-fg-moderate mb-2">
-                  Secret value from your app registration
-                </p>
-              )}
-              <input
-                type="password"
-                value={formFields.secretValue}
-                onChange={(e) => setFormFields((prev) => ({ ...prev, secretValue: e.target.value }))}
-                className="input font-mono text-body-sm"
-                placeholder={secretAlreadySet ? "Enter new secret to replace" : ""}
-              />
-            </div>
+            <FormField
+              label="Secret Value"
+              hint={
+                secretAlreadySet
+                  ? "Secret value already configured. Enter a new value to replace it."
+                  : "Secret value from your app registration"
+              }
+              type="password"
+              mono
+              value={formFields.secretValue}
+              onChange={(value) => setFormFields((prev) => ({ ...prev, secretValue: value }))}
+              placeholder={secretAlreadySet ? "Enter new secret to replace" : "Secret value"}
+            />
 
             {error && <Banner variant="danger">{error}</Banner>}
 
-            <div className="flex gap-3 pt-4">
-              <Button variant="secondary" onClick={handleCancel} className="flex-1">Cancel</Button>
+            <div className="flex gap-3 pt-2">
+              <Button variant="secondary" size="lg" onClick={handleCancel} className="flex-1">Cancel</Button>
               <Button
                 variant="primary"
+                size="lg"
                 onClick={handleSave}
                 loading={isSaving}
                 disabled={!isFormValid}

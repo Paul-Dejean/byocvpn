@@ -78,7 +78,7 @@ export function RegionList({
   return (
     <div className="flex-1 flex flex-col gap-4 min-h-0">
       <div className="flex items-center gap-2">
-        <label className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-bg-medium text-body-sm text-fg-medium focus-within:ring-1 focus-within:ring-bd-brand">
+        <label className="flex-1 flex items-center gap-2 h-8 px-3 rounded-md bg-bg-medium text-body-sm text-fg-medium focus-within:ring-1 focus-within:ring-bd-brand">
           <Search size={16} className="flex-shrink-0" />
           <input
             type="search"
@@ -154,8 +154,8 @@ interface RegionSectionProps {
 function RegionSection({ title, count, children }: RegionSectionProps) {
   return (
     <section className="flex flex-col gap-1">
-      <h3 className="px-4 py-2 text-body-sm text-fg-medium">
-        {title} <span className="text-fg-medium">[{count}]</span>
+      <h3 className="px-3 py-2 text-body-sm text-fg-medium">
+        {title} [{count}]
       </h3>
       {children}
     </section>
@@ -198,14 +198,14 @@ function RegionRow({
           : "hover:bg-bg-medium"
       } ${isSelectable ? "cursor-pointer" : ""}`}
     >
-      <FlagIcon countryCode={row.countryCode} round />
+      <FlagIcon countryCode={row.countryCode} round size={24} />
       <div className="flex-1 min-w-0 flex flex-col">
         <span className="text-body-sm text-fg-lighter truncate">{row.countryName}</span>
-        <span className="text-caption text-fg-medium truncate">{row.city || row.region.name}</span>
+        <span className="text-caption text-fg-moderate truncate">{row.city || row.region.name}</span>
       </div>
       {onDeploy && (
         <Button
-          variant="secondary"
+          variant="outline"
           size="lg"
           onClick={(event) => {
             event.stopPropagation();
@@ -224,7 +224,7 @@ function RegionRow({
         }}
         aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
         aria-pressed={isFavorite}
-        className="w-7 h-7 rounded-md border border-bd-moderate flex items-center justify-center text-fg-lighter hover:bg-bg-lighter transition-colors"
+        className="w-7 h-7 rounded-md border border-bd-moderate flex items-center justify-center text-fg-lighter hover:bg-bg-light transition-colors"
       >
         <Star size={14} className={isFavorite ? "fill-current" : ""} />
       </button>

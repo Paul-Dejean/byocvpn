@@ -18,7 +18,7 @@ export function NavItem({ icon, label, isActive, onClick }: NavItemProps) {
           : "text-fg-medium hover:bg-bg-light hover:text-fg-lighter"
       }`}
     >
-      <span className="w-4 h-4 flex items-center justify-center text-fg-medium">
+      <span className="w-4 h-4 flex items-center justify-center">
         {icon}
       </span>
       {label}

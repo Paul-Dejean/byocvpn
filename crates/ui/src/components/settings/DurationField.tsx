@@ -56,7 +56,7 @@ export function DurationField({
         value={inputValue}
         onChange={(event) => onValueChange(event.target.value)}
         onBlur={onBlur}
-        className="w-14 px-2 py-1 text-caption bg-bg-medium text-fg-lighter rounded-md border border-bd-moderate focus:outline-none focus:border-bd-brand text-center"
+        className="w-14 px-2 py-1 text-caption bg-bg-medium text-fg-lighter rounded-md border border-bd-moderate outline-none focus:border-bd-brand text-center"
       />
       <div className="inline-flex rounded-md border border-bd-moderate overflow-hidden">
         {(["minutes", "hours"] as DurationUnit[]).map((option) => (
@@ -66,7 +66,7 @@ export function DurationField({
             onClick={() => onUnitChange(option)}
             className={`px-2.5 py-1 text-caption capitalize transition-colors ${
               unit === option
-                ? "bg-bg-brand-bolder text-white"
+                ? "bg-bg-brand-bolder text-fg-on-brand"
                 : "bg-bg-medium text-fg-moderate hover:text-fg-lighter"
             }`}
           >

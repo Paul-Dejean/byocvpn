@@ -38,7 +38,7 @@ export function ProviderDropdown({
         onClick={() => setIsOpen((previous) => !previous)}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-bg-medium border border-bd-moderate text-body-sm text-fg-lighter hover:bg-bg-lighter transition-colors"
+        className="flex items-center gap-2 h-8 px-3 rounded-md bg-bg-medium border border-bd-moderate text-body-sm text-fg-lighter hover:bg-bg-light transition-colors"
       >
         <ProviderIcon provider={selectedProvider} className="w-4 h-4" />
         {buildProviderLabel(selectedProvider)}
@@ -48,7 +48,7 @@ export function ProviderDropdown({
       {isOpen && (
         <ul
           role="listbox"
-          className="absolute right-0 mt-1 w-48 rounded-lg bg-bg-medium border border-bd-moderate shadow-xl py-1 z-10"
+          className="absolute right-0 mt-1 w-48 rounded-md bg-bg-medium border border-bd-moderate shadow-xl py-1 z-10"
         >
           {providers.map((provider) => (
             <li key={provider}>
@@ -60,7 +60,7 @@ export function ProviderDropdown({
                   onSelectProvider(provider);
                   setIsOpen(false);
                 }}
-                className={`w-full flex items-center gap-2 px-3 py-2 text-body-sm text-left hover:bg-bg-lighter transition-colors ${
+                className={`w-full flex items-center gap-2 px-3 py-2 text-body-sm text-left hover:bg-bg-light transition-colors ${
                   provider === selectedProvider ? "text-fg-lighter" : "text-fg-medium"
                 }`}
               >

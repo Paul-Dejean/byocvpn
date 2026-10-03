@@ -95,7 +95,7 @@ export function AwsAccountCard({ onCredentialsSaved, onCredentialsDeleted, onPro
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="flex flex-col gap-4">
             <FormField
               label="Access Key ID"
               hint="e.g. AKIAIOSFODNN7EXAMPLE"
@@ -115,10 +115,11 @@ export function AwsAccountCard({ onCredentialsSaved, onCredentialsDeleted, onPro
 
             {error && <Banner variant="danger">{error}</Banner>}
 
-            <div className="flex gap-3 pt-4">
-              <Button variant="secondary" onClick={handleCancel} className="flex-1">Cancel</Button>
+            <div className="flex gap-3 pt-2">
+              <Button variant="secondary" size="lg" onClick={handleCancel} className="flex-1">Cancel</Button>
               <Button
                 variant="primary"
+                size="lg"
                 onClick={handleSave}
                 loading={isSaving}
                 disabled={!formFields.accessKey.trim()}

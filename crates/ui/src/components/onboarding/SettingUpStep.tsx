@@ -48,7 +48,7 @@ export function SettingUpStep({
   }
 
   return (
-    <div className="h-full flex flex-col items-center justify-center gap-10">
+    <div className="h-full flex flex-col items-center justify-center gap-8">
       <div className="w-12 h-12 rounded-xl bg-bg-medium border border-bd-moderate flex items-center justify-center">
         <Logo className="w-6 h-6" />
       </div>

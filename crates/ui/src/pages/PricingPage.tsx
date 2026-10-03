@@ -137,7 +137,7 @@ export function PricingPage() {
             )}
             <div className="flex items-center gap-1">
               <IconButton
-                accent="white"
+                accent="neutral"
                 size="xs"
                 onClick={() => setCalendarMonth(availableMonths[calendarMonthIndex + 1])}
                 disabled={calendarMonthIndex >= availableMonths.length - 1}
@@ -149,7 +149,7 @@ export function PricingPage() {
                 {MONTH_NAMES[calendarMonth.month - 1]} {calendarMonth.year}
               </span>
               <IconButton
-                accent="white"
+                accent="neutral"
                 size="xs"
                 onClick={() => setCalendarMonth(availableMonths[calendarMonthIndex - 1])}
                 disabled={calendarMonthIndex <= 0}

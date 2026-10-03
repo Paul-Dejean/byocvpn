@@ -7,6 +7,7 @@ import {
   sendNotification,
 } from "@tauri-apps/plugin-notification";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { Banner } from "../primitives/Banner";
 import { Toggle } from "../primitives/Toggle";
 import { Button } from "../primitives/Button";
 import { DurationField } from "./DurationField";
@@ -129,9 +130,7 @@ export function NotificationSettingsCard() {
             notifications for this app, then send a test notification.
           </p>
 
-          {permissionError && (
-            <p className="text-caption text-fg-danger-moderate">{permissionError}</p>
-          )}
+          {permissionError && <Banner variant="danger">{permissionError}</Banner>}
 
           <div className="flex items-center gap-2">
             {notificationSettingsUrl && (

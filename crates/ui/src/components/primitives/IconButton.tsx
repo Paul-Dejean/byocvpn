@@ -1,6 +1,6 @@
 import { ButtonHTMLAttributes, ReactNode } from "react";
 
-export type IconButtonAccent = "white" | "blue" | "red" | "amber";
+export type IconButtonAccent = "neutral" | "brand" | "danger" | "warning";
 export type IconButtonSize = "xs" | "sm" | "md";
 
 interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -10,10 +10,10 @@ interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const ACCENT_CLASSES: Record<IconButtonAccent, string> = {
-  white: "text-fg-moderate hover:text-fg-lighter",
-  blue: "text-fg-moderate hover:text-fg-brand",
-  red: "text-fg-moderate hover:text-fg-danger-moderate",
-  amber: "text-fg-warning-moderate hover:text-fg-warning-moderate",
+  neutral: "text-fg-moderate hover:text-fg-lighter",
+  brand: "text-fg-moderate hover:text-fg-brand",
+  danger: "text-fg-moderate hover:text-fg-danger-moderate",
+  warning: "text-fg-warning-moderate hover:text-fg-warning-moderate",
 };
 
 const SIZE_CLASSES: Record<IconButtonSize, string> = {
@@ -23,7 +23,7 @@ const SIZE_CLASSES: Record<IconButtonSize, string> = {
 };
 
 export function IconButton({
-  accent = "white",
+  accent = "neutral",
   size = "md",
   className = "",
   children,
@@ -31,7 +31,7 @@ export function IconButton({
 }: IconButtonProps) {
   return (
     <button
-      className={`${SIZE_CLASSES[size]} rounded-lg transition-colors hover:bg-bg-lighter disabled:opacity-40 disabled:cursor-not-allowed ${ACCENT_CLASSES[accent]} ${className}`}
+      className={`${SIZE_CLASSES[size]} rounded-lg transition-colors hover:bg-bg-light disabled:opacity-40 disabled:cursor-not-allowed ${ACCENT_CLASSES[accent]} ${className}`}
       {...buttonProps}
     >
       {children}

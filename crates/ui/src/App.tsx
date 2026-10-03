@@ -97,21 +97,24 @@ function App() {
         toastOptions={{
           duration: 4000,
           style: {
-            background: "var(--color-gray-700)",
-            color: "var(--color-gray-100)",
-            border: "1px solid var(--color-gray-500)",
+            background: "var(--color-bg-medium)",
+            color: "var(--color-fg-lighter)",
             fontFamily: "var(--font-sans)",
+            fontSize: "14px",
+            lineHeight: "20px",
+            borderRadius: "12px",
+            padding: "12px 16px",
           },
           success: {
             iconTheme: {
-              primary: "var(--color-success-500)",
-              secondary: "var(--color-gray-700)",
+              primary: "var(--color-fg-success-moderate)",
+              secondary: "var(--color-bg-medium)",
             },
           },
           error: {
             iconTheme: {
-              primary: "var(--color-danger-500)",
-              secondary: "var(--color-gray-700)",
+              primary: "var(--color-fg-danger-moderate)",
+              secondary: "var(--color-bg-medium)",
             },
           },
         }}
@@ -119,7 +122,7 @@ function App() {
 
       <ErrorBoundary>
         <DeploymentsProvider>
-        {page === Page.ONBOARDING && (
+          {page === Page.ONBOARDING && (
           <VpnConnectionProvider>
             <OnboardingPage
               key={`${onboardingState.step}-${onboardingState.provider}`}

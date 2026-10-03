@@ -151,7 +151,7 @@ export function OracleAccountCard({ onCredentialsSaved, onCredentialsDeleted, on
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="flex flex-col gap-4">
             <FormField
               label="Tenancy OCID"
               hint="e.g. ocid1.tenancy.oc1..aaaaaa…"
@@ -188,8 +188,8 @@ export function OracleAccountCard({ onCredentialsSaved, onCredentialsDeleted, on
               onChange={(value) => setFormFields((prev) => ({ ...prev, region: value }))}
             />
 
-            <div>
-              <div className="flex items-center justify-between mb-1">
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
                 <label className="text-caption text-fg-medium">
                   Private Key (.pem)
                 </label>
@@ -198,7 +198,7 @@ export function OracleAccountCard({ onCredentialsSaved, onCredentialsDeleted, on
                   size="md"
                   type="button"
                   onClick={() => pemFileInputRef.current?.click()}
-                  icon={<Upload size={12} />}
+                  icon={<Upload size={14} />}
                 >
                   Load from file
                 </Button>
@@ -211,13 +211,13 @@ export function OracleAccountCard({ onCredentialsSaved, onCredentialsDeleted, on
                 />
               </div>
               {pemAlreadySet && !formFields.privateKeyPem && (
-                <p className="text-caption text-fg-success-moderate mb-2">
+                <p className="text-caption text-fg-success-moderate">
                   ✓ Private key already configured — load a new file or paste
                   below to replace it
                 </p>
               )}
               {!pemAlreadySet && !formFields.privateKeyPem && (
-                <p className="text-caption text-fg-moderate mb-2">
+                <p className="text-caption text-fg-moderate">
                   Paste the contents of your .pem file or use "Load from file"
                 </p>
               )}
@@ -231,10 +231,11 @@ export function OracleAccountCard({ onCredentialsSaved, onCredentialsDeleted, on
 
             {error && <Banner variant="danger">{error}</Banner>}
 
-            <div className="flex gap-3 pt-4">
-              <Button variant="secondary" onClick={handleCancel} className="flex-1">Cancel</Button>
+            <div className="flex gap-3 pt-2">
+              <Button variant="secondary" size="lg" onClick={handleCancel} className="flex-1">Cancel</Button>
               <Button
                 variant="primary"
+                size="lg"
                 onClick={handleSave}
                 loading={isSaving}
                 disabled={!isFormValid}

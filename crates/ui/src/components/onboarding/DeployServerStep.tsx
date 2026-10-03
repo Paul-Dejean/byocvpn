@@ -40,7 +40,7 @@ export function DeployServerStep({
         />
       </div>
 
-      <div className="flex flex-col items-center gap-6">
+      <div className="flex flex-col items-center gap-10">
         <button
           type="button"
           onClick={onSkip}
@@ -60,7 +60,6 @@ export function DeployServerStep({
           <Button
             variant="primary"
             size="lg"
-            disabledStyle="dim"
             disabled={selectedRegion === null}
             onClick={handleNext}
           >

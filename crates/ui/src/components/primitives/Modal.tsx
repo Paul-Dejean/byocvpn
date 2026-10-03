@@ -34,7 +34,7 @@ export function Modal({ isOpen, onClose, children, className = "" }: ModalProps)
         role="dialog"
         aria-modal="true"
         onClick={(event) => event.stopPropagation()}
-        className={`w-[626px] max-h-[640px] rounded-xl bg-bg-strong border border-bd-moderate shadow-2xl flex flex-col overflow-hidden ${className}`}
+        className={`w-[626px] max-h-[640px] rounded-xl bg-bg-bolder border border-bd-moderate shadow-2xl flex flex-col overflow-hidden ${className}`}
       >
         {children}
       </div>

@@ -73,11 +73,11 @@ export function ProviderSelector({
   return (
     <div className="flex flex-col h-full gap-4">
       <header className="flex items-center gap-3">
-        <IconButton accent="white" size="sm" onClick={onClose} aria-label="Back">
-          <ArrowLeft size={18} />
+        <IconButton accent="neutral" size="sm" onClick={onClose} aria-label="Back">
+          <ArrowLeft size={16} />
         </IconButton>
         <div className="flex flex-col gap-0.5">
-          <h1 className="text-body font-medium text-fg-lighter">{title}</h1>
+          <h1 className="text-body-sm font-medium text-fg-lighter">{title}</h1>
           <p className="text-caption text-fg-medium">{subtitle}</p>
         </div>
       </header>

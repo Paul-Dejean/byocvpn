@@ -9,12 +9,12 @@ interface DeploymentProgressProps {
 
 export function DeploymentProgress({ title, steps, error }: DeploymentProgressProps) {
   return (
-    <div className="flex flex-col items-center text-center gap-10">
-      <div className="flex flex-col items-center gap-4">
-        <span className="px-2.5 py-1 rounded-md bg-bg-medium text-caption text-fg-lighter">
+    <div className="flex flex-col items-center text-center gap-8">
+      <div className="flex flex-col items-center gap-3">
+        <span className="px-2 py-0.5 rounded-md bg-bg-medium text-caption text-fg-lighter">
           Just a moment
         </span>
-        <h2 className="text-feature font-medium text-fg-lighter leading-snug">{title}</h2>
+        <h2 className="text-feature font-semibold text-fg-lighter">{title}</h2>
       </div>
 
       <div className="text-left">

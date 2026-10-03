@@ -31,9 +31,9 @@ export function DeployServerModal({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="p-6 flex flex-col gap-5 min-h-0 max-h-[640px]">
+      <div className="p-6 flex flex-col gap-4 min-h-0 max-h-[640px]">
         <header className="flex flex-col gap-1">
-          <h2 className="text-body font-medium text-fg-lighter">Select servers</h2>
+          <h2 className="text-body-sm font-medium text-fg-lighter">Select servers</h2>
           <p className="text-caption text-fg-medium">
             Choose a region to deploy your VPN server.
           </p>

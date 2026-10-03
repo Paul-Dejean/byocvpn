@@ -35,14 +35,14 @@
   --color-bg-bolder: #141414;
   --color-bg-medium: #1a1a1a;
   --color-bg-light: rgb(255 255 255 / 5%);
-  --color-bg-lighter: rgb(255 255 255 / 10%);
+  --color-bg-lighter: rgb(255 255 255 / 10%); /* extension */
   --color-bg-brand-bolder: #3738a4;
-  --color-bg-brand-bold: #4446b8;
+  --color-bg-brand-bold: #4446b8; /* extension: hover */
   --color-bg-brand-faint: rgb(55 56 164 / 35%);
   --color-bg-danger-moderate: #ed2727;
   --color-bg-danger-bold: #f03c3c;
-  --color-bg-danger-faint: rgb(237 39 39 / 10%);
-  --color-bg-success-faint: rgb(0 201 80 / 8%);
+  --color-bg-danger-faint: rgb(237 39 39 / 22%);
+  --color-bg-success-faint: rgb(0 201 80 / 5%);
   --color-bg-warning-faint: rgb(245 158 11 / 12%);
 
   /* ── Figma tokens: foreground (tokens/fg/*) ── */
@@ -51,16 +51,17 @@
   --color-fg-moderate: rgb(255 255 255 / 50%);
   --color-fg-faint: rgb(255 255 255 / 30%);
   --color-fg-on-brand: #ffffff;
-  --color-fg-brand: #9a9bf5;
+  --color-fg-brand: #9a9bf5; /* extension */
   --color-fg-success-moderate: #31c164;
   --color-fg-danger-moderate: #f05252;
   --color-fg-warning-moderate: #f5b949;
 
   /* ── Figma tokens: borders (tokens/bd/*) ── */
-  --color-bd-faint: rgb(255 255 255 / 5%);
+  --color-bd-faint: rgb(255 255 255 / 5%); /* extension */
   --color-bd-moderate: rgb(255 255 255 / 10%);
   --color-bd-strong: rgb(255 255 255 / 20%);
   --color-bd-brand: #5b5cd6;
+  --color-bd-brand-faint: rgb(91 92 214 / 40%);
   --color-bd-success: rgb(49 193 100 / 35%);
   --color-bd-danger: rgb(237 39 39 / 35%);
   --color-bd-warning: rgb(245 158 11 / 35%);
@@ -68,13 +69,8 @@
   /* Modal/scrim overlay — intentionally dark in BOTH themes */
   --color-overlay: #000000;
 
-  /* ── Figma tokens: spacing (layout/gap/*) ── */
-  --spacing-xs: 2px;
-  --spacing-sm: 4px;
-  --spacing-md: 8px;
-  --spacing-lg: 12px;
-  --spacing-xl: 16px;
-  --spacing-2xl: 24px;
+  /* Spacing follows Figma layout/gap (xs 2, sm 4, md 8, lg 12, xl 16, 2xl 24),
+     which the default 4px Tailwind scale already expresses (gap-3 = lg). */
 
   /* ── Figma tokens: radius (layout/radius/*) ── */
   --radius-md: 6px;
@@ -118,7 +114,7 @@
   --color-bg-strong: #f4f4f5;
   --color-bg-bolder: #ffffff;
   --color-bg-medium: #f7f7f8;
-  --color-bg-light: rgb(0 0 0 / 4%);
+  --color-bg-light: rgb(0 0 0 / 5%);
   --color-bg-lighter: rgb(0 0 0 / 8%);
   --color-bg-brand-faint: rgb(55 56 164 / 12%);
   --color-bg-danger-faint: rgb(237 39 39 / 8%);
@@ -137,6 +133,8 @@
   --color-bd-faint: rgb(0 0 0 / 6%);
   --color-bd-moderate: rgb(0 0 0 / 12%);
   --color-bd-strong: rgb(0 0 0 / 24%);
+  --color-bd-brand: #3738a4;
+  --color-bd-brand-faint: rgb(55 56 164 / 30%);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

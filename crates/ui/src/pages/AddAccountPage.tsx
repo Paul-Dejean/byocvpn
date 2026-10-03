@@ -420,15 +420,15 @@ export function AddAccountPage({
     <div className="flex flex-col h-full gap-4">
       <header className="flex items-center gap-3">
         <IconButton
-          accent="white"
+          accent="neutral"
           size="sm"
           onClick={handleBackToProviderSelection}
           aria-label="Back"
         >
-          <ArrowLeft size={18} />
+          <ArrowLeft size={16} />
         </IconButton>
         <div className="flex flex-col gap-0.5">
-          <h1 className="text-body font-medium text-fg-lighter">
+          <h1 className="text-body-sm font-medium text-fg-lighter">
             {selectedProvider ? `Connect ${PROVIDER_METADATA[selectedProvider].label}` : ""}
           </h1>
           <p className="text-caption text-fg-medium">
@@ -499,7 +499,7 @@ function CredentialsStep({
           <ol className="flex flex-col gap-3">
             {instructions.steps.map((setupStep) => (
               <li key={setupStep.number} className="flex gap-3">
-                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-bg-medium border border-bd-moderate text-fg-medium text-[11px] flex items-center justify-center mt-0.5">
+                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-bg-medium border border-bd-moderate text-fg-medium text-caption flex items-center justify-center mt-0.5">
                   {setupStep.number}
                 </span>
                 <p className="text-caption text-fg-medium leading-relaxed">{setupStep.text}</p>
@@ -698,8 +698,8 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
         value={homeRegion}
         onChange={setHomeRegion}
       />
-      <div>
-        <div className="flex items-center justify-between mb-1">
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center justify-between">
           <label className="text-caption text-fg-medium">
             Private Key (.pem)
           </label>
@@ -708,7 +708,7 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
             size="md"
             type="button"
             onClick={() => pemFileInputRef.current?.click()}
-            icon={<Upload size={12} />}
+            icon={<Upload size={14} />}
           >
             Load from file
           </Button>
@@ -790,8 +790,8 @@ function GcpCredentialsForm({
         value={projectId}
         onChange={setProjectId}
       />
-      <div>
-        <div className="flex items-center justify-between mb-1">
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center justify-between">
           <label className="text-caption text-fg-medium">
             Service Account Key (.json)
           </label>
@@ -800,7 +800,7 @@ function GcpCredentialsForm({
             size="md"
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            icon={<Upload size={12} />}
+            icon={<Upload size={14} />}
           >
             Load from file
           </Button>

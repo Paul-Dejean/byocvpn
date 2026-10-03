@@ -98,15 +98,17 @@ export function ServersPage() {
         className="flex-shrink-0 min-h-0 flex flex-col gap-3 rounded-lg bg-bg-bolder p-3"
         style={{ width: SERVERS_PANEL_WIDTH }}
       >
-        <header className="flex flex-col gap-1">
-          <h1 className="text-body-sm font-medium text-fg-lighter">
-            Active servers{" "}
-            <span className="text-fg-medium font-normal">[{instances.length}]</span>
-          </h1>
-          <p className="text-caption text-fg-medium">
-            Terminate unused servers to stop charges.
-          </p>
-        </header>
+        {hasServers && (
+          <header className="flex flex-col gap-1">
+            <h1 className="text-body-sm font-medium text-fg-lighter">
+              Active servers{" "}
+              <span className="text-fg-medium font-normal">[{instances.length}]</span>
+            </h1>
+            <p className="text-caption text-fg-medium">
+              Terminate unused servers to stop charges.
+            </p>
+          </header>
+        )}
 
         {vpnError && <Banner variant="danger">{vpnError}</Banner>}
 
