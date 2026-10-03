@@ -5,7 +5,6 @@ import { useInstanceUptime } from "../../hooks/useInstanceUptime";
 import { useInstanceCost } from "../../hooks/useInstanceCost";
 import { formatDuration } from "../../lib/time";
 import { Button } from "../primitives/Button";
-import { Spinner } from "../primitives/Spinner";
 import { Tag } from "../primitives/Tag";
 import { ServerLocation } from "./ServerLocation";
 import { DisconnectReminder } from "./DisconnectReminder";
@@ -48,12 +47,6 @@ export function ServerCard({
             <Tag tone="success" dot>
               Connected
             </Tag>
-          )}
-          {isInstalling && (
-            <span className="flex items-center gap-1.5 text-caption text-fg-brand">
-              <Spinner size="w-3 h-3" color="border-bd-brand" />
-              Installing the VPN software
-            </span>
           )}
           {hasError && <span className="text-caption text-fg-danger-moderate">Error</span>}
         </div>
