@@ -1,13 +1,16 @@
 import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { LedgerEntryWithCost } from "../../types/ledger";
 import { ProviderIcon } from "../providers/ProviderIcon";
 import { formatDate, formatUptime } from "../../lib/time";
+import { formatBytes } from "../../lib/bytes";
 
 interface InstanceCostRowProps {
   entry: LedgerEntryWithCost;
 }
 
-import { formatBytes } from "../../lib/bytes";
+const HOURS_PER_MONTH = 730;
+const INSTANCE_ID_PREVIEW_LENGTH = 22;
 
 export function InstanceCostRow({ entry }: InstanceCostRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -20,134 +23,109 @@ export function InstanceCostRow({ entry }: InstanceCostRowProps) {
     entry.uptimeHours > 0 ? entry.ipCost / entry.uptimeHours : 0;
   const egressRatePerGb =
     bytesSentGb > 0 ? entry.egressCost / bytesSentGb : 0;
-  const storageHourlyRate = entry.storageRatePerGbMonth / 730;
+  const storageHourlyRate = entry.storageRatePerGbMonth / HOURS_PER_MONTH;
 
   return (
     <>
       <tr
-        onClick={() => setIsExpanded((prev) => !prev)}
-        className="border-b border-gray-700/50 hover:bg-gray-700/30 transition-colors cursor-pointer"
+        onClick={() => setIsExpanded((previous) => !previous)}
+        className="border-b border-gray-500/40 hover:bg-gray-700/60 transition-colors cursor-pointer"
       >
         <td className="py-3 px-4 w-14">
-          <ProviderIcon provider={entry.provider} className="w-9 h-9 shrink-0" />
+          <div className="w-8 h-8 rounded-lg bg-gray-700 border border-gray-500/60 flex items-center justify-center p-1.5">
+            <ProviderIcon provider={entry.provider} className="w-full h-full" />
+          </div>
         </td>
-        <td className="py-3 px-4 font-mono text-xs text-gray-400">
-          {entry.instanceId.length > 22
-            ? `${entry.instanceId.slice(0, 22)}…`
-            : entry.instanceId}
+        <td className="py-3 px-4 font-mono text-xs text-gray-300">
+          {truncateInstanceId(entry.instanceId)}
         </td>
-        <td className="py-3 px-4 text-sm text-gray-300">{entry.region}</td>
-        <td className="py-3 px-4 text-sm font-mono text-blue-300">
+        <td className="py-3 px-4 text-sm text-gray-200">{entry.region}</td>
+        <td className="py-3 px-4 text-xs font-mono text-gray-200">
           {entry.instanceType}
         </td>
-        <td className="py-3 px-4 text-sm text-gray-400">
+        <td className="py-3 px-4 text-xs text-gray-300">
           {formatDate(entry.launchedAt)}
         </td>
-        <td className="py-3 px-4 text-sm">
+        <td className="py-3 px-4 text-xs">
           {isActive ? (
-            <span className="inline-flex items-center gap-1.5 text-success-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-success-400 animate-pulse inline-block" />
+            <span className="inline-flex items-center gap-1.5 text-success-300">
+              <span className="w-1.5 h-1.5 rounded-full bg-success-400 inline-block" />
               Active
             </span>
           ) : (
-            <span className="text-gray-400">{formatDate(entry.terminatedAt!)}</span>
+            <span className="text-gray-300">{formatDate(entry.terminatedAt ?? "")}</span>
           )}
         </td>
-        <td className="py-3 px-4 text-sm text-gray-300">
+        <td className="py-3 px-4 text-sm text-gray-200 tabular-nums">
           {formatUptime(entry.uptimeHours)}
         </td>
         <td className="py-3 px-4">
           <div className="flex items-center justify-between gap-3">
             {entry.isPricingUnknown ? (
               <span
-                className="text-sm font-semibold text-gray-500"
+                className="text-sm text-gray-400"
                 title="Pricing unavailable for this instance type"
               >
                 —
               </span>
             ) : (
-              <span className="text-sm font-semibold text-warning-300">
+              <span className="text-sm text-primary tabular-nums">
                 ${entry.estimatedCost.toFixed(4)}
               </span>
             )}
-            <svg
-              className={`w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0 ${
+            <ChevronDown
+              size={16}
+              className={`text-gray-300 transition-transform flex-shrink-0 ${
                 isExpanded ? "rotate-180" : ""
               }`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
+            />
           </div>
         </td>
       </tr>
       {isExpanded && (
-        <tr className="border-b border-gray-700/50 bg-gray-900/40">
+        <tr className="border-b border-gray-500/40 bg-gray-800/60">
           <td colSpan={8} className="px-6 py-4">
-            <div className="max-w-lg">
+            <div className="max-w-lg flex flex-col gap-3">
               {entry.isPricingUnknown ? (
-                <p className="text-sm text-gray-400">
+                <p className="text-xs text-gray-300">
                   Pricing is unavailable for this instance type, so no cost
                   estimate can be shown.
                 </p>
               ) : (
-              <table className="w-full text-sm">
-                <tbody>
-                  <tr>
-                    <td className="py-1 text-gray-400">Compute time</td>
-                    <td className="py-1 text-gray-500 text-xs">
-                      {entry.uptimeHours.toFixed(2)} h × ${hourlyComputeRate.toFixed(5)}/hr
-                    </td>
-                    <td className="py-1 text-right text-gray-300">
-                      ${entry.computeCost.toFixed(4)}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-1 text-gray-400">Reserved IP</td>
-                    <td className="py-1 text-gray-500 text-xs">
-                      {entry.uptimeHours.toFixed(2)} h × ${hourlyIpRate.toFixed(5)}/hr
-                    </td>
-                    <td className="py-1 text-right text-gray-300">
-                      ${entry.ipCost.toFixed(4)}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-1 text-gray-400">Data egress</td>
-                    <td className="py-1 text-gray-500 text-xs">
-                      {bytesSentGb.toFixed(4)} GB × ${egressRatePerGb.toFixed(4)}/GB
-                    </td>
-                    <td className="py-1 text-right text-gray-300">
-                      ${entry.egressCost.toFixed(4)}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-1 text-gray-400">Block storage</td>
-                    <td className="py-1 text-gray-500 text-xs">
-                      {entry.storageGb} GB × ${storageHourlyRate.toFixed(6)}/hr
-                    </td>
-                    <td className="py-1 text-right text-gray-300">
-                      ${entry.storageCost.toFixed(4)}
-                    </td>
-                  </tr>
-                  <tr className="border-t border-gray-700">
-                    <td className="pt-2 font-semibold text-primary" colSpan={2}>
-                      Total
-                    </td>
-                    <td className="pt-2 text-right font-bold text-warning-300">
-                      ${entry.estimatedCost.toFixed(4)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+                <table className="w-full text-xs">
+                  <tbody>
+                    <CostLine
+                      label="Compute time"
+                      detail={`${entry.uptimeHours.toFixed(2)} h × $${hourlyComputeRate.toFixed(5)}/hr`}
+                      amount={entry.computeCost}
+                    />
+                    <CostLine
+                      label="Reserved IP"
+                      detail={`${entry.uptimeHours.toFixed(2)} h × $${hourlyIpRate.toFixed(5)}/hr`}
+                      amount={entry.ipCost}
+                    />
+                    <CostLine
+                      label="Data egress"
+                      detail={`${bytesSentGb.toFixed(4)} GB × $${egressRatePerGb.toFixed(4)}/GB`}
+                      amount={entry.egressCost}
+                    />
+                    <CostLine
+                      label="Block storage"
+                      detail={`${entry.storageGb} GB × $${storageHourlyRate.toFixed(6)}/hr`}
+                      amount={entry.storageCost}
+                    />
+                    <tr className="border-t border-gray-500/40">
+                      <td className="pt-2 text-primary" colSpan={2}>
+                        Total
+                      </td>
+                      <td className="pt-2 text-right text-primary tabular-nums">
+                        ${entry.estimatedCost.toFixed(4)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               )}
-              <div className="mt-3 flex gap-6 text-xs text-gray-500">
+              <div className="flex gap-6 text-xs text-gray-400">
                 <span>Sent: {formatBytes(entry.bytesSent)}</span>
                 <span>Received: {formatBytes(entry.bytesReceived)}</span>
               </div>
@@ -156,5 +134,29 @@ export function InstanceCostRow({ entry }: InstanceCostRowProps) {
         </tr>
       )}
     </>
+  );
+}
+
+function truncateInstanceId(instanceId: string): string {
+  return instanceId.length > INSTANCE_ID_PREVIEW_LENGTH
+    ? `${instanceId.slice(0, INSTANCE_ID_PREVIEW_LENGTH)}…`
+    : instanceId;
+}
+
+interface CostLineProps {
+  label: string;
+  detail: string;
+  amount: number;
+}
+
+function CostLine({ label, detail, amount }: CostLineProps) {
+  return (
+    <tr>
+      <td className="py-1 text-gray-200">{label}</td>
+      <td className="py-1 text-gray-400">{detail}</td>
+      <td className="py-1 text-right text-gray-200 tabular-nums">
+        ${amount.toFixed(4)}
+      </td>
+    </tr>
   );
 }

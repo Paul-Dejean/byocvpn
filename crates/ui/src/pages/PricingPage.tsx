@@ -1,18 +1,29 @@
 import { useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight, Wallet } from "lucide-react";
 import { useLedger } from "../hooks/useLedger";
 import { CalendarMonth, CloudProviderName } from "../types";
 import { ProviderFilter } from "../components/pricing/ProviderFilter";
 import { InstanceCostRow } from "../components/pricing/InstanceCostRow";
-import { LoadingScreen } from "../components/common/LoadingScreen";
-import { EmptyState } from "../components/primitives/EmptyState";
-import { Alert } from "../components/primitives/Alert";
 import { LedgerEntryWithCost } from "../types/ledger";
+import { Alert } from "../components/primitives/Alert";
 import { Button } from "../components/primitives/Button";
 import { IconButton } from "../components/primitives/IconButton";
+import { Spinner } from "../components/primitives/Spinner";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
+];
+
+const TABLE_COLUMNS = [
+  "",
+  "Instance",
+  "Region",
+  "Type",
+  "Launched",
+  "Terminated",
+  "Uptime",
+  "Est. cost",
 ];
 
 function getCurrentMonth(): CalendarMonth {
@@ -92,114 +103,132 @@ export function PricingPage() {
     (entry) => entry.isPricingUnknown,
   ).length;
 
-  if (error) {
-    return (
-      <div className="flex flex-col h-full bg-gray-900 text-primary p-8">
-        <Alert variant="error" className="mb-4">
-          Failed to load pricing data: {error}
-        </Alert>
-        <Button
-          variant="primary"
-          size="none"
-          onClick={refetch}
-          className="self-start px-4 py-2 text-sm"
-        >
-          Retry
-        </Button>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col h-full bg-gray-900 text-primary overflow-hidden">
-      <div className="px-6 flex-shrink-0">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 pt-6 pb-2 border-b border-gray-700/50">
-          Expenses
-        </h2>
-        <div className="flex items-center justify-between gap-4 py-4">
-          {availableProviders.length > 1 ? (
-            <ProviderFilter
-              availableProviders={availableProviders}
-              selectedProvider={selectedProvider}
-              onSelectProvider={setSelectedProvider}
-            />
-          ) : (
-            <div />
-          )}
-          {!isLoading && visibleEntries.length > 0 && (
-            <div className="flex items-baseline gap-2">
-              <span className="text-xs text-gray-500 uppercase tracking-widest">Total</span>
-              <span className="text-2xl font-bold text-warning-300">${totalCost.toFixed(4)}</span>
-              {unknownPricingCount > 0 && (
-                <span className="text-xs text-gray-500">
-                  excludes {unknownPricingCount} with unknown pricing
-                </span>
+    <div className="flex flex-col h-full py-4 pr-4 gap-3">
+      <header className="flex flex-col gap-1">
+        <h1 className="text-base font-medium text-primary">Expenses</h1>
+        <p className="text-xs text-gray-300">
+          Estimated cost of every server you launched, by month.
+        </p>
+      </header>
+
+      {error ? (
+        <div className="flex flex-col items-start gap-3">
+          <Alert variant="error">Failed to load pricing data: {error}</Alert>
+          <Button
+            variant="secondary"
+            size="none"
+            onClick={refetch}
+            className="px-3 py-1.5 text-sm"
+          >
+            Retry
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between gap-4">
+            {availableProviders.length > 1 ? (
+              <ProviderFilter
+                availableProviders={availableProviders}
+                selectedProvider={selectedProvider}
+                onSelectProvider={setSelectedProvider}
+              />
+            ) : (
+              <div />
+            )}
+            <div className="flex items-center gap-1">
+              <IconButton
+                accent="white"
+                size="xs"
+                onClick={() => setCalendarMonth(availableMonths[calendarMonthIndex + 1])}
+                disabled={calendarMonthIndex >= availableMonths.length - 1}
+                aria-label="Previous month"
+              >
+                <ChevronLeft size={16} />
+              </IconButton>
+              <span className="text-sm text-primary w-36 text-center">
+                {MONTH_NAMES[calendarMonth.month - 1]} {calendarMonth.year}
+              </span>
+              <IconButton
+                accent="white"
+                size="xs"
+                onClick={() => setCalendarMonth(availableMonths[calendarMonthIndex - 1])}
+                disabled={calendarMonthIndex <= 0}
+                aria-label="Next month"
+              >
+                <ChevronRight size={16} />
+              </IconButton>
+            </div>
+          </div>
+
+          <div className="flex-1 min-h-0 rounded-xl bg-gray-750 border border-gray-500/50 flex flex-col overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-500/40 flex items-center justify-between gap-4">
+              <span className="text-sm text-primary">
+                Servers{" "}
+                <span className="text-gray-300">[{visibleEntries.length}]</span>
+              </span>
+              {!isLoading && visibleEntries.length > 0 && (
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xs text-gray-300">Total</span>
+                  <span className="text-lg text-primary tabular-nums">
+                    ${totalCost.toFixed(4)}
+                  </span>
+                  {unknownPricingCount > 0 && (
+                    <span className="text-xs text-gray-400">
+                      excludes {unknownPricingCount} with unknown pricing
+                    </span>
+                  )}
+                </div>
               )}
             </div>
-          )}
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <IconButton
-              accent="white"
-              size="xs"
-              onClick={() => setCalendarMonth(availableMonths[calendarMonthIndex + 1])}
-              disabled={calendarMonthIndex >= availableMonths.length - 1}
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </IconButton>
-            <span className="text-sm font-medium text-gray-200 w-36 text-center">
-              {MONTH_NAMES[calendarMonth.month - 1]} {calendarMonth.year}
-            </span>
-            <IconButton
-              accent="white"
-              size="xs"
-              onClick={() => setCalendarMonth(availableMonths[calendarMonthIndex - 1])}
-              disabled={calendarMonthIndex <= 0}
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </IconButton>
-          </div>
-        </div>
-      </div>
 
-      <div className="flex-1 overflow-y-auto">
-        {isLoading ? (
-          <div className="p-6">
-            <LoadingScreen message="Loading expenses…" />
+            {isLoading ? (
+              <div className="flex-1 flex items-center justify-center">
+                <Spinner size="w-6 h-6" color="border-gray-400" />
+              </div>
+            ) : visibleEntries.length === 0 ? (
+              <EmptyExpenses />
+            ) : (
+              <div className="flex-1 min-h-0 overflow-auto">
+                <table className="w-full min-w-[780px]">
+                  <thead className="sticky top-0 z-10 bg-gray-750">
+                    <tr className="text-xs text-gray-300 border-b border-gray-500/40">
+                      {TABLE_COLUMNS.map((column, index) => (
+                        <th
+                          key={index}
+                          className={`py-2.5 px-4 text-left font-normal ${index === 0 ? "w-14" : ""}`}
+                        >
+                          {column}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleEntries.map((entry) => (
+                      <InstanceCostRow key={entry.instanceId} entry={entry} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        ) : visibleEntries.length === 0 ? (
-          <div className="p-6">
-            <EmptyState
-              title="No expenses"
-              description="No instances were launched in this period"
-            />
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[780px]">
-              <thead className="sticky top-0 z-10 bg-gray-800/60">
-                <tr className="text-xs font-semibold uppercase tracking-wider text-gray-300 border-b border-gray-600/60">
-                  <th className="py-3 px-4 text-left w-14"></th>
-                  <th className="py-3 px-4 text-left">Instance ID</th>
-                  <th className="py-3 px-4 text-left">Region</th>
-                  <th className="py-3 px-4 text-left">Type</th>
-                  <th className="py-3 px-4 text-left">Launched At</th>
-                  <th className="py-3 px-4 text-left">Terminated At</th>
-                  <th className="py-3 px-4 text-left">Uptime</th>
-                  <th className="py-3 px-4 text-left">Est. Cost</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleEntries.map((entry) => (
-                  <InstanceCostRow key={entry.instanceId} entry={entry} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function EmptyExpenses() {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center">
+      <div className="w-16 h-16 rounded-xl border border-dashed border-gray-500 flex items-center justify-center">
+        <Wallet size={28} strokeWidth={1.25} className="text-gray-500" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <h2 className="text-sm text-primary">No expenses</h2>
+        <p className="text-xs text-gray-300">
+          No servers were launched in this period.
+        </p>
       </div>
     </div>
   );

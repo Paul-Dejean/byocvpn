@@ -3,7 +3,6 @@ export { Badge } from "./Badge";
 export { Button } from "./Button";
 export { Card } from "./Card";
 export { Drawer } from "./Drawer";
-export { EmptyState } from "./EmptyState";
 export { FilterChip } from "./FilterChip";
 export { FormField } from "./FormField";
 export { IconButton } from "./IconButton";
