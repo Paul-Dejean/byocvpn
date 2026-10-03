@@ -15,15 +15,15 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-const TABLE_COLUMNS = [
-  "",
-  "Instance",
-  "Region",
-  "Type",
-  "Launched",
-  "Terminated",
-  "Uptime",
-  "Est. cost",
+const TABLE_COLUMNS: { label: string; width: string }[] = [
+  { label: "", width: "44px" },
+  { label: "Instance", width: "auto" },
+  { label: "Region", width: "112px" },
+  { label: "Type", width: "150px" },
+  { label: "Launched", width: "104px" },
+  { label: "Terminated", width: "104px" },
+  { label: "Uptime", width: "64px" },
+  { label: "Cost", width: "104px" },
 ];
 
 function getCurrentMonth(): CalendarMonth {
@@ -188,16 +188,21 @@ export function PricingPage() {
             ) : visibleEntries.length === 0 ? (
               <EmptyExpenses />
             ) : (
-              <div className="flex-1 min-h-0 overflow-auto">
-                <table className="w-full min-w-[780px]">
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+                <table className="w-full table-fixed">
+                  <colgroup>
+                    {TABLE_COLUMNS.map((column, index) => (
+                      <col key={index} style={{ width: column.width }} />
+                    ))}
+                  </colgroup>
                   <thead className="sticky top-0 z-10 bg-bg-bolder">
                     <tr className="text-caption text-fg-medium border-b border-bd-faint">
                       {TABLE_COLUMNS.map((column, index) => (
                         <th
                           key={index}
-                          className={`py-2.5 px-4 text-left font-normal ${index === 0 ? "w-14" : ""}`}
+                          className="py-2.5 px-3 text-left font-normal whitespace-nowrap"
                         >
-                          {column}
+                          {column.label}
                         </th>
                       ))}
                     </tr>

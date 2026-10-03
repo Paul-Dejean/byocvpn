@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { LedgerEntryWithCost } from "../../types/ledger";
 import { ProviderIcon } from "../providers/ProviderIcon";
-import { formatDate, formatUptime } from "../../lib/time";
+import { formatCompactDate, formatUptime } from "../../lib/time";
 import { formatBytes } from "../../lib/bytes";
 
 interface InstanceCostRowProps {
@@ -10,7 +10,6 @@ interface InstanceCostRowProps {
 }
 
 const HOURS_PER_MONTH = 730;
-const INSTANCE_ID_PREVIEW_LENGTH = 22;
 
 export function InstanceCostRow({ entry }: InstanceCostRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -29,52 +28,51 @@ export function InstanceCostRow({ entry }: InstanceCostRowProps) {
     <>
       <tr
         onClick={() => setIsExpanded((previous) => !previous)}
-        className="border-b border-bd-faint hover:bg-bg-light transition-colors cursor-pointer"
+        className="border-b border-bd-faint hover:bg-bg-light transition-colors cursor-pointer text-caption whitespace-nowrap"
       >
-        <td className="py-3 px-4 w-14">
-          <div className="w-8 h-8 rounded-lg bg-bg-medium border border-bd-moderate flex items-center justify-center p-1.5">
+        <td className="py-2.5 px-3">
+          <div className="w-7 h-7 rounded-md bg-bg-medium border border-bd-moderate flex items-center justify-center p-1.5">
             <ProviderIcon provider={entry.provider} className="w-full h-full" />
           </div>
         </td>
-        <td className="py-3 px-4 font-mono text-caption text-fg-medium">
-          {truncateInstanceId(entry.instanceId)}
+        <td className="py-2.5 px-3 font-mono text-fg-medium truncate" title={entry.instanceId}>
+          {entry.instanceId}
         </td>
-        <td className="py-3 px-4 text-body-sm text-fg-medium">{entry.region}</td>
-        <td className="py-3 px-4 text-caption font-mono text-fg-medium">
+        <td className="py-2.5 px-3 text-fg-lighter truncate" title={entry.region}>
+          {entry.region}
+        </td>
+        <td className="py-2.5 px-3 font-mono text-fg-medium truncate" title={entry.instanceType}>
           {entry.instanceType}
         </td>
-        <td className="py-3 px-4 text-caption text-fg-medium">
-          {formatDate(entry.launchedAt)}
+        <td className="py-2.5 px-3 text-fg-medium tabular-nums">
+          {formatCompactDate(entry.launchedAt)}
         </td>
-        <td className="py-3 px-4 text-caption">
+        <td className="py-2.5 px-3 tabular-nums">
           {isActive ? (
             <span className="inline-flex items-center gap-1.5 text-fg-success-moderate">
-              <span className="w-1.5 h-1.5 rounded-full bg-fg-success-moderate inline-block" />
+              <span className="w-1.5 h-1.5 rounded-full bg-current inline-block" />
               Active
             </span>
           ) : (
-            <span className="text-fg-medium">{formatDate(entry.terminatedAt ?? "")}</span>
+            <span className="text-fg-medium">{formatCompactDate(entry.terminatedAt ?? "")}</span>
           )}
         </td>
-        <td className="py-3 px-4 text-body-sm text-fg-medium tabular-nums">
+        <td className="py-2.5 px-3 text-fg-lighter tabular-nums">
           {formatUptime(entry.uptimeHours)}
         </td>
-        <td className="py-3 px-4">
-          <div className="flex items-center justify-between gap-3">
+        <td className="py-2.5 px-3">
+          <div className="flex items-center justify-between gap-2">
             {entry.isPricingUnknown ? (
-              <span
-                className="text-body-sm text-fg-moderate"
-                title="Pricing unavailable for this instance type"
-              >
+              <span className="text-fg-moderate" title="Pricing unavailable for this instance type">
                 —
               </span>
             ) : (
-              <span className="text-body-sm text-fg-lighter tabular-nums">
+              <span className="text-fg-lighter tabular-nums">
                 ${entry.estimatedCost.toFixed(4)}
               </span>
             )}
             <ChevronDown
-              size={16}
+              size={14}
               className={`text-fg-medium transition-transform flex-shrink-0 ${
                 isExpanded ? "rotate-180" : ""
               }`}
@@ -84,63 +82,52 @@ export function InstanceCostRow({ entry }: InstanceCostRowProps) {
       </tr>
       {isExpanded && (
         <tr className="border-b border-bd-faint bg-bg-strong/60">
-          <td colSpan={8} className="px-6 py-4">
-            <div className="max-w-lg flex flex-col gap-3">
-              {entry.isPricingUnknown ? (
-                <p className="text-caption text-fg-medium">
-                  Pricing is unavailable for this instance type, so no cost
-                  estimate can be shown.
+          <td colSpan={8} className="px-4 py-3">
+            {entry.isPricingUnknown ? (
+              <p className="text-caption text-fg-medium">
+                Pricing is unavailable for this instance type, so no cost
+                estimate can be shown.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <dl className="grid grid-cols-[120px_1fr_auto] gap-x-6 gap-y-1.5 max-w-[520px] text-caption whitespace-nowrap">
+                  <CostLine
+                    label="Compute time"
+                    detail={`${entry.uptimeHours.toFixed(2)} h × $${hourlyComputeRate.toFixed(5)}/hr`}
+                    amount={entry.computeCost}
+                  />
+                  <CostLine
+                    label="Reserved IP"
+                    detail={`${entry.uptimeHours.toFixed(2)} h × $${hourlyIpRate.toFixed(5)}/hr`}
+                    amount={entry.ipCost}
+                  />
+                  <CostLine
+                    label="Data egress"
+                    detail={`${bytesSentGb.toFixed(4)} GB × $${egressRatePerGb.toFixed(4)}/GB`}
+                    amount={entry.egressCost}
+                  />
+                  <CostLine
+                    label="Block storage"
+                    detail={`${entry.storageGb} GB × $${storageHourlyRate.toFixed(6)}/hr`}
+                    amount={entry.storageCost}
+                  />
+                  <dt className="col-span-2 pt-1.5 border-t border-bd-faint text-fg-lighter">
+                    Total
+                  </dt>
+                  <dd className="pt-1.5 border-t border-bd-faint text-right text-fg-lighter tabular-nums">
+                    ${entry.estimatedCost.toFixed(4)}
+                  </dd>
+                </dl>
+                <p className="text-caption text-fg-moderate">
+                  Sent {formatBytes(entry.bytesSent)} · Received {formatBytes(entry.bytesReceived)}
                 </p>
-              ) : (
-                <table className="w-full text-caption">
-                  <tbody>
-                    <CostLine
-                      label="Compute time"
-                      detail={`${entry.uptimeHours.toFixed(2)} h × $${hourlyComputeRate.toFixed(5)}/hr`}
-                      amount={entry.computeCost}
-                    />
-                    <CostLine
-                      label="Reserved IP"
-                      detail={`${entry.uptimeHours.toFixed(2)} h × $${hourlyIpRate.toFixed(5)}/hr`}
-                      amount={entry.ipCost}
-                    />
-                    <CostLine
-                      label="Data egress"
-                      detail={`${bytesSentGb.toFixed(4)} GB × $${egressRatePerGb.toFixed(4)}/GB`}
-                      amount={entry.egressCost}
-                    />
-                    <CostLine
-                      label="Block storage"
-                      detail={`${entry.storageGb} GB × $${storageHourlyRate.toFixed(6)}/hr`}
-                      amount={entry.storageCost}
-                    />
-                    <tr className="border-t border-bd-faint">
-                      <td className="pt-2 text-fg-lighter" colSpan={2}>
-                        Total
-                      </td>
-                      <td className="pt-2 text-right text-fg-lighter tabular-nums">
-                        ${entry.estimatedCost.toFixed(4)}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              )}
-              <div className="flex gap-6 text-caption text-fg-moderate">
-                <span>Sent: {formatBytes(entry.bytesSent)}</span>
-                <span>Received: {formatBytes(entry.bytesReceived)}</span>
               </div>
-            </div>
+            )}
           </td>
         </tr>
       )}
     </>
   );
-}
-
-function truncateInstanceId(instanceId: string): string {
-  return instanceId.length > INSTANCE_ID_PREVIEW_LENGTH
-    ? `${instanceId.slice(0, INSTANCE_ID_PREVIEW_LENGTH)}…`
-    : instanceId;
 }
 
 interface CostLineProps {
@@ -151,12 +138,10 @@ interface CostLineProps {
 
 function CostLine({ label, detail, amount }: CostLineProps) {
   return (
-    <tr>
-      <td className="py-1 text-fg-medium">{label}</td>
-      <td className="py-1 text-fg-moderate">{detail}</td>
-      <td className="py-1 text-right text-fg-medium tabular-nums">
-        ${amount.toFixed(4)}
-      </td>
-    </tr>
+    <>
+      <dt className="text-fg-medium">{label}</dt>
+      <dd className="text-fg-moderate">{detail}</dd>
+      <dd className="text-right text-fg-lighter tabular-nums">${amount.toFixed(4)}</dd>
+    </>
   );
 }
