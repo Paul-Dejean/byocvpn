@@ -5,6 +5,8 @@ import { formatBytes } from "../../lib/bytes";
 import { formatDuration } from "../../lib/time";
 import { Button } from "../primitives/Button";
 import { ServerLocation } from "../servers/ServerLocation";
+import { IpAddressesCard } from "./IpAddressesCard";
+import { PanelField } from "./PanelField";
 
 const TICK_INTERVAL_MS = 1000;
 
@@ -43,16 +45,17 @@ export function ProtectedPanel({
 
       <section className="mt-8 w-full rounded-lg bg-gray-700 p-3 flex flex-col gap-3">
         <h3 className="text-sm text-primary">Session</h3>
-        <Field label="Downloaded" value={formatBytes(metrics?.bytesReceived ?? 0)} />
-        <Field label="Uploaded" value={formatBytes(metrics?.bytesSent ?? 0)} />
-        <Field label="Duration" value={formatDuration(sessionSeconds)} />
+        <PanelField label="Downloaded" value={formatBytes(metrics?.bytesReceived ?? 0)} />
+        <PanelField label="Uploaded" value={formatBytes(metrics?.bytesSent ?? 0)} />
+        <PanelField label="Duration" value={formatDuration(sessionSeconds)} />
       </section>
 
-      <section className="mt-3 w-full rounded-lg bg-gray-700 p-3 flex flex-col gap-3">
-        <h3 className="text-sm text-primary">IP</h3>
-        <Field label="IPv4" value={connectedInstance.publicIpV4 || "—"} mono />
-        <Field label="IPv6" value={connectedInstance.publicIpV6 || "—"} mono />
-      </section>
+      <div className="mt-3 w-full">
+        <IpAddressesCard
+          ipV4={connectedInstance.publicIpV4}
+          ipV6={connectedInstance.publicIpV6}
+        />
+      </div>
 
       <div className="mt-auto w-full pt-4">
         <Button
@@ -91,21 +94,4 @@ function useSessionSeconds(connectedAt: number | null): number {
   }, [startTime]);
 
   return elapsedSeconds;
-}
-
-interface FieldProps {
-  label: string;
-  value: string;
-  mono?: boolean;
-}
-
-function Field({ label, value, mono = false }: FieldProps) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-gray-300">{label}</span>
-      <span className={`text-sm text-primary truncate ${mono ? "font-mono" : "tabular-nums"}`}>
-        {value}
-      </span>
-    </div>
-  );
 }
