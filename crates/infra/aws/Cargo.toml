@@ -22,6 +22,8 @@ chrono = { workspace = true }
 strum = { workspace = true }
 
 specta = { workspace = true, optional = true }
+aws-sdk-sts = "1.107.0"
+aws-sdk-iam = "1.113.0"
 
 [features]
 specta = ["dep:specta"]

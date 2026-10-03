@@ -11,6 +11,7 @@ import { OracleAccountCard } from "../components/settings/OracleAccountCard";
 import { GcpAccountCard } from "../components/settings/GcpAccountCard";
 import { AzureAccountCard } from "../components/settings/AzureAccountCard";
 import { JobProgressDrawer } from "../components/common/JobProgressDrawer";
+import { PermissionsDrawer } from "../components/common/PermissionsDrawer";
 import { NotificationSettingsCard } from "../components/settings/NotificationSettingsCard";
 import { SessionKillswitchCard } from "../components/settings/SessionKillswitchCard";
 import { AutoTerminateSettingsCard } from "../components/settings/AutoTerminateSettingsCard";
@@ -55,28 +56,25 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
     onFailed: () => toast.error("Provisioning failed"),
   });
 
-  const { permissions, isVerifying, verifyPermissions, clearPermissions } =
-    usePermissions();
-  const isProvisionDrawerOpen = activeProvisionJob !== null;
-  const provisionJobProvider = activeProvisionJob?.provider;
-  const isVerifiableProvisionJob =
-    provisionJobProvider === CloudProviderName.Aws ||
-    provisionJobProvider === CloudProviderName.Gcp ||
-    provisionJobProvider === CloudProviderName.Azure;
-
-  useEffect(() => {
-    if (isVerifiableProvisionJob && provisionJobProvider) {
-      verifyPermissions(provisionJobProvider);
-    }
-    if (!provisionJobProvider) {
-      clearPermissions();
-    }
-  }, [
-    isVerifiableProvisionJob,
-    provisionJobProvider,
+  const {
+    permissions,
+    isVerifying,
+    error: permissionsError,
     verifyPermissions,
     clearPermissions,
-  ]);
+  } = usePermissions();
+  const [verifiedProvider, setVerifiedProvider] = useState<CloudProviderName | null>(null);
+  const isProvisionDrawerOpen = activeProvisionJob !== null;
+
+  function handleVerifyRequested(provider: CloudProviderName) {
+    setVerifiedProvider(provider);
+    verifyPermissions(provider);
+  }
+
+  function handleClosePermissionsDrawer() {
+    setVerifiedProvider(null);
+    clearPermissions();
+  }
 
   useEffect(() => {
     loadCredentials(CloudProviderName.Aws).then((existing) =>
@@ -140,6 +138,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
             <AwsAccountCard
               onCredentialsSaved={provisionAccount}
               onProvisionRequested={provisionAccount}
+              onVerifyRequested={handleVerifyRequested}
               isProvisioned={provisionedProviders.has(CloudProviderName.Aws)}
               onCredentialsDeleted={() => {
                 setAwsHasCredentials(false);
@@ -162,6 +161,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
             <GcpAccountCard
               onCredentialsSaved={provisionAccount}
               onProvisionRequested={provisionAccount}
+              onVerifyRequested={handleVerifyRequested}
               isProvisioned={provisionedProviders.has(CloudProviderName.Gcp)}
               onCredentialsDeleted={() => {
                 setGcpHasCredentials(false);
@@ -173,6 +173,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
             <AzureAccountCard
               onCredentialsSaved={provisionAccount}
               onProvisionRequested={provisionAccount}
+              onVerifyRequested={handleVerifyRequested}
               isProvisioned={provisionedProviders.has(CloudProviderName.Azure)}
               onCredentialsDeleted={() => {
                 setAzureHasCredentials(false);
@@ -215,11 +216,19 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
         steps={activeProvisionJob?.steps ?? []}
         isComplete={isProvisionComplete}
         error={provisionError}
-        verification={
-          isVerifiableProvisionJob
-            ? { isVerifying, permissions, failed: false }
-            : undefined
-        }
+      />
+
+      <PermissionsDrawer
+        provider={verifiedProvider}
+        permissions={permissions}
+        isVerifying={isVerifying}
+        error={permissionsError}
+        onClose={handleClosePermissionsDrawer}
+        onRetry={() => {
+          if (verifiedProvider) {
+            verifyPermissions(verifiedProvider);
+          }
+        }}
       />
     </div>
   );

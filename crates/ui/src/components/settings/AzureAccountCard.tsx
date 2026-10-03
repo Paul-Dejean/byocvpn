@@ -10,6 +10,7 @@ interface AzureAccountCardProps {
   onCredentialsSaved: (provider: CloudProviderName) => void;
   onCredentialsDeleted: () => void;
   onProvisionRequested: (provider: CloudProviderName) => void;
+  onVerifyRequested: (provider: CloudProviderName) => void;
   isProvisioned: boolean;
 }
 
@@ -18,6 +19,7 @@ export function AzureAccountCard({
   onCredentialsSaved,
   onCredentialsDeleted,
   onProvisionRequested,
+  onVerifyRequested,
   isProvisioned,
 }: AzureAccountCardProps) {
   const [isEditing, setIsEditing] = useState(false);
@@ -113,6 +115,7 @@ export function AzureAccountCard({
           isConfirmingDelete={isConfirmingDelete}
           onEdit={handleEditOpen}
           onProvision={() => onProvisionRequested(CloudProviderName.Azure)}
+          onVerify={() => onVerifyRequested(CloudProviderName.Azure)}
           onRequestDelete={() => setIsConfirmingDelete(true)}
           onCancelDelete={() => setIsConfirmingDelete(false)}
           onConfirmDelete={handleDeleteCredentials}

@@ -16,15 +16,7 @@ export const commands = {
 } & AzureCredentials | null, string>(__TAURI_INVOKE("get_credentials", { provider })),
 	saveCredentials: (credentials: ProviderCredentials) => typedError<null, string>(__TAURI_INVOKE("save_credentials", { credentials })),
 	deleteCredentials: (provider: CloudProviderName) => typedError<null, string>(__TAURI_INVOKE("delete_credentials", { provider })),
-	verifyPermissions: (provider: CloudProviderName, credentials: {
-	provider: "AWS",
-} & AwsCredentials | {
-	provider: "ORACLE",
-} & OracleCredentials | {
-	provider: "GCP",
-} & GcpCredentials | {
-	provider: "AZURE",
-} & AzureCredentials | null) => typedError<PermissionStatus[], string>(__TAURI_INVOKE("verify_permissions", { provider, credentials })),
+	verifyPermissions: (provider: CloudProviderName) => typedError<PermissionStatus[], string>(__TAURI_INVOKE("verify_permissions", { provider })),
 	spawnInstance: (region: string, provider: CloudProviderName, onEvent: Channel<SpawnInstanceEvent>) => typedError<null, string>(__TAURI_INVOKE("spawn_instance", { region, provider, onEvent })),
 	terminateInstance: (instanceId: string, region: string, provider: CloudProviderName) => typedError<string, string>(__TAURI_INVOKE("terminate_instance", { instanceId, region, provider })),
 	listInstances: (region: string | null) => typedError<InstanceInfo[], string>(__TAURI_INVOKE("list_instances", { region })),

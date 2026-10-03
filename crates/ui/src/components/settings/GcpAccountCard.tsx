@@ -11,11 +11,18 @@ interface GcpAccountCardProps {
   onCredentialsSaved: (provider: CloudProviderName) => void;
   onCredentialsDeleted: () => void;
   onProvisionRequested: (provider: CloudProviderName) => void;
+  onVerifyRequested: (provider: CloudProviderName) => void;
   isProvisioned: boolean;
 }
 
 
-export function GcpAccountCard({ onCredentialsSaved, onCredentialsDeleted, onProvisionRequested, isProvisioned }: GcpAccountCardProps) {
+export function GcpAccountCard({
+  onCredentialsSaved,
+  onCredentialsDeleted,
+  onProvisionRequested,
+  onVerifyRequested,
+  isProvisioned,
+}: GcpAccountCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [hasCredentials, setHasCredentials] = useState<boolean | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
@@ -118,6 +125,7 @@ export function GcpAccountCard({ onCredentialsSaved, onCredentialsDeleted, onPro
           isConfirmingDelete={isConfirmingDelete}
           onEdit={handleEditOpen}
           onProvision={() => onProvisionRequested(CloudProviderName.Gcp)}
+          onVerify={() => onVerifyRequested(CloudProviderName.Gcp)}
           onRequestDelete={() => setIsConfirmingDelete(true)}
           onCancelDelete={() => setIsConfirmingDelete(false)}
           onConfirmDelete={handleDeleteCredentials}

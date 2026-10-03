@@ -28,10 +28,16 @@ where
             let message_string = error.message().unwrap_or_default().to_string();
 
             match code_string {
-                "UnauthorizedOperation" => Error::Authentication,
-                "AccessDeniedException" => Error::Authorization {
-                    operation: operation_name.to_string(),
-                },
+                "UnauthorizedOperation" | "AccessDeniedException" | "AccessDenied" => {
+                    Error::Authorization {
+                        operation: operation_name.to_string(),
+                    }
+                }
+                "AuthFailure"
+                | "InvalidClientTokenId"
+                | "SignatureDoesNotMatch"
+                | "UnrecognizedClientException"
+                | "ExpiredToken" => Error::Authentication,
                 "ThrottlingException" | "RequestLimitExceeded" => Error::Quota,
                 _ => Error::Unknown {
                     operation_name: operation_name.to_string(),

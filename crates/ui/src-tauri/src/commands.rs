@@ -98,36 +98,10 @@ pub async fn delete_credentials(provider: CloudProviderName, app_handle: AppHand
     Ok(())
 }
 
-async fn create_cloud_provider_from_credentials(
-    credentials: ProviderCredentials,
-) -> Result<Box<dyn CloudProvider>> {
-    let provider: Box<dyn CloudProvider> = match credentials {
-        ProviderCredentials::Aws(aws_credentials) => {
-            Box::new(AwsProvider::new(aws_credentials.into()).await)
-        }
-        ProviderCredentials::Gcp(gcp_credentials) => {
-            Box::new(GcpProvider::new(gcp_credentials.into())?)
-        }
-        ProviderCredentials::Oracle(oracle_credentials) => Box::new(
-            byocvpn_oracle::OracleProvider::new(oracle_credentials.into()),
-        ),
-        ProviderCredentials::Azure(azure_credentials) => {
-            Box::new(AzureProvider::new(azure_credentials.into())?)
-        }
-    };
-    Ok(provider)
-}
-
 #[tauri::command]
 #[specta::specta]
-pub async fn verify_permissions(
-    provider: CloudProviderName,
-    credentials: Option<ProviderCredentials>,
-) -> Result<Vec<PermissionStatus>> {
-    let cloud_provider: Box<dyn CloudProvider> = match credentials {
-        Some(credentials) => create_cloud_provider_from_credentials(credentials).await?,
-        None => create_cloud_provider(provider).await?,
-    };
+pub async fn verify_permissions(provider: CloudProviderName) -> Result<Vec<PermissionStatus>> {
+    let cloud_provider = create_cloud_provider(provider).await?;
     commands::verify_permissions::verify_permissions(&*cloud_provider).await
 }
 

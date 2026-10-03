@@ -1,4 +1,4 @@
-import { Pencil, Plus, RefreshCw, Trash2, Zap } from "lucide-react";
+import { Pencil, Plus, RefreshCw, ShieldCheck, Trash2, Zap } from "lucide-react";
 import { CloudProviderName } from "../../types";
 import { ProviderIcon } from "../providers/ProviderIcon";
 import { Spinner } from "../primitives/Spinner";
@@ -14,6 +14,7 @@ interface AccountRowProps {
   isConfirmingDelete: boolean;
   onEdit: () => void;
   onProvision: () => void;
+  onVerify?: () => void;
   onRequestDelete: () => void;
   onCancelDelete: () => void;
   onConfirmDelete: () => void;
@@ -27,6 +28,7 @@ export function AccountRow({
   isConfirmingDelete,
   onEdit,
   onProvision,
+  onVerify,
   onRequestDelete,
   onCancelDelete,
   onConfirmDelete,
@@ -67,6 +69,16 @@ export function AccountRow({
             </>
           ) : (
             <>
+              {onVerify && (
+                <IconButton
+                  accent="brand"
+                  size="sm"
+                  onClick={onVerify}
+                  title="Verify permissions"
+                >
+                  <ShieldCheck size={16} />
+                </IconButton>
+              )}
               <IconButton
                 accent={isProvisioned ? "brand" : "warning"}
                 size="sm"
