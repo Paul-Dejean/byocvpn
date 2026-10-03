@@ -3,6 +3,7 @@ import { useNetworkLocation } from "../../hooks/useNetworkLocation";
 import { FlagIcon } from "../FlagIcon";
 import { Spinner } from "../primitives/Spinner";
 import { IpAddressesCard } from "./IpAddressesCard";
+import { StatusHero } from "./StatusHero";
 
 interface UnprotectedPanelProps {
   hasServers: boolean;
@@ -13,19 +14,20 @@ export function UnprotectedPanel({ hasServers }: UnprotectedPanelProps) {
   const hasLocation = location !== null && (location.country || location.city);
 
   return (
-    <div className="h-full rounded-xl bg-gray-750 border border-gray-500/40 p-4 flex flex-col items-center">
-      <div className="mt-6 w-24 h-24 rounded-full bg-danger-900/40 flex items-center justify-center">
-        <ShieldOff size={40} strokeWidth={1.5} className="text-danger-400" />
-      </div>
+    <div className="h-full flex flex-col gap-3">
+      <StatusHero
+        tone="unprotected"
+        icon={<ShieldOff size={48} strokeWidth={1.5} className="text-danger-400" />}
+        title="Unprotected"
+      >
+        <p className="text-sm text-gray-300 max-w-[260px]">
+          {hasServers
+            ? "Anyone can see what you browse. Connect to a server to go private."
+            : "Your connection is exposed. Add a server to stay private."}
+        </p>
+      </StatusHero>
 
-      <h2 className="mt-6 text-xl font-medium text-primary">Unprotected</h2>
-      <p className="mt-2 text-sm text-gray-300 text-center max-w-[240px]">
-        {hasServers
-          ? "Anyone can see what you browse. Connect to a server to go private."
-          : "Your connection is exposed. Add a server to stay private."}
-      </p>
-
-      <section className="mt-8 w-full rounded-lg bg-gray-700 p-3 flex flex-col gap-1">
+      <section className="rounded-lg bg-gray-700 p-4 flex flex-col gap-1">
         <span className="text-xs text-gray-300">Current location</span>
         {isLoading ? (
           <Spinner size="w-4 h-4" color="border-gray-400" />
@@ -40,12 +42,10 @@ export function UnprotectedPanel({ hasServers }: UnprotectedPanelProps) {
         )}
       </section>
 
-      <div className="mt-3 w-full">
-        <IpAddressesCard
-          ipV4={location?.publicIpV4 ?? null}
-          ipV6={location?.publicIpV6 ?? null}
-        />
-      </div>
+      <IpAddressesCard
+        ipV4={location?.publicIpV4 ?? null}
+        ipV6={location?.publicIpV6 ?? null}
+      />
     </div>
   );
 }

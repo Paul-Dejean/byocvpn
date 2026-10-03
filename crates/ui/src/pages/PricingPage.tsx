@@ -104,9 +104,9 @@ export function PricingPage() {
   ).length;
 
   return (
-    <div className="flex flex-col h-full py-4 pr-4 gap-3">
+    <div className="flex flex-col h-full gap-3">
       <header className="flex flex-col gap-1">
-        <h1 className="text-base font-medium text-primary">Expenses</h1>
+        <h1 className="text-sm font-medium text-primary">Expenses</h1>
         <p className="text-xs text-gray-300">
           Estimated cost of every server you launched, by month.
         </p>

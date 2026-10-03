@@ -417,7 +417,7 @@ export function AddAccountPage({
   }
 
   return (
-    <div className="flex flex-col h-full p-4 gap-4">
+    <div className="flex flex-col h-full gap-4">
       <header className="flex items-center gap-3">
         <IconButton
           accent="white"

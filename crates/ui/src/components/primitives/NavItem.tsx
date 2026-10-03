@@ -12,10 +12,10 @@ export function NavItem({ icon, label, isActive, onClick }: NavItemProps) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm transition-colors ${
+      className={`flex items-center gap-2 w-full h-9 pl-2 pr-3 rounded-md text-sm transition-colors ${
         isActive
-          ? "bg-gray-700 text-primary"
-          : "text-gray-200 hover:bg-gray-750 hover:text-primary"
+          ? "bg-white/5 text-primary"
+          : "text-gray-200 hover:bg-white/5 hover:text-primary"
       }`}
     >
       <span className="w-4 h-4 flex items-center justify-center text-gray-200">

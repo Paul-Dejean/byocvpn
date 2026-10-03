@@ -32,12 +32,12 @@
 @theme {
   /* ── Neutral dark grays ── */
   --color-gray-950: #0a0a0a;
-  --color-gray-900: #141414;   /* window background                 */
-  --color-gray-800: #181818;   /* app frame / panel background      */
-  --color-gray-750: #1e1e1e;   /* intermediate hover state          */
-  --color-gray-700: #232323;   /* card / secondary surface          */
-  --color-gray-600: #2c2c2c;   /* input background, hover           */
-  --color-gray-500: #383838;   /* subtle border, divider            */
+  --color-gray-900: #0f0f0f;   /* window background                 */
+  --color-gray-800: #0f0f0f;   /* app frame background (bg/strong)  */
+  --color-gray-750: #141414;   /* panels (bg/bolder)                */
+  --color-gray-700: #1a1a1a;   /* cards (bg/medium)                 */
+  --color-gray-600: #242424;   /* input background, hover           */
+  --color-gray-500: #303030;   /* subtle border, divider            */
   --color-gray-400: #737373;   /* muted / placeholder text          */
   --color-gray-300: #9a9a9a;   /* secondary text                    */
   --color-gray-200: #bdbdbd;   /* labels, captions                  */

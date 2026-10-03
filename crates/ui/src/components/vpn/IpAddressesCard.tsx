@@ -7,10 +7,12 @@ interface IpAddressesCardProps {
 
 export function IpAddressesCard({ ipV4, ipV6 }: IpAddressesCardProps) {
   return (
-    <section className="w-full rounded-lg bg-gray-700 p-3 flex flex-col gap-3">
+    <section className="rounded-lg bg-gray-700 p-4 flex flex-col gap-3">
       <h3 className="text-sm text-primary">IP</h3>
-      <PanelField label="IPv4" value={ipV4 || "—"} mono />
-      <PanelField label="IPv6" value={ipV6 || "—"} mono />
+      <div className="flex flex-col gap-3">
+        <PanelField label="IPv4" value={ipV4 || "—"} wrap />
+        <PanelField label="IPv6" value={ipV6 || "—"} wrap />
+      </div>
     </section>
   );
 }

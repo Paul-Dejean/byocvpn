@@ -7,6 +7,7 @@ import { Button } from "../primitives/Button";
 import { ServerLocation } from "../servers/ServerLocation";
 import { IpAddressesCard } from "./IpAddressesCard";
 import { PanelField } from "./PanelField";
+import { StatusHero } from "./StatusHero";
 
 const TICK_INTERVAL_MS = 1000;
 
@@ -30,51 +31,50 @@ export function ProtectedPanel({
   const sessionSeconds = useSessionSeconds(connectedAt);
 
   return (
-    <div className="h-full rounded-xl bg-gray-750 border border-gray-500/40 p-4 flex flex-col items-center">
-      <div className="mt-6 w-24 h-24 rounded-full bg-success-900/40 flex items-center justify-center">
-        <ShieldCheck size={40} strokeWidth={1.5} className="text-success-400" />
-      </div>
+    <div className="h-full flex flex-col gap-3">
+      <div className="flex-1 min-h-0 flex flex-col gap-3">
+        <StatusHero
+          tone="protected"
+          icon={<ShieldCheck size={48} strokeWidth={1.5} className="text-success-400" />}
+          title="You're protected"
+        >
+          <ServerLocation
+            provider={connectedInstance.provider}
+            region={connectedInstance.region}
+          />
+        </StatusHero>
 
-      <h2 className="mt-6 text-xl font-medium text-primary">You're protected</h2>
-      <div className="mt-3">
-        <ServerLocation
-          provider={connectedInstance.provider}
-          region={connectedInstance.region}
-        />
-      </div>
+        <section className="rounded-lg bg-gray-700 p-4 flex flex-col gap-3">
+          <h3 className="text-sm text-primary">Session</h3>
+          <div className="flex flex-col gap-3">
+            <PanelField label="Downloaded" value={formatBytes(metrics?.bytesReceived ?? 0)} />
+            <PanelField label="Uploaded" value={formatBytes(metrics?.bytesSent ?? 0)} />
+            <PanelField label="Duration" value={formatDuration(sessionSeconds)} />
+          </div>
+        </section>
 
-      <section className="mt-8 w-full rounded-lg bg-gray-700 p-3 flex flex-col gap-3">
-        <h3 className="text-sm text-primary">Session</h3>
-        <PanelField label="Downloaded" value={formatBytes(metrics?.bytesReceived ?? 0)} />
-        <PanelField label="Uploaded" value={formatBytes(metrics?.bytesSent ?? 0)} />
-        <PanelField label="Duration" value={formatDuration(sessionSeconds)} />
-      </section>
-
-      <div className="mt-3 w-full">
         <IpAddressesCard
           ipV4={connectedInstance.publicIpV4}
           ipV6={connectedInstance.publicIpV6}
         />
       </div>
 
-      <div className="mt-auto w-full pt-4">
-        <Button
-          variant="danger"
-          size="none"
-          loading={isDisconnecting}
-          disabled={!isDaemonRunning}
-          disabledStyle="dim"
-          onClick={onDisconnect}
-          title={
-            isDaemonRunning
-              ? undefined
-              : "VPN daemon is not running. You may need to restart your computer."
-          }
-          className="w-full py-2 text-sm"
-        >
-          Disconnect from server
-        </Button>
-      </div>
+      <Button
+        variant="danger"
+        size="none"
+        loading={isDisconnecting}
+        disabled={!isDaemonRunning}
+        disabledStyle="dim"
+        onClick={onDisconnect}
+        title={
+          isDaemonRunning
+            ? undefined
+            : "VPN daemon is not running. You may need to restart your computer."
+        }
+        className="w-full h-7 text-sm"
+      >
+        Disconnect from server
+      </Button>
     </div>
   );
 }

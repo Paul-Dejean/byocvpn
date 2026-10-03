@@ -21,6 +21,9 @@ import { Alert } from "../components/primitives/Alert";
 import { Button } from "../components/primitives/Button";
 import { Spinner } from "../components/primitives/Spinner";
 
+const SERVERS_PANEL_WIDTH = 464;
+const STATUS_PANEL_WIDTH = 358;
+
 export function ServersPage() {
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
   const [isBannerDismissed, setIsBannerDismissed] = useState(false);
@@ -94,10 +97,13 @@ export function ServersPage() {
   }
 
   return (
-    <div className="flex h-full min-h-0">
-      <div className="flex-1 min-w-0 min-h-0 flex flex-col py-4 pr-4 gap-3">
+    <div className="flex h-full min-h-0 gap-3">
+      <section
+        className="flex-shrink-0 min-h-0 flex flex-col gap-3 rounded-lg bg-gray-750 p-3"
+        style={{ width: SERVERS_PANEL_WIDTH }}
+      >
         <header className="flex flex-col gap-1">
-          <h1 className="text-base font-medium text-primary">
+          <h1 className="text-sm font-medium text-primary">
             Active servers{" "}
             <span className="text-gray-300 font-normal">[{instances.length}]</span>
           </h1>
@@ -169,15 +175,18 @@ export function ServersPage() {
             variant="secondary"
             size="none"
             onClick={openDeployModal}
-            icon={<Plus size={16} />}
-            className="w-full py-2 text-sm"
+            icon={<Plus size={14} />}
+            className="w-full h-7 text-sm"
           >
             Add server
           </Button>
         )}
-      </div>
+      </section>
 
-      <aside className="w-[340px] flex-shrink-0 min-h-0 py-4 pr-4">
+      <aside
+        className="flex-shrink-0 min-h-0 rounded-lg bg-gray-750 py-3 px-4"
+        style={{ width: STATUS_PANEL_WIDTH }}
+      >
         {connectedInstance ? (
           <ProtectedPanel
             connectedInstance={connectedInstance}

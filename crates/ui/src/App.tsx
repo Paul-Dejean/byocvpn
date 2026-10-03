@@ -144,7 +144,7 @@ function App() {
           page === Page.PRICING ||
           page === Page.SETTINGS) && (
           <VpnConnectionProvider>
-            <div className="flex h-full">
+            <div className="flex h-full gap-4">
               <Sidebar currentPage={page} onNavigate={setPage} />
               <div className="flex-1 min-w-0 h-full overflow-hidden">
                 {page === Page.SERVERS && <ServersPage />}

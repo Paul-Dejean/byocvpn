@@ -38,9 +38,9 @@ export function ServerCard({
   const canConnect = instance.state === InstanceState.Running && !isConnected;
 
   return (
-    <div className="rounded-xl bg-gray-750 border border-gray-500/50">
-      <div className="p-3 flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-3">
+    <div className="rounded-xl bg-gray-700 border border-gray-500/60 flex flex-col gap-3">
+      <div className="px-4 pt-4 flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-3 h-5">
           <ServerLocation provider={instance.provider} region={instance.region} />
           {isConnected && <ConnectedBadge />}
           {isInstalling && (
@@ -49,9 +49,7 @@ export function ServerCard({
               Installing the VPN software
             </span>
           )}
-          {hasError && (
-            <span className="text-xs text-danger-400">Error</span>
-          )}
+          {hasError && <span className="text-xs text-danger-400">Error</span>}
         </div>
 
         <div className="flex items-center gap-8">
@@ -72,7 +70,7 @@ export function ServerCard({
             className="ml-auto text-gray-300 hover:text-primary transition-colors"
           >
             <ChevronRight
-              size={18}
+              size={16}
               className={`transition-transform ${isExpanded ? "rotate-90" : ""}`}
             />
           </button>
@@ -92,14 +90,16 @@ export function ServerCard({
         )}
       </div>
 
-      <div className="border-t border-gray-500/50 p-3 flex items-center gap-2">
+      <div className="border-t border-gray-500/60" />
+
+      <div className="px-4 pb-3 flex items-center gap-2">
         <Button
           variant="secondary"
           size="none"
           loading={isTerminating}
           disabledStyle="dim"
           onClick={() => onTerminate(instance)}
-          className="px-3 py-1.5 text-sm"
+          className="h-7 px-3 text-sm"
         >
           Terminate server
         </Button>
@@ -111,7 +111,7 @@ export function ServerCard({
             disabled={!canConnect}
             disabledStyle="dim"
             onClick={() => onConnect(instance)}
-            className="px-3 py-1.5 text-sm"
+            className="h-7 px-3 text-sm"
           >
             Connect to VPN
           </Button>
@@ -140,7 +140,7 @@ function Metric({ label, icon, value }: MetricProps) {
   return (
     <div className="flex flex-col gap-1">
       <span className="text-xs text-gray-300">{label}</span>
-      <span className="flex items-center gap-1.5 text-lg text-primary tabular-nums">
+      <span className="flex items-center gap-1.5 text-lg leading-[26px] text-primary tabular-nums">
         <span className="text-gray-300">{icon}</span>
         {value}
       </span>
@@ -157,7 +157,7 @@ function Detail({ label, value }: DetailProps) {
   return (
     <>
       <dt className="text-gray-300">{label}</dt>
-      <dd className="text-primary font-mono truncate">{value || "—"}</dd>
+      <dd className="text-primary truncate">{value || "—"}</dd>
     </>
   );
 }
