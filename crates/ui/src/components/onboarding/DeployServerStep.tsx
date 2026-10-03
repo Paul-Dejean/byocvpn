@@ -44,7 +44,7 @@ export function DeployServerStep({
         <button
           type="button"
           onClick={onSkip}
-          className="text-xs text-primary hover:text-gray-300 transition-colors"
+          className="text-caption text-fg-lighter hover:text-fg-medium transition-colors"
         >
           I'll do this later
         </button>
@@ -53,17 +53,16 @@ export function DeployServerStep({
           <button
             type="button"
             onClick={onBack}
-            className="px-2 py-2 text-sm text-primary hover:text-gray-300 transition-colors"
+            className="px-2 py-2 text-body-sm text-fg-lighter hover:text-fg-medium transition-colors"
           >
             Back
           </button>
           <Button
             variant="primary"
-            size="none"
+            size="lg"
             disabledStyle="dim"
             disabled={selectedRegion === null}
             onClick={handleNext}
-            className="px-4 py-2 text-sm"
           >
             Next
           </Button>

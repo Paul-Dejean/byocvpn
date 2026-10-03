@@ -11,17 +11,17 @@ export function DeploymentProgress({ title, steps, error }: DeploymentProgressPr
   return (
     <div className="flex flex-col items-center text-center gap-10">
       <div className="flex flex-col items-center gap-4">
-        <span className="px-2.5 py-1 rounded-md bg-gray-700 text-xs text-primary">
+        <span className="px-2.5 py-1 rounded-md bg-bg-medium text-caption text-fg-lighter">
           Just a moment
         </span>
-        <h2 className="text-lg font-medium text-primary leading-snug">{title}</h2>
+        <h2 className="text-feature font-medium text-fg-lighter leading-snug">{title}</h2>
       </div>
 
       <div className="text-left">
         <DeploymentStepList steps={steps} />
       </div>
 
-      {error && <p className="text-sm text-danger-300 max-w-[360px]">{error}</p>}
+      {error && <p className="text-body-sm text-fg-danger-moderate max-w-[360px]">{error}</p>}
     </div>
   );
 }

@@ -29,53 +29,53 @@ export function InstanceCostRow({ entry }: InstanceCostRowProps) {
     <>
       <tr
         onClick={() => setIsExpanded((previous) => !previous)}
-        className="border-b border-gray-500/40 hover:bg-gray-700/60 transition-colors cursor-pointer"
+        className="border-b border-bd-faint hover:bg-bg-light transition-colors cursor-pointer"
       >
         <td className="py-3 px-4 w-14">
-          <div className="w-8 h-8 rounded-lg bg-gray-700 border border-gray-500/60 flex items-center justify-center p-1.5">
+          <div className="w-8 h-8 rounded-lg bg-bg-medium border border-bd-moderate flex items-center justify-center p-1.5">
             <ProviderIcon provider={entry.provider} className="w-full h-full" />
           </div>
         </td>
-        <td className="py-3 px-4 font-mono text-xs text-gray-300">
+        <td className="py-3 px-4 font-mono text-caption text-fg-medium">
           {truncateInstanceId(entry.instanceId)}
         </td>
-        <td className="py-3 px-4 text-sm text-gray-200">{entry.region}</td>
-        <td className="py-3 px-4 text-xs font-mono text-gray-200">
+        <td className="py-3 px-4 text-body-sm text-fg-medium">{entry.region}</td>
+        <td className="py-3 px-4 text-caption font-mono text-fg-medium">
           {entry.instanceType}
         </td>
-        <td className="py-3 px-4 text-xs text-gray-300">
+        <td className="py-3 px-4 text-caption text-fg-medium">
           {formatDate(entry.launchedAt)}
         </td>
-        <td className="py-3 px-4 text-xs">
+        <td className="py-3 px-4 text-caption">
           {isActive ? (
-            <span className="inline-flex items-center gap-1.5 text-success-300">
-              <span className="w-1.5 h-1.5 rounded-full bg-success-400 inline-block" />
+            <span className="inline-flex items-center gap-1.5 text-fg-success-moderate">
+              <span className="w-1.5 h-1.5 rounded-full bg-fg-success-moderate inline-block" />
               Active
             </span>
           ) : (
-            <span className="text-gray-300">{formatDate(entry.terminatedAt ?? "")}</span>
+            <span className="text-fg-medium">{formatDate(entry.terminatedAt ?? "")}</span>
           )}
         </td>
-        <td className="py-3 px-4 text-sm text-gray-200 tabular-nums">
+        <td className="py-3 px-4 text-body-sm text-fg-medium tabular-nums">
           {formatUptime(entry.uptimeHours)}
         </td>
         <td className="py-3 px-4">
           <div className="flex items-center justify-between gap-3">
             {entry.isPricingUnknown ? (
               <span
-                className="text-sm text-gray-400"
+                className="text-body-sm text-fg-moderate"
                 title="Pricing unavailable for this instance type"
               >
                 —
               </span>
             ) : (
-              <span className="text-sm text-primary tabular-nums">
+              <span className="text-body-sm text-fg-lighter tabular-nums">
                 ${entry.estimatedCost.toFixed(4)}
               </span>
             )}
             <ChevronDown
               size={16}
-              className={`text-gray-300 transition-transform flex-shrink-0 ${
+              className={`text-fg-medium transition-transform flex-shrink-0 ${
                 isExpanded ? "rotate-180" : ""
               }`}
             />
@@ -83,16 +83,16 @@ export function InstanceCostRow({ entry }: InstanceCostRowProps) {
         </td>
       </tr>
       {isExpanded && (
-        <tr className="border-b border-gray-500/40 bg-gray-800/60">
+        <tr className="border-b border-bd-faint bg-bg-strong/60">
           <td colSpan={8} className="px-6 py-4">
             <div className="max-w-lg flex flex-col gap-3">
               {entry.isPricingUnknown ? (
-                <p className="text-xs text-gray-300">
+                <p className="text-caption text-fg-medium">
                   Pricing is unavailable for this instance type, so no cost
                   estimate can be shown.
                 </p>
               ) : (
-                <table className="w-full text-xs">
+                <table className="w-full text-caption">
                   <tbody>
                     <CostLine
                       label="Compute time"
@@ -114,18 +114,18 @@ export function InstanceCostRow({ entry }: InstanceCostRowProps) {
                       detail={`${entry.storageGb} GB × $${storageHourlyRate.toFixed(6)}/hr`}
                       amount={entry.storageCost}
                     />
-                    <tr className="border-t border-gray-500/40">
-                      <td className="pt-2 text-primary" colSpan={2}>
+                    <tr className="border-t border-bd-faint">
+                      <td className="pt-2 text-fg-lighter" colSpan={2}>
                         Total
                       </td>
-                      <td className="pt-2 text-right text-primary tabular-nums">
+                      <td className="pt-2 text-right text-fg-lighter tabular-nums">
                         ${entry.estimatedCost.toFixed(4)}
                       </td>
                     </tr>
                   </tbody>
                 </table>
               )}
-              <div className="flex gap-6 text-xs text-gray-400">
+              <div className="flex gap-6 text-caption text-fg-moderate">
                 <span>Sent: {formatBytes(entry.bytesSent)}</span>
                 <span>Received: {formatBytes(entry.bytesReceived)}</span>
               </div>
@@ -152,9 +152,9 @@ interface CostLineProps {
 function CostLine({ label, detail, amount }: CostLineProps) {
   return (
     <tr>
-      <td className="py-1 text-gray-200">{label}</td>
-      <td className="py-1 text-gray-400">{detail}</td>
-      <td className="py-1 text-right text-gray-200 tabular-nums">
+      <td className="py-1 text-fg-medium">{label}</td>
+      <td className="py-1 text-fg-moderate">{detail}</td>
+      <td className="py-1 text-right text-fg-medium tabular-nums">
         ${amount.toFixed(4)}
       </td>
     </tr>

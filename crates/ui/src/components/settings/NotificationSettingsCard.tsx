@@ -107,7 +107,7 @@ export function NotificationSettingsCard() {
     >
       {settings.notificationEnabled && (
         <>
-          <div className="flex items-center gap-2 text-xs text-gray-300">
+          <div className="flex items-center gap-2 text-caption text-fg-medium">
             <span>Notify after</span>
             <DurationField
               minutes={settings.notificationThresholdMinutes}
@@ -124,31 +124,29 @@ export function NotificationSettingsCard() {
             <span>of server uptime</span>
           </div>
 
-          <p className="text-xs text-gray-400">
+          <p className="text-caption text-fg-moderate">
             To verify notifications work, open System Settings and allow
             notifications for this app, then send a test notification.
           </p>
 
           {permissionError && (
-            <p className="text-xs text-danger-400">{permissionError}</p>
+            <p className="text-caption text-fg-danger-moderate">{permissionError}</p>
           )}
 
           <div className="flex items-center gap-2">
             {notificationSettingsUrl && (
               <Button
                 variant="secondary"
-                size="none"
+                size="md"
                 onClick={openNotificationSettings}
-                className="px-3 py-1.5 text-xs"
               >
                 Open Settings
               </Button>
             )}
             <Button
               variant="secondary"
-              size="none"
+              size="md"
               onClick={sendTestNotification}
-              className="px-3 py-1.5 text-xs"
             >
               Test notification
             </Button>

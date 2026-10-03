@@ -5,7 +5,7 @@ import { CalendarMonth, CloudProviderName } from "../types";
 import { ProviderFilter } from "../components/pricing/ProviderFilter";
 import { InstanceCostRow } from "../components/pricing/InstanceCostRow";
 import { LedgerEntryWithCost } from "../types/ledger";
-import { Alert } from "../components/primitives/Alert";
+import { Banner } from "../components/primitives/Banner";
 import { Button } from "../components/primitives/Button";
 import { IconButton } from "../components/primitives/IconButton";
 import { Spinner } from "../components/primitives/Spinner";
@@ -106,20 +106,19 @@ export function PricingPage() {
   return (
     <div className="flex flex-col h-full gap-3">
       <header className="flex flex-col gap-1">
-        <h1 className="text-sm font-medium text-primary">Expenses</h1>
-        <p className="text-xs text-gray-300">
+        <h1 className="text-body-sm font-medium text-fg-lighter">Expenses</h1>
+        <p className="text-caption text-fg-medium">
           Estimated cost of every server you launched, by month.
         </p>
       </header>
 
       {error ? (
         <div className="flex flex-col items-start gap-3">
-          <Alert variant="error">Failed to load pricing data: {error}</Alert>
+          <Banner variant="danger">Failed to load pricing data: {error}</Banner>
           <Button
             variant="secondary"
-            size="none"
+            size="lg"
             onClick={refetch}
-            className="px-3 py-1.5 text-sm"
           >
             Retry
           </Button>
@@ -146,7 +145,7 @@ export function PricingPage() {
               >
                 <ChevronLeft size={16} />
               </IconButton>
-              <span className="text-sm text-primary w-36 text-center">
+              <span className="text-body-sm text-fg-lighter w-36 text-center">
                 {MONTH_NAMES[calendarMonth.month - 1]} {calendarMonth.year}
               </span>
               <IconButton
@@ -161,20 +160,20 @@ export function PricingPage() {
             </div>
           </div>
 
-          <div className="flex-1 min-h-0 rounded-xl bg-gray-750 border border-gray-500/50 flex flex-col overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-500/40 flex items-center justify-between gap-4">
-              <span className="text-sm text-primary">
+          <div className="flex-1 min-h-0 rounded-xl bg-bg-bolder border border-bd-moderate flex flex-col overflow-hidden">
+            <div className="px-4 py-3 border-b border-bd-faint flex items-center justify-between gap-4">
+              <span className="text-body-sm text-fg-lighter">
                 Servers{" "}
-                <span className="text-gray-300">[{visibleEntries.length}]</span>
+                <span className="text-fg-medium">[{visibleEntries.length}]</span>
               </span>
               {!isLoading && visibleEntries.length > 0 && (
                 <div className="flex items-baseline gap-2">
-                  <span className="text-xs text-gray-300">Total</span>
-                  <span className="text-lg text-primary tabular-nums">
+                  <span className="text-caption text-fg-medium">Total</span>
+                  <span className="text-feature text-fg-lighter tabular-nums">
                     ${totalCost.toFixed(4)}
                   </span>
                   {unknownPricingCount > 0 && (
-                    <span className="text-xs text-gray-400">
+                    <span className="text-caption text-fg-moderate">
                       excludes {unknownPricingCount} with unknown pricing
                     </span>
                   )}
@@ -184,15 +183,15 @@ export function PricingPage() {
 
             {isLoading ? (
               <div className="flex-1 flex items-center justify-center">
-                <Spinner size="w-6 h-6" color="border-gray-400" />
+                <Spinner size="w-6 h-6" color="border-bd-strong" />
               </div>
             ) : visibleEntries.length === 0 ? (
               <EmptyExpenses />
             ) : (
               <div className="flex-1 min-h-0 overflow-auto">
                 <table className="w-full min-w-[780px]">
-                  <thead className="sticky top-0 z-10 bg-gray-750">
-                    <tr className="text-xs text-gray-300 border-b border-gray-500/40">
+                  <thead className="sticky top-0 z-10 bg-bg-bolder">
+                    <tr className="text-caption text-fg-medium border-b border-bd-faint">
                       {TABLE_COLUMNS.map((column, index) => (
                         <th
                           key={index}
@@ -221,12 +220,12 @@ export function PricingPage() {
 function EmptyExpenses() {
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center">
-      <div className="w-16 h-16 rounded-xl border border-dashed border-gray-500 flex items-center justify-center">
-        <Wallet size={28} strokeWidth={1.25} className="text-gray-500" />
+      <div className="w-16 h-16 rounded-xl border border-dashed border-bd-moderate flex items-center justify-center">
+        <Wallet size={28} strokeWidth={1.25} className="text-fg-moderate" />
       </div>
       <div className="flex flex-col gap-1">
-        <h2 className="text-sm text-primary">No expenses</h2>
-        <p className="text-xs text-gray-300">
+        <h2 className="text-body-sm text-fg-lighter">No expenses</h2>
+        <p className="text-caption text-fg-medium">
           No servers were launched in this period.
         </p>
       </div>

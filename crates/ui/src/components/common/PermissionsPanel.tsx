@@ -1,7 +1,8 @@
 import { Check, X } from "lucide-react";
 import { Permissions } from "../../types";
 import { Spinner } from "../primitives/Spinner";
-import { Alert } from "../primitives/Alert";
+import { Tag } from "../primitives/Tag";
+import { Banner } from "../primitives/Banner";
 
 interface PermissionsPanelProps {
   permissions: Permissions | null;
@@ -16,15 +17,15 @@ export function PermissionsPanel({
 }: PermissionsPanelProps) {
   if (isVerifying) {
     return (
-      <div className="flex items-center gap-2 text-sm text-gray-300">
-        <Spinner color="border-gray-400" />
+      <div className="flex items-center gap-2 text-body-sm text-fg-medium">
+        <Spinner color="border-bd-strong" />
         Verifying permissions
       </div>
     );
   }
 
   if (error) {
-    return <Alert variant="error">{error}</Alert>;
+    return <Banner variant="danger">{error}</Banner>;
   }
 
   if (!permissions) {
@@ -35,28 +36,24 @@ export function PermissionsPanel({
   const allGranted = missingCount === 0;
 
   return (
-    <div className="rounded-xl border border-gray-500/50 bg-gray-750 p-4 flex flex-col gap-3">
+    <div className="rounded-xl border border-bd-moderate bg-bg-bolder p-4 flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm text-primary">Permissions</h4>
+        <h4 className="text-body-sm text-fg-lighter">Permissions</h4>
         {allGranted ? (
-          <span className="px-2 py-0.5 rounded-full bg-success-900/50 text-[11px] text-success-300">
-            All {permissions.length} granted
-          </span>
+          <Tag tone="success">All {permissions.length} granted</Tag>
         ) : (
-          <span className="px-2 py-0.5 rounded-full bg-warning-900/50 text-[11px] text-warning-300">
-            {missingCount} missing
-          </span>
+          <Tag tone="warning">{missingCount} missing</Tag>
         )}
       </div>
       <ul className="flex flex-col gap-1.5">
         {permissions.map((status) => (
-          <li key={status.permission} className="flex items-center gap-2 text-xs">
+          <li key={status.permission} className="flex items-center gap-2 text-caption">
             {status.granted ? (
-              <Check size={14} className="text-success-400 flex-shrink-0" />
+              <Check size={14} className="text-fg-success-moderate flex-shrink-0" />
             ) : (
-              <X size={14} className="text-danger-400 flex-shrink-0" />
+              <X size={14} className="text-fg-danger-moderate flex-shrink-0" />
             )}
-            <span className={status.granted ? "text-gray-200" : "text-danger-300"}>
+            <span className={status.granted ? "text-fg-medium" : "text-fg-danger-moderate"}>
               {status.permission}
             </span>
           </li>

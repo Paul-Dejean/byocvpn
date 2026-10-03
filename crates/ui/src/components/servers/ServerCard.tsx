@@ -6,6 +6,7 @@ import { useInstanceCost } from "../../hooks/useInstanceCost";
 import { formatDuration } from "../../lib/time";
 import { Button } from "../primitives/Button";
 import { Spinner } from "../primitives/Spinner";
+import { Tag } from "../primitives/Tag";
 import { ServerLocation } from "./ServerLocation";
 import { DisconnectReminder } from "./DisconnectReminder";
 
@@ -39,18 +40,22 @@ export function ServerCard({
   const canConnect = instance.state === InstanceState.Running && !isConnected;
 
   return (
-    <div className="rounded-xl bg-gray-700 border border-gray-500/60 flex flex-col gap-3">
+    <div className="rounded-xl bg-bg-medium border border-bd-moderate flex flex-col gap-3">
       <div className="px-4 pt-4 flex flex-col gap-4">
         <div className="flex items-center justify-between gap-3 h-5">
           <ServerLocation provider={instance.provider} region={instance.region} />
-          {isConnected && <ConnectedBadge />}
+          {isConnected && (
+            <Tag tone="success" dot>
+              Connected
+            </Tag>
+          )}
           {isInstalling && (
-            <span className="flex items-center gap-1.5 text-xs text-blue-300">
-              <Spinner size="w-3 h-3" color="border-blue-300" />
+            <span className="flex items-center gap-1.5 text-caption text-fg-brand">
+              <Spinner size="w-3 h-3" color="border-bd-brand" />
               Installing the VPN software
             </span>
           )}
-          {hasError && <span className="text-xs text-danger-400">Error</span>}
+          {hasError && <span className="text-caption text-fg-danger-moderate">Error</span>}
         </div>
 
         <div className="flex items-center gap-8">
@@ -68,7 +73,7 @@ export function ServerCard({
             type="button"
             onClick={() => setIsExpanded((previous) => !previous)}
             aria-label={isExpanded ? "Hide details" : "Show details"}
-            className="ml-auto text-gray-300 hover:text-primary transition-colors"
+            className="ml-auto text-fg-medium hover:text-fg-lighter transition-colors"
           >
             <ChevronRight
               size={16}
@@ -78,7 +83,7 @@ export function ServerCard({
         </div>
 
         {isExpanded && (
-          <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-xs">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-caption">
             <Detail label="Instance ID" value={instance.id} />
             <Detail label="Type" value={instance.instanceType} />
             <Detail label="IPv4" value={instance.publicIpV4} />
@@ -87,34 +92,32 @@ export function ServerCard({
         )}
 
         {hasError && instance.errorReason && (
-          <p className="text-xs text-danger-300">{instance.errorReason}</p>
+          <p className="text-caption text-fg-danger-moderate">{instance.errorReason}</p>
         )}
 
         {!isTerminating && <DisconnectReminder instanceId={instance.id} />}
       </div>
 
-      <div className="border-t border-gray-500/60" />
+      <div className="border-t border-bd-moderate" />
 
       <div className="px-4 pb-3 flex items-center gap-2">
         <Button
           variant="secondary"
-          size="none"
+          size="lg"
           loading={isTerminating}
           disabledStyle="dim"
           onClick={() => onTerminate(instance)}
-          className="h-7 px-3 text-sm"
         >
           Terminate server
         </Button>
         {!isInstalling && (
           <Button
             variant="primary"
-            size="none"
+            size="lg"
             loading={isConnecting}
             disabled={!canConnect}
             disabledStyle="dim"
             onClick={() => onConnect(instance)}
-            className="h-7 px-3 text-sm"
           >
             Connect to VPN
           </Button>
@@ -124,14 +127,6 @@ export function ServerCard({
   );
 }
 
-function ConnectedBadge() {
-  return (
-    <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-success-900/50 text-xs text-success-300">
-      <span className="w-1.5 h-1.5 rounded-full bg-success-400" />
-      Connected
-    </span>
-  );
-}
 
 interface MetricProps {
   label: string;
@@ -142,9 +137,9 @@ interface MetricProps {
 function Metric({ label, icon, value }: MetricProps) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-xs text-gray-300">{label}</span>
-      <span className="flex items-center gap-1.5 text-lg leading-[26px] text-primary tabular-nums">
-        <span className="text-gray-300">{icon}</span>
+      <span className="text-caption text-fg-medium">{label}</span>
+      <span className="flex items-center gap-1.5 text-feature leading-[26px] text-fg-lighter tabular-nums">
+        <span className="text-fg-medium">{icon}</span>
         {value}
       </span>
     </div>
@@ -159,8 +154,8 @@ interface DetailProps {
 function Detail({ label, value }: DetailProps) {
   return (
     <>
-      <dt className="text-gray-300">{label}</dt>
-      <dd className="text-primary truncate">{value || "—"}</dd>
+      <dt className="text-fg-medium">{label}</dt>
+      <dd className="text-fg-lighter truncate">{value || "—"}</dd>
     </>
   );
 }

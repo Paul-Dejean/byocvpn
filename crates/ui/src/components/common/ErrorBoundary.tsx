@@ -40,31 +40,31 @@ export class ErrorBoundary extends Component<
     if (this.state.hasError) {
       return (
         <div className="h-full flex items-center justify-center p-6">
-          <div className="w-full max-w-md rounded-xl bg-gray-750 border border-danger-700/50 p-6 flex flex-col gap-4">
+          <div className="w-full max-w-md rounded-xl bg-bg-bolder border border-bd-danger p-6 flex flex-col gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-danger-900/40 flex items-center justify-center flex-shrink-0">
-                <AlertTriangle size={18} className="text-danger-400" />
+              <div className="w-9 h-9 rounded-lg bg-bg-danger-faint flex items-center justify-center flex-shrink-0">
+                <AlertTriangle size={18} className="text-fg-danger-moderate" />
               </div>
-              <h1 className="text-base font-medium text-primary">
+              <h1 className="text-body font-medium text-fg-lighter">
                 Something went wrong
               </h1>
             </div>
 
-            <p className="text-sm text-gray-300">
+            <p className="text-body-sm text-fg-medium">
               The application encountered an unexpected error. This has been
               logged for investigation.
             </p>
 
             {this.state.error && (
               <details>
-                <summary className="cursor-pointer text-xs text-gray-300 hover:text-primary">
+                <summary className="cursor-pointer text-caption text-fg-medium hover:text-fg-lighter">
                   Technical details
                 </summary>
-                <div className="mt-2 rounded-lg bg-gray-800 border border-gray-500/40 p-3 text-xs font-mono text-danger-300 overflow-auto max-h-40">
+                <div className="mt-2 rounded-lg bg-bg-strong border border-bd-faint p-3 text-caption font-mono text-fg-danger-moderate overflow-auto max-h-40">
                   <p className="font-semibold">{this.state.error.name}</p>
-                  <p className="text-gray-300">{this.state.error.message}</p>
+                  <p className="text-fg-medium">{this.state.error.message}</p>
                   {this.state.error.stack && (
-                    <pre className="mt-2 text-gray-400">{this.state.error.stack}</pre>
+                    <pre className="mt-2 text-fg-moderate">{this.state.error.stack}</pre>
                   )}
                 </div>
               </details>
@@ -73,17 +73,17 @@ export class ErrorBoundary extends Component<
             <div className="flex gap-3">
               <Button
                 variant="primary"
-                size="none"
+                size="lg"
                 onClick={this.handleReset}
-                className="flex-1 py-2 text-sm"
+                className="flex-1"
               >
                 Try again
               </Button>
               <Button
                 variant="secondary"
-                size="none"
+                size="lg"
                 onClick={this.handleReload}
-                className="flex-1 py-2 text-sm"
+                className="flex-1"
               >
                 Reload app
               </Button>

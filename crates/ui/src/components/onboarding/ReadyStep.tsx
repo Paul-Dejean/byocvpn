@@ -1,7 +1,7 @@
 import { Instance } from "../../types";
 import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
 import { Button } from "../primitives/Button";
-import { Alert } from "../primitives/Alert";
+import { Banner } from "../primitives/Banner";
 import { ServerLocation } from "../servers/ServerLocation";
 import { OnboardingHeading } from "./OnboardingHeading";
 
@@ -25,18 +25,18 @@ export function ReadyStep({ instance, onConnected }: ReadyStepProps) {
         subtitle="Your server is ready. Connect to activate your VPN protection."
       />
 
-      <div className="w-[486px] rounded-xl bg-gray-750 border border-gray-500/50 p-4 flex flex-col gap-4">
+      <div className="w-[486px] rounded-xl bg-bg-bolder border border-bd-moderate p-4 flex flex-col gap-4">
         <ServerLocation provider={instance.provider} region={instance.region} size="lg" />
         <Button
           variant="primary"
-          size="none"
+          size="lg"
           loading={isConnecting}
           onClick={handleSecureConnection}
-          className="w-full py-2 text-sm"
+          className="w-full"
         >
           Secure my connection
         </Button>
-        {error && <Alert variant="error">{error}</Alert>}
+        {error && <Banner variant="danger">{error}</Banner>}
       </div>
     </div>
   );

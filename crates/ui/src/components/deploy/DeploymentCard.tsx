@@ -21,29 +21,28 @@ export function DeploymentCard({
   onDismiss,
 }: DeploymentCardProps) {
   return (
-    <div className="rounded-xl bg-gray-700 border border-gray-500/60 flex flex-col gap-3">
+    <div className="rounded-xl bg-bg-medium border border-bd-moderate flex flex-col gap-3">
       <div className={`px-4 pt-4 flex flex-col gap-4 ${hasFailed ? "" : "pb-4"}`}>
         <div className="flex items-center justify-between gap-3 h-5">
           <ServerLocation provider={provider} region={region} />
-          {hasFailed && <span className="text-xs text-danger-400">Failed</span>}
+          {hasFailed && <span className="text-caption text-fg-danger-moderate">Failed</span>}
         </div>
 
         <DeploymentStepList steps={steps} compact />
 
         {hasFailed && error && (
-          <p className="text-xs text-danger-300">{error}</p>
+          <p className="text-caption text-fg-danger-moderate">{error}</p>
         )}
       </div>
 
       {hasFailed && (
         <>
-          <div className="border-t border-gray-500/60" />
+          <div className="border-t border-bd-moderate" />
           <div className="px-4 pb-3">
             <Button
               variant="secondary"
-              size="none"
+              size="lg"
               onClick={onDismiss}
-              className="h-7 px-3 text-sm"
             >
               Dismiss
             </Button>

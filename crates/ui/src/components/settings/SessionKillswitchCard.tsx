@@ -44,7 +44,7 @@ export function SessionKillswitchCard() {
         />
       }
     >
-      <p className="text-xs text-gray-400">
+      <p className="text-caption text-fg-moderate">
         Only allows the VPN tunnel and local traffic while connected, so your
         real IP address is never leaked. If the tunnel drops, all other traffic
         is blocked until you reconnect or disconnect.

@@ -12,10 +12,10 @@ export function FilterChip({ selected, onClick, children }: FilterChipProps) {
       type="button"
       onClick={onClick}
       aria-pressed={selected}
-      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border transition-colors ${
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-caption border transition-colors ${
         selected
-          ? "bg-gray-700 border-blue-500 text-primary"
-          : "bg-gray-750 border-gray-500/60 text-gray-200 hover:bg-gray-700 hover:text-primary"
+          ? "bg-bg-medium border-bd-brand text-fg-lighter"
+          : "bg-bg-bolder border-bd-moderate text-fg-medium hover:bg-bg-medium hover:text-fg-lighter"
       }`}
     >
       {children}

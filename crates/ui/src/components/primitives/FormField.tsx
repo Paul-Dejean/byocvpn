@@ -23,11 +23,11 @@ export function FormField({
   placeholder,
   rows = 4,
 }: FormFieldProps) {
-  const inputClasses = `input ${mono ? "font-mono text-xs" : ""}`;
+  const inputClasses = `input ${mono ? "font-mono text-caption" : ""}`;
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-xs text-gray-200">{label}</label>
+      <label className="text-caption text-fg-medium">{label}</label>
       {multiline ? (
         <textarea
           value={value}
@@ -45,8 +45,8 @@ export function FormField({
           className={inputClasses}
         />
       )}
-      {hint && placeholder && <p className="text-xs text-gray-400">{hint}</p>}
-      {error && <p className="text-xs text-danger-400">{error}</p>}
+      {hint && placeholder && <p className="text-caption text-fg-moderate">{hint}</p>}
+      {error && <p className="text-caption text-fg-danger-moderate">{error}</p>}
     </div>
   );
 }

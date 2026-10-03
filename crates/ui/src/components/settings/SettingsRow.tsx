@@ -19,12 +19,12 @@ export function SettingsRow({
     <div className="p-4 flex flex-col gap-3">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-lg bg-gray-700 border border-gray-500/60 flex items-center justify-center flex-shrink-0 text-gray-200">
+          <div className="w-9 h-9 rounded-lg bg-bg-medium border border-bd-moderate flex items-center justify-center flex-shrink-0 text-fg-medium">
             {icon}
           </div>
           <div className="min-w-0 flex flex-col gap-0.5">
-            <h3 className="text-sm text-primary">{title}</h3>
-            <p className="text-xs text-gray-300">{description}</p>
+            <h3 className="text-body-sm text-fg-lighter">{title}</h3>
+            <p className="text-caption text-fg-medium">{description}</p>
           </div>
         </div>
         {control}

@@ -16,7 +16,7 @@ import { DeploymentCard } from "../components/deploy/DeploymentCard";
 import { DeployServerModal } from "../components/deploy/DeployServerModal";
 import { UnprotectedPanel } from "../components/vpn/UnprotectedPanel";
 import { ProtectedPanel } from "../components/vpn/ProtectedPanel";
-import { Alert } from "../components/primitives/Alert";
+import { Banner } from "../components/primitives/Banner";
 import { Button } from "../components/primitives/Button";
 import { Spinner } from "../components/primitives/Spinner";
 
@@ -95,24 +95,24 @@ export function ServersPage() {
   return (
     <div className="flex h-full min-h-0 gap-3">
       <section
-        className="flex-shrink-0 min-h-0 flex flex-col gap-3 rounded-lg bg-gray-750 p-3"
+        className="flex-shrink-0 min-h-0 flex flex-col gap-3 rounded-lg bg-bg-bolder p-3"
         style={{ width: SERVERS_PANEL_WIDTH }}
       >
         <header className="flex flex-col gap-1">
-          <h1 className="text-sm font-medium text-primary">
+          <h1 className="text-body-sm font-medium text-fg-lighter">
             Active servers{" "}
-            <span className="text-gray-300 font-normal">[{instances.length}]</span>
+            <span className="text-fg-medium font-normal">[{instances.length}]</span>
           </h1>
-          <p className="text-xs text-gray-300">
+          <p className="text-caption text-fg-medium">
             Terminate unused servers to stop charges.
           </p>
         </header>
 
-        {vpnError && <Alert variant="error">{vpnError}</Alert>}
+        {vpnError && <Banner variant="danger">{vpnError}</Banner>}
 
         {isLoading && !hasServers ? (
           <div className="flex-1 flex items-center justify-center">
-            <Spinner size="w-6 h-6" color="border-gray-400" />
+            <Spinner size="w-6 h-6" color="border-bd-strong" />
           </div>
         ) : hasServers ? (
           <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3">
@@ -162,10 +162,10 @@ export function ServersPage() {
         {hasServers && (
           <Button
             variant="secondary"
-            size="none"
+            size="lg"
             onClick={openDeployModal}
             icon={<Plus size={14} />}
-            className="w-full h-7 text-sm"
+            className="w-full"
           >
             Add server
           </Button>
@@ -173,7 +173,7 @@ export function ServersPage() {
       </section>
 
       <aside
-        className="flex-shrink-0 min-h-0 rounded-lg bg-gray-750 py-3 px-4"
+        className="flex-shrink-0 min-h-0 rounded-lg bg-bg-bolder py-3 px-4"
         style={{ width: STATUS_PANEL_WIDTH }}
       >
         {connectedInstance ? (

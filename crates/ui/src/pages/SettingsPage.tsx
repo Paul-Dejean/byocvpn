@@ -125,8 +125,8 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
   return (
     <div className="flex flex-col h-full gap-3">
       <header className="flex flex-col gap-1">
-        <h1 className="text-sm font-medium text-primary">Settings</h1>
-        <p className="text-xs text-gray-300">
+        <h1 className="text-body-sm font-medium text-fg-lighter">Settings</h1>
+        <p className="text-caption text-fg-medium">
           Manage your cloud accounts and how ByocVPN behaves.
         </p>
       </header>
@@ -181,16 +181,15 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
             />
           )}
           {!hasConfiguredAccount && (
-            <p className="p-4 text-xs text-gray-300">No cloud account connected yet.</p>
+            <p className="p-4 text-caption text-fg-medium">No cloud account connected yet.</p>
           )}
           {canAddAccount && (
             <div className="p-4">
               <Button
                 variant="secondary"
-                size="none"
+                size="lg"
                 onClick={onNavigateToAddAccount}
                 icon={<Plus size={14} />}
-                className="px-3 py-1.5 text-sm"
               >
                 Add account
               </Button>

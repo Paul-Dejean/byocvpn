@@ -9,7 +9,7 @@ export function Toggle({ checked, onChange, ariaLabel }: ToggleProps) {
     <button
       onClick={onChange}
       className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
-        checked ? "bg-blue-600" : "bg-gray-600"
+        checked ? "bg-bg-brand-bolder" : "bg-bg-lighter"
       }`}
       aria-label={ariaLabel}
     >

@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { ArrowLeft, Check, Copy, Download, FileText, Upload } from "lucide-react";
 import { Button } from "../components/primitives/Button";
 import { IconButton } from "../components/primitives/IconButton";
-import { Alert } from "../components/primitives/Alert";
+import { Banner } from "../components/primitives/Banner";
 import { FormField } from "../components/primitives/FormField";
 import { commands } from "../bindings";
 import { fromPromise } from "../lib/result";
@@ -428,10 +428,10 @@ export function AddAccountPage({
           <ArrowLeft size={18} />
         </IconButton>
         <div className="flex flex-col gap-0.5">
-          <h1 className="text-base font-medium text-primary">
+          <h1 className="text-body font-medium text-fg-lighter">
             {selectedProvider ? `Connect ${PROVIDER_METADATA[selectedProvider].label}` : ""}
           </h1>
-          <p className="text-xs text-gray-300">
+          <p className="text-caption text-fg-medium">
             Your credentials stay on your device. We never store them.
           </p>
         </div>
@@ -494,22 +494,22 @@ function CredentialsStep({
   return (
     <div className="flex gap-4 items-start">
       <div className="flex-1 min-w-0 flex flex-col gap-4">
-        <section className="rounded-xl bg-gray-750 border border-gray-500/50 p-4 flex flex-col gap-4">
-          <h2 className="text-sm text-primary">{instructions.title}</h2>
+        <section className="rounded-xl bg-bg-bolder border border-bd-moderate p-4 flex flex-col gap-4">
+          <h2 className="text-body-sm text-fg-lighter">{instructions.title}</h2>
           <ol className="flex flex-col gap-3">
             {instructions.steps.map((setupStep) => (
               <li key={setupStep.number} className="flex gap-3">
-                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-gray-700 border border-gray-500/60 text-gray-200 text-[11px] flex items-center justify-center mt-0.5">
+                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-bg-medium border border-bd-moderate text-fg-medium text-[11px] flex items-center justify-center mt-0.5">
                   {setupStep.number}
                 </span>
-                <p className="text-xs text-gray-300 leading-relaxed">{setupStep.text}</p>
+                <p className="text-caption text-fg-medium leading-relaxed">{setupStep.text}</p>
               </li>
             ))}
           </ol>
         </section>
 
-        <section className="rounded-xl bg-gray-750 border border-gray-500/50 p-4 flex flex-col gap-4">
-          <h2 className="text-sm text-primary">Credentials</h2>
+        <section className="rounded-xl bg-bg-bolder border border-bd-moderate p-4 flex flex-col gap-4">
+          <h2 className="text-body-sm text-fg-lighter">Credentials</h2>
 
           {provider === CloudProviderName.Aws && (
             <AwsCredentialsForm
@@ -700,16 +700,15 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
       />
       <div>
         <div className="flex items-center justify-between mb-1">
-          <label className="text-xs text-gray-200">
+          <label className="text-caption text-fg-medium">
             Private Key (.pem)
           </label>
           <Button
             variant="secondary"
-            size="none"
+            size="md"
             type="button"
             onClick={() => pemFileInputRef.current?.click()}
             icon={<Upload size={12} />}
-            className="text-xs px-2.5 py-1"
           >
             Load from file
           </Button>
@@ -726,7 +725,7 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
           onChange={(e) => setPrivateKeyPem(e.target.value)}
           rows={5}
           placeholder="-----BEGIN RSA PRIVATE KEY-----"
-          className="input font-mono text-xs resize-none"
+          className="input font-mono text-caption resize-none"
         />
       </div>
     </CredentialsFormShell>
@@ -793,16 +792,15 @@ function GcpCredentialsForm({
       />
       <div>
         <div className="flex items-center justify-between mb-1">
-          <label className="text-xs text-gray-200">
+          <label className="text-caption text-fg-medium">
             Service Account Key (.json)
           </label>
           <Button
             variant="secondary"
-            size="none"
+            size="md"
             type="button"
             onClick={() => fileInputRef.current?.click()}
             icon={<Upload size={12} />}
-            className="text-xs px-2.5 py-1"
           >
             Load from file
           </Button>
@@ -819,7 +817,7 @@ function GcpCredentialsForm({
           onChange={(e) => setServiceAccountJson(e.target.value)}
           rows={6}
           placeholder='{"type":"service_account","project_id":"..."}'
-          className="input font-mono text-xs resize-none"
+          className="input font-mono text-caption resize-none"
         />
       </div>
     </CredentialsFormShell>
@@ -934,34 +932,33 @@ function PolicyBox({ policy }: PolicyBoxProps) {
   };
 
   return (
-    <div className="rounded-xl bg-gray-750 border border-gray-500/50 overflow-hidden flex flex-col max-h-[560px]">
-      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-500/40">
+    <div className="rounded-xl bg-bg-bolder border border-bd-moderate overflow-hidden flex flex-col max-h-[560px]">
+      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-bd-faint">
         <div className="flex items-center gap-2 min-w-0">
-          <FileText size={14} className="text-gray-300 flex-shrink-0" />
-          <span className="text-xs text-gray-200 font-mono truncate">{policy.filename}</span>
+          <FileText size={14} className="text-fg-medium flex-shrink-0" />
+          <span className="text-caption text-fg-medium font-mono truncate">{policy.filename}</span>
         </div>
         <div className="flex items-center gap-2">
           <Button
             variant="secondary"
-            size="none"
+            size="lg"
             onClick={handleCopy}
-            icon={copied ? <Check size={14} className="text-success-400" /> : <Copy size={14} />}
-            className="px-2.5 py-1 text-xs"
+            icon={copied ? <Check size={14} className="text-fg-success-moderate" /> : <Copy size={14} />}
+            className="px-2.5 py-1 text-caption"
           >
             {copied ? "Copied" : "Copy"}
           </Button>
           <Button
             variant="secondary"
-            size="none"
+            size="md"
             onClick={handleDownload}
             icon={<Download size={14} />}
-            className="px-2.5 py-1 text-xs"
           >
             Download
           </Button>
         </div>
       </div>
-      <pre className="p-4 text-xs font-mono text-gray-300 overflow-auto flex-1 leading-relaxed">
+      <pre className="p-4 text-caption font-mono text-fg-medium overflow-auto flex-1 leading-relaxed">
         {policy.content}
       </pre>
     </div>
@@ -989,25 +986,25 @@ function CredentialsFormShell({
     <div className="flex flex-col gap-4">
       {children}
 
-      {error && <Alert variant="error">{error}</Alert>}
+      {error && <Banner variant="danger">{error}</Banner>}
 
       <div className="flex gap-3 pt-1">
         <Button
           variant="secondary"
-          size="none"
+          size="lg"
           onClick={onCancel}
-          className="flex-1 py-2 text-sm"
+          className="flex-1"
         >
           Back
         </Button>
         <Button
           variant="primary"
-          size="none"
+          size="lg"
           onClick={onSubmit}
           loading={isSaving}
           disabled={!isFormValid}
           disabledStyle="dim"
-          className="flex-1 py-2 text-sm"
+          className="flex-1"
         >
           {isSaving ? "Saving" : "Connect"}
         </Button>

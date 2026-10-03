@@ -7,7 +7,7 @@ interface DeploymentStepListProps {
 }
 
 export function DeploymentStepList({ steps, compact = false }: DeploymentStepListProps) {
-  const textSize = compact ? "text-xs" : "text-sm";
+  const textSize = compact ? "text-caption" : "text-body-sm";
   const gap = compact ? "gap-2" : "gap-4";
 
   return (
@@ -23,21 +23,21 @@ export function DeploymentStepList({ steps, compact = false }: DeploymentStepLis
 }
 
 const STEP_LABEL_CLASSES: Record<JobStepStatus, string> = {
-  [JobStepStatus.Pending]: "text-gray-300",
-  [JobStepStatus.Running]: "text-primary",
-  [JobStepStatus.Completed]: "text-gray-200",
-  [JobStepStatus.Failed]: "text-danger-300",
+  [JobStepStatus.Pending]: "text-fg-medium",
+  [JobStepStatus.Running]: "text-fg-lighter",
+  [JobStepStatus.Completed]: "text-fg-medium",
+  [JobStepStatus.Failed]: "text-fg-danger-moderate",
 };
 
 function StepIcon({ status, size }: { status: JobStepStatus; size: number }) {
   switch (status) {
     case JobStepStatus.Running:
-      return <Sparkles size={size} className="text-blue-400 animate-pulse flex-shrink-0" />;
+      return <Sparkles size={size} className="text-fg-brand animate-pulse flex-shrink-0" />;
     case JobStepStatus.Completed:
-      return <Check size={size} className="text-success-400 flex-shrink-0" />;
+      return <Check size={size} className="text-fg-success-moderate flex-shrink-0" />;
     case JobStepStatus.Failed:
-      return <X size={size} className="text-danger-400 flex-shrink-0" />;
+      return <X size={size} className="text-fg-danger-moderate flex-shrink-0" />;
     case JobStepStatus.Pending:
-      return <Circle size={size} className="text-blue-400 flex-shrink-0" />;
+      return <Circle size={size} className="text-fg-brand flex-shrink-0" />;
   }
 }

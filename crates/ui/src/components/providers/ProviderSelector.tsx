@@ -77,15 +77,15 @@ export function ProviderSelector({
           <ArrowLeft size={18} />
         </IconButton>
         <div className="flex flex-col gap-0.5">
-          <h1 className="text-base font-medium text-primary">{title}</h1>
-          <p className="text-xs text-gray-300">{subtitle}</p>
+          <h1 className="text-body font-medium text-fg-lighter">{title}</h1>
+          <p className="text-caption text-fg-medium">{subtitle}</p>
         </div>
       </header>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
-            <Spinner size="w-6 h-6" color="border-gray-400" />
+            <Spinner size="w-6 h-6" color="border-bd-strong" />
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 max-w-2xl">
@@ -94,18 +94,18 @@ export function ProviderSelector({
                 key={provider.name}
                 type="button"
                 onClick={() => onSelectProvider(provider.name)}
-                className="group flex items-center gap-3 p-4 rounded-xl bg-gray-750 border border-gray-500/50 hover:bg-gray-700 hover:border-gray-500 text-left transition-colors"
+                className="group flex items-center gap-3 p-4 rounded-xl bg-bg-bolder border border-bd-moderate hover:bg-bg-medium hover:border-bd-moderate text-left transition-colors"
               >
-                <div className="w-10 h-10 rounded-lg bg-gray-700 border border-gray-500/60 flex items-center justify-center p-2 flex-shrink-0">
+                <div className="w-10 h-10 rounded-lg bg-bg-medium border border-bd-moderate flex items-center justify-center p-2 flex-shrink-0">
                   <ProviderIcon provider={provider.name} className="w-full h-full" />
                 </div>
                 <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                  <span className="text-sm text-primary">{provider.label}</span>
-                  <span className="text-xs text-gray-300 truncate">{provider.description}</span>
+                  <span className="text-body-sm text-fg-lighter">{provider.label}</span>
+                  <span className="text-caption text-fg-medium truncate">{provider.description}</span>
                 </div>
                 <ChevronRight
                   size={16}
-                  className="text-gray-400 group-hover:text-primary transition-colors flex-shrink-0"
+                  className="text-fg-moderate group-hover:text-fg-lighter transition-colors flex-shrink-0"
                 />
               </button>
             ))}

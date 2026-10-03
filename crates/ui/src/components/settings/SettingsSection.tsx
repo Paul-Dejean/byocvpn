@@ -14,10 +14,10 @@ export function SettingsSection({
   return (
     <section className="flex flex-col gap-3">
       <div className="flex flex-col gap-0.5">
-        <h2 className="text-sm font-medium text-primary">{title}</h2>
-        {description && <p className="text-xs text-gray-300">{description}</p>}
+        <h2 className="text-body-sm font-medium text-fg-lighter">{title}</h2>
+        {description && <p className="text-caption text-fg-medium">{description}</p>}
       </div>
-      <div className="rounded-xl bg-gray-750 border border-gray-500/50 divide-y divide-gray-500/40">
+      <div className="rounded-xl bg-bg-bolder border border-bd-moderate divide-y divide-bd-faint">
         {children}
       </div>
     </section>

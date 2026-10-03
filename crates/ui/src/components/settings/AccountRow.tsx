@@ -4,6 +4,7 @@ import { ProviderIcon } from "../providers/ProviderIcon";
 import { Spinner } from "../primitives/Spinner";
 import { Button } from "../primitives/Button";
 import { IconButton } from "../primitives/IconButton";
+import { Tag } from "../primitives/Tag";
 
 interface AccountRowProps {
   provider: CloudProviderName;
@@ -35,7 +36,7 @@ export function AccountRow({
       <div className="flex items-center gap-3 min-w-0">
         <AccountIconTile provider={provider} />
         <div className="flex items-center gap-2 min-w-0">
-          <h3 className="text-sm text-primary truncate">{title}</h3>
+          <h3 className="text-body-sm text-fg-lighter truncate">{title}</h3>
           {hasCredentials && (
             <StatusPill isProvisioned={isProvisioned} />
           )}
@@ -43,25 +44,23 @@ export function AccountRow({
       </div>
 
       {hasCredentials === null ? (
-        <Spinner color="border-gray-400" />
+        <Spinner color="border-bd-strong" />
       ) : hasCredentials ? (
         <div className="flex items-center gap-2">
           {isConfirmingDelete ? (
             <>
-              <span className="text-xs text-gray-300">Delete credentials?</span>
+              <span className="text-caption text-fg-medium">Delete credentials?</span>
               <Button
                 variant="secondary"
-                size="none"
+                size="lg"
                 onClick={onCancelDelete}
-                className="px-3 py-1.5 text-sm"
               >
                 Cancel
               </Button>
               <Button
                 variant="danger"
-                size="none"
+                size="lg"
                 onClick={onConfirmDelete}
-                className="px-3 py-1.5 text-sm"
               >
                 Confirm
               </Button>
@@ -86,10 +85,9 @@ export function AccountRow({
               </IconButton>
               <Button
                 variant="secondary"
-                size="none"
+                size="lg"
                 onClick={onEdit}
                 icon={<Pencil size={14} />}
-                className="px-3 py-1.5 text-sm"
               >
                 Edit
               </Button>
@@ -99,10 +97,9 @@ export function AccountRow({
       ) : (
         <Button
           variant="primary"
-          size="none"
+          size="lg"
           onClick={onEdit}
           icon={<Plus size={14} />}
-          className="px-3 py-1.5 text-sm"
         >
           Add account
         </Button>
@@ -113,7 +110,7 @@ export function AccountRow({
 
 export function AccountIconTile({ provider }: { provider: CloudProviderName }) {
   return (
-    <div className="w-9 h-9 rounded-lg bg-gray-700 border border-gray-500/60 flex items-center justify-center flex-shrink-0 p-2">
+    <div className="w-9 h-9 rounded-lg bg-bg-medium border border-bd-moderate flex items-center justify-center flex-shrink-0 p-2">
       <ProviderIcon provider={provider} className="w-full h-full" />
     </div>
   );
@@ -121,12 +118,8 @@ export function AccountIconTile({ provider }: { provider: CloudProviderName }) {
 
 function StatusPill({ isProvisioned }: { isProvisioned: boolean }) {
   return isProvisioned ? (
-    <span className="px-2 py-0.5 rounded-full bg-success-900/50 text-[11px] text-success-300 flex-shrink-0">
-      Provisioned
-    </span>
+    <Tag tone="success">Provisioned</Tag>
   ) : (
-    <span className="px-2 py-0.5 rounded-full bg-warning-900/50 text-[11px] text-warning-300 flex-shrink-0">
-      Not provisioned
-    </span>
+    <Tag tone="warning">Not provisioned</Tag>
   );
 }

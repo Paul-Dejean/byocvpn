@@ -3,7 +3,7 @@ import { useCredentials } from "../../hooks";
 import { CloudProviderName } from "../../types";
 import { Button } from "../primitives/Button";
 import { AccountIconTile, AccountRow } from "./AccountRow";
-import { Alert } from "../primitives/Alert";
+import { Banner } from "../primitives/Banner";
 import { FormField } from "../primitives/FormField";
 
 interface AzureAccountCardProps {
@@ -122,10 +122,10 @@ export function AzureAccountCard({
           <div className="flex items-center gap-3">
             <AccountIconTile provider={CloudProviderName.Azure} />
             <div>
-              <h3 className="text-sm text-primary">
+              <h3 className="text-body-sm text-fg-lighter">
                 {hasCredentials ? "Edit Azure Account" : "Add Azure Account"}
               </h3>
-              <p className="text-xs text-gray-300">
+              <p className="text-caption text-fg-medium">
                 {hasCredentials
                   ? "Update your Azure service-principal credentials"
                   : "Enter your Azure service-principal credentials"}
@@ -165,17 +165,17 @@ export function AzureAccountCard({
             />
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
+              <label className="block text-body-sm font-medium text-fg-medium mb-1">
                 Secret Value
               </label>
               {secretAlreadySet && !formFields.secretValue && (
-                <p className="text-xs text-success-400 mb-2">
+                <p className="text-caption text-fg-success-moderate mb-2">
                   ✓ Secret value already configured — enter a new value to
                   replace it
                 </p>
               )}
               {!secretAlreadySet && !formFields.secretValue && (
-                <p className="text-xs text-gray-500 mb-2">
+                <p className="text-caption text-fg-moderate mb-2">
                   Secret value from your app registration
                 </p>
               )}
@@ -183,12 +183,12 @@ export function AzureAccountCard({
                 type="password"
                 value={formFields.secretValue}
                 onChange={(e) => setFormFields((prev) => ({ ...prev, secretValue: e.target.value }))}
-                className="input font-mono text-sm"
+                className="input font-mono text-body-sm"
                 placeholder={secretAlreadySet ? "Enter new secret to replace" : ""}
               />
             </div>
 
-            {error && <Alert variant="error">{error}</Alert>}
+            {error && <Banner variant="danger">{error}</Banner>}
 
             <div className="flex gap-3 pt-4">
               <Button variant="secondary" onClick={handleCancel} className="flex-1">Cancel</Button>

@@ -4,7 +4,7 @@ import { CloudProviderName } from "../../types";
 import { Upload } from "lucide-react";
 import { Button } from "../primitives/Button";
 import { AccountIconTile, AccountRow } from "./AccountRow";
-import { Alert } from "../primitives/Alert";
+import { Banner } from "../primitives/Banner";
 import { FormField } from "../primitives/FormField";
 
 interface OracleAccountCardProps {
@@ -138,12 +138,12 @@ export function OracleAccountCard({ onCredentialsSaved, onCredentialsDeleted, on
           <div className="flex items-center gap-3">
             <AccountIconTile provider={CloudProviderName.Oracle} />
             <div>
-              <h3 className="text-sm text-primary">
+              <h3 className="text-body-sm text-fg-lighter">
                 {hasCredentials
                   ? "Edit Oracle Cloud Account"
                   : "Add Oracle Cloud Account"}
               </h3>
-              <p className="text-xs text-gray-300">
+              <p className="text-caption text-fg-medium">
                 {hasCredentials
                   ? "Update your OCI API signing credentials"
                   : "Enter your OCI API signing credentials"}
@@ -190,16 +190,15 @@ export function OracleAccountCard({ onCredentialsSaved, onCredentialsDeleted, on
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs text-gray-200">
+                <label className="text-caption text-fg-medium">
                   Private Key (.pem)
                 </label>
                 <Button
                   variant="secondary"
-                  size="none"
+                  size="md"
                   type="button"
                   onClick={() => pemFileInputRef.current?.click()}
                   icon={<Upload size={12} />}
-                  className="text-xs px-2.5 py-1"
                 >
                   Load from file
                 </Button>
@@ -212,13 +211,13 @@ export function OracleAccountCard({ onCredentialsSaved, onCredentialsDeleted, on
                 />
               </div>
               {pemAlreadySet && !formFields.privateKeyPem && (
-                <p className="text-xs text-success-400 mb-2">
+                <p className="text-caption text-fg-success-moderate mb-2">
                   ✓ Private key already configured — load a new file or paste
                   below to replace it
                 </p>
               )}
               {!pemAlreadySet && !formFields.privateKeyPem && (
-                <p className="text-xs text-gray-500 mb-2">
+                <p className="text-caption text-fg-moderate mb-2">
                   Paste the contents of your .pem file or use "Load from file"
                 </p>
               )}
@@ -226,11 +225,11 @@ export function OracleAccountCard({ onCredentialsSaved, onCredentialsDeleted, on
                 value={formFields.privateKeyPem}
                 onChange={(e) => setFormFields((prev) => ({ ...prev, privateKeyPem: e.target.value }))}
                 rows={6}
-                className="input font-mono text-xs resize-none"
+                className="input font-mono text-caption resize-none"
               />
             </div>
 
-            {error && <Alert variant="error">{error}</Alert>}
+            {error && <Banner variant="danger">{error}</Banner>}
 
             <div className="flex gap-3 pt-4">
               <Button variant="secondary" onClick={handleCancel} className="flex-1">Cancel</Button>

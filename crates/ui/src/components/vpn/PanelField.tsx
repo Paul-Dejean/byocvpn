@@ -7,9 +7,9 @@ interface PanelFieldProps {
 export function PanelField({ label, value, wrap = false }: PanelFieldProps) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-gray-300">{label}</span>
+      <span className="text-caption text-fg-medium">{label}</span>
       <span
-        className={`text-sm text-primary tabular-nums ${wrap ? "break-all" : "truncate"}`}
+        className={`text-body-sm text-fg-lighter tabular-nums ${wrap ? "break-all" : "truncate"}`}
         title={value}
       >
         {value}

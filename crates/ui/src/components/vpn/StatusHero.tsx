@@ -10,8 +10,8 @@ interface StatusHeroProps {
 }
 
 const ICON_BACKGROUND_CLASSES: Record<StatusTone, string> = {
-  protected: "bg-success-500/5",
-  unprotected: "bg-danger-500/5",
+  protected: "bg-bg-success-faint",
+  unprotected: "bg-bg-danger-faint",
 };
 
 export function StatusHero({ tone, icon, title, children }: StatusHeroProps) {
@@ -23,7 +23,7 @@ export function StatusHero({ tone, icon, title, children }: StatusHeroProps) {
         {icon}
       </div>
       <div className="flex flex-col items-center gap-2 text-center">
-        <h2 className="text-xl font-semibold text-primary">{title}</h2>
+        <h2 className="text-highlight font-semibold text-fg-lighter">{title}</h2>
         {children}
       </div>
     </div>

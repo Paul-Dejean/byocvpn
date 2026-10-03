@@ -17,28 +17,28 @@ export function UnprotectedPanel({ hasServers }: UnprotectedPanelProps) {
     <div className="h-full flex flex-col gap-3">
       <StatusHero
         tone="unprotected"
-        icon={<ShieldOff size={48} strokeWidth={1.5} className="text-danger-400" />}
+        icon={<ShieldOff size={48} strokeWidth={1.5} className="text-fg-danger-moderate" />}
         title="Unprotected"
       >
-        <p className="text-sm text-gray-300 max-w-[260px]">
+        <p className="text-body-sm text-fg-medium max-w-[260px]">
           {hasServers
             ? "Anyone can see what you browse. Connect to a server to go private."
             : "Your connection is exposed. Add a server to stay private."}
         </p>
       </StatusHero>
 
-      <section className="rounded-lg bg-gray-700 p-4 flex flex-col gap-1">
-        <span className="text-xs text-gray-300">Current location</span>
+      <section className="rounded-lg bg-bg-medium p-4 flex flex-col gap-1">
+        <span className="text-caption text-fg-medium">Current location</span>
         {isLoading ? (
-          <Spinner size="w-4 h-4" color="border-gray-400" />
+          <Spinner size="w-4 h-4" color="border-bd-strong" />
         ) : hasLocation && location ? (
-          <span className="flex items-center gap-2 text-sm text-primary">
+          <span className="flex items-center gap-2 text-body-sm text-fg-lighter">
             <FlagIcon countryCode={location.countryCode} />
             {location.country}
             {location.city ? `, ${location.city}` : ""}
           </span>
         ) : (
-          <span className="text-sm text-gray-400">Unavailable</span>
+          <span className="text-body-sm text-fg-moderate">Unavailable</span>
         )}
       </section>
 

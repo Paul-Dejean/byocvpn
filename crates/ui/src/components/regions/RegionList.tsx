@@ -78,14 +78,14 @@ export function RegionList({
   return (
     <div className="flex-1 flex flex-col gap-4 min-h-0">
       <div className="flex items-center gap-2">
-        <label className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-700 text-sm text-gray-300 focus-within:ring-1 focus-within:ring-blue-500">
+        <label className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-bg-medium text-body-sm text-fg-medium focus-within:ring-1 focus-within:ring-bd-brand">
           <Search size={16} className="flex-shrink-0" />
           <input
             type="search"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="Search"
-            className="flex-1 bg-transparent outline-none text-primary placeholder:text-gray-300"
+            className="flex-1 bg-transparent outline-none text-fg-lighter placeholder:text-fg-medium"
           />
         </label>
         {headerAccessory}
@@ -93,7 +93,7 @@ export function RegionList({
 
       {isLoading ? (
         <div className="flex justify-center py-10">
-          <Spinner size="w-6 h-6" color="border-gray-400" />
+          <Spinner size="w-6 h-6" color="border-bd-strong" />
         </div>
       ) : (
         <div className="flex flex-col gap-4 overflow-y-auto min-h-0 pr-1">
@@ -154,8 +154,8 @@ interface RegionSectionProps {
 function RegionSection({ title, count, children }: RegionSectionProps) {
   return (
     <section className="flex flex-col gap-1">
-      <h3 className="px-4 py-2 text-sm text-gray-200">
-        {title} <span className="text-gray-300">[{count}]</span>
+      <h3 className="px-4 py-2 text-body-sm text-fg-medium">
+        {title} <span className="text-fg-medium">[{count}]</span>
       </h3>
       {children}
     </section>
@@ -194,24 +194,24 @@ function RegionRow({
       }}
       className={`group flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
         isSelected
-          ? "bg-gray-700 ring-1 ring-blue-500"
-          : "hover:bg-gray-700"
+          ? "bg-bg-medium ring-1 ring-bd-brand"
+          : "hover:bg-bg-medium"
       } ${isSelectable ? "cursor-pointer" : ""}`}
     >
       <FlagIcon countryCode={row.countryCode} round />
       <div className="flex-1 min-w-0 flex flex-col">
-        <span className="text-sm text-primary truncate">{row.countryName}</span>
-        <span className="text-xs text-gray-300 truncate">{row.city || row.region.name}</span>
+        <span className="text-body-sm text-fg-lighter truncate">{row.countryName}</span>
+        <span className="text-caption text-fg-medium truncate">{row.city || row.region.name}</span>
       </div>
       {onDeploy && (
         <Button
           variant="secondary"
-          size="none"
+          size="lg"
           onClick={(event) => {
             event.stopPropagation();
             onDeploy();
           }}
-          className="px-3 py-1 text-sm opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+          className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
         >
           Deploy
         </Button>
@@ -224,7 +224,7 @@ function RegionRow({
         }}
         aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
         aria-pressed={isFavorite}
-        className="w-7 h-7 rounded-md border border-gray-500/60 flex items-center justify-center text-primary hover:bg-gray-600 transition-colors"
+        className="w-7 h-7 rounded-md border border-bd-moderate flex items-center justify-center text-fg-lighter hover:bg-bg-lighter transition-colors"
       >
         <Star size={14} className={isFavorite ? "fill-current" : ""} />
       </button>

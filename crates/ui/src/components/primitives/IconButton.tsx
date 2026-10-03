@@ -10,10 +10,10 @@ interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const ACCENT_CLASSES: Record<IconButtonAccent, string> = {
-  white: "text-gray-400 hover:text-primary",
-  blue: "text-gray-400 hover:text-blue-400",
-  red: "text-gray-400 hover:text-danger-400",
-  amber: "text-warning-400 hover:text-warning-300",
+  white: "text-fg-moderate hover:text-fg-lighter",
+  blue: "text-fg-moderate hover:text-fg-brand",
+  red: "text-fg-moderate hover:text-fg-danger-moderate",
+  amber: "text-fg-warning-moderate hover:text-fg-warning-moderate",
 };
 
 const SIZE_CLASSES: Record<IconButtonSize, string> = {
@@ -31,7 +31,7 @@ export function IconButton({
 }: IconButtonProps) {
   return (
     <button
-      className={`${SIZE_CLASSES[size]} rounded-lg transition-colors hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed ${ACCENT_CLASSES[accent]} ${className}`}
+      className={`${SIZE_CLASSES[size]} rounded-lg transition-colors hover:bg-bg-lighter disabled:opacity-40 disabled:cursor-not-allowed ${ACCENT_CLASSES[accent]} ${className}`}
       {...buttonProps}
     >
       {children}

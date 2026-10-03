@@ -3,7 +3,7 @@ import { useCredentials } from "../../hooks";
 import { CloudProviderName } from "../../types";
 import { Button } from "../primitives/Button";
 import { AccountIconTile, AccountRow } from "./AccountRow";
-import { Alert } from "../primitives/Alert";
+import { Banner } from "../primitives/Banner";
 import { FormField } from "../primitives/FormField";
 
 interface AwsAccountCardProps {
@@ -90,8 +90,8 @@ export function AwsAccountCard({ onCredentialsSaved, onCredentialsDeleted, onPro
           <div className="flex items-center gap-3">
             <AccountIconTile provider={CloudProviderName.Aws} />
             <div>
-              <h3 className="text-sm text-primary">{hasCredentials ? "Edit AWS Account" : "Add AWS Account"}</h3>
-              <p className="text-xs text-gray-300">{hasCredentials ? "Update your AWS access credentials" : "Enter your AWS access credentials"}</p>
+              <h3 className="text-body-sm text-fg-lighter">{hasCredentials ? "Edit AWS Account" : "Add AWS Account"}</h3>
+              <p className="text-caption text-fg-medium">{hasCredentials ? "Update your AWS access credentials" : "Enter your AWS access credentials"}</p>
             </div>
           </div>
 
@@ -113,7 +113,7 @@ export function AwsAccountCard({ onCredentialsSaved, onCredentialsDeleted, onPro
               onChange={(value) => setFormFields((prev) => ({ ...prev, secretKey: value }))}
             />
 
-            {error && <Alert variant="error">{error}</Alert>}
+            {error && <Banner variant="danger">{error}</Banner>}
 
             <div className="flex gap-3 pt-4">
               <Button variant="secondary" onClick={handleCancel} className="flex-1">Cancel</Button>

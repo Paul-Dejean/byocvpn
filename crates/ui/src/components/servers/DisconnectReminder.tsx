@@ -1,6 +1,6 @@
 import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
 import { useDisconnectReminderPreference } from "../../hooks/useDisconnectReminderPreference";
-import { InfoBanner } from "../common/InfoBanner";
+import { Banner } from "../primitives/Banner";
 
 interface DisconnectReminderProps {
   instanceId: string;
@@ -27,16 +27,16 @@ export function DisconnectReminder({ instanceId }: DisconnectReminderProps) {
   }
 
   return (
-    <InfoBanner onDismiss={onDismissReminder}>
+    <Banner variant="info" onDismiss={onDismissReminder}>
       Disconnecting VPN doesn't stop this server. Terminate it when done to
       stop charges.{" "}
       <button
         type="button"
         onClick={onMuteReminder}
-        className="text-blue-300 underline hover:text-primary transition-colors"
+        className="text-fg-brand underline hover:text-fg-lighter transition-colors"
       >
         Don't show again
       </button>
-    </InfoBanner>
+    </Banner>
   );
 }

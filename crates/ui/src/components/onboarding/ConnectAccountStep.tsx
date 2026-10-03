@@ -58,7 +58,7 @@ export function ConnectAccountStep({
         <button
           type="button"
           onClick={onSkip}
-          className="text-xs text-primary hover:text-gray-300 transition-colors"
+          className="text-caption text-fg-lighter hover:text-fg-medium transition-colors"
         >
           I'll do this later
         </button>
@@ -67,17 +67,16 @@ export function ConnectAccountStep({
           <button
             type="button"
             onClick={onBack}
-            className="px-2 py-2 text-sm text-primary hover:text-gray-300 transition-colors"
+            className="px-2 py-2 text-body-sm text-fg-lighter hover:text-fg-medium transition-colors"
           >
             Back
           </button>
           <Button
             variant="primary"
-            size="none"
+            size="lg"
             disabledStyle="dim"
             disabled={selectedProvider === null}
             onClick={handleContinue}
-            className="px-4 py-2 text-sm"
           >
             Next
           </Button>
@@ -104,12 +103,12 @@ function ProviderTileButton({
       onClick={onSelect}
       className={`w-[124px] h-[78px] rounded-lg border p-3 flex flex-col justify-between items-start text-left transition-colors ${
         isSelected
-          ? "bg-gray-700 border-blue-500"
-          : "bg-gray-750 border-gray-500/60 hover:bg-gray-700 hover:border-gray-500"
+          ? "bg-bg-medium border-bd-brand"
+          : "bg-bg-bolder border-bd-moderate hover:bg-bg-medium hover:border-bd-moderate"
       }`}
     >
       <ProviderIcon provider={tile.provider} className="w-6 h-6" />
-      <span className="text-xs text-primary">{tile.label}</span>
+      <span className="text-caption text-fg-lighter">{tile.label}</span>
     </button>
   );
 }

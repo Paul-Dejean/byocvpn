@@ -4,7 +4,7 @@ import { CloudProviderName } from "../../types";
 import { Upload } from "lucide-react";
 import { Button } from "../primitives/Button";
 import { AccountIconTile, AccountRow } from "./AccountRow";
-import { Alert } from "../primitives/Alert";
+import { Banner } from "../primitives/Banner";
 import { FormField } from "../primitives/FormField";
 
 interface GcpAccountCardProps {
@@ -127,12 +127,12 @@ export function GcpAccountCard({ onCredentialsSaved, onCredentialsDeleted, onPro
           <div className="flex items-center gap-3">
             <AccountIconTile provider={CloudProviderName.Gcp} />
             <div>
-              <h3 className="text-sm text-primary">
+              <h3 className="text-body-sm text-fg-lighter">
                 {hasCredentials
                   ? "Edit Google Cloud Account"
                   : "Add Google Cloud Account"}
               </h3>
-              <p className="text-xs text-gray-300">
+              <p className="text-caption text-fg-medium">
                 {hasCredentials
                   ? "Update your GCP service-account key"
                   : "Enter your GCP service-account key"}
@@ -153,16 +153,15 @@ export function GcpAccountCard({ onCredentialsSaved, onCredentialsDeleted, onPro
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs text-gray-200">
+                <label className="text-caption text-fg-medium">
                   Service Account Key (.json)
                 </label>
                 <Button
                   variant="secondary"
-                  size="none"
+                  size="md"
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   icon={<Upload size={12} />}
-                  className="text-xs px-2.5 py-1"
                 >
                   Load from file
                 </Button>
@@ -175,13 +174,13 @@ export function GcpAccountCard({ onCredentialsSaved, onCredentialsDeleted, onPro
                 />
               </div>
               {jsonAlreadySet && !formFields.serviceAccountJson && (
-                <p className="text-xs text-success-400 mb-2">
+                <p className="text-caption text-fg-success-moderate mb-2">
                   ✓ Service account key already configured — load a new file or
                   paste below to replace it
                 </p>
               )}
               {!jsonAlreadySet && !formFields.serviceAccountJson && (
-                <p className="text-xs text-gray-500 mb-2">
+                <p className="text-caption text-fg-moderate mb-2">
                   Paste the contents of your service-account JSON key file or
                   use "Load from file"
                 </p>
@@ -190,12 +189,12 @@ export function GcpAccountCard({ onCredentialsSaved, onCredentialsDeleted, onPro
                 value={formFields.serviceAccountJson}
                 onChange={(e) => setFormFields((prev) => ({ ...prev, serviceAccountJson: e.target.value }))}
                 rows={6}
-                className="input font-mono text-xs resize-none"
+                className="input font-mono text-caption resize-none"
                 placeholder='{"type":"service_account","project_id":"..."}'
               />
             </div>
 
-            {error && <Alert variant="error">{error}</Alert>}
+            {error && <Banner variant="danger">{error}</Banner>}
 
             <div className="flex gap-3 pt-4">
               <Button variant="secondary" onClick={handleCancel} className="flex-1">Cancel</Button>

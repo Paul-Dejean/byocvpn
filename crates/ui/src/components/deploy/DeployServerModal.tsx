@@ -33,15 +33,15 @@ export function DeployServerModal({
     <Modal isOpen={isOpen} onClose={onClose}>
       <div className="p-6 flex flex-col gap-5 min-h-0 max-h-[640px]">
         <header className="flex flex-col gap-1">
-          <h2 className="text-base font-medium text-primary">Select servers</h2>
-          <p className="text-xs text-gray-300">
+          <h2 className="text-body font-medium text-fg-lighter">Select servers</h2>
+          <p className="text-caption text-fg-medium">
             Choose a region to deploy your VPN server.
           </p>
         </header>
 
         {isLoading || provider === null ? (
           <div className="flex justify-center py-10">
-            <Spinner size="w-6 h-6" color="border-gray-400" />
+            <Spinner size="w-6 h-6" color="border-bd-strong" />
           </div>
         ) : (
           <RegionList

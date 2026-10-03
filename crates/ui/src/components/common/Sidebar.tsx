@@ -18,7 +18,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       style={{ width: SIDEBAR_WIDTH }}
     >
       <div className="flex flex-col gap-6">
-        <div className="w-[42px] h-[42px] rounded-lg bg-gray-750 border border-gray-500/60 flex items-center justify-center text-primary">
+        <div className="w-[42px] h-[42px] rounded-lg bg-bg-bolder border border-bd-moderate flex items-center justify-center text-fg-lighter">
           <Logo className="w-6 h-6" />
         </div>
 
@@ -44,7 +44,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         </div>
       </div>
 
-      <span className="text-xs text-gray-400">{version}</span>
+      <span className="text-caption text-fg-moderate">{version}</span>
     </nav>
   );
 }

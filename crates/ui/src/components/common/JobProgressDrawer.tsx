@@ -9,7 +9,7 @@ import { PROVIDER_METADATA } from "../../constants/providers";
 import { Drawer } from "../primitives/Drawer";
 import { Spinner } from "../primitives/Spinner";
 import { Button } from "../primitives/Button";
-import { Alert } from "../primitives/Alert";
+import { Banner } from "../primitives/Banner";
 import { PermissionsPanel } from "./PermissionsPanel";
 
 export interface VerificationState {
@@ -68,27 +68,27 @@ export function JobProgressDrawer({
       subtitle={drawerSubtitle}
       footer={
         verificationFailed ? (
-          <Button variant="primary" size="none" onClick={onRetry} className="w-full py-2 text-sm">
+          <Button variant="primary" size="lg" onClick={onRetry} className="w-full">
             Retry
           </Button>
         ) : (
-          <Button variant="secondary" size="none" onClick={onClose} className="w-full py-2 text-sm">
+          <Button variant="secondary" size="lg" onClick={onClose} className="w-full">
             Close
           </Button>
         )
       }
     >
       {isVerifying ? (
-        <div className="flex items-center gap-2 text-sm text-gray-300">
-          <Spinner color="border-gray-400" />
+        <div className="flex items-center gap-2 text-body-sm text-fg-medium">
+          <Spinner color="border-bd-strong" />
           Verifying permissions
         </div>
       ) : verificationFailed ? (
         <div className="flex flex-col gap-4">
-          <Alert variant="error" title="Update your permissions">
+          <Banner variant="danger" title="Update your permissions">
             Your credentials are missing the permissions marked below. Grant
             them in your cloud provider's console, then retry.
-          </Alert>
+          </Banner>
           <PermissionsPanel
             permissions={verification?.permissions ?? null}
             isVerifying={false}
@@ -108,21 +108,21 @@ export function JobProgressDrawer({
           )}
 
           {isComplete && (
-            <Alert
+            <Banner
               variant="success"
-              icon={<Check size={16} className="text-success-400" />}
+              icon={<Check size={16} className="text-fg-success-moderate" />}
               title={successMessage ?? "Account provisioned successfully"}
             />
           )}
 
           {error && (
-            <Alert
-              variant="error"
-              icon={<X size={16} className="text-danger-400" />}
+            <Banner
+              variant="danger"
+              icon={<X size={16} className="text-fg-danger-moderate" />}
               title="Provisioning failed"
             >
               {error}
-            </Alert>
+            </Banner>
           )}
         </div>
       )}
@@ -134,7 +134,7 @@ function ProvisionSteps({ steps }: { steps: JobStepState[] }) {
   return (
     <ol className="flex flex-col gap-4">
       {steps.map((step) => (
-        <li key={step.id} className="flex items-center gap-3 text-sm">
+        <li key={step.id} className="flex items-center gap-3 text-body-sm">
           <StepStatusIcon status={step.status} />
           <span className={STEP_LABEL_CLASSES[step.status]}>{step.label}</span>
         </li>
@@ -144,21 +144,21 @@ function ProvisionSteps({ steps }: { steps: JobStepState[] }) {
 }
 
 const STEP_LABEL_CLASSES: Record<JobStepStatus, string> = {
-  [JobStepStatus.Pending]: "text-gray-300",
-  [JobStepStatus.Running]: "text-primary",
-  [JobStepStatus.Completed]: "text-gray-200",
-  [JobStepStatus.Failed]: "text-danger-300",
+  [JobStepStatus.Pending]: "text-fg-medium",
+  [JobStepStatus.Running]: "text-fg-lighter",
+  [JobStepStatus.Completed]: "text-fg-medium",
+  [JobStepStatus.Failed]: "text-fg-danger-moderate",
 };
 
 function StepStatusIcon({ status }: { status: JobStepStatus }) {
   switch (status) {
     case JobStepStatus.Running:
-      return <Sparkles size={16} className="text-blue-400 animate-pulse" />;
+      return <Sparkles size={16} className="text-fg-brand animate-pulse" />;
     case JobStepStatus.Completed:
-      return <Check size={16} className="text-success-400" />;
+      return <Check size={16} className="text-fg-success-moderate" />;
     case JobStepStatus.Failed:
-      return <X size={16} className="text-danger-400" />;
+      return <X size={16} className="text-fg-danger-moderate" />;
     case JobStepStatus.Pending:
-      return <Circle size={16} className="text-blue-400" />;
+      return <Circle size={16} className="text-fg-brand" />;
   }
 }

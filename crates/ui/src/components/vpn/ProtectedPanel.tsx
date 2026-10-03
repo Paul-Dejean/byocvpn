@@ -35,7 +35,7 @@ export function ProtectedPanel({
       <div className="flex-1 min-h-0 flex flex-col gap-3">
         <StatusHero
           tone="protected"
-          icon={<ShieldCheck size={48} strokeWidth={1.5} className="text-success-400" />}
+          icon={<ShieldCheck size={48} strokeWidth={1.5} className="text-fg-success-moderate" />}
           title="You're protected"
         >
           <ServerLocation
@@ -44,8 +44,8 @@ export function ProtectedPanel({
           />
         </StatusHero>
 
-        <section className="rounded-lg bg-gray-700 p-4 flex flex-col gap-3">
-          <h3 className="text-sm text-primary">Session</h3>
+        <section className="rounded-lg bg-bg-medium p-4 flex flex-col gap-3">
+          <h3 className="text-body-sm text-fg-lighter">Session</h3>
           <div className="flex flex-col gap-3">
             <PanelField label="Downloaded" value={formatBytes(metrics?.bytesReceived ?? 0)} />
             <PanelField label="Uploaded" value={formatBytes(metrics?.bytesSent ?? 0)} />
@@ -61,7 +61,7 @@ export function ProtectedPanel({
 
       <Button
         variant="danger"
-        size="none"
+        size="lg"
         loading={isDisconnecting}
         disabled={!isDaemonRunning}
         disabledStyle="dim"
@@ -71,7 +71,7 @@ export function ProtectedPanel({
             ? undefined
             : "VPN daemon is not running. You may need to restart your computer."
         }
-        className="w-full h-7 text-sm"
+        className="w-full"
       >
         Disconnect from server
       </Button>

@@ -57,7 +57,7 @@ export function AutoTerminateSettingsCard() {
     >
       {settings.autoTerminateEnabled && (
         <>
-          <div className="flex items-center gap-2 text-xs text-gray-300">
+          <div className="flex items-center gap-2 text-caption text-fg-medium">
             <span>Terminate after</span>
             <DurationField
               minutes={settings.autoTerminateThresholdMinutes}
@@ -73,7 +73,7 @@ export function AutoTerminateSettingsCard() {
             />
             <span>without a connection</span>
           </div>
-          <p className="text-xs text-gray-400">
+          <p className="text-caption text-fg-moderate">
             The idle timer resets every time you connect. Only runs while the
             app is open. Servers are fully terminated, so a forgotten one won't
             keep costing you.
