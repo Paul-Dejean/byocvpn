@@ -7,6 +7,7 @@ import { formatDuration } from "../../lib/time";
 import { Button } from "../primitives/Button";
 import { Spinner } from "../primitives/Spinner";
 import { ServerLocation } from "./ServerLocation";
+import { DisconnectReminder } from "./DisconnectReminder";
 
 interface ServerCardProps {
   instance: Instance;
@@ -88,6 +89,8 @@ export function ServerCard({
         {hasError && instance.errorReason && (
           <p className="text-xs text-danger-300">{instance.errorReason}</p>
         )}
+
+        {!isTerminating && <DisconnectReminder instanceId={instance.id} />}
       </div>
 
       <div className="border-t border-gray-500/60" />

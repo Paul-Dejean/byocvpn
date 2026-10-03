@@ -14,7 +14,6 @@ import { ServerCard } from "../components/servers/ServerCard";
 import { EmptyServers } from "../components/servers/EmptyServers";
 import { DeploymentCard } from "../components/deploy/DeploymentCard";
 import { DeployServerModal } from "../components/deploy/DeployServerModal";
-import { InfoBanner } from "../components/common/InfoBanner";
 import { UnprotectedPanel } from "../components/vpn/UnprotectedPanel";
 import { ProtectedPanel } from "../components/vpn/ProtectedPanel";
 import { Alert } from "../components/primitives/Alert";
@@ -26,7 +25,6 @@ const STATUS_PANEL_WIDTH = 358;
 
 export function ServersPage() {
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
-  const [isBannerDismissed, setIsBannerDismissed] = useState(false);
 
   const { data: configuredProviders = [] } = useQuery(
     configuredProvidersQueryOptions,
@@ -79,8 +77,6 @@ export function ServersPage() {
     visibleInstances.length > 0 ||
     untrackedSpawnJobs.length > 0 ||
     activeDeployments.length > 0;
-  const showBanner =
-    hasServers && connectedInstance === null && !isBannerDismissed;
 
   async function handleConnect(instance: Instance) {
     clearError();
@@ -111,13 +107,6 @@ export function ServersPage() {
             Terminate unused servers to stop charges.
           </p>
         </header>
-
-        {showBanner && (
-          <InfoBanner onDismiss={() => setIsBannerDismissed(true)}>
-            Disconnecting VPN doesn't stop your server. Terminate it when done
-            to stop charges.
-          </InfoBanner>
-        )}
 
         {vpnError && <Alert variant="error">{vpnError}</Alert>}
 
