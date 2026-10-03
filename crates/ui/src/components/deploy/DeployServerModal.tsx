@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
 import { CloudProviderName, Region } from "../../types";
 import { useDeployments } from "../../contexts/DeploymentsContext";
+import { useLastDeployProvider } from "../../hooks/useLastDeployProvider";
 import { Modal } from "../primitives/Modal";
+import { Spinner } from "../primitives/Spinner";
 import { RegionList } from "../regions/RegionList";
 import { ProviderDropdown } from "./ProviderDropdown";
 
@@ -17,17 +18,13 @@ export function DeployServerModal({
   onClose,
 }: DeployServerModalProps) {
   const { startDeployment } = useDeployments();
-  const [provider, setProvider] = useState<CloudProviderName>(
-    configuredProviders[0] ?? CloudProviderName.Aws,
-  );
-
-  useEffect(() => {
-    if (!configuredProviders.includes(provider) && configuredProviders.length > 0) {
-      setProvider(configuredProviders[0]);
-    }
-  }, [configuredProviders, provider]);
+  const { provider, isLoading, selectProvider } =
+    useLastDeployProvider(configuredProviders);
 
   function handleDeploy(region: Region) {
+    if (!provider) {
+      return;
+    }
     startDeployment(provider, region);
     onClose();
   }
@@ -42,17 +39,24 @@ export function DeployServerModal({
           </p>
         </header>
 
-        <RegionList
-          provider={provider}
-          onDeployRegion={handleDeploy}
-          headerAccessory={
-            <ProviderDropdown
-              providers={configuredProviders}
-              selectedProvider={provider}
-              onSelectProvider={setProvider}
-            />
-          }
-        />
+        {isLoading || provider === null ? (
+          <div className="flex justify-center py-10">
+            <Spinner size="w-6 h-6" color="border-gray-400" />
+          </div>
+        ) : (
+          <RegionList
+            key={provider}
+            provider={provider}
+            onDeployRegion={handleDeploy}
+            headerAccessory={
+              <ProviderDropdown
+                providers={configuredProviders}
+                selectedProvider={provider}
+                onSelectProvider={selectProvider}
+              />
+            }
+          />
+        )}
       </div>
     </Modal>
   );
