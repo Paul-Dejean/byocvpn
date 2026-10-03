@@ -1,15 +1,14 @@
 import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
-import { CloudProviderName, Instance } from "../types";
+import { useQuery } from "@tanstack/react-query";
+import { Instance } from "../types";
 import { useInstances } from "../hooks/useInstances";
 import { useVpnConnectionContext } from "../contexts/VpnConnectionContext";
 import { configuredProvidersQueryOptions } from "../queries/configuredProviders";
 import { ServerCard } from "../components/servers/ServerCard";
 import { EmptyServers } from "../components/servers/EmptyServers";
 import { SpawnJobCard } from "../components/jobs/SpawnJobCard";
-import { ProviderSelector } from "../components/providers/ProviderSelector";
-import { RegionSelector } from "../components/regions/RegionSelector";
+import { DeployServerModal } from "../components/deploy/DeployServerModal";
 import { InfoBanner } from "../components/common/InfoBanner";
 import { UnprotectedPanel } from "../components/vpn/UnprotectedPanel";
 import { ProtectedPanel } from "../components/vpn/ProtectedPanel";
@@ -17,20 +16,13 @@ import { Alert } from "../components/primitives/Alert";
 import { Button } from "../components/primitives/Button";
 import { Spinner } from "../components/primitives/Spinner";
 
-enum DeployStep {
-  IDLE = "IDLE",
-  SELECTING_PROVIDER = "SELECTING_PROVIDER",
-  SELECTING_REGION = "SELECTING_REGION",
-}
-
 export function ServersPage() {
-  const [deployStep, setDeployStep] = useState<DeployStep>(DeployStep.IDLE);
-  const [deployProvider, setDeployProvider] = useState<CloudProviderName>(
-    CloudProviderName.Aws,
-  );
+  const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
   const [isBannerDismissed, setIsBannerDismissed] = useState(false);
 
-  const queryClient = useQueryClient();
+  const { data: configuredProviders = [] } = useQuery(
+    configuredProvidersQueryOptions,
+  );
   const {
     instances,
     spawnJobs,
@@ -74,43 +66,13 @@ export function ServersPage() {
     await terminateInstance(instance.id, instance.region, instance.provider);
   }
 
-  async function handleAddServer() {
-    const configuredProviders = await queryClient.ensureQueryData(
-      configuredProvidersQueryOptions,
-    );
-    if (configuredProviders.length === 1) {
-      setDeployProvider(configuredProviders[0]);
-      setDeployStep(DeployStep.SELECTING_REGION);
-    } else {
-      setDeployStep(DeployStep.SELECTING_PROVIDER);
-    }
-  }
-
-  if (deployStep === DeployStep.SELECTING_PROVIDER) {
-    return (
-      <ProviderSelector
-        onSelectProvider={(provider) => {
-          setDeployProvider(provider);
-          setDeployStep(DeployStep.SELECTING_REGION);
-        }}
-        onClose={() => setDeployStep(DeployStep.IDLE)}
-      />
-    );
-  }
-
-  if (deployStep === DeployStep.SELECTING_REGION) {
-    return (
-      <RegionSelector
-        provider={deployProvider}
-        onClose={() => setDeployStep(DeployStep.IDLE)}
-        onSpawnStarted={() => setDeployStep(DeployStep.IDLE)}
-      />
-    );
+  function openDeployModal() {
+    setIsDeployModalOpen(true);
   }
 
   return (
-    <div className="flex h-full">
-      <div className="flex-1 min-w-0 flex flex-col py-4 pr-4 gap-3">
+    <div className="flex h-full min-h-0">
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col py-4 pr-4 gap-3">
         <header className="flex flex-col gap-1">
           <h1 className="text-base font-medium text-primary">
             Active servers{" "}
@@ -159,14 +121,14 @@ export function ServersPage() {
             ))}
           </div>
         ) : (
-          <EmptyServers onDeploy={handleAddServer} />
+          <EmptyServers onDeploy={openDeployModal} />
         )}
 
         {hasServers && (
           <Button
             variant="secondary"
             size="none"
-            onClick={handleAddServer}
+            onClick={openDeployModal}
             icon={<Plus size={16} />}
             className="w-full py-2 text-sm"
           >
@@ -175,7 +137,7 @@ export function ServersPage() {
         )}
       </div>
 
-      <aside className="w-[340px] flex-shrink-0 py-4 pr-4">
+      <aside className="w-[340px] flex-shrink-0 min-h-0 py-4 pr-4">
         {connectedInstance ? (
           <ProtectedPanel
             connectedInstance={connectedInstance}
@@ -189,6 +151,12 @@ export function ServersPage() {
           <UnprotectedPanel hasServers={hasServers} />
         )}
       </aside>
+
+      <DeployServerModal
+        isOpen={isDeployModalOpen}
+        configuredProviders={configuredProviders}
+        onClose={() => setIsDeployModalOpen(false)}
+      />
     </div>
   );
 }

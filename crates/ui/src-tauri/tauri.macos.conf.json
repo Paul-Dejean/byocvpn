@@ -1,4 +1,13 @@
 {
+  "app": {
+    "windows": [
+      {
+        "title": "ByocVPN",
+        "width": 1080,
+        "height": 748
+      }
+    ]
+  },
   "bundle": {
     "targets": ["app"]
   }

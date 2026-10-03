@@ -1,0 +1,73 @@
+import { useEffect, useRef } from "react";
+import { CloudProviderName, Instance, Region } from "../../types";
+import { getRegionInfo } from "../../constants/regionInfo";
+import { getCountryName } from "../../lib/countryName";
+import {
+  DeploymentStatus,
+  useRegionDeployment,
+} from "../../hooks/useRegionDeployment";
+import { Logo } from "../common/Logo";
+import { Button } from "../primitives/Button";
+import { DeploymentProgress } from "../deploy/DeploymentProgress";
+
+interface SettingUpStepProps {
+  provider: CloudProviderName;
+  region: Region;
+  onComplete: (instance: Instance) => void;
+  onBack: () => void;
+}
+
+export function SettingUpStep({
+  provider,
+  region,
+  onComplete,
+  onBack,
+}: SettingUpStepProps) {
+  const deployment = useRegionDeployment(provider);
+  const hasStartedDeployment = useRef(false);
+
+  useEffect(() => {
+    if (!hasStartedDeployment.current) {
+      hasStartedDeployment.current = true;
+      deployment.deploy(region);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (deployment.status === DeploymentStatus.COMPLETE && deployment.instance) {
+      onComplete(deployment.instance);
+    }
+  }, [deployment.status, deployment.instance, onComplete]);
+
+  const regionInfo = getRegionInfo(provider, region.name);
+  const countryName = getCountryName(regionInfo.countryCode) || region.country;
+
+  return (
+    <div className="h-full flex flex-col items-center justify-center gap-10">
+      <div className="w-12 h-12 rounded-xl bg-gray-700 border border-gray-500/60 flex items-center justify-center">
+        <Logo className="w-6 h-6" />
+      </div>
+
+      <div className="flex flex-col items-center">
+        <DeploymentProgress
+          title={`Setting up your ${countryName} server`}
+          steps={deployment.steps}
+          error={deployment.error}
+          showIllustration={false}
+          centered
+        />
+      </div>
+
+      {deployment.status === DeploymentStatus.FAILED && (
+        <Button
+          variant="secondary"
+          size="none"
+          onClick={onBack}
+          className="px-4 py-2 text-sm"
+        >
+          Back
+        </Button>
+      )}
+    </div>
+  );
+}

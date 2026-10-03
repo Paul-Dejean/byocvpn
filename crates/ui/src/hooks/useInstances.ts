@@ -5,6 +5,8 @@ import toast from "react-hot-toast";
 import { SpawnInstanceEvent, commands } from "../bindings";
 import { CloudProviderName, Instance, InstanceState, SpawnJob } from "../types";
 import { Result } from "../lib/result";
+import { getRegionInfo } from "../constants/regionInfo";
+import { getCountryName } from "../lib/countryName";
 import { instancesQueryOptions } from "../queries/instances";
 import { spawnJobsQueryOptions } from "../queries/spawnJobs";
 
@@ -15,6 +17,14 @@ const SpawnEventKind = {
   Complete: "COMPLETE",
   Failed: "FAILED",
 } as const satisfies Record<string, SpawnInstanceEvent["kind"]>;
+
+export type SpawnEventListener = (event: SpawnInstanceEvent) => void;
+
+function describeServer(instance: Instance): string {
+  const regionInfo = getRegionInfo(instance.provider, instance.region);
+  const countryName = getCountryName(regionInfo.countryCode);
+  return countryName ? `${countryName} server` : "Server";
+}
 
 export function useInstances() {
   const queryClient = useQueryClient();
@@ -48,6 +58,7 @@ export function useInstances() {
   async function startSpawnJob(
     region: string,
     provider: CloudProviderName,
+    onSpawnEvent?: SpawnEventListener,
   ): Promise<SpawnJob | null> {
     let resolveStartedJob!: (job: SpawnJob) => void;
     const startedJob = new Promise<SpawnJob>((resolve) => {
@@ -60,6 +71,7 @@ export function useInstances() {
         resolveStartedJob(event.job);
       }
       applySpawnEvent(event);
+      onSpawnEvent?.(event);
     };
 
     const result = await commands.spawnInstance(region, provider, onEvent);
@@ -105,7 +117,7 @@ export function useInstances() {
       case SpawnEventKind.Complete:
         refetchSpawnJobs();
         refetchInstances();
-        toast.success("Server deployed successfully!");
+        toast.success(`${describeServer(event.instance)} is up and running.`);
         return;
 
       case SpawnEventKind.Failed:

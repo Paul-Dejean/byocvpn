@@ -18,15 +18,31 @@ import { VpnConnectionProvider } from "./contexts/VpnConnectionContext";
 import { useAutoTerminatedInstanceListener } from "./hooks/useAutoTerminatedInstanceListener";
 import { configuredProvidersQueryOptions } from "./queries/configuredProviders";
 import { CloudProviderName } from "./types";
+import { OnboardingStep } from "./types/onboarding";
 import { Page } from "./types/pages";
 export { Page };
 
 const DEBUG_ALWAYS_START_ON_ONBOARDING = true;
 
+interface OnboardingState {
+  step: OnboardingStep;
+  provider: CloudProviderName | null;
+}
+
+const INITIAL_ONBOARDING_STATE: OnboardingState = {
+  step: OnboardingStep.WELCOME,
+  provider: null,
+};
+
 function App() {
   const [selectedPage, setSelectedPage] = useState<Page | null>(null);
   const [addAccountProvider, setAddAccountProvider] =
     useState<CloudProviderName | null>(null);
+  const [isAddingAccountFromOnboarding, setIsAddingAccountFromOnboarding] =
+    useState(false);
+  const [onboardingState, setOnboardingState] = useState<OnboardingState>(
+    INITIAL_ONBOARDING_STATE,
+  );
   const { data: configuredProviders, isError: isConfiguredProvidersError } =
     useQuery(configuredProvidersQueryOptions);
   useAutoTerminatedInstanceListener();
@@ -43,9 +59,37 @@ function App() {
     selectedPage ?? (hasConfiguredProvider ? Page.SERVERS : Page.ONBOARDING);
   const setPage = setSelectedPage;
 
-  function openAddAccount(provider: CloudProviderName | null) {
+  function openAddAccount(
+    provider: CloudProviderName | null,
+    fromOnboarding: boolean,
+  ) {
     setAddAccountProvider(provider);
+    setIsAddingAccountFromOnboarding(fromOnboarding);
     setPage(Page.ADD_ACCOUNT);
+  }
+
+  function handleAccountAdded() {
+    if (isAddingAccountFromOnboarding && addAccountProvider) {
+      setOnboardingState({
+        step: OnboardingStep.DEPLOY_SERVER,
+        provider: addAccountProvider,
+      });
+      setPage(Page.ONBOARDING);
+      return;
+    }
+    setPage(Page.SERVERS);
+  }
+
+  function handleAddAccountBack() {
+    if (isAddingAccountFromOnboarding) {
+      setOnboardingState({
+        step: OnboardingStep.CONNECT_ACCOUNT,
+        provider: null,
+      });
+      setPage(Page.ONBOARDING);
+      return;
+    }
+    setPage(Page.SERVERS);
   }
 
   return (
@@ -77,17 +121,23 @@ function App() {
 
       <ErrorBoundary>
         {page === Page.ONBOARDING && (
-          <OnboardingPage
-            onSkip={() => setPage(Page.SERVERS)}
-            onProviderSelected={openAddAccount}
-          />
+          <VpnConnectionProvider>
+            <OnboardingPage
+              key={`${onboardingState.step}-${onboardingState.provider}`}
+              initialStep={onboardingState.step}
+              provider={onboardingState.provider}
+              onSkip={() => setPage(Page.SERVERS)}
+              onProviderSelected={(provider) => openAddAccount(provider, true)}
+              onFinished={() => setPage(Page.SERVERS)}
+            />
+          </VpnConnectionProvider>
         )}
         {page === Page.ADD_ACCOUNT && (
           <AddAccountPage
             key={addAccountProvider ?? "select"}
             initialProvider={addAccountProvider}
-            onNavigateBack={() => setPage(Page.SERVERS)}
-            onAccountAdded={() => setPage(Page.SERVERS)}
+            onNavigateBack={handleAddAccountBack}
+            onAccountAdded={handleAccountAdded}
           />
         )}
 
@@ -97,12 +147,12 @@ function App() {
           <VpnConnectionProvider>
             <div className="flex h-full">
               <Sidebar currentPage={page} onNavigate={setPage} />
-              <div className="flex-1 min-w-0 overflow-hidden">
+              <div className="flex-1 min-w-0 h-full overflow-hidden">
                 {page === Page.SERVERS && <ServersPage />}
                 {page === Page.PRICING && <PricingPage />}
                 {page === Page.SETTINGS && (
                   <SettingsPage
-                    onNavigateToAddAccount={() => openAddAccount(null)}
+                    onNavigateToAddAccount={() => openAddAccount(null, false)}
                   />
                 )}
               </div>

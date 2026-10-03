@@ -28,7 +28,7 @@ export function UnprotectedPanel({ hasServers }: UnprotectedPanelProps) {
           <span className="text-xs text-gray-300">Current location</span>
           {isLoading ? (
             <Spinner size="w-4 h-4" color="border-gray-400" />
-          ) : location ? (
+          ) : location && (location.country || location.city) ? (
             <span className="flex items-center gap-2 text-sm text-primary">
               <FlagIcon countryCode={location.countryCode} />
               {location.country}

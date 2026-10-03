@@ -1,7 +1,8 @@
 import { queryOptions } from "@tanstack/react-query";
+import { getCountryName } from "../lib/countryName";
 
-const NETWORK_LOCATION_ENDPOINT = "https://ipapi.co/json/";
-const NETWORK_LOCATION_STALE_TIME_MS = 5 * 60 * 1000;
+const NETWORK_LOCATION_ENDPOINT = "https://ipinfo.io/json";
+const NETWORK_LOCATION_STALE_TIME_MS = 10 * 60 * 1000;
 
 export interface NetworkLocation {
   publicIp: string;
@@ -13,8 +14,7 @@ export interface NetworkLocation {
 interface NetworkLocationResponse {
   ip?: string;
   city?: string;
-  country_name?: string;
-  country_code?: string;
+  country?: string;
 }
 
 export const networkLocationQueryOptions = queryOptions({
@@ -25,15 +25,18 @@ export const networkLocationQueryOptions = queryOptions({
 });
 
 async function fetchNetworkLocation(): Promise<NetworkLocation> {
-  const response = await fetch(NETWORK_LOCATION_ENDPOINT);
+  const response = await fetch(NETWORK_LOCATION_ENDPOINT, {
+    headers: { Accept: "application/json" },
+  });
   if (!response.ok) {
     throw new Error(`Location lookup failed with status ${response.status}`);
   }
   const payload: NetworkLocationResponse = await response.json();
+  const countryCode = (payload.country ?? "").toLowerCase();
   return {
     publicIp: payload.ip ?? "",
     city: payload.city ?? "",
-    country: payload.country_name ?? "",
-    countryCode: (payload.country_code ?? "").toLowerCase(),
+    country: getCountryName(countryCode),
+    countryCode,
   };
 }
