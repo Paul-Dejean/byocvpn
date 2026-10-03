@@ -4,7 +4,9 @@
       {
         "title": "ByocVPN",
         "width": 1080,
-        "height": 748
+        "height": 748,
+        "maxWidth": 1080,
+        "maxHeight": 748
       }
     ]
   },
