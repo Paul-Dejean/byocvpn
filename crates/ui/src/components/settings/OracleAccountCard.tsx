@@ -10,12 +10,10 @@ import { FormField } from "../primitives/FormField";
 interface OracleAccountCardProps {
   onCredentialsSaved: (provider: CloudProviderName) => void;
   onCredentialsDeleted: () => void;
-  onProvisionRequested: (provider: CloudProviderName) => void;
-  isProvisioned: boolean;
 }
 
 
-export function OracleAccountCard({ onCredentialsSaved, onCredentialsDeleted, onProvisionRequested, isProvisioned }: OracleAccountCardProps) {
+export function OracleAccountCard({ onCredentialsSaved, onCredentialsDeleted }: OracleAccountCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [hasCredentials, setHasCredentials] = useState<boolean | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
@@ -125,10 +123,8 @@ export function OracleAccountCard({ onCredentialsSaved, onCredentialsDeleted, on
           provider={CloudProviderName.Oracle}
           title="Oracle Cloud Account"
           hasCredentials={hasCredentials}
-          isProvisioned={isProvisioned}
           isConfirmingDelete={isConfirmingDelete}
           onEdit={handleEditOpen}
-          onProvision={() => onProvisionRequested(CloudProviderName.Oracle)}
           onRequestDelete={() => setIsConfirmingDelete(true)}
           onCancelDelete={() => setIsConfirmingDelete(false)}
           onConfirmDelete={handleDeleteCredentials}

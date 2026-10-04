@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
-import { load as loadStore } from "@tauri-apps/plugin-store";
 import toast from "react-hot-toast";
 import { useCredentials } from "../hooks/useCredentials";
 import { useAccounts } from "../hooks/useAccounts";
@@ -37,10 +36,6 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
     boolean | null
   >(null);
 
-  const [provisionedProviders, setProvisionedProviders] = useState<
-    Set<CloudProviderName>
-  >(new Set());
-
   const { loadCredentials } = useCredentials();
 
   const {
@@ -50,10 +45,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
     provisionAccount,
     resetProvisionState,
   } = useAccounts({
-    onComplete: (provider) => {
-      setProvisionedProviders((previous) => new Set([...previous, provider]));
-    },
-    onFailed: () => toast.error("Provisioning failed"),
+    onFailed: () => toast.error("Account setup failed"),
   });
 
   const {
@@ -91,29 +83,6 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
     );
   }, []);
 
-  useEffect(() => {
-    const fetchProvisionedProviders = async () => {
-      const store = await loadStore("providers.json");
-      const provisioned = new Set<CloudProviderName>();
-      for (const provider of Object.values(CloudProviderName)) {
-        const value = await store.get<boolean>(`provisioned/${provider}`);
-        if (value === true) {
-          provisioned.add(provider);
-        }
-      }
-      setProvisionedProviders(provisioned);
-    };
-    fetchProvisionedProviders();
-  }, []);
-
-  function removeProvisionedProvider(provider: CloudProviderName) {
-    setProvisionedProviders((previous) => {
-      const next = new Set(previous);
-      next.delete(provider);
-      return next;
-    });
-  }
-
   const hasConfiguredAccount =
     awsHasCredentials || oracleHasCredentials || gcpHasCredentials || azureHasCredentials;
   const canAddAccount =
@@ -137,47 +106,35 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
           {awsHasCredentials === true && (
             <AwsAccountCard
               onCredentialsSaved={provisionAccount}
-              onProvisionRequested={provisionAccount}
               onVerifyRequested={handleVerifyRequested}
-              isProvisioned={provisionedProviders.has(CloudProviderName.Aws)}
               onCredentialsDeleted={() => {
                 setAwsHasCredentials(false);
-                removeProvisionedProvider(CloudProviderName.Aws);
               }}
             />
           )}
           {oracleHasCredentials === true && (
             <OracleAccountCard
               onCredentialsSaved={provisionAccount}
-              onProvisionRequested={provisionAccount}
-              isProvisioned={provisionedProviders.has(CloudProviderName.Oracle)}
               onCredentialsDeleted={() => {
                 setOracleHasCredentials(false);
-                removeProvisionedProvider(CloudProviderName.Oracle);
               }}
             />
           )}
           {gcpHasCredentials === true && (
             <GcpAccountCard
               onCredentialsSaved={provisionAccount}
-              onProvisionRequested={provisionAccount}
               onVerifyRequested={handleVerifyRequested}
-              isProvisioned={provisionedProviders.has(CloudProviderName.Gcp)}
               onCredentialsDeleted={() => {
                 setGcpHasCredentials(false);
-                removeProvisionedProvider(CloudProviderName.Gcp);
               }}
             />
           )}
           {azureHasCredentials === true && (
             <AzureAccountCard
               onCredentialsSaved={provisionAccount}
-              onProvisionRequested={provisionAccount}
               onVerifyRequested={handleVerifyRequested}
-              isProvisioned={provisionedProviders.has(CloudProviderName.Azure)}
               onCredentialsDeleted={() => {
                 setAzureHasCredentials(false);
-                removeProvisionedProvider(CloudProviderName.Azure);
               }}
             />
           )}
