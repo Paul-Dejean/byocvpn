@@ -16,10 +16,13 @@ use crate::{auth::create_credential, client::AzureClient, instance, network};
 
 const REQUIRED_ACTIONS: &[&str] = &[
     "Microsoft.Compute/register/action",
+    "Microsoft.Compute/locations/operations/read",
     "Microsoft.Compute/virtualMachines/read",
     "Microsoft.Compute/virtualMachines/write",
     "Microsoft.Compute/virtualMachines/delete",
     "Microsoft.Network/register/action",
+    "Microsoft.Network/locations/operations/read",
+    "Microsoft.Network/locations/operationResults/read",
     "Microsoft.Network/networkInterfaces/join/action",
     "Microsoft.Network/networkInterfaces/read",
     "Microsoft.Network/networkInterfaces/write",
@@ -39,6 +42,7 @@ const REQUIRED_ACTIONS: &[&str] = &[
     "Microsoft.Network/virtualNetworks/subnets/read",
     "Microsoft.Network/virtualNetworks/subnets/write",
     "Microsoft.Network/virtualNetworks/subnets/delete",
+    "Microsoft.Resources/register/action",
     "Microsoft.Resources/subscriptions/locations/read",
     "Microsoft.Resources/subscriptions/providers/read",
     "Microsoft.Resources/subscriptions/resourceGroups/read",
