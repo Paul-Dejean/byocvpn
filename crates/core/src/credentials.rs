@@ -4,11 +4,13 @@ use ini::Ini;
 use log::*;
 use tokio::fs::{create_dir_all, try_exists};
 
-use crate::error::{ConfigurationError, CredentialsError, Result};
+use crate::{
+    config::get_data_directory,
+    error::{CredentialsError, Result},
+};
 
 async fn get_credentials_path() -> Result<PathBuf> {
-    let home_dir = dirs::home_dir().ok_or(ConfigurationError::HomeDirectoryNotAvailable)?;
-    let dir = home_dir.join(".byocvpn");
+    let dir = get_data_directory()?;
     if !try_exists(&dir)
         .await
         .map_err(|error| CredentialsError::FileReadFailed {

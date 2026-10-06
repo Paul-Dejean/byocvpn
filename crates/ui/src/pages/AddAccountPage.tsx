@@ -11,14 +11,12 @@ import { save } from "@tauri-apps/plugin-dialog";
 import toast from "react-hot-toast";
 import { useCredentials } from "../hooks/useCredentials";
 import { useAccounts } from "../hooks/useAccounts";
-import { usePermissions } from "../hooks/usePermissions";
 import {
   AwsCredentials,
   AzureCredentials,
   CloudProviderName,
   GcpCredentials,
   VerifiableCredentialsRequest,
-  areAllPermissionsGranted,
 } from "../types";
 import { PROVIDER_METADATA } from "../constants/providers";
 import { JobProgressDrawer } from "../components/common/JobProgressDrawer";
@@ -68,6 +66,7 @@ const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
               "ec2:DeleteSecurityGroup",
               "ec2:DescribeSecurityGroups",
               "ec2:AuthorizeSecurityGroupIngress",
+              "ec2:RevokeSecurityGroupIngress",
               "ec2:CreateTags",
               "ec2:DescribeAvailabilityZones",
               "ec2:CreateInternetGateway",
@@ -82,6 +81,11 @@ const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
               "ssm:GetParameter",
             ],
             Resource: "*",
+          },
+          {
+            Effect: "Allow",
+            Action: "iam:SimulatePrincipalPolicy",
+            Resource: "arn:aws:iam::*:user/${aws:username}",
           },
         ],
       },
@@ -120,6 +124,7 @@ const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
       "- compute.firewalls.create",
       "- compute.firewalls.delete",
       "- compute.firewalls.get",
+      "- compute.firewalls.update",
       "- compute.globalOperations.get",
       "- compute.images.get",
       "- compute.instances.create",
@@ -133,6 +138,7 @@ const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
       "- compute.networks.delete",
       "- compute.networks.get",
       "- compute.networks.updatePolicy",
+      "- compute.regionOperations.get",
       "- compute.regions.list",
       "- compute.subnetworks.create",
       "- compute.subnetworks.delete",
@@ -160,10 +166,13 @@ const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
               actions: [
                 "Microsoft.Authorization/permissions/read",
                 "Microsoft.Compute/register/action",
+                "Microsoft.Compute/locations/operations/read",
                 "Microsoft.Compute/virtualMachines/read",
                 "Microsoft.Compute/virtualMachines/write",
                 "Microsoft.Compute/virtualMachines/delete",
                 "Microsoft.Network/register/action",
+                "Microsoft.Network/locations/operations/read",
+                "Microsoft.Network/locations/operationResults/read",
                 "Microsoft.Network/networkInterfaces/join/action",
                 "Microsoft.Network/networkInterfaces/read",
                 "Microsoft.Network/networkInterfaces/write",
@@ -183,6 +192,7 @@ const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
                 "Microsoft.Network/virtualNetworks/subnets/read",
                 "Microsoft.Network/virtualNetworks/subnets/write",
                 "Microsoft.Network/virtualNetworks/subnets/delete",
+                "Microsoft.Resources/register/action",
                 "Microsoft.Resources/subscriptions/locations/read",
                 "Microsoft.Resources/subscriptions/providers/read",
                 "Microsoft.Resources/subscriptions/resourceGroups/read",
@@ -220,7 +230,7 @@ const PROVIDER_SETUP_INSTRUCTIONS: Record<
       },
       {
         number: 3,
-        text: "For a quick setup, attach the AmazonEC2FullAccess and AmazonSSMReadOnlyAccess managed policies. For fine-grained access, choose Attach policies directly → Create policy, paste the JSON policy below into the JSON editor, save it, and attach it to the user.",
+        text: "For a quick setup, attach the AmazonEC2FullAccess and AmazonSSMReadOnlyAccess managed policies. For fine-grained access, choose Attach policies directly → Create policy, paste the JSON policy below into the JSON editor, save it, and attach it to the user. The JSON policy also lets ByocVPN verify its permissions from Settings.",
       },
       {
         number: 4,
@@ -272,7 +282,7 @@ const PROVIDER_SETUP_INSTRUCTIONS: Record<
       },
       {
         number: 3,
-        text: "Assign permissions to the service account. Quick setup: attach the built-in roles Compute Instance Admin (v1) and Service Usage Admin. Least-privilege setup: go to IAM & Admin → Roles → Create role, add each permission listed in the YAML below, then assign that custom role to the service account.",
+        text: "Assign permissions to the service account. Quick setup: attach the built-in roles Compute Admin and Service Usage Admin. Least-privilege setup: go to IAM & Admin → Roles → Create role, add each permission listed in the YAML below, then assign that custom role to the service account.",
       },
       {
         number: 4,
@@ -338,18 +348,7 @@ export function AddAccountPage({
   });
 
   const { saveCredentials } = useCredentials();
-  const { permissions, isVerifying, verifyPermissions, clearPermissions } =
-    usePermissions();
-  const [pendingCredentials, setPendingCredentials] =
-    useState<VerifiableCredentialsRequest | null>(null);
-  const [verificationFailed, setVerificationFailed] = useState(false);
-  const [isVerificationDrawerOpen, setIsVerificationDrawerOpen] =
-    useState(false);
-
-  const isVerifiableProvider =
-    selectedProvider === CloudProviderName.Aws ||
-    selectedProvider === CloudProviderName.Gcp ||
-    selectedProvider === CloudProviderName.Azure;
+  const [isSavingCredentials, setIsSavingCredentials] = useState(false);
 
   const handleProviderSelected = (providerName: CloudProviderName) => {
     setSelectedProvider(providerName);
@@ -365,36 +364,18 @@ export function AddAccountPage({
     provisionAccount(provider);
   };
 
-  const verifyAndProvision = async (request: VerifiableCredentialsRequest) => {
-    setPendingCredentials(request);
-    setVerificationFailed(false);
-    setIsVerificationDrawerOpen(true);
-    const result = await verifyPermissions(
-      request.provider,
-      request.credentials,
-    );
-    if (result && areAllPermissionsGranted(result)) {
-      const saved = await saveCredentials(request.provider, request.credentials);
-      if (saved) {
-        provisionAccount(request.provider);
-        return;
-      }
-    }
-    setVerificationFailed(true);
-  };
-
-  const handleRetryVerification = () => {
-    if (pendingCredentials) {
-      verifyAndProvision(pendingCredentials);
+  const saveAndProvision = async (request: VerifiableCredentialsRequest) => {
+    setIsSavingCredentials(true);
+    const saved = await saveCredentials(request.provider, request.credentials);
+    setIsSavingCredentials(false);
+    if (saved) {
+      provisionAccount(request.provider);
     }
   };
 
   const handleCloseProvisionDrawer = () => {
     const provisioningStarted = activeProvisionJob !== null;
     const hasNoSteps = (activeProvisionJob?.steps ?? []).length === 0;
-    setIsVerificationDrawerOpen(false);
-    setVerificationFailed(false);
-    clearPermissions();
     resetProvisionState();
     if (provisioningStarted && (isProvisionComplete || hasNoSteps)) {
       onAccountAdded();
@@ -444,30 +425,20 @@ export function AddAccountPage({
             provider={selectedProvider}
             instructions={instructions}
             onCredentialsSaved={handleCredentialsSaved}
-            onVerifiableSubmit={verifyAndProvision}
-            isSubmitting={isVerifying}
+            onCredentialsSubmit={saveAndProvision}
+            isSubmitting={isSavingCredentials}
             onCancel={handleBackToProviderSelection}
           />
         )}
       </div>
 
       <JobProgressDrawer
-        isOpen={isVerificationDrawerOpen || activeProvisionJob !== null}
+        isOpen={activeProvisionJob !== null}
         onClose={handleCloseProvisionDrawer}
-        provider={
-          activeProvisionJob?.provider ??
-          selectedProvider ??
-          CloudProviderName.Aws
-        }
+        provider={activeProvisionJob?.provider ?? selectedProvider ?? CloudProviderName.Aws}
         steps={activeProvisionJob?.steps ?? []}
         isComplete={isProvisionComplete}
         error={provisionError}
-        verification={
-          isVerifiableProvider
-            ? { isVerifying, permissions, failed: verificationFailed }
-            : undefined
-        }
-        onRetry={handleRetryVerification}
       />
     </div>
   );
@@ -477,7 +448,7 @@ interface CredentialsStepProps {
   provider: CloudProviderName;
   instructions: { title: string; steps: SetupStep[] };
   onCredentialsSaved: (provider: CloudProviderName) => void;
-  onVerifiableSubmit: (request: VerifiableCredentialsRequest) => void;
+  onCredentialsSubmit: (request: VerifiableCredentialsRequest) => void;
   isSubmitting: boolean;
   onCancel: () => void;
 }
@@ -486,7 +457,7 @@ function CredentialsStep({
   provider,
   instructions,
   onCredentialsSaved,
-  onVerifiableSubmit,
+  onCredentialsSubmit,
   isSubmitting,
   onCancel,
 }: CredentialsStepProps) {
@@ -526,7 +497,7 @@ function CredentialsStep({
         {provider === CloudProviderName.Aws && (
           <AwsCredentialsForm
             onSubmit={(credentials) =>
-              onVerifiableSubmit({
+              onCredentialsSubmit({
                 provider: CloudProviderName.Aws,
                 credentials,
               })
@@ -544,7 +515,7 @@ function CredentialsStep({
         {provider === CloudProviderName.Gcp && (
           <GcpCredentialsForm
             onSubmit={(credentials) =>
-              onVerifiableSubmit({
+              onCredentialsSubmit({
                 provider: CloudProviderName.Gcp,
                 credentials,
               })
@@ -556,7 +527,7 @@ function CredentialsStep({
         {provider === CloudProviderName.Azure && (
           <AzureCredentialsForm
             onSubmit={(credentials) =>
-              onVerifiableSubmit({
+              onCredentialsSubmit({
                 provider: CloudProviderName.Azure,
                 credentials,
               })

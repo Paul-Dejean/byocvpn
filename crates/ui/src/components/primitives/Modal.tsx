@@ -1,4 +1,6 @@
 import { ReactNode, useEffect } from "react";
+import { useIsMobileLayout } from "../../hooks/useIsMobileLayout";
+import { MobileSheet } from "./MobileSheet";
 
 interface ModalProps {
   isOpen: boolean;
@@ -8,6 +10,8 @@ interface ModalProps {
 }
 
 export function Modal({ isOpen, onClose, children, className = "" }: ModalProps) {
+  const isMobileLayout = useIsMobileLayout();
+
   useEffect(() => {
     if (!isOpen) {
       return;
@@ -20,6 +24,14 @@ export function Modal({ isOpen, onClose, children, className = "" }: ModalProps)
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
+
+  if (isMobileLayout) {
+    return (
+      <MobileSheet isOpen={isOpen} onClose={onClose} isFullHeight>
+        {children}
+      </MobileSheet>
+    );
+  }
 
   if (!isOpen) {
     return null;

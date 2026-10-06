@@ -26,13 +26,13 @@ export function DeployServerStep({
   }
 
   return (
-    <div className="h-full flex flex-col items-center py-10 gap-8">
+    <div className="h-full flex flex-col items-center py-10 max-md:py-4 gap-8 max-md:gap-6">
       <OnboardingHeading
         title="Deploy your first server to stay private"
         subtitle="Your credentials stay on your device. We never store them."
       />
 
-      <div className="w-[400px] flex-1 min-h-0 flex flex-col">
+      <div className="w-full max-w-[400px] flex-1 min-h-0 flex flex-col">
         <RegionList
           provider={provider}
           selectedRegion={selectedRegion}

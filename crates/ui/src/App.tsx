@@ -6,6 +6,7 @@ import "./App.css";
 import "flag-icons/css/flag-icons.min.css";
 import {
   ServersPage,
+  MobileServersPage,
   OnboardingPage,
   SettingsPage,
   PricingPage,
@@ -13,10 +14,11 @@ import {
 } from "./pages";
 import { AppFrame } from "./components/common/AppFrame";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
-import { Sidebar } from "./components/common/Sidebar";
+import { MainLayout } from "./components/common/MainLayout";
 import { VpnConnectionProvider } from "./contexts/VpnConnectionContext";
 import { DeploymentsProvider } from "./contexts/DeploymentsContext";
 import { useAutoTerminatedInstanceListener } from "./hooks/useAutoTerminatedInstanceListener";
+import { useIsMobileLayout } from "./hooks/useIsMobileLayout";
 import { configuredProvidersQueryOptions } from "./queries/configuredProviders";
 import { CloudProviderName } from "./types";
 import { OnboardingStep } from "./types/onboarding";
@@ -45,6 +47,7 @@ function App() {
   const { data: configuredProviders, isError: isConfiguredProvidersError } =
     useQuery(configuredProvidersQueryOptions);
   useAutoTerminatedInstanceListener();
+  const isMobileLayout = useIsMobileLayout();
 
   if (configuredProviders === undefined && !isConfiguredProvidersError) {
     return <AppFrame>{null}</AppFrame>;
@@ -147,18 +150,16 @@ function App() {
           page === Page.PRICING ||
           page === Page.SETTINGS) && (
           <VpnConnectionProvider>
-            <div className="flex h-full gap-4">
-              <Sidebar currentPage={page} onNavigate={setPage} />
-              <div className="flex-1 min-w-0 h-full overflow-hidden">
-                {page === Page.SERVERS && <ServersPage />}
-                {page === Page.PRICING && <PricingPage />}
-                {page === Page.SETTINGS && (
-                  <SettingsPage
-                    onNavigateToAddAccount={() => openAddAccount(null, false)}
-                  />
-                )}
-              </div>
-            </div>
+            <MainLayout currentPage={page} onNavigate={setPage}>
+              {page === Page.SERVERS &&
+                (isMobileLayout ? <MobileServersPage /> : <ServersPage />)}
+              {page === Page.PRICING && <PricingPage />}
+              {page === Page.SETTINGS && (
+                <SettingsPage
+                  onNavigateToAddAccount={() => openAddAccount(null, false)}
+                />
+              )}
+            </MainLayout>
           </VpnConnectionProvider>
         )}
         </DeploymentsProvider>

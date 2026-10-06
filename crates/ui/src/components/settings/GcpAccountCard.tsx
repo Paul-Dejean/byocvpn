@@ -10,12 +10,15 @@ import { FormField } from "../primitives/FormField";
 interface GcpAccountCardProps {
   onCredentialsSaved: (provider: CloudProviderName) => void;
   onCredentialsDeleted: () => void;
-  onProvisionRequested: (provider: CloudProviderName) => void;
-  isProvisioned: boolean;
+  onVerifyRequested: (provider: CloudProviderName) => void;
 }
 
 
-export function GcpAccountCard({ onCredentialsSaved, onCredentialsDeleted, onProvisionRequested, isProvisioned }: GcpAccountCardProps) {
+export function GcpAccountCard({
+  onCredentialsSaved,
+  onCredentialsDeleted,
+  onVerifyRequested,
+}: GcpAccountCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [hasCredentials, setHasCredentials] = useState<boolean | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
@@ -114,10 +117,9 @@ export function GcpAccountCard({ onCredentialsSaved, onCredentialsDeleted, onPro
           provider={CloudProviderName.Gcp}
           title="Google Cloud Account"
           hasCredentials={hasCredentials}
-          isProvisioned={isProvisioned}
           isConfirmingDelete={isConfirmingDelete}
           onEdit={handleEditOpen}
-          onProvision={() => onProvisionRequested(CloudProviderName.Gcp)}
+          onVerify={() => onVerifyRequested(CloudProviderName.Gcp)}
           onRequestDelete={() => setIsConfirmingDelete(true)}
           onCancelDelete={() => setIsConfirmingDelete(false)}
           onConfirmDelete={handleDeleteCredentials}

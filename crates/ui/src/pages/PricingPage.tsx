@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Wallet } from "lucide-react";
 import { useLedger } from "../hooks/useLedger";
+import { useIsMobileLayout } from "../hooks/useIsMobileLayout";
 import { CalendarMonth, CloudProviderName } from "../types";
 import { ProviderFilter } from "../components/pricing/ProviderFilter";
 import { InstanceCostRow } from "../components/pricing/InstanceCostRow";
+import { InstanceCostCard } from "../components/pricing/InstanceCostCard";
 import { LedgerEntryWithCost } from "../types/ledger";
 import { Banner } from "../components/primitives/Banner";
 import { Button } from "../components/primitives/Button";
@@ -57,6 +59,7 @@ function sortEntries(entries: LedgerEntryWithCost[]): LedgerEntryWithCost[] {
 
 export function PricingPage() {
   const { entries, isLoading, error, refetch } = useLedger();
+  const isMobileLayout = useIsMobileLayout();
 
   const availableMonths = useMemo<CalendarMonth[]>(() => {
     const monthSet = new Set<string>();
@@ -125,7 +128,7 @@ export function PricingPage() {
         </div>
       ) : (
         <>
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             {availableProviders.length > 1 ? (
               <ProviderFilter
                 availableProviders={availableProviders}
@@ -161,13 +164,13 @@ export function PricingPage() {
           </div>
 
           <div className="flex-1 min-h-0 rounded-xl bg-bg-bolder border border-bd-moderate flex flex-col overflow-hidden">
-            <div className="px-4 py-3 border-b border-bd-faint flex items-center justify-between gap-4">
+            <div className="px-4 py-3 border-b border-bd-faint flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
               <span className="text-body-sm text-fg-lighter">
                 Servers{" "}
                 <span className="text-fg-medium">[{visibleEntries.length}]</span>
               </span>
               {!isLoading && visibleEntries.length > 0 && (
-                <div className="flex items-baseline gap-2">
+                <div className="flex flex-wrap items-baseline gap-x-2">
                   <span className="text-caption text-fg-medium">Total</span>
                   <span className="text-feature text-fg-lighter tabular-nums">
                     ${totalCost.toFixed(4)}
@@ -187,6 +190,12 @@ export function PricingPage() {
               </div>
             ) : visibleEntries.length === 0 ? (
               <EmptyExpenses />
+            ) : isMobileLayout ? (
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                {visibleEntries.map((entry) => (
+                  <InstanceCostCard key={entry.instanceId} entry={entry} />
+                ))}
+              </div>
             ) : (
               <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
                 <table className="w-full table-fixed">

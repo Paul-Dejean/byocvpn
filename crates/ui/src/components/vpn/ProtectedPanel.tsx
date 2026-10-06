@@ -1,6 +1,6 @@
 import { ShieldCheck } from "lucide-react";
-import { useEffect, useState } from "react";
 import { ConnectedInstance, TunnelMetrics } from "../../bindings";
+import { useSessionSeconds } from "../../hooks/useSessionSeconds";
 import { formatBytes } from "../../lib/bytes";
 import { formatDuration } from "../../lib/time";
 import { Button } from "../primitives/Button";
@@ -8,8 +8,6 @@ import { ServerLocation } from "../servers/ServerLocation";
 import { IpAddressesCard } from "./IpAddressesCard";
 import { PanelField } from "./PanelField";
 import { StatusHero } from "./StatusHero";
-
-const TICK_INTERVAL_MS = 1000;
 
 interface ProtectedPanelProps {
   connectedInstance: ConnectedInstance;
@@ -78,21 +76,4 @@ export function ProtectedPanel({
       </Button>
     </div>
   );
-}
-
-function useSessionSeconds(connectedAt: number | null): number {
-  const [fallbackStartTime] = useState(() => Date.now());
-  const startTime = connectedAt !== null ? connectedAt * 1000 : fallbackStartTime;
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-
-  useEffect(() => {
-    function updateElapsedSeconds() {
-      setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startTime) / 1000)));
-    }
-    updateElapsedSeconds();
-    const interval = setInterval(updateElapsedSeconds, TICK_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [startTime]);
-
-  return elapsedSeconds;
 }

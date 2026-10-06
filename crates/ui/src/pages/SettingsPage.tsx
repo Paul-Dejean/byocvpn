@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
-import { load as loadStore } from "@tauri-apps/plugin-store";
 import toast from "react-hot-toast";
 import { useCredentials } from "../hooks/useCredentials";
 import { useAccounts } from "../hooks/useAccounts";
@@ -11,6 +10,7 @@ import { OracleAccountCard } from "../components/settings/OracleAccountCard";
 import { GcpAccountCard } from "../components/settings/GcpAccountCard";
 import { AzureAccountCard } from "../components/settings/AzureAccountCard";
 import { JobProgressDrawer } from "../components/common/JobProgressDrawer";
+import { PermissionsDrawer } from "../components/common/PermissionsDrawer";
 import { NotificationSettingsCard } from "../components/settings/NotificationSettingsCard";
 import { SessionKillswitchCard } from "../components/settings/SessionKillswitchCard";
 import { AutoTerminateSettingsCard } from "../components/settings/AutoTerminateSettingsCard";
@@ -36,10 +36,6 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
     boolean | null
   >(null);
 
-  const [provisionedProviders, setProvisionedProviders] = useState<
-    Set<CloudProviderName>
-  >(new Set());
-
   const { loadCredentials } = useCredentials();
 
   const {
@@ -49,34 +45,28 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
     provisionAccount,
     resetProvisionState,
   } = useAccounts({
-    onComplete: (provider) => {
-      setProvisionedProviders((previous) => new Set([...previous, provider]));
-    },
-    onFailed: () => toast.error("Provisioning failed"),
+    onFailed: () => toast.error("Account setup failed"),
   });
 
-  const { permissions, isVerifying, verifyPermissions, clearPermissions } =
-    usePermissions();
-  const isProvisionDrawerOpen = activeProvisionJob !== null;
-  const provisionJobProvider = activeProvisionJob?.provider;
-  const isVerifiableProvisionJob =
-    provisionJobProvider === CloudProviderName.Aws ||
-    provisionJobProvider === CloudProviderName.Gcp ||
-    provisionJobProvider === CloudProviderName.Azure;
-
-  useEffect(() => {
-    if (isVerifiableProvisionJob && provisionJobProvider) {
-      verifyPermissions(provisionJobProvider);
-    }
-    if (!provisionJobProvider) {
-      clearPermissions();
-    }
-  }, [
-    isVerifiableProvisionJob,
-    provisionJobProvider,
+  const {
+    permissions,
+    isVerifying,
+    error: permissionsError,
     verifyPermissions,
     clearPermissions,
-  ]);
+  } = usePermissions();
+  const [verifiedProvider, setVerifiedProvider] = useState<CloudProviderName | null>(null);
+  const isProvisionDrawerOpen = activeProvisionJob !== null;
+
+  function handleVerifyRequested(provider: CloudProviderName) {
+    setVerifiedProvider(provider);
+    verifyPermissions(provider);
+  }
+
+  function handleClosePermissionsDrawer() {
+    setVerifiedProvider(null);
+    clearPermissions();
+  }
 
   useEffect(() => {
     loadCredentials(CloudProviderName.Aws).then((existing) =>
@@ -92,29 +82,6 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
       setAzureHasCredentials(existing !== null),
     );
   }, []);
-
-  useEffect(() => {
-    const fetchProvisionedProviders = async () => {
-      const store = await loadStore("providers.json");
-      const provisioned = new Set<CloudProviderName>();
-      for (const provider of Object.values(CloudProviderName)) {
-        const value = await store.get<boolean>(`provisioned/${provider}`);
-        if (value === true) {
-          provisioned.add(provider);
-        }
-      }
-      setProvisionedProviders(provisioned);
-    };
-    fetchProvisionedProviders();
-  }, []);
-
-  function removeProvisionedProvider(provider: CloudProviderName) {
-    setProvisionedProviders((previous) => {
-      const next = new Set(previous);
-      next.delete(provider);
-      return next;
-    });
-  }
 
   const hasConfiguredAccount =
     awsHasCredentials || oracleHasCredentials || gcpHasCredentials || azureHasCredentials;
@@ -139,44 +106,35 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
           {awsHasCredentials === true && (
             <AwsAccountCard
               onCredentialsSaved={provisionAccount}
-              onProvisionRequested={provisionAccount}
-              isProvisioned={provisionedProviders.has(CloudProviderName.Aws)}
+              onVerifyRequested={handleVerifyRequested}
               onCredentialsDeleted={() => {
                 setAwsHasCredentials(false);
-                removeProvisionedProvider(CloudProviderName.Aws);
               }}
             />
           )}
           {oracleHasCredentials === true && (
             <OracleAccountCard
               onCredentialsSaved={provisionAccount}
-              onProvisionRequested={provisionAccount}
-              isProvisioned={provisionedProviders.has(CloudProviderName.Oracle)}
               onCredentialsDeleted={() => {
                 setOracleHasCredentials(false);
-                removeProvisionedProvider(CloudProviderName.Oracle);
               }}
             />
           )}
           {gcpHasCredentials === true && (
             <GcpAccountCard
               onCredentialsSaved={provisionAccount}
-              onProvisionRequested={provisionAccount}
-              isProvisioned={provisionedProviders.has(CloudProviderName.Gcp)}
+              onVerifyRequested={handleVerifyRequested}
               onCredentialsDeleted={() => {
                 setGcpHasCredentials(false);
-                removeProvisionedProvider(CloudProviderName.Gcp);
               }}
             />
           )}
           {azureHasCredentials === true && (
             <AzureAccountCard
               onCredentialsSaved={provisionAccount}
-              onProvisionRequested={provisionAccount}
-              isProvisioned={provisionedProviders.has(CloudProviderName.Azure)}
+              onVerifyRequested={handleVerifyRequested}
               onCredentialsDeleted={() => {
                 setAzureHasCredentials(false);
-                removeProvisionedProvider(CloudProviderName.Azure);
               }}
             />
           )}
@@ -215,11 +173,19 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
         steps={activeProvisionJob?.steps ?? []}
         isComplete={isProvisionComplete}
         error={provisionError}
-        verification={
-          isVerifiableProvisionJob
-            ? { isVerifying, permissions, failed: false }
-            : undefined
-        }
+      />
+
+      <PermissionsDrawer
+        provider={verifiedProvider}
+        permissions={permissions}
+        isVerifying={isVerifying}
+        error={permissionsError}
+        onClose={handleClosePermissionsDrawer}
+        onRetry={() => {
+          if (verifiedProvider) {
+            verifyPermissions(verifiedProvider);
+          }
+        }}
       />
     </div>
   );

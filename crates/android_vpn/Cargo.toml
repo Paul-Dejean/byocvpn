@@ -1,0 +1,12 @@
+[package]
+name = "tauri-plugin-android-vpn"
+version.workspace = true
+edition = "2024"
+links = "tauri-plugin-android-vpn"
+
+[dependencies]
+tauri = { version = "2" }
+serde = { workspace = true }
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }

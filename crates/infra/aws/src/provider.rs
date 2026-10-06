@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 use aws_sdk_ec2::Client as Ec2Client;
+use aws_sdk_iam::Client as IamClient;
 use aws_sdk_ssm::Client as SsmClient;
+use aws_sdk_sts::Client as StsClient;
 use byocvpn_core::{
     cloud_provider::{
         CloudProvider, CloudProviderName, InstanceInfo, PermissionStatus, SpawnInstanceParams,
@@ -43,6 +45,14 @@ impl AwsProvider {
         let sdk_config = config::get_sdk_config(&self.config, region).await;
         return SsmClient::new(&sdk_config);
     }
+    pub async fn create_sts_client(&self) -> StsClient {
+        let sdk_config = config::get_sdk_config(&self.config, None).await;
+        StsClient::new(&sdk_config)
+    }
+    pub async fn create_iam_client(&self) -> IamClient {
+        let sdk_config = config::get_sdk_config(&self.config, None).await;
+        IamClient::new(&sdk_config)
+    }
 }
 
 #[async_trait]
@@ -69,9 +79,9 @@ impl CloudProvider for AwsProvider {
     }
 
     async fn verify_permissions(&self) -> Result<Vec<PermissionStatus>> {
-        let ec2_client = self.create_ec2_client(None).await;
-        let ssm_client = self.create_ssm_client(None).await;
-        permissions::verify_permissions(&ec2_client, &ssm_client).await
+        let sts_client = self.create_sts_client().await;
+        let iam_client = self.create_iam_client().await;
+        permissions::verify_permissions(&sts_client, &iam_client).await
     }
 
     async fn setup(&self) -> Result<()> {

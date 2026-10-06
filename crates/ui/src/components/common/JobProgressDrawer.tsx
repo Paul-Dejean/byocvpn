@@ -1,22 +1,9 @@
 import { Check, Circle, Sparkles, X } from "lucide-react";
-import {
-  Permissions,
-  CloudProviderName,
-  JobStepState,
-  JobStepStatus,
-} from "../../types";
+import { CloudProviderName, JobStepState, JobStepStatus } from "../../types";
 import { PROVIDER_METADATA } from "../../constants/providers";
 import { Drawer } from "../primitives/Drawer";
-import { Spinner } from "../primitives/Spinner";
 import { Button } from "../primitives/Button";
 import { Banner } from "../primitives/Banner";
-import { PermissionsPanel } from "./PermissionsPanel";
-
-export interface VerificationState {
-  isVerifying: boolean;
-  permissions: Permissions | null;
-  failed: boolean;
-}
 
 interface JobProgressDrawerProps {
   isOpen: boolean;
@@ -28,8 +15,6 @@ interface JobProgressDrawerProps {
   isComplete: boolean;
   successMessage?: string;
   error: string | null;
-  verification?: VerificationState;
-  onRetry?: () => void;
 }
 
 export function JobProgressDrawer({
@@ -42,90 +27,40 @@ export function JobProgressDrawer({
   isComplete,
   successMessage,
   error,
-  verification,
-  onRetry,
 }: JobProgressDrawerProps) {
-  const isVerifying = verification?.isVerifying === true;
-  const verificationFailed = verification?.failed === true;
-
-  const drawerTitle = verificationFailed
-    ? "Permission check failed"
-    : isVerifying
-      ? "Verifying permissions"
-      : (title ?? `Provisioning ${PROVIDER_METADATA[provider].shortLabel}`);
-
-  const drawerSubtitle = verificationFailed
-    ? "Your access key is missing required permissions"
-    : isVerifying
-      ? "Checking your access key against the required permissions"
-      : (subtitle ?? "Setting up your account infrastructure");
-
   return (
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
-      title={drawerTitle}
-      subtitle={drawerSubtitle}
+      title={title ?? `Provisioning ${PROVIDER_METADATA[provider].shortLabel}`}
+      subtitle={subtitle ?? "Setting up your account infrastructure"}
       footer={
-        verificationFailed ? (
-          <Button variant="primary" size="lg" onClick={onRetry} className="w-full">
-            Retry
-          </Button>
-        ) : (
-          <Button variant="secondary" size="lg" onClick={onClose} className="w-full">
-            Close
-          </Button>
-        )
+        <Button variant="secondary" size="lg" onClick={onClose} className="w-full">
+          Close
+        </Button>
       }
     >
-      {isVerifying ? (
-        <div className="flex items-center gap-2 text-body-sm text-fg-medium">
-          <Spinner color="border-bd-strong" />
-          Verifying permissions
-        </div>
-      ) : verificationFailed ? (
-        <div className="flex flex-col gap-4">
-          <Banner variant="danger" title="Update your permissions">
-            Your credentials are missing the permissions marked below. Grant
-            them in your cloud provider's console, then retry.
-          </Banner>
-          <PermissionsPanel
-            permissions={verification?.permissions ?? null}
-            isVerifying={false}
-            error={null}
+      <div className="flex flex-col gap-6">
+        <ProvisionSteps steps={steps} />
+
+        {isComplete && (
+          <Banner
+            variant="success"
+            icon={<Check size={16} className="text-fg-success-moderate" />}
+            title={successMessage ?? "Account provisioned successfully"}
           />
-        </div>
-      ) : (
-        <div className="flex flex-col gap-6">
-          <ProvisionSteps steps={steps} />
+        )}
 
-          {verification?.permissions && (
-            <PermissionsPanel
-              permissions={verification.permissions}
-              isVerifying={false}
-              error={null}
-            />
-          )}
-
-          {isComplete && (
-            <Banner
-              variant="success"
-              icon={<Check size={16} className="text-fg-success-moderate" />}
-              title={successMessage ?? "Account provisioned successfully"}
-            />
-          )}
-
-          {error && (
-            <Banner
-              variant="danger"
-              icon={<X size={16} className="text-fg-danger-moderate" />}
-              title="Provisioning failed"
-            >
-              {error}
-            </Banner>
-          )}
-        </div>
-      )}
+        {error && (
+          <Banner
+            variant="danger"
+            icon={<X size={16} className="text-fg-danger-moderate" />}
+            title="Provisioning failed"
+          >
+            {error}
+          </Banner>
+        )}
+      </div>
     </Drawer>
   );
 }

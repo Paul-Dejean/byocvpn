@@ -9,12 +9,15 @@ import { FormField } from "../primitives/FormField";
 interface AwsAccountCardProps {
   onCredentialsSaved: (provider: CloudProviderName) => void;
   onCredentialsDeleted: () => void;
-  onProvisionRequested: (provider: CloudProviderName) => void;
-  isProvisioned: boolean;
+  onVerifyRequested: (provider: CloudProviderName) => void;
 }
 
 
-export function AwsAccountCard({ onCredentialsSaved, onCredentialsDeleted, onProvisionRequested, isProvisioned }: AwsAccountCardProps) {
+export function AwsAccountCard({
+  onCredentialsSaved,
+  onCredentialsDeleted,
+  onVerifyRequested,
+}: AwsAccountCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [hasCredentials, setHasCredentials] = useState<boolean | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
@@ -77,10 +80,9 @@ export function AwsAccountCard({ onCredentialsSaved, onCredentialsDeleted, onPro
           provider={CloudProviderName.Aws}
           title="AWS Account"
           hasCredentials={hasCredentials}
-          isProvisioned={isProvisioned}
           isConfirmingDelete={isConfirmingDelete}
           onEdit={handleEditOpen}
-          onProvision={() => onProvisionRequested(CloudProviderName.Aws)}
+          onVerify={() => onVerifyRequested(CloudProviderName.Aws)}
           onRequestDelete={() => setIsConfirmingDelete(true)}
           onCancelDelete={() => setIsConfirmingDelete(false)}
           onConfirmDelete={handleDelete}

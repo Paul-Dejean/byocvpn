@@ -9,16 +9,14 @@ import { FormField } from "../primitives/FormField";
 interface AzureAccountCardProps {
   onCredentialsSaved: (provider: CloudProviderName) => void;
   onCredentialsDeleted: () => void;
-  onProvisionRequested: (provider: CloudProviderName) => void;
-  isProvisioned: boolean;
+  onVerifyRequested: (provider: CloudProviderName) => void;
 }
 
 
 export function AzureAccountCard({
   onCredentialsSaved,
   onCredentialsDeleted,
-  onProvisionRequested,
-  isProvisioned,
+  onVerifyRequested,
 }: AzureAccountCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [hasCredentials, setHasCredentials] = useState<boolean | null>(null);
@@ -109,10 +107,9 @@ export function AzureAccountCard({
           provider={CloudProviderName.Azure}
           title="Azure Account"
           hasCredentials={hasCredentials}
-          isProvisioned={isProvisioned}
           isConfirmingDelete={isConfirmingDelete}
           onEdit={handleEditOpen}
-          onProvision={() => onProvisionRequested(CloudProviderName.Azure)}
+          onVerify={() => onVerifyRequested(CloudProviderName.Azure)}
           onRequestDelete={() => setIsConfirmingDelete(true)}
           onCancelDelete={() => setIsConfirmingDelete(false)}
           onConfirmDelete={handleDeleteCredentials}

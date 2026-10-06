@@ -1,18 +1,25 @@
-use std::sync::Arc;
+use std::{collections::VecDeque, sync::Arc};
 
-use boringtun::noise::{Tunn, TunnResult, errors::WireGuardError};
+use boringtun::{
+    noise::{Tunn, TunnResult, errors::WireGuardError},
+    x25519::{PublicKey, StaticSecret},
+};
 use serde::{Deserialize, Serialize};
 
 use crate::cloud_provider::CloudProviderName;
 use tokio::{
     net::UdpSocket,
     sync::{RwLock, watch},
-    time::{Duration, interval},
+    time::{Duration, Instant, interval},
 };
 use tun_rs::AsyncDevice;
 
-use crate::error::{Result, SystemError};
+use crate::error::{ConfigurationError, Result, SystemError};
 use log::*;
+
+pub const TUNNEL_MTU: u16 = 1280;
+
+const RATE_HISTORY_LENGTH: usize = 10;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -183,5 +190,118 @@ impl Tunnel {
 
         info!("[Tunnel] Clean shutdown.");
         Ok(())
+    }
+}
+
+pub fn create_wireguard_tunnel(private_key: Vec<u8>, public_key: Vec<u8>) -> Result<Tunn> {
+    let private_key_bytes: [u8; 32] =
+        private_key
+            .as_slice()
+            .try_into()
+            .map_err(|_| ConfigurationError::InvalidValue {
+                field: "private_key".to_string(),
+                reason: "Private key must be exactly 32 bytes".to_string(),
+            })?;
+    let public_key_bytes: [u8; 32] =
+        public_key
+            .as_slice()
+            .try_into()
+            .map_err(|_| ConfigurationError::InvalidValue {
+                field: "public_key".to_string(),
+                reason: "Public key must be exactly 32 bytes".to_string(),
+            })?;
+
+    Tunn::new(
+        StaticSecret::from(private_key_bytes),
+        PublicKey::from(public_key_bytes),
+        None,
+        Some(25),
+        0,
+        None,
+    )
+    .map_err(|error| {
+        ConfigurationError::TunnelConfiguration {
+            reason: format!("Failed to create WireGuard tunnel: {:?}", error),
+        }
+        .into()
+    })
+}
+
+pub struct TunnelRateTracker {
+    last_metrics: TunnelMetrics,
+    last_sampled_at: Instant,
+    upload_history: VecDeque<u64>,
+    download_history: VecDeque<u64>,
+}
+
+impl TunnelRateTracker {
+    pub fn new() -> Self {
+        TunnelRateTracker {
+            last_metrics: TunnelMetrics::default(),
+            last_sampled_at: Instant::now(),
+            upload_history: VecDeque::with_capacity(RATE_HISTORY_LENGTH),
+            download_history: VecDeque::with_capacity(RATE_HISTORY_LENGTH),
+        }
+    }
+
+    pub fn sample(&mut self, current_metrics: TunnelMetrics) -> TunnelMetrics {
+        let now = Instant::now();
+        let elapsed_seconds = now.duration_since(self.last_sampled_at).as_secs_f64();
+
+        let upload_rate_instant = calculate_instant_rate(
+            current_metrics.bytes_sent,
+            self.last_metrics.bytes_sent,
+            elapsed_seconds,
+        );
+        let download_rate_instant = calculate_instant_rate(
+            current_metrics.bytes_received,
+            self.last_metrics.bytes_received,
+            elapsed_seconds,
+        );
+
+        push_rate_sample(&mut self.upload_history, upload_rate_instant);
+        push_rate_sample(&mut self.download_history, download_rate_instant);
+
+        let snapshot = TunnelMetrics {
+            bytes_sent: current_metrics.bytes_sent,
+            bytes_received: current_metrics.bytes_received,
+            packets_sent: current_metrics.packets_sent,
+            packets_received: current_metrics.packets_received,
+            upload_rate: calculate_average_rate(&self.upload_history),
+            download_rate: calculate_average_rate(&self.download_history),
+        };
+
+        self.last_metrics = current_metrics;
+        self.last_sampled_at = now;
+        snapshot
+    }
+}
+
+impl Default for TunnelRateTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+fn calculate_instant_rate(current_bytes: u64, previous_bytes: u64, elapsed_seconds: f64) -> u64 {
+    if elapsed_seconds > 0.0 {
+        (current_bytes.saturating_sub(previous_bytes) as f64 / elapsed_seconds) as u64
+    } else {
+        0
+    }
+}
+
+fn push_rate_sample(history: &mut VecDeque<u64>, rate: u64) {
+    history.push_back(rate);
+    if history.len() > RATE_HISTORY_LENGTH {
+        history.pop_front();
+    }
+}
+
+fn calculate_average_rate(history: &VecDeque<u64>) -> u64 {
+    if history.is_empty() {
+        0
+    } else {
+        history.iter().sum::<u64>() / history.len() as u64
     }
 }

@@ -1,19 +1,17 @@
-import { Pencil, Plus, RefreshCw, Trash2, Zap } from "lucide-react";
+import { ListChecks, Pencil, Plus, Trash2 } from "lucide-react";
 import { CloudProviderName } from "../../types";
 import { ProviderIcon } from "../providers/ProviderIcon";
 import { Spinner } from "../primitives/Spinner";
 import { Button } from "../primitives/Button";
 import { IconButton } from "../primitives/IconButton";
-import { Tag } from "../primitives/Tag";
 
 interface AccountRowProps {
   provider: CloudProviderName;
   title: string;
   hasCredentials: boolean | null;
-  isProvisioned: boolean;
   isConfirmingDelete: boolean;
   onEdit: () => void;
-  onProvision: () => void;
+  onVerify?: () => void;
   onRequestDelete: () => void;
   onCancelDelete: () => void;
   onConfirmDelete: () => void;
@@ -23,10 +21,9 @@ export function AccountRow({
   provider,
   title,
   hasCredentials,
-  isProvisioned,
   isConfirmingDelete,
   onEdit,
-  onProvision,
+  onVerify,
   onRequestDelete,
   onCancelDelete,
   onConfirmDelete,
@@ -35,12 +32,7 @@ export function AccountRow({
     <div className="p-4 flex items-center justify-between gap-4">
       <div className="flex items-center gap-3 min-w-0">
         <AccountIconTile provider={provider} />
-        <div className="flex items-center gap-2 min-w-0">
-          <h3 className="text-body-sm text-fg-lighter truncate">{title}</h3>
-          {hasCredentials && (
-            <StatusPill isProvisioned={isProvisioned} />
-          )}
-        </div>
+        <h3 className="text-body-sm text-fg-lighter truncate">{title}</h3>
       </div>
 
       {hasCredentials === null ? (
@@ -67,14 +59,16 @@ export function AccountRow({
             </>
           ) : (
             <>
-              <IconButton
-                accent={isProvisioned ? "brand" : "warning"}
-                size="sm"
-                onClick={onProvision}
-                title={isProvisioned ? "Re-provision" : "Provision"}
-              >
-                {isProvisioned ? <RefreshCw size={16} /> : <Zap size={16} />}
-              </IconButton>
+              {onVerify && (
+                <IconButton
+                  accent="brand"
+                  size="sm"
+                  onClick={onVerify}
+                  title="Verify permissions"
+                >
+                  <ListChecks size={16} />
+                </IconButton>
+              )}
               <IconButton
                 accent="danger"
                 size="sm"
@@ -116,10 +110,3 @@ export function AccountIconTile({ provider }: { provider: CloudProviderName }) {
   );
 }
 
-function StatusPill({ isProvisioned }: { isProvisioned: boolean }) {
-  return isProvisioned ? (
-    <Tag tone="success">Provisioned</Tag>
-  ) : (
-    <Tag tone="warning">Not provisioned</Tag>
-  );
-}

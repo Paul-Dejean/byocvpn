@@ -1,7 +1,5 @@
 use std::path::PathBuf;
 
-pub const TUNNEL_MTU: u16 = 1280;
-
 #[cfg(unix)]
 fn socket_dir() -> PathBuf {
     if cfg!(debug_assertions) {
