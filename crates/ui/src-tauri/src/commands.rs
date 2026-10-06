@@ -15,10 +15,8 @@ use byocvpn_core::{
     daemon_client::DaemonClient,
     error::{ConfigurationError, Error, Result},
     ledger::LedgerEntry,
-    metrics_stream,
     tunnel::VpnStatus,
 };
-use byocvpn_daemon::daemon_client::UnixDaemonClient;
 use byocvpn_gcp::{GcpProvider, credentials::GcpCredentials, pricing as gcp_pricing};
 use byocvpn_oracle::{credentials::OracleCredentials, pricing as oracle_pricing};
 use chrono::Utc;
@@ -26,14 +24,12 @@ use log::*;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, ipc::Channel};
 use tauri_plugin_notification::NotificationExt;
-use tauri_specta::Event;
 
-use crate::events::VpnStatusEvent;
 use crate::ledger_store::LedgerStore;
 use crate::provider_credentials::ProviderCredentials;
 use crate::provider_store::ProviderStore;
 use crate::spawn_job_registry::{SpawnJobRegistry, SpawnJobState};
-use crate::tray;
+use crate::vpn_backend::{self, publish_vpn_status};
 
 pub(crate) async fn create_cloud_provider(
     provider: CloudProviderName,
@@ -636,8 +632,8 @@ pub async fn get_regions(provider: CloudProviderName) -> Result<Vec<Region>> {
     commands::setup::get_regions(&*cloud_provider).await
 }
 
-pub(crate) async fn fetch_vpn_status() -> Result<VpnStatus> {
-    commands::status::fetch_vpn_status(&UnixDaemonClient).await
+pub(crate) async fn fetch_vpn_status(app_handle: &AppHandle) -> Result<VpnStatus> {
+    commands::status::fetch_vpn_status(&vpn_backend::create_daemon_client(app_handle)).await
 }
 
 #[tauri::command]
@@ -651,7 +647,7 @@ pub async fn connect(
     app_handle: AppHandle,
 ) -> Result<String> {
     let cloud_provider = create_cloud_provider(provider).await?;
-    let daemon_client = UnixDaemonClient;
+    let daemon_client = vpn_backend::create_daemon_client(&app_handle);
 
     let kill_switch_enabled = crate::settings_store::SettingsStore::open(&app_handle)
         .map(|store| store.load_vpn_settings().session_killswitch)
@@ -668,31 +664,13 @@ pub async fn connect(
     )
     .await?;
 
-    let vpn_status = fetch_vpn_status().await?;
+    let vpn_status = fetch_vpn_status(&app_handle).await?;
 
     if let Some(ref connected_instance) = vpn_status.instance {
-        let emit_handle = app_handle.clone();
-        let tray_handle = app_handle.clone();
-        let last_connected = connected_instance.clone();
-        if let Err(error) = metrics_stream::start(
-            byocvpn_daemon::constants::metrics_socket_path(),
+        if let Err(error) = vpn_backend::start_status_stream(
+            &app_handle,
             connected_instance.clone(),
             vpn_status.connected_at,
-            move |mut status| {
-                if !status.connected {
-                    status = VpnStatus {
-                        connected: true,
-                        instance: Some(last_connected.clone()),
-                        metrics: None,
-                        connected_at: None,
-                        connection_error: Some(
-                            "VPN tunnel dropped. Kill switch is blocking all traffic.".to_string(),
-                        ),
-                    };
-                }
-                tray::update_tray(&tray_handle, &status);
-                let _ = VpnStatusEvent(status.clone()).emit(&emit_handle);
-            },
         )
         .await
         {
@@ -700,10 +678,7 @@ pub async fn connect(
         }
     }
 
-    tray::update_tray(&app_handle, &vpn_status);
-    if let Err(error) = VpnStatusEvent(vpn_status.clone()).emit(&app_handle) {
-        warn!("Failed to emit vpn-status: {}", error);
-    }
+    publish_vpn_status(&app_handle, &vpn_status);
 
     Ok(format!(
         "Connected to instance {} successfully.",
@@ -714,9 +689,9 @@ pub async fn connect(
 #[tauri::command]
 #[specta::specta]
 pub async fn disconnect(app_handle: AppHandle) -> Result<String> {
-    metrics_stream::stop().await?;
+    vpn_backend::stop_status_stream().await?;
 
-    let daemon_client = UnixDaemonClient;
+    let daemon_client = vpn_backend::create_daemon_client(&app_handle);
     if daemon_client.is_daemon_running().await {
         commands::disconnect::disconnect(&daemon_client).await?;
     } else {
@@ -732,10 +707,7 @@ pub async fn disconnect(app_handle: AppHandle) -> Result<String> {
         connected_at: None,
         connection_error: None,
     };
-    tray::update_tray(&app_handle, &disconnected_status);
-    if let Err(error) = VpnStatusEvent(disconnected_status.clone()).emit(&app_handle) {
-        warn!("Failed to emit vpn-status: {}", error);
-    }
+    publish_vpn_status(&app_handle, &disconnected_status);
 
     crate::server_monitor::run_auto_terminate_check(&app_handle).await;
 
@@ -744,14 +716,14 @@ pub async fn disconnect(app_handle: AppHandle) -> Result<String> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_vpn_status() -> Result<VpnStatus> {
-    fetch_vpn_status().await
+pub async fn get_vpn_status(app_handle: AppHandle) -> Result<VpnStatus> {
+    fetch_vpn_status(&app_handle).await
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn subscribe_to_vpn_status(app_handle: AppHandle) -> Result<()> {
-    let status = fetch_vpn_status().await?;
+    let status = fetch_vpn_status(&app_handle).await?;
     let connected_instance = status.instance.ok_or_else(|| -> Error {
         ConfigurationError::InvalidValue {
             field: "vpn_status".to_string(),
@@ -760,38 +732,8 @@ pub async fn subscribe_to_vpn_status(app_handle: AppHandle) -> Result<()> {
         .into()
     })?;
 
-    let instance_id = connected_instance.instance_id.clone();
-    let emit_handle = app_handle.clone();
-    let tray_handle = app_handle.clone();
-    let last_connected = connected_instance.clone();
-    let ledger_handle = app_handle;
-
-    commands::subscribe::start_metrics_subscription(
-        byocvpn_daemon::constants::metrics_socket_path(),
-        connected_instance,
-        status.connected_at,
-        move |mut vpn_status| {
-            if !vpn_status.connected {
-                vpn_status = VpnStatus {
-                    connected: true,
-                    instance: Some(last_connected.clone()),
-                    metrics: None,
-                    connected_at: None,
-                    connection_error: Some(
-                        "VPN tunnel dropped. Kill switch is blocking all traffic.".to_string(),
-                    ),
-                };
-            }
-            tray::update_tray(&tray_handle, &vpn_status);
-            let _ = VpnStatusEvent(vpn_status.clone()).emit(&emit_handle);
-        },
-        move |bytes_sent, bytes_received| {
-            if let Some(ledger) = LedgerStore::open(&ledger_handle) {
-                ledger.update_metrics(&instance_id, bytes_sent, bytes_received);
-            }
-        },
-    )
-    .await
+    vpn_backend::start_status_subscription(&app_handle, connected_instance, status.connected_at)
+        .await
 }
 
 #[tauri::command]

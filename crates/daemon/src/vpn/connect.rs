@@ -1,14 +1,13 @@
-use std::{collections::VecDeque, net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc};
 
-use boringtun::{
-    noise::Tunn,
-    x25519::{PublicKey, StaticSecret},
-};
 use byocvpn_core::{
     daemon_client::VpnConnectParams,
     error::{ConfigurationError, Result, SystemError},
     ipc::{IpcSocket, IpcStream},
-    tunnel::{ConnectedInstance, Tunnel, TunnelMetrics},
+    tunnel::{
+        ConnectedInstance, TUNNEL_MTU, Tunnel, TunnelMetrics, TunnelRateTracker,
+        create_wireguard_tunnel,
+    },
 };
 use futures::StreamExt;
 use ipnet::IpNet;
@@ -151,7 +150,7 @@ fn setup_tun_device(private_ipv4: IpNet, private_ipv6: IpNet) -> Result<(AsyncDe
     let tun = DeviceBuilder::new()
         .ipv4(private_ipv4.addr(), private_ipv4.prefix_len(), None)
         .ipv6(private_ipv6.addr(), private_ipv6.prefix_len())
-        .mtu(constants::TUNNEL_MTU)
+        .mtu(TUNNEL_MTU)
         .build_async()
         .map_err(|error| ConfigurationError::TunnelConfiguration {
             reason: format!("Failed to create TUN device: {}", error),
@@ -169,40 +168,6 @@ fn setup_tun_device(private_ipv4: IpNet, private_ipv6: IpNet) -> Result<(AsyncDe
         interface_name, interface_index
     );
     Ok((tun, interface_index))
-}
-
-fn create_wireguard_tunnel(private_key: Vec<u8>, public_key: Vec<u8>) -> Result<Tunn> {
-    let private_key_bytes: [u8; 32] =
-        private_key
-            .as_slice()
-            .try_into()
-            .map_err(|_| ConfigurationError::InvalidValue {
-                field: "private_key".to_string(),
-                reason: "Private key must be exactly 32 bytes".to_string(),
-            })?;
-    let public_key_bytes: [u8; 32] =
-        public_key
-            .as_slice()
-            .try_into()
-            .map_err(|_| ConfigurationError::InvalidValue {
-                field: "public_key".to_string(),
-                reason: "Public key must be exactly 32 bytes".to_string(),
-            })?;
-
-    Tunn::new(
-        StaticSecret::from(private_key_bytes),
-        PublicKey::from(public_key_bytes),
-        None,
-        Some(25),
-        0,
-        None,
-    )
-    .map_err(|error| {
-        ConfigurationError::TunnelConfiguration {
-            reason: format!("Failed to create WireGuard tunnel: {:?}", error),
-        }
-        .into()
-    })
 }
 
 async fn connect_udp_socket(server_endpoint: SocketAddr) -> Result<UdpSocket> {
@@ -263,11 +228,8 @@ fn spawn_metrics_task(
         };
 
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
-        let mut last_metrics = TunnelMetrics::default();
-        let mut last_time = tokio::time::Instant::now();
+        let mut rate_tracker = TunnelRateTracker::new();
         let mut connected_stream: Option<IpcStream> = None;
-        let mut upload_history: VecDeque<u64> = VecDeque::with_capacity(10);
-        let mut download_history: VecDeque<u64> = VecDeque::with_capacity(10);
 
         loop {
             tokio::select! {
@@ -279,40 +241,7 @@ fn spawn_metrics_task(
                 _ = interval.tick() => {
                     if let Some(stream) = connected_stream.as_mut() {
                         let current_metrics = metrics.read().await.clone();
-                        let now = tokio::time::Instant::now();
-                        let elapsed = now.duration_since(last_time).as_secs_f64();
-
-                        let upload_rate_instant = if elapsed > 0.0 {
-                            ((current_metrics.bytes_sent - last_metrics.bytes_sent) as f64 / elapsed) as u64
-                        } else {
-                            0
-                        };
-                        let download_rate_instant = if elapsed > 0.0 {
-                            ((current_metrics.bytes_received - last_metrics.bytes_received) as f64 / elapsed) as u64
-                        } else {
-                            0
-                        };
-
-                        upload_history.push_back(upload_rate_instant);
-                        download_history.push_back(download_rate_instant);
-                        if upload_history.len() > 10 { upload_history.pop_front(); }
-                        if download_history.len() > 10 { download_history.pop_front(); }
-
-                        let upload_rate = if !upload_history.is_empty() {
-                            upload_history.iter().sum::<u64>() / upload_history.len() as u64
-                        } else { 0 };
-                        let download_rate = if !download_history.is_empty() {
-                            download_history.iter().sum::<u64>() / download_history.len() as u64
-                        } else { 0 };
-
-                        let snapshot = TunnelMetrics {
-                            bytes_sent: current_metrics.bytes_sent,
-                            bytes_received: current_metrics.bytes_received,
-                            packets_sent: current_metrics.packets_sent,
-                            packets_received: current_metrics.packets_received,
-                            upload_rate,
-                            download_rate,
-                        };
+                        let snapshot = rate_tracker.sample(current_metrics);
 
                         if let Ok(json) = serde_json::to_string(&snapshot) {
                             if stream.write_all(json.as_bytes()).await.is_err()
@@ -322,9 +251,6 @@ fn spawn_metrics_task(
                                 connected_stream = None;
                             }
                         }
-
-                        last_metrics = current_metrics;
-                        last_time = now;
                     }
                 }
 

@@ -1,6 +1,8 @@
+import { X } from "lucide-react";
 import { CloudProviderName, Region } from "../../types";
 import { useDeployments } from "../../contexts/DeploymentsContext";
 import { useLastDeployProvider } from "../../hooks/useLastDeployProvider";
+import { IconButton } from "../primitives/IconButton";
 import { Modal } from "../primitives/Modal";
 import { Spinner } from "../primitives/Spinner";
 import { RegionList } from "../regions/RegionList";
@@ -31,12 +33,17 @@ export function DeployServerModal({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="p-6 flex flex-col gap-4 min-h-0 max-h-[640px]">
-        <header className="flex flex-col gap-1">
-          <h2 className="text-body-sm font-medium text-fg-lighter">Select servers</h2>
-          <p className="text-caption text-fg-medium">
-            Choose a region to deploy your VPN server.
-          </p>
+      <div className="p-6 max-md:px-4 max-md:pt-1 flex flex-col gap-4 min-h-0 max-h-[640px] max-md:max-h-none max-md:flex-1">
+        <header className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-body-sm font-medium text-fg-lighter">Select servers</h2>
+            <p className="text-caption text-fg-medium">
+              Choose a region to deploy your VPN server.
+            </p>
+          </div>
+          <IconButton size="sm" onClick={onClose} aria-label="Close" className="md:hidden">
+            <X size={16} />
+          </IconButton>
         </header>
 
         {isLoading || provider === null ? (

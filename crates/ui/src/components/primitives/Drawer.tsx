@@ -1,6 +1,8 @@
 import { ReactNode } from "react";
 import { X } from "lucide-react";
+import { useIsMobileLayout } from "../../hooks/useIsMobileLayout";
 import { IconButton } from "./IconButton";
+import { MobileSheet } from "./MobileSheet";
 
 interface DrawerProps {
   isOpen: boolean;
@@ -12,6 +14,18 @@ interface DrawerProps {
 }
 
 export function Drawer({ isOpen, onClose, title, subtitle, footer, children }: DrawerProps) {
+  const isMobileLayout = useIsMobileLayout();
+
+  if (isMobileLayout) {
+    return (
+      <MobileSheet isOpen={isOpen} onClose={onClose}>
+        <DrawerContent title={title} subtitle={subtitle} footer={footer} onClose={onClose}>
+          {children}
+        </DrawerContent>
+      </MobileSheet>
+    );
+  }
+
   return (
     <>
       <div
@@ -30,24 +44,42 @@ export function Drawer({ isOpen, onClose, title, subtitle, footer, children }: D
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <div className="flex items-start justify-between gap-4 px-4 py-3 border-b border-bd-faint flex-shrink-0">
-          <div className="flex flex-col gap-0.5 min-w-0">
-            <h2 className="text-body-sm font-medium text-fg-lighter">{title}</h2>
-            {subtitle && <p className="text-caption text-fg-medium">{subtitle}</p>}
-          </div>
-          <IconButton size="sm" onClick={onClose} aria-label="Close">
-            <X size={16} />
-          </IconButton>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-4">{children}</div>
-
-        {footer && (
-          <div className="p-4 border-t border-bd-faint flex-shrink-0">
-            {footer}
-          </div>
-        )}
+        <DrawerContent title={title} subtitle={subtitle} footer={footer} onClose={onClose}>
+          {children}
+        </DrawerContent>
       </div>
+    </>
+  );
+}
+
+interface DrawerContentProps {
+  title: ReactNode;
+  subtitle?: ReactNode;
+  footer?: ReactNode;
+  onClose: () => void;
+  children: ReactNode;
+}
+
+function DrawerContent({ title, subtitle, footer, onClose, children }: DrawerContentProps) {
+  return (
+    <>
+      <div className="flex items-start justify-between gap-4 px-4 py-3 border-b border-bd-faint flex-shrink-0">
+        <div className="flex flex-col gap-0.5 min-w-0">
+          <h2 className="text-body-sm font-medium text-fg-lighter">{title}</h2>
+          {subtitle && <p className="text-caption text-fg-medium">{subtitle}</p>}
+        </div>
+        <IconButton size="sm" onClick={onClose} aria-label="Close">
+          <X size={16} />
+        </IconButton>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4">{children}</div>
+
+      {footer && (
+        <div className="p-4 border-t border-bd-faint flex-shrink-0">
+          {footer}
+        </div>
+      )}
     </>
   );
 }

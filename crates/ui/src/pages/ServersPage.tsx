@@ -1,18 +1,7 @@
-import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { Instance, SpawnJobStatus } from "../types";
-import { useInstances } from "../hooks/useInstances";
-import { useVpnConnectionContext } from "../contexts/VpnConnectionContext";
-import {
-  DeploymentStatus,
-  useDeployments,
-} from "../contexts/DeploymentsContext";
-import { configuredProvidersQueryOptions } from "../queries/configuredProviders";
-import { summarizeSpawnJobSteps } from "../lib/deploymentSteps";
-import { ServerCard } from "../components/servers/ServerCard";
+import { useServersPage } from "../hooks/useServersPage";
+import { ServerList } from "../components/servers/ServerList";
 import { EmptyServers } from "../components/servers/EmptyServers";
-import { DeploymentCard } from "../components/deploy/DeploymentCard";
 import { DeployServerModal } from "../components/deploy/DeployServerModal";
 import { UnprotectedPanel } from "../components/vpn/UnprotectedPanel";
 import { ProtectedPanel } from "../components/vpn/ProtectedPanel";
@@ -24,73 +13,22 @@ const SERVERS_PANEL_WIDTH = 464;
 const STATUS_PANEL_WIDTH = 358;
 
 export function ServersPage() {
-  const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
-
-  const { data: configuredProviders = [] } = useQuery(
-    configuredProvidersQueryOptions,
-  );
+  const serversPage = useServersPage();
   const {
-    instances,
-    pendingSpawnJobs,
+    configuredProviders,
+    isDeployModalOpen,
+    openDeployModal,
+    closeDeployModal,
+    instanceCount,
+    connectedInstance,
+    hasServers,
     isLoading,
-    terminatingInstanceId,
-    terminateInstance,
-    dismissSpawnJob,
-    refetchInstances,
-  } = useInstances();
-  const { deployments, dismissDeployment } = useDeployments();
-
-  const {
     vpnStatus,
-    checkVpnStatus,
-    isConnecting,
+    vpnError,
     isDisconnecting,
     isDaemonRunning,
-    error: vpnError,
-    connectToVpn,
-    disconnectFromVpn,
-    clearError,
-  } = useVpnConnectionContext();
-
-  useEffect(() => {
-    checkVpnStatus();
-    refetchInstances();
-  }, []);
-
-  const activeDeployments = deployments.filter(
-    (deployment) => deployment.status !== DeploymentStatus.COMPLETE,
-  );
-  const trackedJobIds = new Set(
-    activeDeployments
-      .map((deployment) => deployment.jobId)
-      .filter((jobId): jobId is string => jobId !== null),
-  );
-  const untrackedSpawnJobs = pendingSpawnJobs.filter(
-    (spawnJob) => !trackedJobIds.has(spawnJob.jobId),
-  );
-  const visibleInstances = instances.filter(
-    (instance) => instance.spawnId === null || !trackedJobIds.has(instance.spawnId),
-  );
-
-  const connectedInstance = vpnStatus.connected ? vpnStatus.instance : null;
-  const hasServers =
-    visibleInstances.length > 0 ||
-    untrackedSpawnJobs.length > 0 ||
-    activeDeployments.length > 0;
-
-  async function handleConnect(instance: Instance) {
-    clearError();
-    await connectToVpn(instance);
-  }
-
-  async function handleTerminate(instance: Instance) {
-    clearError();
-    await terminateInstance(instance.id, instance.region, instance.provider);
-  }
-
-  function openDeployModal() {
-    setIsDeployModalOpen(true);
-  }
+    onDisconnect,
+  } = serversPage;
 
   return (
     <div className="flex h-full min-h-0 gap-3">
@@ -102,7 +40,7 @@ export function ServersPage() {
           <header className="flex flex-col gap-1">
             <h1 className="text-body-sm font-medium text-fg-lighter">
               Active servers{" "}
-              <span className="text-fg-medium font-normal">[{instances.length}]</span>
+              <span className="text-fg-medium font-normal">[{instanceCount}]</span>
             </h1>
             <p className="text-caption text-fg-medium">
               Terminate unused servers to stop charges.
@@ -118,44 +56,7 @@ export function ServersPage() {
           </div>
         ) : hasServers ? (
           <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3">
-            {activeDeployments.map((deployment) => (
-              <DeploymentCard
-                key={deployment.id}
-                provider={deployment.provider}
-                region={deployment.region.name}
-                steps={deployment.steps}
-                hasFailed={deployment.status === DeploymentStatus.FAILED}
-                error={deployment.error}
-                onDismiss={() => {
-                  if (deployment.jobId) {
-                    dismissSpawnJob(deployment.jobId);
-                  }
-                  dismissDeployment(deployment.id);
-                }}
-              />
-            ))}
-            {untrackedSpawnJobs.map((spawnJob) => (
-              <DeploymentCard
-                key={spawnJob.jobId}
-                provider={spawnJob.provider}
-                region={spawnJob.region}
-                steps={summarizeSpawnJobSteps(spawnJob)}
-                hasFailed={spawnJob.status === SpawnJobStatus.Failed}
-                error={spawnJob.error}
-                onDismiss={() => dismissSpawnJob(spawnJob.jobId)}
-              />
-            ))}
-            {visibleInstances.map((instance) => (
-              <ServerCard
-                key={instance.id}
-                instance={instance}
-                isConnected={connectedInstance?.instanceId === instance.id}
-                isConnecting={isConnecting}
-                isTerminating={terminatingInstanceId === instance.id}
-                onConnect={handleConnect}
-                onTerminate={handleTerminate}
-              />
-            ))}
+            <ServerList serversPage={serversPage} />
           </div>
         ) : (
           <EmptyServers onDeploy={openDeployModal} />
@@ -185,7 +86,7 @@ export function ServersPage() {
             connectedAt={vpnStatus.connectedAt}
             isDisconnecting={isDisconnecting}
             isDaemonRunning={isDaemonRunning}
-            onDisconnect={disconnectFromVpn}
+            onDisconnect={onDisconnect}
           />
         ) : (
           <UnprotectedPanel hasServers={hasServers} />
@@ -195,7 +96,7 @@ export function ServersPage() {
       <DeployServerModal
         isOpen={isDeployModalOpen}
         configuredProviders={configuredProviders}
-        onClose={() => setIsDeployModalOpen(false)}
+        onClose={closeDeployModal}
       />
     </div>
   );

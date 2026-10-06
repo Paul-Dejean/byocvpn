@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::OnceLock};
 
 use handlebars::Handlebars;
 use serde::Serialize;
@@ -9,6 +9,8 @@ use crate::{
     error::{ConfigurationError, Result},
 };
 use log::*;
+
+static DATA_DIRECTORY_OVERRIDE: OnceLock<PathBuf> = OnceLock::new();
 
 #[derive(Serialize)]
 struct ClientConfigContext {
@@ -57,8 +59,7 @@ pub async fn get_wireguard_config_file_path(
 }
 
 async fn get_configs_path() -> Result<PathBuf> {
-    let home_dir = dirs::home_dir().ok_or(ConfigurationError::HomeDirectoryNotAvailable)?;
-    let byocvpn_dir = home_dir.join(".byocvpn").join("configs");
+    let byocvpn_dir = get_data_directory()?.join("configs");
 
     if !try_exists(&byocvpn_dir)
         .await
@@ -78,8 +79,7 @@ async fn get_configs_path() -> Result<PathBuf> {
 }
 
 pub fn session_file_path() -> Result<PathBuf> {
-    let home_dir = dirs::home_dir().ok_or(ConfigurationError::HomeDirectoryNotAvailable)?;
-    Ok(home_dir.join(".byocvpn").join("session.json"))
+    Ok(get_data_directory()?.join("session.json"))
 }
 
 fn get_wireguard_config_file_name(
@@ -89,4 +89,18 @@ fn get_wireguard_config_file_name(
 ) -> String {
     let safe_id = instance_id.replace('/', "_");
     format!("{provider_name}-{region}-{safe_id}.conf")
+}
+
+pub fn set_data_directory(data_directory: PathBuf) {
+    if DATA_DIRECTORY_OVERRIDE.set(data_directory).is_err() {
+        warn!("Data directory was already set; keeping the existing one");
+    }
+}
+
+pub fn get_data_directory() -> Result<PathBuf> {
+    if let Some(data_directory) = DATA_DIRECTORY_OVERRIDE.get() {
+        return Ok(data_directory.clone());
+    }
+    let home_dir = dirs::home_dir().ok_or(ConfigurationError::HomeDirectoryNotAvailable)?;
+    Ok(home_dir.join(".byocvpn"))
 }

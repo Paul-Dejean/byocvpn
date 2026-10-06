@@ -79,7 +79,7 @@ pub(crate) async fn run_auto_terminate_check(app_handle: &AppHandle) {
         return;
     }
 
-    let connected_instance_id = match fetch_connection_state().await {
+    let connected_instance_id = match fetch_connection_state(app_handle).await {
         ConnectionState::ConnectedTo(instance_id) => Some(instance_id),
         ConnectionState::Disconnected => None,
         ConnectionState::Unknown => return,
@@ -107,8 +107,8 @@ pub(crate) async fn run_auto_terminate_check(app_handle: &AppHandle) {
     .await;
 }
 
-async fn fetch_connection_state() -> ConnectionState {
-    let vpn_status = match fetch_vpn_status().await {
+async fn fetch_connection_state(app_handle: &AppHandle) -> ConnectionState {
+    let vpn_status = match fetch_vpn_status(app_handle).await {
         Ok(status) => status,
         Err(error) => {
             warn!(

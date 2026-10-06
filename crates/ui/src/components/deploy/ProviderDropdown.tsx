@@ -38,7 +38,7 @@ export function ProviderDropdown({
         onClick={() => setIsOpen((previous) => !previous)}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        className="flex items-center gap-2 h-8 px-3 rounded-md bg-bg-medium border border-bd-moderate text-body-sm text-fg-lighter hover:bg-bg-light transition-colors"
+        className="flex items-center gap-2 h-8 px-3 rounded-md bg-bg-medium border border-bd-moderate text-body-sm text-fg-lighter whitespace-nowrap hover:bg-bg-light transition-colors"
       >
         <ProviderIcon provider={selectedProvider} className="w-4 h-4" />
         {buildProviderLabel(selectedProvider)}

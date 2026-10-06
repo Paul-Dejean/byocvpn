@@ -1,9 +1,30 @@
+#[cfg(target_os = "android")]
+use android_logger::Config as AndroidLoggerConfig;
+#[cfg(mobile)]
+use byocvpn_core::config::set_data_directory;
+#[cfg(target_os = "android")]
+use log::LevelFilter;
+#[cfg(target_os = "android")]
+use std::{env, path::Path};
+#[cfg(desktop)]
 use specta_typescript::Typescript;
+#[cfg(mobile)]
+use tauri::Manager;
 use tauri_specta::{Commands, Events, collect_commands, collect_events};
 
 use crate::events::{InstanceAutoTerminatedEvent, VpnStatusEvent};
 
+#[cfg(desktop)]
 const TYPESCRIPT_BINDINGS_PATH: &str = "../src/bindings.ts";
+
+#[cfg(target_os = "android")]
+const CERTIFICATE_DIRECTORY_VARIABLE: &str = "SSL_CERT_DIR";
+
+#[cfg(target_os = "android")]
+const ANDROID_CERTIFICATE_DIRECTORIES: [&str; 2] = [
+    "/apex/com.android.conscrypt/cacerts",
+    "/system/etc/security/cacerts",
+];
 
 mod commands;
 mod events;
@@ -13,7 +34,12 @@ mod provider_store;
 mod server_monitor;
 mod settings_store;
 mod spawn_job_registry;
+#[cfg(desktop)]
 mod tray;
+#[cfg(mobile)]
+#[path = "tray_mobile.rs"]
+mod tray;
+mod vpn_backend;
 
 fn build_specta_commands() -> Commands<tauri::Wry> {
     collect_commands![
@@ -56,6 +82,7 @@ fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .events(build_specta_events())
 }
 
+#[cfg(desktop)]
 fn export_typescript_bindings(
     specta_builder: &tauri_specta::Builder<tauri::Wry>,
 ) -> Result<(), specta_typescript::Error> {
@@ -64,13 +91,13 @@ fn export_typescript_bindings(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .write_style(env_logger::WriteStyle::Always)
-        .init();
+    #[cfg(target_os = "android")]
+    configure_certificate_directory();
+    initialize_logger();
 
     let specta_builder = build_specta_builder();
 
-    #[cfg(debug_assertions)]
+    #[cfg(all(debug_assertions, desktop))]
     if let Err(error) = export_typescript_bindings(&specta_builder) {
         log::error!("Failed to export TypeScript bindings: {error}");
     }
@@ -81,18 +108,27 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_store::Builder::default().build());
+
+    #[cfg(target_os = "android")]
+    let builder = builder.plugin(tauri_plugin_android_vpn::init());
+
+    let builder = builder
         .manage(spawn_job_registry::SpawnJobRegistry::new())
         .setup(move |app| {
+            #[cfg(mobile)]
+            set_data_directory(app.path().app_data_dir()?);
             specta_builder.mount_events(app);
+            #[cfg(desktop)]
             tray::build_tray(app.handle())?;
             server_monitor::start_server_monitor(app.handle().clone());
             Ok(())
         })
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+        .on_window_event(|_window, _event| {
+            #[cfg(desktop)]
+            if let tauri::WindowEvent::CloseRequested { api, .. } = _event {
                 api.prevent_close();
-                let _ = window.hide();
+                let _ = _window.hide();
             }
         })
         .invoke_handler(invoke_handler);
@@ -107,6 +143,37 @@ pub fn run() {
             tray::show_main_window(_app_handle);
         }
     });
+}
+
+#[cfg(desktop)]
+fn initialize_logger() {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .write_style(env_logger::WriteStyle::Always)
+        .init();
+}
+
+#[cfg(target_os = "android")]
+fn initialize_logger() {
+    android_logger::init_once(
+        AndroidLoggerConfig::default()
+            .with_max_level(LevelFilter::Info)
+            .with_tag("ByocVPN"),
+    );
+}
+
+#[cfg(target_os = "android")]
+fn configure_certificate_directory() {
+    if env::var_os(CERTIFICATE_DIRECTORY_VARIABLE).is_some() {
+        return;
+    }
+    let certificate_directory = ANDROID_CERTIFICATE_DIRECTORIES
+        .iter()
+        .find(|directory| Path::new(directory).is_dir());
+    if let Some(certificate_directory) = certificate_directory {
+        unsafe {
+            env::set_var(CERTIFICATE_DIRECTORY_VARIABLE, certificate_directory);
+        }
+    }
 }
 
 #[cfg(test)]

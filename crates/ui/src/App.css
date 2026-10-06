@@ -198,3 +198,11 @@
   );
   background-size: 22px 22px;
 }
+
+@utility safe-area-top {
+  padding-top: max(env(safe-area-inset-top), 12px);
+}
+
+@utility safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}

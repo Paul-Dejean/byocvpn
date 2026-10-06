@@ -81,14 +81,14 @@ export function RegionList({
   return (
     <div className="flex-1 flex flex-col gap-4 min-h-0">
       <div className="flex items-center gap-2">
-        <label className="flex-1 flex items-center gap-2 h-8 px-3 rounded-md bg-bg-medium text-body-sm text-fg-medium focus-within:ring-1 focus-within:ring-bd-brand">
+        <label className="flex-1 min-w-0 flex items-center gap-2 h-8 px-3 rounded-md bg-bg-medium text-body-sm text-fg-medium focus-within:ring-1 focus-within:ring-bd-brand">
           <Search size={16} className="flex-shrink-0" />
           <input
             type="search"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="Search"
-            className="flex-1 bg-transparent outline-none text-fg-lighter placeholder:text-fg-medium"
+            className="flex-1 min-w-0 w-full bg-transparent outline-none text-fg-lighter placeholder:text-fg-medium"
           />
         </label>
         {headerAccessory}
@@ -216,7 +216,7 @@ function RegionRow({
             event.stopPropagation();
             onDeploy();
           }}
-          className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+          className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 max-md:opacity-100 transition-opacity"
         >
           Deploy
         </Button>
