@@ -168,3 +168,98 @@ jobs:
           zip -r "$BUNDLE_DIR.zip" "$BUNDLE_DIR"
 
           gh release upload "${{ github.ref_name }}" "$BUNDLE_DIR.zip" --clobber
+
+  build-android:
+    needs: build
+    if: ${{ !cancelled() }}
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_NDK_VERSION: 27.2.12479018
+      ANDROID_RUST_TARGET: aarch64-linux-android
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android NDK
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;${ANDROID_NDK_VERSION}" > /dev/null
+          echo "NDK_HOME=$ANDROID_HOME/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ env.ANDROID_RUST_TARGET }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            . -> target/tauri
+          key: android
+          cache-on-failure: true
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: crates/ui/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: crates/ui
+        run: npm ci
+
+      - name: Build Android APK and AAB
+        working-directory: crates/ui
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target/tauri
+        run: npx tauri android build --apk --aab --target aarch64
+
+      - name: Sign and upload Android APK and AAB
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 secret is not set; cannot sign the APK"
+            exit 1
+          fi
+
+          VERSION=$(python3 -c 'import json; print(json.load(open("crates/ui/src-tauri/tauri.conf.json"))["version"])')
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          UNSIGNED_APK=$(find crates/ui/src-tauri/gen/android/app/build/outputs/apk -name "*-release-unsigned.apk" | head -1)
+          UNSIGNED_AAB=$(find crates/ui/src-tauri/gen/android/app/build/outputs/bundle -name "*-release.aab" | head -1)
+          SIGNED_APK="ByocVPN-Android-arm64-v${VERSION}.apk"
+          SIGNED_AAB="ByocVPN-Android-arm64-v${VERSION}.aab"
+
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > release.keystore
+          "$BUILD_TOOLS/zipalign" -p 4 "$UNSIGNED_APK" aligned.apk
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks release.keystore \
+            --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
+            --key-pass env:ANDROID_KEY_PASSWORD \
+            --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --out "$SIGNED_APK" \
+            aligned.apk
+          "$BUILD_TOOLS/apksigner" verify "$SIGNED_APK"
+
+          cp "$UNSIGNED_AAB" "$SIGNED_AAB"
+          jarsigner \
+            -keystore release.keystore \
+            -storepass:env ANDROID_KEYSTORE_PASSWORD \
+            -keypass:env ANDROID_KEY_PASSWORD \
+            -sigalg SHA256withRSA \
+            -digestalg SHA-256 \
+            "$SIGNED_AAB" \
+            "$ANDROID_KEY_ALIAS"
+          jarsigner -verify "$SIGNED_AAB"
+          rm release.keystore aligned.apk
+
+          gh release upload "${{ github.ref_name }}" "$SIGNED_APK" "$SIGNED_AAB" --clobber
