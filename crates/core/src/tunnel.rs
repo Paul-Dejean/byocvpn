@@ -211,20 +211,14 @@ pub fn create_wireguard_tunnel(private_key: Vec<u8>, public_key: Vec<u8>) -> Res
                 reason: "Public key must be exactly 32 bytes".to_string(),
             })?;
 
-    Tunn::new(
+    Ok(Tunn::new(
         StaticSecret::from(private_key_bytes),
         PublicKey::from(public_key_bytes),
         None,
         Some(25),
         0,
         None,
-    )
-    .map_err(|error| {
-        ConfigurationError::TunnelConfiguration {
-            reason: format!("Failed to create WireGuard tunnel: {:?}", error),
-        }
-        .into()
-    })
+    ))
 }
 
 pub struct TunnelRateTracker {

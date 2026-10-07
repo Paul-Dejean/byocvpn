@@ -8,6 +8,6 @@ byocvpn_core = { path = "../core" }
 byocvpn_aws = { path = "../infra/aws" }
 byocvpn_daemon = { path = "../daemon" }
 tokio = { workspace = true }
-clap = { version = "4.5.49", features = ["derive"] }
+clap = { version = "4.6.7", features = ["derive"] }
 log = { workspace = true }
 env_logger = { workspace = true }

@@ -12,34 +12,37 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.27"
+version = "0.1.28"
 
 [workspace.dependencies]
-tokio = { version = "1.48.0", features = ["full"] }
-async-trait = "0.1.89"
-base64 = "0.22.1"
+tokio = { version = "1.53.2", features = ["full"] }
+async-trait = "0.1.92"
+base64 = "0.23.1"
 
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.145"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
 specta = { version = "=2.0.0-rc.25", features = ["derive", "serde_json", "chrono"] }
-thiserror = "2.0.17"
-# Use rand 0.8 to match Tauri's ecosystem
-rand = "0.8"
-handlebars = "6.3.2"
+thiserror = "2.0.21"
+rand = "0.10"
+handlebars = "6.4.4"
 futures = "0.3"
 log = "0.4"
 env_logger = "0.11"
-reqwest = { version = "0.12", default-features = false, features = [
+reqwest = { version = "0.13", default-features = false, features = [
     "json",
-    "rustls-tls",
+    "rustls",
 ] }
 rsa = { version = "0.9", features = ["sha2", "pem"] }
-sha2 = "0.10"
+sha2 = "0.11"
 uuid = { version = "1", features = ["v4"] }
 hex = "0.4"
 chrono = { version = "0.4", features = ["serde"] }
+ipnet = "2.12.2"
+tun-rs = { version = "2.8.11", features = ["async_tokio"] }
+windows-sys = "0.61"
+tauri = "2"
 humantime = "2"
-strum = { version = "0.27", features = ["derive"] }
+strum = { version = "0.28", features = ["derive"] }
 
 
 [profile.dev]

@@ -5,7 +5,7 @@ edition = "2024"
 links = "tauri-plugin-android-vpn"
 
 [dependencies]
-tauri = { version = "2" }
+tauri = { workspace = true }
 serde = { workspace = true }
 
 [build-dependencies]

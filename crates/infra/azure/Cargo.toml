@@ -17,9 +17,9 @@ reqwest = { workspace = true }
 uuid = { workspace = true }
 base64 = { workspace = true }
 # Official Azure Identity library — ClientSecretCredential for service principal auth.
-azure_identity = { version = "0.32", default-features = false }
+azure_identity = { version = "1.0", default-features = false }
 # azure_core provides the Secret type and TokenCredential trait.
-azure_core = { version = "0.32", default-features = false, features = [
+azure_core = { version = "1.1", default-features = false, features = [
     "reqwest",
     "reqwest_deflate",
     "reqwest_gzip",

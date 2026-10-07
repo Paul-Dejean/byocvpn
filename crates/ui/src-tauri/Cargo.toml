@@ -18,7 +18,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon", "specta"] }
+tauri = { workspace = true, features = ["tray-icon", "specta"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-notification = "2"
@@ -43,7 +43,7 @@ env_logger = { workspace = true }
 byocvpn_daemon = { path = "../../daemon" }
 
 [target.'cfg(target_os = "android")'.dependencies]
-tauri-plugin-android-vpn = { path = "../../android_vpn" }
-android_logger = "0.14"
+tauri-plugin-android-vpn = { path = "../../android" }
+android_logger = "0.15"
 async-trait = { workspace = true }
-tun-rs = { version = "2.7.3", features = ["async_tokio"] }
+tun-rs = { workspace = true }
