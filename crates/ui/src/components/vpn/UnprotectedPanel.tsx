@@ -14,20 +14,20 @@ export function UnprotectedPanel({ hasServers }: UnprotectedPanelProps) {
   const hasLocation = location !== null && (location.country || location.city);
 
   return (
-    <div className="h-full flex flex-col gap-3">
+    <div className="flex h-full flex-col gap-3">
       <StatusHero
         tone="unprotected"
         icon={<ShieldOff size={48} strokeWidth={1.5} className="text-fg-danger-moderate" />}
         title="Unprotected"
       >
-        <p className="text-body-sm text-fg-medium max-w-[260px]">
+        <p className="max-w-65 text-body-sm text-fg-medium">
           {hasServers
             ? "Anyone can see what you browse. Connect to a server to go private."
             : "Your connection is exposed. Add a server to stay private."}
         </p>
       </StatusHero>
 
-      <section className="rounded-lg bg-bg-medium p-4 flex flex-col gap-1">
+      <section className="flex flex-col gap-1 rounded-lg bg-bg-medium p-4">
         <span className="text-caption text-fg-medium">Current location</span>
         {isLoading ? (
           <Spinner size="w-4 h-4" color="border-bd-strong" />
@@ -42,10 +42,7 @@ export function UnprotectedPanel({ hasServers }: UnprotectedPanelProps) {
         )}
       </section>
 
-      <IpAddressesCard
-        ipV4={location?.publicIpV4 ?? null}
-        ipV6={location?.publicIpV6 ?? null}
-      />
+      <IpAddressesCard ipV4={location?.publicIpV4 ?? null} ipV6={location?.publicIpV6 ?? null} />
     </div>
   );
 }

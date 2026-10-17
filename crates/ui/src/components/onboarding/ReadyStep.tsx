@@ -19,13 +19,13 @@ export function ReadyStep({ instance, onConnected }: ReadyStepProps) {
   }
 
   return (
-    <div className="h-full flex flex-col items-center justify-center gap-10">
+    <div className="flex h-full flex-col items-center justify-center gap-10">
       <OnboardingHeading
         title="Ready to go!"
         subtitle="Your server is ready. Connect to activate your VPN protection."
       />
 
-      <div className="w-full max-w-[486px] rounded-xl bg-bg-medium border border-bd-moderate p-4 flex flex-col gap-4">
+      <div className="flex w-full max-w-[486px] flex-col gap-4 rounded-xl border border-bd-moderate bg-bg-medium p-4">
         <ServerLocation provider={instance.provider} region={instance.region} size="lg" />
         <Button
           variant="primary"

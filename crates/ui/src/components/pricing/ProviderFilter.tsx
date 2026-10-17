@@ -15,7 +15,7 @@ export function ProviderFilter({
   onSelectProvider,
 }: ProviderFilterProps) {
   return (
-    <div className="flex items-center gap-2 flex-wrap">
+    <div className="flex flex-wrap items-center gap-2">
       <FilterChip selected={selectedProvider === null} onClick={() => onSelectProvider(null)}>
         All
       </FilterChip>
@@ -25,7 +25,7 @@ export function ProviderFilter({
           selected={selectedProvider === provider}
           onClick={() => onSelectProvider(provider)}
         >
-          <ProviderIcon provider={provider} className="w-4 h-4" />
+          <ProviderIcon provider={provider} className="size-4" />
           {PROVIDER_METADATA[provider].shortLabel}
         </FilterChip>
       ))}

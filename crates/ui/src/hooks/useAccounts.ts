@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Channel } from "@tauri-apps/api/core";
-import toast from "react-hot-toast";
+import { toast } from "react-hot-toast";
 import { ProvisionAccountEvent, commands } from "../bindings";
 import { CloudProviderName, JobStepState, JobStepStatus } from "../types";
 
@@ -23,27 +23,17 @@ interface UseAccountsOptions {
 }
 
 export function useAccounts({ onComplete, onFailed }: UseAccountsOptions = {}) {
-  const [activeProvisionJob, setActiveProvisionJob] =
-    useState<ProvisionJobState | null>(null);
+  const [activeProvisionJob, setActiveProvisionJob] = useState<ProvisionJobState | null>(null);
   const [isProvisionComplete, setIsProvisionComplete] = useState(false);
   const [provisionError, setProvisionError] = useState<string | null>(null);
 
-  async function provisionAccount(provider: CloudProviderName) {
-    const onEvent = new Channel<ProvisionAccountEvent>();
-    onEvent.onmessage = (event) => applyProvisionEvent(event, provider);
-
-    resetProvisionState();
-
-    const result = await commands.provisionAccount(provider, onEvent);
-    if (result.status === "error") {
-      toast.error(result.error);
-    }
+  function resetProvisionState() {
+    setActiveProvisionJob(null);
+    setIsProvisionComplete(false);
+    setProvisionError(null);
   }
 
-  function applyProvisionEvent(
-    event: ProvisionAccountEvent,
-    provider: CloudProviderName,
-  ) {
+  function applyProvisionEvent(event: ProvisionAccountEvent, provider: CloudProviderName) {
     switch (event.kind) {
       case ProvisionEventKind.Started:
         setActiveProvisionJob({
@@ -84,10 +74,17 @@ export function useAccounts({ onComplete, onFailed }: UseAccountsOptions = {}) {
     }
   }
 
-  function resetProvisionState() {
-    setActiveProvisionJob(null);
-    setIsProvisionComplete(false);
-    setProvisionError(null);
+  async function provisionAccount(provider: CloudProviderName) {
+    const onEvent = new Channel<ProvisionAccountEvent>((event) =>
+      applyProvisionEvent(event, provider),
+    );
+
+    resetProvisionState();
+
+    const result = await commands.provisionAccount(provider, onEvent);
+    if (result.status === "error") {
+      toast.error(result.error);
+    }
   }
 
   return {

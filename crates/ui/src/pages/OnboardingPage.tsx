@@ -68,7 +68,5 @@ export function OnboardingPage({
     return <ReadyStep instance={instance} onConnected={onFinished} />;
   }
 
-  return (
-    <WelcomeStep onGetStarted={() => setStep(OnboardingStep.CONNECT_ACCOUNT)} />
-  );
+  return <WelcomeStep onGetStarted={() => setStep(OnboardingStep.CONNECT_ACCOUNT)} />;
 }

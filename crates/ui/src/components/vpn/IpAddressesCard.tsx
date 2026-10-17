@@ -7,7 +7,7 @@ interface IpAddressesCardProps {
 
 export function IpAddressesCard({ ipV4, ipV6 }: IpAddressesCardProps) {
   return (
-    <section className="rounded-lg bg-bg-medium p-4 flex flex-col gap-3">
+    <section className="flex flex-col gap-3 rounded-lg bg-bg-medium p-4">
       <h3 className="text-body-sm text-fg-lighter">IP</h3>
       <div className="flex flex-col gap-3">
         <PanelField label="IPv4" value={ipV4 || "—"} wrap />

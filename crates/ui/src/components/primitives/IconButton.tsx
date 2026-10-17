@@ -31,7 +31,7 @@ export function IconButton({
 }: IconButtonProps) {
   return (
     <button
-      className={`${SIZE_CLASSES[size]} rounded-lg transition-colors hover:bg-bg-light disabled:opacity-40 disabled:cursor-not-allowed ${ACCENT_CLASSES[accent]} ${className}`}
+      className={`${SIZE_CLASSES[size]} rounded-lg transition-colors hover:bg-bg-light disabled:cursor-not-allowed disabled:opacity-40 ${ACCENT_CLASSES[accent]} ${className}`}
       {...buttonProps}
     >
       {children}

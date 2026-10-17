@@ -1,13 +1,7 @@
 import { createContext, ReactNode, useContext, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { SpawnInstanceEvent } from "../bindings";
-import {
-  CloudProviderName,
-  Instance,
-  JobStepState,
-  JobStepStatus,
-  Region,
-} from "../types";
+import { CloudProviderName, Instance, JobStepState, JobStepStatus, Region } from "../types";
 import { useInstances } from "../hooks/useInstances";
 import { enableRegion, isRegionEnabled } from "../lib/enableRegion";
 import { buildDeploymentSteps } from "../lib/deploymentSteps";
@@ -44,14 +38,9 @@ interface DeploymentsProviderProps {
 export function DeploymentsProvider({ children }: DeploymentsProviderProps) {
   const queryClient = useQueryClient();
   const { startSpawnJob } = useInstances();
-  const [deploymentsById, setDeploymentsById] = useState<
-    Record<string, Deployment>
-  >({});
+  const [deploymentsById, setDeploymentsById] = useState<Record<string, Deployment>>({});
 
-  function updateDeployment(
-    deploymentId: string,
-    update: (deployment: Deployment) => Deployment,
-  ) {
+  function updateDeployment(deploymentId: string, update: (deployment: Deployment) => Deployment) {
     setDeploymentsById((previous) => {
       const existing = previous[deploymentId];
       if (!existing) {
@@ -78,9 +67,7 @@ export function DeploymentsProvider({ children }: DeploymentsProviderProps) {
       status: DeploymentStatus.FAILED,
       error: error instanceof Error ? error.message : String(error),
       steps: deployment.steps.map((step) =>
-        step.status === JobStepStatus.Running
-          ? { ...step, status: JobStepStatus.Failed }
-          : step,
+        step.status === JobStepStatus.Running ? { ...step, status: JobStepStatus.Failed } : step,
       ),
     }));
   }
@@ -112,11 +99,7 @@ export function DeploymentsProvider({ children }: DeploymentsProviderProps) {
     }
   }
 
-  async function runDeployment(
-    deploymentId: string,
-    provider: CloudProviderName,
-    region: Region,
-  ) {
+  async function runDeployment(deploymentId: string, provider: CloudProviderName, region: Region) {
     try {
       const needsEnabling = !(await isRegionEnabled(queryClient, provider, region.name));
       if (needsEnabling) {
@@ -150,7 +133,7 @@ export function DeploymentsProvider({ children }: DeploymentsProviderProps) {
         instance: null,
       },
     }));
-    runDeployment(deploymentId, provider, region);
+    void runDeployment(deploymentId, provider, region);
     return deploymentId;
   }
 

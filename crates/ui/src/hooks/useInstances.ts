@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Channel } from "@tauri-apps/api/core";
-import toast from "react-hot-toast";
+import { toast } from "react-hot-toast";
 import { SpawnInstanceEvent, commands } from "../bindings";
 import { CloudProviderName, Instance, InstanceState, SpawnJob } from "../types";
 import { Result } from "../lib/result";
@@ -28,32 +28,70 @@ function describeServer(instance: Instance): string {
 
 export function useInstances() {
   const queryClient = useQueryClient();
-  const [terminatingInstanceId, setTerminatingInstanceId] = useState<
-    string | null
-  >(null);
+  const [terminatingInstanceId, setTerminatingInstanceId] = useState<string | null>(null);
 
-  const {
-    data: fetchedInstances = [],
-    isLoading,
-    isFetching,
-  } = useQuery(instancesQueryOptions);
+  const { data: fetchedInstances = [], isLoading, isFetching } = useQuery(instancesQueryOptions);
 
   const { data: spawnJobs = [] } = useQuery(spawnJobsQueryOptions);
 
-  const instances = useMemo(
-    () => [...fetchedInstances].sort(compareByDeploymentProgress),
-    [fetchedInstances],
+  const instances = [...fetchedInstances].toSorted(compareByDeploymentProgress);
+
+  const pendingSpawnJobs = spawnJobs.filter(
+    (spawnJob) =>
+      !spawnJob.instanceId || !instances.some((instance) => instance.id === spawnJob.instanceId),
   );
 
-  const pendingSpawnJobs = useMemo(
-    () =>
-      spawnJobs.filter(
-        (spawnJob) =>
-          !spawnJob.instanceId ||
-          !instances.some((instance) => instance.id === spawnJob.instanceId),
-      ),
-    [spawnJobs, instances],
-  );
+  async function refetchInstances(): Promise<void> {
+    await queryClient.invalidateQueries({
+      queryKey: instancesQueryOptions.queryKey,
+    });
+  }
+
+  function refetchSpawnJobs() {
+    void queryClient.invalidateQueries({
+      queryKey: spawnJobsQueryOptions.queryKey,
+    });
+  }
+
+  function applySpawnEvent(event: SpawnInstanceEvent) {
+    switch (event.kind) {
+      case SpawnEventKind.Started:
+        queryClient.setQueryData(spawnJobsQueryOptions.queryKey, (previous = []) => [
+          ...previous.filter((job) => job.jobId !== event.job.jobId),
+          event.job,
+        ]);
+        return;
+
+      case SpawnEventKind.Progress:
+        queryClient.setQueryData(spawnJobsQueryOptions.queryKey, (previous = []) =>
+          previous.map((job) => ({
+            ...job,
+            steps: job.steps.map((step) =>
+              step.id === event.stepId
+                ? { ...step, status: event.status, error: event.error }
+                : step,
+            ),
+          })),
+        );
+        return;
+
+      case SpawnEventKind.InstanceLaunched:
+        refetchSpawnJobs();
+        void refetchInstances();
+        return;
+
+      case SpawnEventKind.Complete:
+        refetchSpawnJobs();
+        void refetchInstances();
+        toast.success(`${describeServer(event.instance)} is up and running.`);
+        return;
+
+      case SpawnEventKind.Failed:
+        refetchSpawnJobs();
+        toast.error("Server deployment failed");
+        return;
+    }
+  }
 
   async function startSpawnJob(
     region: string,
@@ -65,14 +103,13 @@ export function useInstances() {
       resolveStartedJob = resolve;
     });
 
-    const onEvent = new Channel<SpawnInstanceEvent>();
-    onEvent.onmessage = (event) => {
+    const onEvent = new Channel<SpawnInstanceEvent>((event) => {
       if (event.kind === SpawnEventKind.Started) {
         resolveStartedJob(event.job);
       }
       applySpawnEvent(event);
       onSpawnEvent?.(event);
-    };
+    });
 
     const result = await commands.spawnInstance(region, provider, onEvent);
     if (result.status === "error") {
@@ -80,51 +117,6 @@ export function useInstances() {
       return null;
     }
     return await startedJob;
-  }
-
-  function applySpawnEvent(event: SpawnInstanceEvent) {
-    switch (event.kind) {
-      case SpawnEventKind.Started:
-        queryClient.setQueryData(
-          spawnJobsQueryOptions.queryKey,
-          (previous = []) => [
-            ...previous.filter((job) => job.jobId !== event.job.jobId),
-            event.job,
-          ],
-        );
-        return;
-
-      case SpawnEventKind.Progress:
-        queryClient.setQueryData(
-          spawnJobsQueryOptions.queryKey,
-          (previous = []) =>
-            previous.map((job) => ({
-              ...job,
-              steps: job.steps.map((step) =>
-                step.id === event.stepId
-                  ? { ...step, status: event.status, error: event.error }
-                  : step,
-              ),
-            })),
-        );
-        return;
-
-      case SpawnEventKind.InstanceLaunched:
-        refetchSpawnJobs();
-        refetchInstances();
-        return;
-
-      case SpawnEventKind.Complete:
-        refetchSpawnJobs();
-        refetchInstances();
-        toast.success(`${describeServer(event.instance)} is up and running.`);
-        return;
-
-      case SpawnEventKind.Failed:
-        refetchSpawnJobs();
-        toast.error("Server deployment failed");
-        return;
-    }
   }
 
   async function dismissSpawnJob(jobId: string): Promise<void> {
@@ -144,11 +136,7 @@ export function useInstances() {
     provider: CloudProviderName,
   ): Promise<Result<string>> {
     setTerminatingInstanceId(instanceId);
-    const result = await commands.terminateInstance(
-      instanceId,
-      region,
-      provider,
-    );
+    const result = await commands.terminateInstance(instanceId, region, provider);
     if (result.status === "error") {
       setTerminatingInstanceId(null);
       toast.error(result.error);
@@ -159,20 +147,8 @@ export function useInstances() {
     );
     setTerminatingInstanceId(null);
     toast.success("Server terminated successfully!");
-    refetchInstances();
+    void refetchInstances();
     return result;
-  }
-
-  async function refetchInstances(): Promise<void> {
-    await queryClient.invalidateQueries({
-      queryKey: instancesQueryOptions.queryKey,
-    });
-  }
-
-  function refetchSpawnJobs() {
-    queryClient.invalidateQueries({
-      queryKey: spawnJobsQueryOptions.queryKey,
-    });
   }
 
   return {

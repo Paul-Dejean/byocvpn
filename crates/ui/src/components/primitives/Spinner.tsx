@@ -10,6 +10,8 @@ export function Spinner({
   thickness = "border-2",
 }: SpinnerProps) {
   return (
-    <div className={`${size} ${thickness} ${color} border-t-transparent rounded-full animate-spin flex-shrink-0`} />
+    <div
+      className={`${size} ${thickness} ${color} shrink-0 animate-spin rounded-full border-t-transparent`}
+    />
   );
 }

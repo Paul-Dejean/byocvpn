@@ -12,9 +12,7 @@ async function fetchLastDeployProvider(): Promise<CloudProviderName | null> {
   return stored ?? null;
 }
 
-async function persistLastDeployProvider(
-  provider: CloudProviderName,
-): Promise<void> {
+async function persistLastDeployProvider(provider: CloudProviderName): Promise<void> {
   const store = await loadStore(PROVIDERS_STORE_FILE);
   await store.set(LAST_DEPLOY_PROVIDER_KEY, provider);
   await store.save();

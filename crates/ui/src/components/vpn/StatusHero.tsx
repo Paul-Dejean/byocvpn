@@ -16,9 +16,9 @@ const ICON_BACKGROUND_CLASSES: Record<StatusTone, string> = {
 
 export function StatusHero({ tone, icon, title, children }: StatusHeroProps) {
   return (
-    <div className="flex flex-col items-center gap-6 py-6 px-2.5 rounded-md">
+    <div className="flex flex-col items-center gap-6 rounded-md px-2.5 py-6">
       <div
-        className={`w-24 h-24 rounded-full p-6 flex items-center justify-center ${ICON_BACKGROUND_CLASSES[tone]}`}
+        className={`flex size-24 items-center justify-center rounded-full p-6 ${ICON_BACKGROUND_CLASSES[tone]}`}
       >
         {icon}
       </div>

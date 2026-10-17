@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Check, Search, Star } from "lucide-react";
 import { CloudProviderName, Region } from "../../types";
 import { getRegionInfo } from "../../constants/regionInfo";
@@ -33,36 +33,24 @@ export function RegionList({
 }: RegionListProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const { regions, isLoading } = useProviderRegions(provider);
-  const { favoriteRegions, isFavorite, toggleFavorite } =
-    useFavoriteRegions(provider);
+  const { favoriteRegions, isFavorite, toggleFavorite } = useFavoriteRegions(provider);
 
-  const rows = useMemo<RegionRowData[]>(
-    () =>
-      disambiguateDuplicateLabels(
-        regions.map((region) => buildRow(provider, region)),
-      ).sort(compareRows),
-    [regions, provider],
-  );
+  const rows: RegionRowData[] = disambiguateDuplicateLabels(
+    regions.map((region) => buildRow(provider, region)),
+  ).toSorted(compareRows);
 
-  const visibleRows = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) {
-      return rows;
-    }
-    return rows.filter(
-      (row) =>
-        row.countryName.toLowerCase().includes(query) ||
-        row.city.toLowerCase().includes(query) ||
-        row.region.name.toLowerCase().includes(query),
-    );
-  }, [rows, searchQuery]);
+  const query = searchQuery.trim().toLowerCase();
+  const visibleRows = query
+    ? rows.filter(
+        (row) =>
+          row.countryName.toLowerCase().includes(query) ||
+          row.city.toLowerCase().includes(query) ||
+          row.region.name.toLowerCase().includes(query),
+      )
+    : rows;
 
-  const favoriteRows = visibleRows.filter((row) =>
-    favoriteRegions.includes(row.region.name),
-  );
-  const otherRows = visibleRows.filter(
-    (row) => !favoriteRegions.includes(row.region.name),
-  );
+  const favoriteRows = visibleRows.filter((row) => favoriteRegions.includes(row.region.name));
+  const otherRows = visibleRows.filter((row) => !favoriteRegions.includes(row.region.name));
 
   function renderRow(row: RegionRowData) {
     return (
@@ -79,16 +67,16 @@ export function RegionList({
   }
 
   return (
-    <div className="flex-1 flex flex-col gap-4 min-h-0">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <div className="flex items-center gap-2">
-        <label className="flex-1 min-w-0 flex items-center gap-2 h-8 px-3 rounded-md bg-bg-medium text-body-sm text-fg-medium focus-within:ring-1 focus-within:ring-bd-brand">
-          <Search size={16} className="flex-shrink-0" />
+        <label className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md bg-bg-medium px-3 text-body-sm text-fg-medium focus-within:ring-1 focus-within:ring-bd-brand">
+          <Search size={16} className="shrink-0" />
           <input
             type="search"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="Search"
-            className="flex-1 min-w-0 w-full bg-transparent outline-none text-fg-lighter placeholder:text-fg-medium"
+            className="w-full min-w-0 flex-1 bg-transparent text-fg-lighter outline-none placeholder:text-fg-medium"
           />
         </label>
         {headerAccessory}
@@ -99,7 +87,7 @@ export function RegionList({
           <Spinner size="w-6 h-6" color="border-bd-strong" />
         </div>
       ) : (
-        <div className="flex flex-col gap-2 overflow-y-auto min-h-0 pr-1 py-3 scroll-fade">
+        <div className="scroll-fade flex min-h-0 flex-col gap-2 overflow-y-auto py-3 pr-1">
           {favoriteRows.length > 0 && (
             <RegionSection title="Favorite" count={favoriteRows.length}>
               {favoriteRows.map(renderRow)}
@@ -146,8 +134,7 @@ function buildLabelKey(row: RegionRowData): string {
 
 function compareRows(first: RegionRowData, second: RegionRowData): number {
   return (
-    first.countryName.localeCompare(second.countryName) ||
-    first.city.localeCompare(second.city)
+    first.countryName.localeCompare(second.countryName) || first.city.localeCompare(second.city)
   );
 }
 
@@ -198,16 +185,18 @@ function RegionRow({
           onSelect?.();
         }
       }}
-      className={`group flex items-center gap-3 px-3 py-1.5 rounded-lg transition-colors ${
+      className={`group flex items-center gap-3 rounded-lg px-3 py-1.5 transition-colors ${
         isSelected ? "bg-bg-medium" : "hover:bg-bg-light"
       } ${isSelectable ? "cursor-pointer" : ""}`}
     >
       <FlagIcon countryCode={row.countryCode} round size={24} />
-      <div className="flex-1 min-w-0 flex flex-col">
-        <span className="text-body-sm text-fg-lighter truncate">{row.countryName}</span>
-        <span className="text-caption text-fg-moderate truncate">{row.city || row.region.name}</span>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-body-sm text-fg-lighter">{row.countryName}</span>
+        <span className="truncate text-caption text-fg-moderate">
+          {row.city || row.region.name}
+        </span>
       </div>
-      {isSelected && <Check size={16} className="text-fg-brand flex-shrink-0" />}
+      {isSelected && <Check size={16} className="shrink-0 text-fg-brand" />}
       {onDeploy && (
         <Button
           variant="outline"
@@ -216,7 +205,7 @@ function RegionRow({
             event.stopPropagation();
             onDeploy();
           }}
-          className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 max-md:opacity-100 transition-opacity"
+          className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 max-md:opacity-100"
         >
           Deploy
         </Button>
@@ -229,7 +218,7 @@ function RegionRow({
         }}
         aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
         aria-pressed={isFavorite}
-        className="w-7 h-7 rounded-md border border-bd-moderate flex items-center justify-center text-fg-lighter hover:bg-bg-light transition-colors"
+        className="flex size-7 items-center justify-center rounded-md border border-bd-moderate text-fg-lighter transition-colors hover:bg-bg-light"
       >
         <Star size={14} className={isFavorite ? "fill-current" : ""} />
       </button>

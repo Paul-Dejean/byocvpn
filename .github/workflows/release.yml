@@ -73,15 +73,17 @@ jobs:
             . -> target/tauri
           cache-on-failure: true
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          cache: npm
-          cache-dependency-path: crates/ui/package-lock.json
+          cache: pnpm
+          cache-dependency-path: crates/ui/pnpm-lock.yaml
 
       - name: Install frontend dependencies
         working-directory: crates/ui
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Pre-build daemon (Windows)
         if: matrix.runner == 'windows-latest'
@@ -221,21 +223,23 @@ jobs:
           key: android
           cache-on-failure: true
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v6
         with:
           node-version: lts/*
-          cache: npm
-          cache-dependency-path: crates/ui/package-lock.json
+          cache: pnpm
+          cache-dependency-path: crates/ui/pnpm-lock.yaml
 
       - name: Install frontend dependencies
         working-directory: crates/ui
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build Android APK and AAB
         working-directory: crates/ui
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target/tauri
-        run: npx tauri android build --apk --aab --target aarch64
+        run: pnpm exec tauri android build --apk --aab --target aarch64
 
       - name: Sign and upload Android APK and AAB
         env:

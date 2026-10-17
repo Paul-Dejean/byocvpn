@@ -9,8 +9,7 @@ export const spawnJobsQueryOptions = queryOptions({
   queryFn: fetchActiveSpawnJobs,
   staleTime: 0,
   refetchOnReconnect: false,
-  refetchInterval: (query) =>
-    query.state.data?.length ? RUNNING_JOB_POLL_INTERVAL_MS : false,
+  refetchInterval: (query) => (query.state.data?.length ? RUNNING_JOB_POLL_INTERVAL_MS : false),
 });
 
 async function fetchActiveSpawnJobs(): Promise<SpawnJob[]> {

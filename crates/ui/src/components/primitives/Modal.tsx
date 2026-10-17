@@ -14,7 +14,7 @@ export function Modal({ isOpen, onClose, children, className = "" }: ModalProps)
 
   useEffect(() => {
     if (!isOpen) {
-      return;
+      return undefined;
     }
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -46,7 +46,7 @@ export function Modal({ isOpen, onClose, children, className = "" }: ModalProps)
         role="dialog"
         aria-modal="true"
         onClick={(event) => event.stopPropagation()}
-        className={`w-[626px] max-h-[640px] rounded-xl bg-bg-bolder border border-bd-moderate shadow-2xl flex flex-col overflow-hidden ${className}`}
+        className={`flex max-h-160 w-[626px] flex-col overflow-hidden rounded-xl border border-bd-moderate bg-bg-bolder shadow-2xl ${className}`}
       >
         {children}
       </div>

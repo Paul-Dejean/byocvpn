@@ -3,22 +3,15 @@ import { useQueryClient } from "@tanstack/react-query";
 import { commands } from "../bindings";
 import { configuredProvidersQueryOptions } from "../queries/configuredProviders";
 import { providerRegionsQueryOptions } from "../queries/providerRegions";
-import toast from "react-hot-toast";
+import { toast } from "react-hot-toast";
 import { CloudProviderName } from "../types";
 
-import type {
-  AwsCredentials,
-  AzureCredentials,
-  GcpCredentials,
-  OracleCredentials,
-} from "../types";
+import type { ProviderCredentials } from "../types";
 
-type CredentialsMap = {
-  [CloudProviderName.Aws]: AwsCredentials;
-  [CloudProviderName.Oracle]: OracleCredentials;
-  [CloudProviderName.Gcp]: GcpCredentials;
-  [CloudProviderName.Azure]: AzureCredentials;
-};
+type ProviderCredentialsFor<T extends CloudProviderName> = Extract<
+  ProviderCredentials,
+  { provider: T }
+>;
 
 export function useCredentials() {
   const queryClient = useQueryClient();
@@ -26,7 +19,7 @@ export function useCredentials() {
   const [error, setError] = useState<string | null>(null);
 
   const invalidateConfiguredProviders = () => {
-    queryClient.invalidateQueries({
+    void queryClient.invalidateQueries({
       queryKey: configuredProvidersQueryOptions.queryKey,
     });
   };
@@ -34,30 +27,14 @@ export function useCredentials() {
   const preloadProviderRegions = (provider: CloudProviderName) => {
     const regionsQueryOptions = providerRegionsQueryOptions(provider);
     queryClient.removeQueries({ queryKey: regionsQueryOptions.queryKey });
-    queryClient.prefetchQuery(regionsQueryOptions);
+    void queryClient.prefetchQuery(regionsQueryOptions);
   };
 
-  const loadCredentials = async <T extends CloudProviderName>(
-    provider: T,
-  ): Promise<(CredentialsMap[T] & { provider: T }) | null> => {
-    const result = await commands.getCredentials(provider);
-    if (result.status === "error") {
-      return null;
-    }
-    return result.data as (CredentialsMap[T] & { provider: T }) | null;
-  };
-
-  const saveCredentials = async <T extends CloudProviderName>(
-    provider: T,
-    credentials: CredentialsMap[T],
-  ): Promise<boolean> => {
+  const saveCredentials = async (credentials: ProviderCredentials): Promise<boolean> => {
     setIsSaving(true);
     setError(null);
 
-    const result = await commands.saveCredentials({
-      provider,
-      ...credentials,
-    } as Parameters<typeof commands.saveCredentials>[0]);
+    const result = await commands.saveCredentials(credentials);
     setIsSaving(false);
     if (result.status === "error") {
       setError(result.error);
@@ -66,13 +43,11 @@ export function useCredentials() {
       return false;
     }
     invalidateConfiguredProviders();
-    preloadProviderRegions(provider);
+    preloadProviderRegions(credentials.provider);
     return true;
   };
 
-  const deleteCredentials = async (
-    provider: CloudProviderName,
-  ): Promise<boolean> => {
+  const deleteCredentials = async (provider: CloudProviderName): Promise<boolean> => {
     const result = await commands.deleteCredentials(provider);
     if (result.status === "error") {
       toast.error(result.error);
@@ -93,4 +68,25 @@ export function useCredentials() {
     deleteCredentials,
     clearError,
   };
+}
+
+async function loadCredentials<T extends CloudProviderName>(
+  provider: T,
+): Promise<ProviderCredentialsFor<T> | null> {
+  const result = await commands.getCredentials(provider);
+  if (result.status === "error") {
+    return null;
+  }
+  const credentials = result.data;
+  if (credentials === null || !isCredentialsForProvider(credentials, provider)) {
+    return null;
+  }
+  return credentials;
+}
+
+function isCredentialsForProvider<T extends CloudProviderName>(
+  credentials: ProviderCredentials,
+  provider: T,
+): credentials is ProviderCredentialsFor<T> {
+  return credentials.provider === provider;
 }

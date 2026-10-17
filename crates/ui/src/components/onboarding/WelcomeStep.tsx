@@ -7,9 +7,9 @@ interface WelcomeStepProps {
 
 export function WelcomeStep({ onGetStarted }: WelcomeStepProps) {
   return (
-    <div className="h-full flex flex-col items-center justify-center gap-10">
-      <div className="w-[72px] h-[72px] rounded-2xl bg-bg-medium border border-bd-moderate flex items-center justify-center">
-        <Logo className="w-9 h-9" />
+    <div className="flex h-full flex-col items-center justify-center gap-10">
+      <div className="flex size-[72px] items-center justify-center rounded-2xl border border-bd-moderate bg-bg-medium">
+        <Logo className="size-9" />
       </div>
 
       <div className="flex flex-col items-center gap-2 text-center">
@@ -17,11 +17,7 @@ export function WelcomeStep({ onGetStarted }: WelcomeStepProps) {
         <p className="text-feature text-fg-medium">A VPN you actually own.</p>
       </div>
 
-      <Button
-        variant="primary"
-        size="lg"
-        onClick={onGetStarted}
-      >
+      <Button variant="primary" size="lg" onClick={onGetStarted}>
         Get started
       </Button>
     </div>

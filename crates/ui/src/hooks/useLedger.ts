@@ -4,18 +4,14 @@ import { ledgerQueryOptions } from "../queries/ledger";
 
 export function useLedger() {
   const queryClient = useQueryClient();
-  const { data, isLoading, error, refetch } = useQuery(
-    ledgerQueryOptions(queryClient),
-  );
+  const { data, isLoading, error, refetch } = useQuery(ledgerQueryOptions(queryClient));
 
   return {
     entries: data ?? [],
     isLoading,
-    error: error
-      ? extractErrorMessage(error, "Failed to load cost ledger")
-      : null,
+    error: error ? extractErrorMessage(error, "Failed to load cost ledger") : null,
     refetch: () => {
-      refetch();
+      void refetch();
     },
   };
 }

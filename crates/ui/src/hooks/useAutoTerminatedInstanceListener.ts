@@ -8,13 +8,13 @@ export function useAutoTerminatedInstanceListener() {
 
   useEffect(() => {
     const unlistenPromise = events.instanceAutoTerminated.listen(() => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: instancesQueryOptions.queryKey,
       });
     });
 
     return () => {
-      unlistenPromise.then((unlisten) => unlisten());
+      void unlistenPromise.then((unlisten) => unlisten());
     };
-  }, []);
+  }, [queryClient]);
 }

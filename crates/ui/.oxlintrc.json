@@ -1,0 +1,32 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": ["dist", "src-tauri", "src/bindings.ts"],
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "import", "react", "promise"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "error"
+  },
+  "rules": {
+    "typescript/no-explicit-any": "error",
+    "eqeqeq": ["error", "always", { "null": "ignore" }],
+    "typescript/no-non-null-assertion": "error",
+    "max-lines-per-function": ["warn", { "max": 300 }],
+    "import/no-unassigned-import": ["warn", { "allow": ["**/*.css"] }],
+    "no-restricted-imports": [
+      "warn",
+      {
+        "paths": [
+          {
+            "name": "react",
+            "importNames": ["useMemo", "useCallback"],
+            "message": "The React Compiler memoizes automatically; remove manual useMemo/useCallback."
+          }
+        ]
+      }
+    ],
+    "promise/always-return": "off",
+    "react/react-in-jsx-scope": "off",
+    "react/jsx-no-constructed-context-values": "off"
+  }
+}

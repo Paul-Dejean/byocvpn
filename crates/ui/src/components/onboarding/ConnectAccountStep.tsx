@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { CloudProviderName } from "../../types";
 import { Button } from "../primitives/Button";
-import { PROVIDER_TILE_LABELS, ProviderTile } from "../providers/ProviderTile";
+import { ProviderTile } from "../providers/ProviderTile";
+import { PROVIDER_TILE_LABELS } from "../providers/ProviderTile/labels";
 import { OnboardingHeading } from "./OnboardingHeading";
 
 interface ConnectAccountStepProps {
@@ -17,13 +18,8 @@ const PROVIDER_TILES: CloudProviderName[] = [
   CloudProviderName.Azure,
 ];
 
-export function ConnectAccountStep({
-  onBack,
-  onSkip,
-  onContinue,
-}: ConnectAccountStepProps) {
-  const [selectedProvider, setSelectedProvider] =
-    useState<CloudProviderName | null>(null);
+export function ConnectAccountStep({ onBack, onSkip, onContinue }: ConnectAccountStepProps) {
+  const [selectedProvider, setSelectedProvider] = useState<CloudProviderName | null>(null);
 
   function handleContinue() {
     if (selectedProvider) {
@@ -32,7 +28,7 @@ export function ConnectAccountStep({
   }
 
   return (
-    <div className="h-full flex flex-col items-center justify-center gap-8">
+    <div className="flex h-full flex-col items-center justify-center gap-8">
       <OnboardingHeading
         title="Connect your first cloud account"
         subtitle="Your credentials stay on your device. We never store them."
@@ -54,7 +50,7 @@ export function ConnectAccountStep({
         <button
           type="button"
           onClick={onSkip}
-          className="text-caption text-fg-lighter hover:text-fg-medium transition-colors"
+          className="text-caption text-fg-lighter transition-colors hover:text-fg-medium"
         >
           I'll do this later
         </button>
@@ -63,7 +59,7 @@ export function ConnectAccountStep({
           <button
             type="button"
             onClick={onBack}
-            className="px-2 py-2 text-body-sm text-fg-lighter hover:text-fg-medium transition-colors"
+            className="p-2 text-body-sm text-fg-lighter transition-colors hover:text-fg-medium"
           >
             Back
           </button>

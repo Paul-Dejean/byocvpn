@@ -20,7 +20,8 @@ export const PROVIDER_METADATA: Record<CloudProviderName, ProviderMetadata> = {
   [CloudProviderName.Gcp]: {
     label: "Google Cloud Platform",
     shortLabel: "GCP",
-    description: "Deploy on Compute Engine using a service account — available in 40+ regions worldwide",
+    description:
+      "Deploy on Compute Engine using a service account — available in 40+ regions worldwide",
   },
   [CloudProviderName.Oracle]: {
     label: "Oracle Cloud Infrastructure",

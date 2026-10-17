@@ -12,8 +12,10 @@ interface OracleAccountCardProps {
   onCredentialsDeleted: () => void;
 }
 
-
-export function OracleAccountCard({ onCredentialsSaved, onCredentialsDeleted }: OracleAccountCardProps) {
+export function OracleAccountCard({
+  onCredentialsSaved,
+  onCredentialsDeleted,
+}: OracleAccountCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [hasCredentials, setHasCredentials] = useState<boolean | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
@@ -28,23 +30,23 @@ export function OracleAccountCard({ onCredentialsSaved, onCredentialsDeleted }: 
 
   const pemFileInputRef = useRef<HTMLInputElement>(null);
 
-  const {
-    isSaving,
-    error,
-    saveCredentials,
-    deleteCredentials,
-    loadCredentials,
-    clearError,
-  } = useCredentials();
+  const { isSaving, error, saveCredentials, deleteCredentials, loadCredentials, clearError } =
+    useCredentials();
 
   useEffect(() => {
-    loadCredentials(CloudProviderName.Oracle).then((existing) => {
+    void loadCredentials(CloudProviderName.Oracle).then((existing) => {
       setHasCredentials(existing !== null);
     });
-  }, []);
+  }, [loadCredentials]);
 
   const resetForm = () => {
-    setFormFields({ tenancyOcid: "", userOcid: "", fingerprint: "", privateKeyPem: "", region: "" });
+    setFormFields({
+      tenancyOcid: "",
+      userOcid: "",
+      fingerprint: "",
+      privateKeyPem: "",
+      region: "",
+    });
     setPemAlreadySet(false);
   };
 
@@ -70,7 +72,8 @@ export function OracleAccountCard({ onCredentialsSaved, onCredentialsDeleted }: 
   };
 
   const handleSave = async () => {
-    const success = await saveCredentials(CloudProviderName.Oracle, {
+    const success = await saveCredentials({
+      provider: CloudProviderName.Oracle,
       tenancyOcid: formFields.tenancyOcid.trim(),
       userOcid: formFields.userOcid.trim(),
       fingerprint: formFields.fingerprint.trim(),
@@ -90,12 +93,12 @@ export function OracleAccountCard({ onCredentialsSaved, onCredentialsDeleted }: 
     const file = event.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (loadEvent) => {
+    reader.addEventListener("load", (loadEvent) => {
       const content = loadEvent.target?.result;
       if (typeof content === "string") {
         setFormFields((prev) => ({ ...prev, privateKeyPem: content }));
       }
-    };
+    });
     reader.readAsText(file);
     event.target.value = "";
   };
@@ -130,14 +133,12 @@ export function OracleAccountCard({ onCredentialsSaved, onCredentialsDeleted }: 
           onConfirmDelete={handleDeleteCredentials}
         />
       ) : (
-        <div className="p-4 flex flex-col gap-5">
+        <div className="flex flex-col gap-5 p-4">
           <div className="flex items-center gap-3">
             <AccountIconTile provider={CloudProviderName.Oracle} />
             <div>
               <h3 className="text-body-sm text-fg-lighter">
-                {hasCredentials
-                  ? "Edit Oracle Cloud Account"
-                  : "Add Oracle Cloud Account"}
+                {hasCredentials ? "Edit Oracle Cloud Account" : "Add Oracle Cloud Account"}
               </h3>
               <p className="text-caption text-fg-medium">
                 {hasCredentials
@@ -186,9 +187,7 @@ export function OracleAccountCard({ onCredentialsSaved, onCredentialsDeleted }: 
 
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-caption text-fg-medium">
-                  Private Key (.pem)
-                </label>
+                <label className="text-caption text-fg-medium">Private Key (.pem)</label>
                 <Button
                   variant="secondary"
                   size="md"
@@ -208,8 +207,7 @@ export function OracleAccountCard({ onCredentialsSaved, onCredentialsDeleted }: 
               </div>
               {pemAlreadySet && !formFields.privateKeyPem && (
                 <p className="text-caption text-fg-success-moderate">
-                  ✓ Private key already configured — load a new file or paste
-                  below to replace it
+                  ✓ Private key already configured — load a new file or paste below to replace it
                 </p>
               )}
               {!pemAlreadySet && !formFields.privateKeyPem && (
@@ -219,16 +217,20 @@ export function OracleAccountCard({ onCredentialsSaved, onCredentialsDeleted }: 
               )}
               <textarea
                 value={formFields.privateKeyPem}
-                onChange={(e) => setFormFields((prev) => ({ ...prev, privateKeyPem: e.target.value }))}
+                onChange={(e) =>
+                  setFormFields((prev) => ({ ...prev, privateKeyPem: e.target.value }))
+                }
                 rows={6}
-                className="input font-mono text-caption resize-none"
+                className="input resize-none font-mono text-caption"
               />
             </div>
 
             {error && <Banner variant="danger">{error}</Banner>}
 
             <div className="flex gap-3 pt-2">
-              <Button variant="secondary" size="lg" onClick={handleCancel} className="flex-1">Cancel</Button>
+              <Button variant="secondary" size="lg" onClick={handleCancel} className="flex-1">
+                Cancel
+              </Button>
               <Button
                 variant="primary"
                 size="lg"

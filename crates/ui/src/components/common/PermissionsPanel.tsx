@@ -10,11 +10,7 @@ interface PermissionsPanelProps {
   error: string | null;
 }
 
-export function PermissionsPanel({
-  permissions,
-  isVerifying,
-  error,
-}: PermissionsPanelProps) {
+export function PermissionsPanel({ permissions, isVerifying, error }: PermissionsPanelProps) {
   if (isVerifying) {
     return (
       <div className="flex items-center gap-2 text-body-sm text-fg-medium">
@@ -36,7 +32,7 @@ export function PermissionsPanel({
   const allGranted = missingCount === 0;
 
   return (
-    <div className="rounded-xl border border-bd-moderate bg-bg-bolder p-4 flex flex-col gap-3">
+    <div className="flex flex-col gap-3 rounded-xl border border-bd-moderate bg-bg-bolder p-4">
       <div className="flex items-center justify-between">
         <h4 className="text-body-sm text-fg-lighter">Permissions</h4>
         {allGranted ? (
@@ -49,9 +45,9 @@ export function PermissionsPanel({
         {permissions.map((status) => (
           <li key={status.permission} className="flex items-center gap-2 text-caption">
             {status.granted ? (
-              <Check size={14} className="text-fg-success-moderate flex-shrink-0" />
+              <Check size={14} className="shrink-0 text-fg-success-moderate" />
             ) : (
-              <X size={14} className="text-fg-danger-moderate flex-shrink-0" />
+              <X size={14} className="shrink-0 text-fg-danger-moderate" />
             )}
             <span className={status.granted ? "text-fg-medium" : "text-fg-danger-moderate"}>
               {status.permission}

@@ -18,7 +18,5 @@ async function fetchConfiguredProviders(): Promise<CloudProviderName[]> {
       return result.data !== null ? provider : null;
     }),
   );
-  return checks.filter(
-    (provider): provider is CloudProviderName => provider !== null,
-  );
+  return checks.filter((provider): provider is CloudProviderName => provider !== null);
 }

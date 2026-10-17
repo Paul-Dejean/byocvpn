@@ -84,17 +84,17 @@ function MissingSimulatePermission() {
   return (
     <div className="flex flex-col gap-4">
       <Banner variant="info" title="Verification needs one extra permission">
-        Your access key cannot call {SIMULATE_POLICY_ACTION}, which ByocVPN uses to ask
-        AWS what the key is allowed to do. This is optional: deployments work without it,
-        and any missing permission will surface as an error at that point.
+        Your access key cannot call {SIMULATE_POLICY_ACTION}, which ByocVPN uses to ask AWS what the
+        key is allowed to do. This is optional: deployments work without it, and any missing
+        permission will surface as an error at that point.
       </Banner>
       <div className="flex flex-col gap-2">
         <p className="text-caption text-fg-medium">
-          To enable verification, add this read-only statement to the policy attached to
-          your IAM user. It only lets the key inspect its own permissions.
+          To enable verification, add this read-only statement to the policy attached to your IAM
+          user. It only lets the key inspect its own permissions.
         </p>
-        <div className="rounded-lg bg-bg-medium border border-bd-moderate overflow-hidden">
-          <div className="flex items-center justify-end px-3 py-2 border-b border-bd-faint">
+        <div className="overflow-hidden rounded-lg border border-bd-moderate bg-bg-medium">
+          <div className="flex items-center justify-end border-b border-bd-faint px-3 py-2">
             <Button
               variant="secondary"
               size="md"
@@ -110,7 +110,7 @@ function MissingSimulatePermission() {
               {copied ? "Copied" : "Copy"}
             </Button>
           </div>
-          <pre className="p-3 text-caption font-mono text-fg-medium overflow-auto">
+          <pre className="overflow-auto p-3 font-mono text-caption text-fg-medium">
             {SIMULATE_POLICY_STATEMENT}
           </pre>
         </div>

@@ -5,9 +5,7 @@ interface ProviderIconProps {
   className?: string;
 }
 
-const PROVIDER_ICONS: Partial<
-  Record<CloudProviderName, { src: string; alt: string }>
-> = {
+const PROVIDER_ICONS: Partial<Record<CloudProviderName, { src: string; alt: string }>> = {
   [CloudProviderName.Gcp]: {
     src: "/cloud-providers/google-cloud-icon.svg",
     alt: "GCP",
@@ -22,10 +20,7 @@ const PROVIDER_ICONS: Partial<
   },
 };
 
-export function ProviderIcon({
-  provider,
-  className = "w-8 h-8",
-}: ProviderIconProps) {
+export function ProviderIcon({ provider, className = "w-8 h-8" }: ProviderIconProps) {
   if (provider === CloudProviderName.Aws) {
     return (
       <>
@@ -37,7 +32,7 @@ export function ProviderIcon({
         <img
           src="/cloud-providers/aws-icon-light.svg"
           alt="AWS"
-          className={`object-contain hidden light:block ${className}`}
+          className={`hidden object-contain light:block ${className}`}
         />
       </>
     );
@@ -48,11 +43,5 @@ export function ProviderIcon({
     return null;
   }
 
-  return (
-    <img
-      src={icon.src}
-      alt={icon.alt}
-      className={`object-contain ${className}`}
-    />
-  );
+  return <img src={icon.src} alt={icon.alt} className={`object-contain ${className}`} />;
 }

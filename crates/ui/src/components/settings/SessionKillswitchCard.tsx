@@ -32,7 +32,7 @@ function DesktopKillswitchRow() {
       sessionKillswitch: !settings.sessionKillswitch,
     };
     setSettings(updated);
-    commands.saveVpnSettings(updated).then((result) => {
+    void commands.saveVpnSettings(updated).then((result) => {
       if (result.status === "error") {
         console.error("Failed to save VPN settings:", result.error);
       }
@@ -53,9 +53,9 @@ function DesktopKillswitchRow() {
       }
     >
       <p className="text-caption text-fg-moderate">
-        Only allows the VPN tunnel and local traffic while connected, so your
-        real IP address is never leaked. If the tunnel drops, all other traffic
-        is blocked until you reconnect or disconnect.
+        Only allows the VPN tunnel and local traffic while connected, so your real IP address is
+        never leaked. If the tunnel drops, all other traffic is blocked until you reconnect or
+        disconnect.
       </p>
     </SettingsRow>
   );
@@ -69,9 +69,9 @@ function AndroidKillswitchRow() {
       description="Managed by Android"
     >
       <p className="text-caption text-fg-moderate">
-        To block all traffic when the tunnel is down, open Android Settings ›
-        Network & internet › VPN, tap the gear next to ByocVPN, and turn on
-        both "Always-on VPN" and "Block connections without VPN".
+        To block all traffic when the tunnel is down, open Android Settings › Network & internet ›
+        VPN, tap the gear next to ByocVPN, and turn on both "Always-on VPN" and "Block connections
+        without VPN".
       </p>
     </SettingsRow>
   );

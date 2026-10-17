@@ -12,7 +12,6 @@ interface AwsAccountCardProps {
   onVerifyRequested: (provider: CloudProviderName) => void;
 }
 
-
 export function AwsAccountCard({
   onCredentialsSaved,
   onCredentialsDeleted,
@@ -23,13 +22,14 @@ export function AwsAccountCard({
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [formFields, setFormFields] = useState({ accessKey: "", secretKey: "" });
 
-  const { isSaving, error, saveCredentials, deleteCredentials, loadCredentials, clearError } = useCredentials();
+  const { isSaving, error, saveCredentials, deleteCredentials, loadCredentials, clearError } =
+    useCredentials();
 
   useEffect(() => {
-    loadCredentials(CloudProviderName.Aws).then((existing) => {
+    void loadCredentials(CloudProviderName.Aws).then((existing) => {
       setHasCredentials(existing !== null);
     });
-  }, []);
+  }, [loadCredentials]);
 
   const resetForm = () => {
     setFormFields({ accessKey: "", secretKey: "" });
@@ -51,7 +51,8 @@ export function AwsAccountCard({
 
   const handleSave = async () => {
     if (!formFields.accessKey.trim()) return;
-    const success = await saveCredentials(CloudProviderName.Aws, {
+    const success = await saveCredentials({
+      provider: CloudProviderName.Aws,
       accessKeyId: formFields.accessKey.trim(),
       secretAccessKey: formFields.secretKey.trim(),
     });
@@ -88,12 +89,18 @@ export function AwsAccountCard({
           onConfirmDelete={handleDelete}
         />
       ) : (
-        <div className="p-4 flex flex-col gap-5">
+        <div className="flex flex-col gap-5 p-4">
           <div className="flex items-center gap-3">
             <AccountIconTile provider={CloudProviderName.Aws} />
             <div>
-              <h3 className="text-body-sm text-fg-lighter">{hasCredentials ? "Edit AWS Account" : "Add AWS Account"}</h3>
-              <p className="text-caption text-fg-medium">{hasCredentials ? "Update your AWS access credentials" : "Enter your AWS access credentials"}</p>
+              <h3 className="text-body-sm text-fg-lighter">
+                {hasCredentials ? "Edit AWS Account" : "Add AWS Account"}
+              </h3>
+              <p className="text-caption text-fg-medium">
+                {hasCredentials
+                  ? "Update your AWS access credentials"
+                  : "Enter your AWS access credentials"}
+              </p>
             </div>
           </div>
 
@@ -118,7 +125,9 @@ export function AwsAccountCard({
             {error && <Banner variant="danger">{error}</Banner>}
 
             <div className="flex gap-3 pt-2">
-              <Button variant="secondary" size="lg" onClick={handleCancel} className="flex-1">Cancel</Button>
+              <Button variant="secondary" size="lg" onClick={handleCancel} className="flex-1">
+                Cancel
+              </Button>
               <Button
                 variant="primary"
                 size="lg"

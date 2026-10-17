@@ -32,12 +32,14 @@ const STEP_LABEL_CLASSES: Record<JobStepStatus, string> = {
 function StepIcon({ status, size }: { status: JobStepStatus; size: number }) {
   switch (status) {
     case JobStepStatus.Running:
-      return <Sparkles size={size} className="text-bd-brand animate-pulse flex-shrink-0" />;
+      return <Sparkles size={size} className="shrink-0 animate-pulse text-bd-brand" />;
     case JobStepStatus.Completed:
-      return <Check size={size} className="text-fg-success-moderate flex-shrink-0" />;
+      return <Check size={size} className="shrink-0 text-fg-success-moderate" />;
     case JobStepStatus.Failed:
-      return <X size={size} className="text-fg-danger-moderate flex-shrink-0" />;
+      return <X size={size} className="shrink-0 text-fg-danger-moderate" />;
     case JobStepStatus.Pending:
-      return <Circle size={size} className="text-bd-brand flex-shrink-0" />;
+      return <Circle size={size} className="shrink-0 text-bd-brand" />;
+    default:
+      return null;
   }
 }

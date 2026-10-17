@@ -12,7 +12,6 @@ interface AzureAccountCardProps {
   onVerifyRequested: (provider: CloudProviderName) => void;
 }
 
-
 export function AzureAccountCard({
   onCredentialsSaved,
   onCredentialsDeleted,
@@ -29,20 +28,14 @@ export function AzureAccountCard({
     secretValue: "",
   });
 
-  const {
-    isSaving,
-    error,
-    saveCredentials,
-    deleteCredentials,
-    loadCredentials,
-    clearError,
-  } = useCredentials();
+  const { isSaving, error, saveCredentials, deleteCredentials, loadCredentials, clearError } =
+    useCredentials();
 
   useEffect(() => {
-    loadCredentials(CloudProviderName.Azure).then((existing) => {
+    void loadCredentials(CloudProviderName.Azure).then((existing) => {
       setHasCredentials(existing !== null);
     });
-  }, []);
+  }, [loadCredentials]);
 
   const resetForm = () => {
     setFormFields({ subscriptionId: "", tenantId: "", applicationId: "", secretValue: "" });
@@ -70,7 +63,8 @@ export function AzureAccountCard({
   };
 
   const handleSave = async () => {
-    const success = await saveCredentials(CloudProviderName.Azure, {
+    const success = await saveCredentials({
+      provider: CloudProviderName.Azure,
       subscriptionId: formFields.subscriptionId.trim(),
       tenantId: formFields.tenantId.trim(),
       applicationId: formFields.applicationId.trim(),
@@ -115,7 +109,7 @@ export function AzureAccountCard({
           onConfirmDelete={handleDeleteCredentials}
         />
       ) : (
-        <div className="p-4 flex flex-col gap-5">
+        <div className="flex flex-col gap-5 p-4">
           <div className="flex items-center gap-3">
             <AccountIconTile provider={CloudProviderName.Azure} />
             <div>
@@ -178,7 +172,9 @@ export function AzureAccountCard({
             {error && <Banner variant="danger">{error}</Banner>}
 
             <div className="flex gap-3 pt-2">
-              <Button variant="secondary" size="lg" onClick={handleCancel} className="flex-1">Cancel</Button>
+              <Button variant="secondary" size="lg" onClick={handleCancel} className="flex-1">
+                Cancel
+              </Button>
               <Button
                 variant="primary"
                 size="lg"

@@ -167,12 +167,26 @@
   }
 
   .scroll-fade {
-    mask-image: linear-gradient(to bottom, transparent, black 12px, black calc(100% - 12px), transparent);
+    mask-image: linear-gradient(
+      to bottom,
+      transparent,
+      black 12px,
+      black calc(100% - 12px),
+      transparent
+    );
   }
 
-  ::-webkit-scrollbar        { width: 5px; height: 5px; }
-  ::-webkit-scrollbar-track  { background: transparent; }
-  ::-webkit-scrollbar-thumb  { background: var(--color-bd-strong); border-radius: 9999px; }
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-bd-strong);
+    border-radius: 9999px;
+  }
 
   :focus-visible {
     outline: 1.5px solid var(--color-bd-brand);
@@ -191,11 +205,7 @@
 
 /* Subtle dot-grid — applied to the app frame background */
 @utility bg-grid {
-  background-image: radial-gradient(
-    circle,
-    var(--color-bd-faint) 1px,
-    transparent 1px
-  );
+  background-image: radial-gradient(circle, var(--color-bd-faint) 1px, transparent 1px);
   background-size: 22px 22px;
 }
 

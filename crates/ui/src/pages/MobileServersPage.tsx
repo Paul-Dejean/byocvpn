@@ -3,10 +3,7 @@ import { useServersPage } from "../hooks/useServersPage";
 import { ServerList } from "../components/servers/ServerList";
 import { EmptyServers } from "../components/servers/EmptyServers";
 import { DeployServerModal } from "../components/deploy/DeployServerModal";
-import {
-  ProtectedStatusCard,
-  UnprotectedStatusCard,
-} from "../components/vpn/MobileStatusCards";
+import { ProtectedStatusCard, UnprotectedStatusCard } from "../components/vpn/MobileStatusCards";
 import { Banner } from "../components/primitives/Banner";
 import { Button } from "../components/primitives/Button";
 import { Spinner } from "../components/primitives/Spinner";
@@ -30,7 +27,7 @@ export function MobileServersPage() {
   } = serversPage;
 
   return (
-    <div className="h-full min-h-0 overflow-y-auto flex flex-col gap-4">
+    <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto">
       {connectedInstance ? (
         <ProtectedStatusCard
           connectedInstance={connectedInstance}
@@ -54,12 +51,9 @@ export function MobileServersPage() {
         <section className="flex flex-col gap-3">
           <header className="flex flex-col gap-1">
             <h1 className="text-body-sm font-medium text-fg-lighter">
-              Active servers{" "}
-              <span className="text-fg-medium font-normal">[{instanceCount}]</span>
+              Active servers <span className="font-normal text-fg-medium">[{instanceCount}]</span>
             </h1>
-            <p className="text-caption text-fg-medium">
-              Terminate unused servers to stop charges.
-            </p>
+            <p className="text-caption text-fg-medium">Terminate unused servers to stop charges.</p>
           </header>
           <ServerList serversPage={serversPage} />
           <Button
@@ -73,7 +67,7 @@ export function MobileServersPage() {
           </Button>
         </section>
       ) : (
-        <div className="py-6 flex">
+        <div className="flex py-6">
           <EmptyServers onDeploy={openDeployModal} />
         </div>
       )}

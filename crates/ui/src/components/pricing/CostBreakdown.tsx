@@ -11,24 +11,20 @@ export function CostBreakdown({ entry }: CostBreakdownProps) {
   if (entry.isPricingUnknown) {
     return (
       <p className="text-caption text-fg-medium">
-        Pricing is unavailable for this instance type, so no cost
-        estimate can be shown.
+        Pricing is unavailable for this instance type, so no cost estimate can be shown.
       </p>
     );
   }
 
   const bytesSentGb = entry.bytesSent / 1024 ** 3;
-  const hourlyComputeRate =
-    entry.uptimeHours > 0 ? entry.computeCost / entry.uptimeHours : 0;
-  const hourlyIpRate =
-    entry.uptimeHours > 0 ? entry.ipCost / entry.uptimeHours : 0;
-  const egressRatePerGb =
-    bytesSentGb > 0 ? entry.egressCost / bytesSentGb : 0;
+  const hourlyComputeRate = entry.uptimeHours > 0 ? entry.computeCost / entry.uptimeHours : 0;
+  const hourlyIpRate = entry.uptimeHours > 0 ? entry.ipCost / entry.uptimeHours : 0;
+  const egressRatePerGb = bytesSentGb > 0 ? entry.egressCost / bytesSentGb : 0;
   const storageHourlyRate = entry.storageRatePerGbMonth / HOURS_PER_MONTH;
 
   return (
     <div className="flex flex-col gap-3">
-      <dl className="grid grid-cols-[120px_1fr_auto] max-md:grid-cols-[1fr_auto] gap-x-6 max-md:gap-x-3 gap-y-1.5 max-w-[520px] text-caption whitespace-nowrap max-md:whitespace-normal">
+      <dl className="grid max-w-130 grid-cols-[120px_1fr_auto] gap-x-6 gap-y-1.5 text-caption whitespace-nowrap max-md:grid-cols-[1fr_auto] max-md:gap-x-3 max-md:whitespace-normal">
         <CostLine
           label="Compute time"
           detail={`${entry.uptimeHours.toFixed(2)} h × $${hourlyComputeRate.toFixed(5)}/hr`}
@@ -49,10 +45,10 @@ export function CostBreakdown({ entry }: CostBreakdownProps) {
           detail={`${entry.storageGb} GB × $${storageHourlyRate.toFixed(6)}/hr`}
           amount={entry.storageCost}
         />
-        <dt className="col-span-2 max-md:col-span-1 pt-1.5 border-t border-bd-faint text-fg-lighter">
+        <dt className="col-span-2 border-t border-bd-faint pt-1.5 text-fg-lighter max-md:col-span-1">
           Total
         </dt>
-        <dd className="pt-1.5 border-t border-bd-faint text-right text-fg-lighter tabular-nums">
+        <dd className="border-t border-bd-faint pt-1.5 text-right text-fg-lighter tabular-nums">
           ${entry.estimatedCost.toFixed(4)}
         </dd>
       </dl>
@@ -74,7 +70,7 @@ function CostLine({ label, detail, amount }: CostLineProps) {
     <>
       <dt className="text-fg-medium max-md:col-start-1">
         {label}
-        <span className="hidden max-md:block text-fg-moderate">{detail}</span>
+        <span className="hidden text-fg-moderate max-md:block">{detail}</span>
       </dt>
       <dd className="text-fg-moderate max-md:hidden">{detail}</dd>
       <dd className="text-right text-fg-lighter tabular-nums">${amount.toFixed(4)}</dd>

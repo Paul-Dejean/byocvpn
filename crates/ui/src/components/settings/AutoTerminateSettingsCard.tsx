@@ -14,21 +14,18 @@ const DEFAULT_SETTINGS: AutoTerminateSettings = {
 const MIN_THRESHOLD_MINUTES = 5;
 
 export function AutoTerminateSettingsCard() {
-  const [settings, setSettings] =
-    useState<AutoTerminateSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<AutoTerminateSettings>(DEFAULT_SETTINGS);
 
   useEffect(() => {
     commands
       .getAutoTerminateSettings()
       .then(setSettings)
-      .catch((error) =>
-        console.error("Failed to load auto-terminate settings:", error),
-      );
+      .catch((error) => console.error("Failed to load auto-terminate settings:", error));
   }, []);
 
   const updateSettings = (updated: AutoTerminateSettings) => {
     setSettings(updated);
-    commands.saveAutoTerminateSettings(updated).then((result) => {
+    void commands.saveAutoTerminateSettings(updated).then((result) => {
       if (result.status === "error") {
         console.error("Failed to save auto-terminate settings:", result.error);
       }
@@ -74,9 +71,8 @@ export function AutoTerminateSettingsCard() {
             <span>without a connection</span>
           </div>
           <p className="text-caption text-fg-moderate">
-            The idle timer resets every time you connect. Only runs while the
-            app is open. Servers are fully terminated, so a forgotten one won't
-            keep costing you.
+            The idle timer resets every time you connect. Only runs while the app is open. Servers
+            are fully terminated, so a forgotten one won't keep costing you.
           </p>
         </>
       )}

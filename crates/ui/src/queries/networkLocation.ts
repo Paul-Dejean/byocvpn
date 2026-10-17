@@ -33,8 +33,7 @@ async function fetchNetworkLocation(): Promise<NetworkLocation> {
     fetchPublicIp(IPV6_ENDPOINT),
   ]);
 
-  const location =
-    locationResult.status === "fulfilled" ? locationResult.value : null;
+  const location = locationResult.status === "fulfilled" ? locationResult.value : null;
   const publicIpV4 = ipV4Result.status === "fulfilled" ? ipV4Result.value : "";
   const publicIpV6 = ipV6Result.status === "fulfilled" ? ipV6Result.value : "";
 

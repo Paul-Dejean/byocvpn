@@ -29,8 +29,8 @@ export function ProtectedPanel({
   const sessionSeconds = useSessionSeconds(connectedAt);
 
   return (
-    <div className="h-full flex flex-col gap-3">
-      <div className="flex-1 min-h-0 flex flex-col gap-3">
+    <div className="flex h-full flex-col gap-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
         <StatusHero
           tone="protected"
           icon={<ShieldCheck size={48} strokeWidth={1.5} className="text-fg-success-moderate" />}
@@ -43,7 +43,7 @@ export function ProtectedPanel({
           />
         </StatusHero>
 
-        <section className="rounded-lg bg-bg-medium p-4 flex flex-col gap-3">
+        <section className="flex flex-col gap-3 rounded-lg bg-bg-medium p-4">
           <h3 className="text-body-sm text-fg-lighter">Session</h3>
           <div className="flex flex-col gap-3">
             <PanelField label="Downloaded" value={formatBytes(metrics?.bytesReceived ?? 0)} />
@@ -52,10 +52,7 @@ export function ProtectedPanel({
           </div>
         </section>
 
-        <IpAddressesCard
-          ipV4={connectedInstance.publicIpV4}
-          ipV6={connectedInstance.publicIpV6}
-        />
+        <IpAddressesCard ipV4={connectedInstance.publicIpV4} ipV6={connectedInstance.publicIpV6} />
       </div>
 
       <Button

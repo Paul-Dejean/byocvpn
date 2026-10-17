@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
-import toast from "react-hot-toast";
+import { toast } from "react-hot-toast";
 import { useCredentials } from "../hooks/useCredentials";
 import { useAccounts } from "../hooks/useAccounts";
 import { usePermissions } from "../hooks/usePermissions";
@@ -23,18 +23,10 @@ interface SettingsPageProps {
 }
 
 export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
-  const [awsHasCredentials, setAwsHasCredentials] = useState<boolean | null>(
-    null,
-  );
-  const [oracleHasCredentials, setOracleHasCredentials] = useState<
-    boolean | null
-  >(null);
-  const [gcpHasCredentials, setGcpHasCredentials] = useState<boolean | null>(
-    null,
-  );
-  const [azureHasCredentials, setAzureHasCredentials] = useState<
-    boolean | null
-  >(null);
+  const [awsHasCredentials, setAwsHasCredentials] = useState<boolean | null>(null);
+  const [oracleHasCredentials, setOracleHasCredentials] = useState<boolean | null>(null);
+  const [gcpHasCredentials, setGcpHasCredentials] = useState<boolean | null>(null);
+  const [azureHasCredentials, setAzureHasCredentials] = useState<boolean | null>(null);
 
   const { loadCredentials } = useCredentials();
 
@@ -60,7 +52,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
 
   function handleVerifyRequested(provider: CloudProviderName) {
     setVerifiedProvider(provider);
-    verifyPermissions(provider);
+    void verifyPermissions(provider);
   }
 
   function handleClosePermissionsDrawer() {
@@ -69,19 +61,19 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
   }
 
   useEffect(() => {
-    loadCredentials(CloudProviderName.Aws).then((existing) =>
+    void loadCredentials(CloudProviderName.Aws).then((existing) =>
       setAwsHasCredentials(existing !== null),
     );
-    loadCredentials(CloudProviderName.Oracle).then((existing) =>
+    void loadCredentials(CloudProviderName.Oracle).then((existing) =>
       setOracleHasCredentials(existing !== null),
     );
-    loadCredentials(CloudProviderName.Gcp).then((existing) =>
+    void loadCredentials(CloudProviderName.Gcp).then((existing) =>
       setGcpHasCredentials(existing !== null),
     );
-    loadCredentials(CloudProviderName.Azure).then((existing) =>
+    void loadCredentials(CloudProviderName.Azure).then((existing) =>
       setAzureHasCredentials(existing !== null),
     );
-  }, []);
+  }, [loadCredentials]);
 
   const hasConfiguredAccount =
     awsHasCredentials || oracleHasCredentials || gcpHasCredentials || azureHasCredentials;
@@ -90,7 +82,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
     !(awsHasCredentials && oracleHasCredentials && gcpHasCredentials && azureHasCredentials);
 
   return (
-    <div className="flex flex-col h-full gap-3">
+    <div className="flex h-full flex-col gap-3">
       <header className="flex flex-col gap-1">
         <h1 className="text-body-sm font-medium text-fg-lighter">Settings</h1>
         <p className="text-caption text-fg-medium">
@@ -98,7 +90,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
         </p>
       </header>
 
-      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-6 pr-1">
+      <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto pr-1">
         <SettingsSection
           title="Cloud accounts"
           description="Credentials stay on your device. We never store them."
@@ -183,7 +175,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
         onClose={handleClosePermissionsDrawer}
         onRetry={() => {
           if (verifiedProvider) {
-            verifyPermissions(verifiedProvider);
+            void verifyPermissions(verifiedProvider);
           }
         }}
       />

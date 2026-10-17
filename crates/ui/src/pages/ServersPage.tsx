@@ -33,29 +33,26 @@ export function ServersPage() {
   return (
     <div className="flex h-full min-h-0 gap-3">
       <section
-        className="flex-shrink-0 min-h-0 flex flex-col gap-3 rounded-lg bg-bg-bolder p-3"
+        className="flex min-h-0 shrink-0 flex-col gap-3 rounded-lg bg-bg-bolder p-3"
         style={{ width: SERVERS_PANEL_WIDTH }}
       >
         {hasServers && (
           <header className="flex flex-col gap-1">
             <h1 className="text-body-sm font-medium text-fg-lighter">
-              Active servers{" "}
-              <span className="text-fg-medium font-normal">[{instanceCount}]</span>
+              Active servers <span className="font-normal text-fg-medium">[{instanceCount}]</span>
             </h1>
-            <p className="text-caption text-fg-medium">
-              Terminate unused servers to stop charges.
-            </p>
+            <p className="text-caption text-fg-medium">Terminate unused servers to stop charges.</p>
           </header>
         )}
 
         {vpnError && <Banner variant="danger">{vpnError}</Banner>}
 
         {isLoading && !hasServers ? (
-          <div className="flex-1 flex items-center justify-center">
+          <div className="flex flex-1 items-center justify-center">
             <Spinner size="w-6 h-6" color="border-bd-strong" />
           </div>
         ) : hasServers ? (
-          <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
             <ServerList serversPage={serversPage} />
           </div>
         ) : (
@@ -76,7 +73,7 @@ export function ServersPage() {
       </section>
 
       <aside
-        className="flex-shrink-0 min-h-0 rounded-lg bg-bg-bolder py-3 px-4"
+        className="min-h-0 shrink-0 rounded-lg bg-bg-bolder px-4 py-3"
         style={{ width: STATUS_PANEL_WIDTH }}
       >
         {connectedInstance ? (

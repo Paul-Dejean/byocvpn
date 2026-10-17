@@ -20,22 +20,19 @@ const DEFAULT_SETTINGS: NotificationSettings = {
 };
 
 export function NotificationSettingsCard() {
-  const [settings, setSettings] =
-    useState<NotificationSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_SETTINGS);
   const [permissionError, setPermissionError] = useState<string | null>(null);
 
   useEffect(() => {
     commands
       .getNotificationSettings()
       .then(setSettings)
-      .catch((error) =>
-        console.error("Failed to load notification settings:", error),
-      );
+      .catch((error) => console.error("Failed to load notification settings:", error));
   }, []);
 
   const updateSettings = (updated: NotificationSettings) => {
     setSettings(updated);
-    commands.saveNotificationSettings(updated).then((result) => {
+    void commands.saveNotificationSettings(updated).then((result) => {
       if (result.status === "error") {
         console.error("Failed to save notification settings:", result.error);
       }
@@ -51,9 +48,7 @@ export function NotificationSettingsCard() {
         if (!alreadyGranted) {
           const result = await requestPermission();
           if (result !== "granted") {
-            setPermissionError(
-              "Notification permission was denied. Enable it in System Settings.",
-            );
+            setPermissionError("Notification permission was denied. Enable it in System Settings.");
             return;
           }
         }
@@ -68,18 +63,10 @@ export function NotificationSettingsCard() {
     updateSettings({ ...settings, notificationEnabled: enabling });
   };
 
-  const sendTestNotification = () => {
-    sendNotification({
-      title: "ByocVPN",
-      body: "Notifications are working!",
-    });
-  };
-
   const notificationSettingsUrl = (() => {
     if (navigator.platform.startsWith("Mac"))
       return "x-apple.systempreferences:com.apple.preference.notifications";
-    if (navigator.platform.startsWith("Win"))
-      return "ms-settings:notifications";
+    if (navigator.platform.startsWith("Win")) return "ms-settings:notifications";
     return null;
   })();
 
@@ -89,7 +76,7 @@ export function NotificationSettingsCard() {
       await openUrl(notificationSettingsUrl);
     } catch (error) {
       console.error("Failed to open notification settings:", error);
-      setPermissionError(`Could not open System Settings: ${error}`);
+      setPermissionError(`Could not open System Settings: ${String(error)}`);
     }
   };
 
@@ -126,27 +113,19 @@ export function NotificationSettingsCard() {
           </div>
 
           <p className="text-caption text-fg-moderate">
-            To verify notifications work, open System Settings and allow
-            notifications for this app, then send a test notification.
+            To verify notifications work, open System Settings and allow notifications for this app,
+            then send a test notification.
           </p>
 
           {permissionError && <Banner variant="danger">{permissionError}</Banner>}
 
           <div className="flex items-center gap-2">
             {notificationSettingsUrl && (
-              <Button
-                variant="secondary"
-                size="md"
-                onClick={openNotificationSettings}
-              >
+              <Button variant="secondary" size="md" onClick={openNotificationSettings}>
                 Open Settings
               </Button>
             )}
-            <Button
-              variant="secondary"
-              size="md"
-              onClick={sendTestNotification}
-            >
+            <Button variant="secondary" size="md" onClick={sendTestNotification}>
               Test notification
             </Button>
           </div>
@@ -154,4 +133,11 @@ export function NotificationSettingsCard() {
       )}
     </SettingsRow>
   );
+}
+
+function sendTestNotification() {
+  sendNotification({
+    title: "ByocVPN",
+    body: "Notifications are working!",
+  });
 }

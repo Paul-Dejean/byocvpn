@@ -8,12 +8,13 @@ import { FormField } from "../components/primitives/FormField";
 import { commands } from "../bindings";
 import { fromPromise } from "../lib/result";
 import { save } from "@tauri-apps/plugin-dialog";
-import toast from "react-hot-toast";
+import { toast } from "react-hot-toast";
 import { useCredentials } from "../hooks/useCredentials";
 import { useAccounts } from "../hooks/useAccounts";
 import {
   AwsCredentials,
   AzureCredentials,
+  buildProviderCredentials,
   CloudProviderName,
   GcpCredentials,
   VerifiableCredentialsRequest,
@@ -213,10 +214,7 @@ const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
   },
 };
 
-const PROVIDER_SETUP_INSTRUCTIONS: Record<
-  string,
-  { title: string; steps: SetupStep[] }
-> = {
+const PROVIDER_SETUP_INSTRUCTIONS: Record<string, { title: string; steps: SetupStep[] }> = {
   [CloudProviderName.Aws]: {
     title: "Set up AWS credentials",
     steps: [
@@ -334,8 +332,9 @@ export function AddAccountPage({
   const [step, setStep] = useState<AddAccountStep>(
     initialProvider ? "entering-credentials" : "selecting-provider",
   );
-  const [selectedProvider, setSelectedProvider] =
-    useState<CloudProviderName | null>(initialProvider);
+  const [selectedProvider, setSelectedProvider] = useState<CloudProviderName | null>(
+    initialProvider,
+  );
 
   const {
     activeProvisionJob,
@@ -361,15 +360,15 @@ export function AddAccountPage({
   };
 
   const handleCredentialsSaved = (provider: CloudProviderName) => {
-    provisionAccount(provider);
+    void provisionAccount(provider);
   };
 
   const saveAndProvision = async (request: VerifiableCredentialsRequest) => {
     setIsSavingCredentials(true);
-    const saved = await saveCredentials(request.provider, request.credentials);
+    const saved = await saveCredentials(buildProviderCredentials(request));
     setIsSavingCredentials(false);
     if (saved) {
-      provisionAccount(request.provider);
+      void provisionAccount(request.provider);
     }
   };
 
@@ -382,9 +381,7 @@ export function AddAccountPage({
     }
   };
 
-  const instructions = selectedProvider
-    ? PROVIDER_SETUP_INSTRUCTIONS[selectedProvider]
-    : null;
+  const instructions = selectedProvider ? PROVIDER_SETUP_INSTRUCTIONS[selectedProvider] : null;
 
   if (step === "selecting-provider") {
     return (
@@ -399,7 +396,7 @@ export function AddAccountPage({
   }
 
   return (
-    <div className="flex flex-col h-full gap-4">
+    <div className="flex h-full flex-col gap-4">
       <header className="flex items-center gap-3">
         <IconButton
           accent="neutral"
@@ -419,7 +416,7 @@ export function AddAccountPage({
         </div>
       </header>
 
-      <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
         {selectedProvider && instructions && (
           <CredentialsStep
             provider={selectedProvider}
@@ -465,16 +462,16 @@ function CredentialsStep({
   const [isPolicyOpen, setIsPolicyOpen] = useState(false);
 
   return (
-    <div className="max-w-[640px] mx-auto flex flex-col gap-3">
-      <section className="rounded-xl bg-bg-bolder border border-bd-moderate p-4 flex flex-col gap-4">
+    <div className="mx-auto flex max-w-160 flex-col gap-3">
+      <section className="flex flex-col gap-4 rounded-xl border border-bd-moderate bg-bg-bolder p-4">
         <h2 className="text-body-sm text-fg-lighter">{instructions.title}</h2>
         <ol className="flex flex-col gap-3">
           {instructions.steps.map((setupStep) => (
             <li key={setupStep.number} className="flex gap-3">
-              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-bg-medium border border-bd-moderate text-fg-medium text-caption flex items-center justify-center mt-0.5">
+              <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border border-bd-moderate bg-bg-medium text-caption text-fg-medium">
                 {setupStep.number}
               </span>
-              <p className="text-caption text-fg-medium leading-relaxed">{setupStep.text}</p>
+              <p className="text-caption leading-relaxed text-fg-medium">{setupStep.text}</p>
             </li>
           ))}
         </ol>
@@ -492,7 +489,7 @@ function CredentialsStep({
         </CollapsibleSection>
       )}
 
-      <section className="rounded-xl bg-bg-bolder border border-bd-moderate p-4 flex flex-col gap-4">
+      <section className="flex flex-col gap-4 rounded-xl border border-bd-moderate bg-bg-bolder p-4">
         <h2 className="text-body-sm text-fg-lighter">Credentials</h2>
         {provider === CloudProviderName.Aws && (
           <AwsCredentialsForm
@@ -552,11 +549,7 @@ interface AwsCredentialsFormProps {
   onCancel: () => void;
 }
 
-function AwsCredentialsForm({
-  onSubmit,
-  isSubmitting,
-  onCancel,
-}: AwsCredentialsFormProps) {
+function AwsCredentialsForm({ onSubmit, isSubmitting, onCancel }: AwsCredentialsFormProps) {
   const [accessKeyId, setAccessKeyId] = useState("");
   const [secretAccessKey, setSecretAccessKey] = useState("");
 
@@ -608,16 +601,17 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
     const file = event.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (loadEvent) => {
+    reader.addEventListener("load", (loadEvent) => {
       const content = loadEvent.target?.result;
       if (typeof content === "string") setPrivateKeyPem(content);
-    };
+    });
     reader.readAsText(file);
     event.target.value = "";
   };
 
   const handleSubmit = async () => {
-    const success = await saveCredentials(CloudProviderName.Oracle, {
+    const success = await saveCredentials({
+      provider: CloudProviderName.Oracle,
       tenancyOcid: tenancyOcid.trim(),
       userOcid: userOcid.trim(),
       fingerprint: fingerprint.trim(),
@@ -676,9 +670,7 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
       />
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
-          <label className="text-caption text-fg-medium">
-            Private Key (.pem)
-          </label>
+          <label className="text-caption text-fg-medium">Private Key (.pem)</label>
           <Button
             variant="secondary"
             size="md"
@@ -701,7 +693,7 @@ function OracleCredentialsForm({ onSaved, onCancel }: ProviderFormProps) {
           onChange={(e) => setPrivateKeyPem(e.target.value)}
           rows={5}
           placeholder="-----BEGIN RSA PRIVATE KEY-----"
-          className="input font-mono text-caption resize-none"
+          className="input resize-none font-mono text-caption"
         />
       </div>
     </CredentialsFormShell>
@@ -714,11 +706,7 @@ interface GcpCredentialsFormProps {
   onCancel: () => void;
 }
 
-function GcpCredentialsForm({
-  onSubmit,
-  isSubmitting,
-  onCancel,
-}: GcpCredentialsFormProps) {
+function GcpCredentialsForm({ onSubmit, isSubmitting, onCancel }: GcpCredentialsFormProps) {
   const [projectId, setProjectId] = useState("");
   const [serviceAccountJson, setServiceAccountJson] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -727,16 +715,14 @@ function GcpCredentialsForm({
     const file = event.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (loadEvent) => {
+    reader.addEventListener("load", (loadEvent) => {
       const content = loadEvent.target?.result;
       if (typeof content === "string") {
         setServiceAccountJson(content);
-        try {
-          const parsed = JSON.parse(content);
-          if (parsed.project_id && !projectId) setProjectId(parsed.project_id);
-        } catch {}
+        const parsedProjectId = readProjectIdFromServiceAccountJson(content);
+        if (parsedProjectId && !projectId) setProjectId(parsedProjectId);
       }
-    };
+    });
     reader.readAsText(file);
     event.target.value = "";
   };
@@ -768,9 +754,7 @@ function GcpCredentialsForm({
       />
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
-          <label className="text-caption text-fg-medium">
-            Service Account Key (.json)
-          </label>
+          <label className="text-caption text-fg-medium">Service Account Key (.json)</label>
           <Button
             variant="secondary"
             size="md"
@@ -793,11 +777,28 @@ function GcpCredentialsForm({
           onChange={(e) => setServiceAccountJson(e.target.value)}
           rows={6}
           placeholder='{"type":"service_account","project_id":"..."}'
-          className="input font-mono text-caption resize-none"
+          className="input resize-none font-mono text-caption"
         />
       </div>
     </CredentialsFormShell>
   );
+}
+
+function readProjectIdFromServiceAccountJson(serviceAccountJson: string): string | null {
+  try {
+    const parsed: unknown = JSON.parse(serviceAccountJson);
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "project_id" in parsed &&
+      typeof parsed.project_id === "string"
+    ) {
+      return parsed.project_id;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 interface AzureCredentialsFormProps {
@@ -806,11 +807,7 @@ interface AzureCredentialsFormProps {
   onCancel: () => void;
 }
 
-function AzureCredentialsForm({
-  onSubmit,
-  isSubmitting,
-  onCancel,
-}: AzureCredentialsFormProps) {
+function AzureCredentialsForm({ onSubmit, isSubmitting, onCancel }: AzureCredentialsFormProps) {
   const [subscriptionId, setSubscriptionId] = useState("");
   const [tenantId, setTenantId] = useState("");
   const [applicationId, setApplicationId] = useState("");
@@ -826,10 +823,7 @@ function AzureCredentialsForm({
   };
 
   const isFormValid =
-    subscriptionId.trim() &&
-    tenantId.trim() &&
-    applicationId.trim() &&
-    secretValue.trim();
+    subscriptionId.trim() && tenantId.trim() && applicationId.trim() && secretValue.trim();
 
   return (
     <CredentialsFormShell
@@ -908,15 +902,19 @@ function PolicyBox({ policy }: PolicyBoxProps) {
   };
 
   return (
-    <div className="rounded-lg bg-bg-medium border border-bd-moderate overflow-hidden flex flex-col max-h-[320px]">
-      <div className="flex items-center justify-between gap-3 px-4 py-2 border-b border-bd-faint">
-        <span className="text-caption text-fg-medium">Paste this when the console asks for a policy</span>
+    <div className="flex max-h-80 flex-col overflow-hidden rounded-lg border border-bd-moderate bg-bg-medium">
+      <div className="flex items-center justify-between gap-3 border-b border-bd-faint px-4 py-2">
+        <span className="text-caption text-fg-medium">
+          Paste this when the console asks for a policy
+        </span>
         <div className="flex items-center gap-2">
           <Button
             variant="secondary"
             size="md"
             onClick={handleCopy}
-            icon={copied ? <Check size={14} className="text-fg-success-moderate" /> : <Copy size={14} />}
+            icon={
+              copied ? <Check size={14} className="text-fg-success-moderate" /> : <Copy size={14} />
+            }
           >
             {copied ? "Copied" : "Copy"}
           </Button>
@@ -930,7 +928,7 @@ function PolicyBox({ policy }: PolicyBoxProps) {
           </Button>
         </div>
       </div>
-      <pre className="p-4 text-caption font-mono text-fg-medium overflow-auto flex-1 leading-relaxed">
+      <pre className="flex-1 overflow-auto p-4 font-mono text-caption leading-relaxed text-fg-medium">
         {policy.content}
       </pre>
     </div>
@@ -961,12 +959,7 @@ function CredentialsFormShell({
       {error && <Banner variant="danger">{error}</Banner>}
 
       <div className="flex gap-3 pt-1">
-        <Button
-          variant="secondary"
-          size="lg"
-          onClick={onCancel}
-          className="flex-1"
-        >
+        <Button variant="secondary" size="lg" onClick={onCancel} className="flex-1">
           Back
         </Button>
         <Button

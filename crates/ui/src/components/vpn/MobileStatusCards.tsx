@@ -30,15 +30,12 @@ export function ProtectedStatusCard({
   const sessionSeconds = useSessionSeconds(connectedAt);
 
   return (
-    <section className="rounded-xl bg-bg-bolder border border-bd-success p-4 flex flex-col gap-4">
+    <section className="flex flex-col gap-4 rounded-xl border border-bd-success bg-bg-bolder p-4">
       <div className="flex items-center gap-3">
         <StatusIcon isProtected />
-        <div className="min-w-0 flex flex-col gap-1">
+        <div className="flex min-w-0 flex-col gap-1">
           <h2 className="text-feature font-semibold text-fg-lighter">You're protected</h2>
-          <ServerLocation
-            provider={connectedInstance.provider}
-            region={connectedInstance.region}
-          />
+          <ServerLocation provider={connectedInstance.provider} region={connectedInstance.region} />
         </div>
       </div>
 
@@ -74,26 +71,24 @@ export function UnprotectedStatusCard({ hasServers }: UnprotectedStatusCardProps
   const hasLocation = location !== null && (location.country || location.city);
 
   return (
-    <section className="rounded-xl bg-bg-bolder border border-bd-danger p-4 flex flex-col gap-4">
+    <section className="flex flex-col gap-4 rounded-xl border border-bd-danger bg-bg-bolder p-4">
       <div className="flex items-center gap-3">
         <StatusIcon isProtected={false} />
-        <div className="min-w-0 flex flex-col gap-1">
+        <div className="flex min-w-0 flex-col gap-1">
           <h2 className="text-feature font-semibold text-fg-lighter">Unprotected</h2>
           <p className="text-caption text-fg-medium">
-            {hasServers
-              ? "Connect to a server to go private."
-              : "Add a server to stay private."}
+            {hasServers ? "Connect to a server to go private." : "Add a server to stay private."}
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="flex flex-col gap-1 min-w-0">
+        <div className="flex min-w-0 flex-col gap-1">
           <span className="text-caption text-fg-medium">Current location</span>
           {isLoading ? (
             <Spinner size="w-4 h-4" color="border-bd-strong" />
           ) : hasLocation && location ? (
-            <span className="flex items-center gap-2 text-body-sm text-fg-lighter min-w-0">
+            <span className="flex min-w-0 items-center gap-2 text-body-sm text-fg-lighter">
               <FlagIcon countryCode={location.countryCode} />
               <span className="truncate">{location.city || location.country}</span>
             </span>
@@ -114,7 +109,7 @@ interface StatusIconProps {
 function StatusIcon({ isProtected }: StatusIconProps) {
   return (
     <div
-      className={`w-12 h-12 flex-shrink-0 rounded-full flex items-center justify-center ${
+      className={`flex size-12 shrink-0 items-center justify-center rounded-full ${
         isProtected ? "bg-bg-success-faint" : "bg-bg-danger-faint"
       }`}
     >

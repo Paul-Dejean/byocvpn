@@ -1,10 +1,6 @@
 import { useState } from "react";
 import { CloudProviderName, Region } from "../types";
-import {
-  Deployment,
-  DeploymentStatus,
-  useDeployments,
-} from "../contexts/DeploymentsContext";
+import { Deployment, DeploymentStatus, useDeployments } from "../contexts/DeploymentsContext";
 
 export { DeploymentStatus };
 

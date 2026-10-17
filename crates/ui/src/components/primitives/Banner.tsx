@@ -41,13 +41,13 @@ export function Banner({
       role={variant === "danger" ? "alert" : "status"}
       className={`flex items-start gap-3 rounded-xl px-4 py-3 text-body-sm ${VARIANT_CLASSES[variant]} ${className}`}
     >
-      <span className={`flex-shrink-0 ${ICON_CLASSES[variant]}`}>
+      <span className={`shrink-0 ${ICON_CLASSES[variant]}`}>
         {icon ?? <DefaultIcon variant={variant} />}
       </span>
-      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {title && <p className="font-medium">{title}</p>}
         {children && (
-          <div className={`break-words ${title ? "text-caption text-fg-medium" : ""}`}>
+          <div className={`wrap-break-word ${title ? "text-caption text-fg-medium" : ""}`}>
             {children}
           </div>
         )}
@@ -57,7 +57,7 @@ export function Banner({
           type="button"
           onClick={onDismiss}
           aria-label="Dismiss"
-          className="flex-shrink-0 text-fg-medium hover:text-fg-lighter transition-colors"
+          className="shrink-0 text-fg-medium transition-colors hover:text-fg-lighter"
         >
           <X size={16} />
         </button>
@@ -76,5 +76,7 @@ function DefaultIcon({ variant }: { variant: BannerVariant }) {
     case "info":
     case "neutral":
       return <Info size={20} />;
+    default:
+      return null;
   }
 }

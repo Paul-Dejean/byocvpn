@@ -3,18 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Instance } from "../types";
 import { useInstances } from "./useInstances";
 import { useVpnConnectionContext } from "../contexts/VpnConnectionContext";
-import {
-  DeploymentStatus,
-  useDeployments,
-} from "../contexts/DeploymentsContext";
+import { DeploymentStatus, useDeployments } from "../contexts/DeploymentsContext";
 import { configuredProvidersQueryOptions } from "../queries/configuredProviders";
 
 export function useServersPage() {
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
 
-  const { data: configuredProviders = [] } = useQuery(
-    configuredProvidersQueryOptions,
-  );
+  const { data: configuredProviders = [] } = useQuery(configuredProvidersQueryOptions);
   const {
     instances,
     pendingSpawnJobs,
@@ -39,9 +34,9 @@ export function useServersPage() {
   } = useVpnConnectionContext();
 
   useEffect(() => {
-    checkVpnStatus();
-    refetchInstances();
-  }, []);
+    void checkVpnStatus();
+    void refetchInstances();
+  }, [checkVpnStatus, refetchInstances]);
 
   const activeDeployments = deployments.filter(
     (deployment) => deployment.status !== DeploymentStatus.COMPLETE,
@@ -60,9 +55,7 @@ export function useServersPage() {
 
   const connectedInstance = vpnStatus.connected ? vpnStatus.instance : null;
   const hasServers =
-    visibleInstances.length > 0 ||
-    untrackedSpawnJobs.length > 0 ||
-    activeDeployments.length > 0;
+    visibleInstances.length > 0 || untrackedSpawnJobs.length > 0 || activeDeployments.length > 0;
 
   async function onConnect(instance: Instance) {
     clearError();
@@ -82,7 +75,7 @@ export function useServersPage() {
 
   function onDismissDeployment(deploymentId: string, jobId: string | null) {
     if (jobId) {
-      dismissSpawnJob(jobId);
+      void dismissSpawnJob(jobId);
     }
     dismissDeployment(deploymentId);
   }

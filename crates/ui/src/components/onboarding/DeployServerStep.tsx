@@ -11,12 +11,7 @@ interface DeployServerStepProps {
   onNext: (region: Region) => void;
 }
 
-export function DeployServerStep({
-  provider,
-  onBack,
-  onSkip,
-  onNext,
-}: DeployServerStepProps) {
+export function DeployServerStep({ provider, onBack, onSkip, onNext }: DeployServerStepProps) {
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
 
   function handleNext() {
@@ -26,13 +21,13 @@ export function DeployServerStep({
   }
 
   return (
-    <div className="h-full flex flex-col items-center py-10 max-md:py-4 gap-8 max-md:gap-6">
+    <div className="flex h-full flex-col items-center gap-8 py-10 max-md:gap-6 max-md:py-4">
       <OnboardingHeading
         title="Deploy your first server to stay private"
         subtitle="Your credentials stay on your device. We never store them."
       />
 
-      <div className="w-full max-w-[400px] flex-1 min-h-0 flex flex-col">
+      <div className="flex min-h-0 w-full max-w-100 flex-1 flex-col">
         <RegionList
           provider={provider}
           selectedRegion={selectedRegion}
@@ -44,7 +39,7 @@ export function DeployServerStep({
         <button
           type="button"
           onClick={onSkip}
-          className="text-caption text-fg-lighter hover:text-fg-medium transition-colors"
+          className="text-caption text-fg-lighter transition-colors hover:text-fg-medium"
         >
           I'll do this later
         </button>
@@ -53,7 +48,7 @@ export function DeployServerStep({
           <button
             type="button"
             onClick={onBack}
-            className="px-2 py-2 text-body-sm text-fg-lighter hover:text-fg-medium transition-colors"
+            className="p-2 text-body-sm text-fg-lighter transition-colors hover:text-fg-medium"
           >
             Back
           </button>

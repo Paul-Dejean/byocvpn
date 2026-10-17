@@ -1,4 +1,4 @@
-import { PointerEvent, ReactNode, useEffect, useRef, useState } from "react";
+import { PointerEvent, ReactNode, useRef, useState } from "react";
 
 const DISMISS_DRAG_DISTANCE = 96;
 
@@ -9,25 +9,24 @@ interface MobileSheetProps {
   children: ReactNode;
 }
 
-export function MobileSheet({
-  isOpen,
-  onClose,
-  isFullHeight = false,
-  children,
-}: MobileSheetProps) {
+export function MobileSheet({ isOpen, onClose, isFullHeight = false, children }: MobileSheetProps) {
   const [shouldRenderContent, setShouldRenderContent] = useState(isOpen);
   const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [previousIsOpen, setPreviousIsOpen] = useState(isOpen);
   const dragStartY = useRef<number | null>(null);
 
-  useEffect(() => {
+  if (previousIsOpen !== isOpen) {
+    setPreviousIsOpen(isOpen);
     if (isOpen) {
       setShouldRenderContent(true);
       setDragOffset(0);
     }
-  }, [isOpen]);
+  }
 
   function onDragStart(event: PointerEvent<HTMLDivElement>) {
     dragStartY.current = event.clientY;
+    setIsDragging(true);
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
@@ -43,6 +42,7 @@ export function MobileSheet({
       return;
     }
     dragStartY.current = null;
+    setIsDragging(false);
     if (dragOffset > DISMISS_DRAG_DISTANCE) {
       onClose();
       return;
@@ -56,14 +56,13 @@ export function MobileSheet({
     }
   }
 
-  const isDragging = dragStartY.current !== null;
   const sheetTransform = isOpen ? `translateY(${dragOffset}px)` : "translateY(100%)";
 
   return (
     <>
       <div
         className={`absolute inset-0 z-40 bg-overlay transition-opacity duration-300 ${
-          isOpen ? "opacity-60 pointer-events-auto" : "opacity-0 pointer-events-none"
+          isOpen ? "pointer-events-auto opacity-60" : "pointer-events-none opacity-0"
         }`}
         onClick={onClose}
       />
@@ -74,7 +73,7 @@ export function MobileSheet({
         aria-hidden={!isOpen}
         onTransitionEnd={onSheetTransitionEnd}
         style={{ transform: sheetTransform }}
-        className={`absolute inset-x-0 bottom-0 z-50 flex flex-col rounded-t-2xl bg-bg-bolder border-t border-bd-moderate shadow-2xl ${
+        className={`absolute inset-x-0 bottom-0 z-50 flex flex-col rounded-t-2xl border-t border-bd-moderate bg-bg-bolder shadow-2xl ${
           isFullHeight ? "h-[92%]" : "max-h-[85%]"
         } ${isDragging ? "" : "transition-transform duration-300 ease-out"}`}
       >
@@ -83,12 +82,12 @@ export function MobileSheet({
           onPointerMove={onDragMove}
           onPointerUp={onDragEnd}
           onPointerCancel={onDragEnd}
-          className="flex-shrink-0 flex justify-center pt-2.5 pb-1.5 touch-none cursor-grab"
+          className="flex shrink-0 cursor-grab touch-none justify-center pt-2.5 pb-1.5"
         >
           <div className="h-1 w-10 rounded-full bg-bd-strong" />
         </div>
         {shouldRenderContent && (
-          <div className="flex-1 min-h-0 flex flex-col safe-area-bottom">{children}</div>
+          <div className="flex min-h-0 flex-1 flex-col safe-area-bottom">{children}</div>
         )}
       </div>
     </>

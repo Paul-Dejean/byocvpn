@@ -19,9 +19,9 @@ const TONE_CLASSES: Record<TagTone, string> = {
 export function Tag({ tone = "neutral", dot = false, children }: TagProps) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 h-5 px-2 rounded-full text-caption whitespace-nowrap ${TONE_CLASSES[tone]}`}
+      className={`inline-flex h-5 items-center gap-1.5 rounded-full px-2 text-caption whitespace-nowrap ${TONE_CLASSES[tone]}`}
     >
-      {dot && <span className="w-1.5 h-1.5 rounded-full bg-current" />}
+      {dot && <span className="size-1.5 rounded-full bg-current" />}
       {children}
     </span>
   );

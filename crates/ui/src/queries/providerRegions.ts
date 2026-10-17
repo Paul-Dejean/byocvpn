@@ -16,22 +16,24 @@ export function providerRegionsQueryOptions(provider: CloudProviderName) {
   });
 }
 
-async function fetchProviderRegions(
-  provider: CloudProviderName,
-): Promise<ProviderRegionsData> {
+async function fetchProviderRegions(provider: CloudProviderName): Promise<ProviderRegionsData> {
   const regionsResult = await commands.getRegions(provider);
   if (regionsResult.status === "error") {
     throw new Error(regionsResult.error);
   }
   const regions = regionsResult.data;
   const store = await loadStore("providers.json");
-  const enabledRegions = new Set<string>();
-  for (const region of regions) {
-    const value = await store.get<boolean>(
-      `enabled_regions/${provider}/${region.name}`,
-    );
-    if (value === true) enabledRegions.add(region.name);
-  }
+  const regionFlags = await Promise.all(
+    regions.map(async (region) => ({
+      name: region.name,
+      enabled: await store.get<boolean>(`enabled_regions/${provider}/${region.name}`),
+    })),
+  );
+  const enabledRegions = new Set<string>(
+    regionFlags
+      .filter((regionFlag) => regionFlag.enabled === true)
+      .map((regionFlag) => regionFlag.name),
+  );
   return { groupedRegions: groupRegionsByCountry(regions), enabledRegions };
 }
 
@@ -44,7 +46,7 @@ function groupRegionsByCountry(regions: Region[]): RegionGroup[] {
   return Object.entries(groups)
     .map(([continent, continentRegions]) => ({
       continent,
-      regions: continentRegions.sort((a, b) => a.name.localeCompare(b.name)),
+      regions: continentRegions.toSorted((a, b) => a.name.localeCompare(b.name)),
     }))
-    .sort((a, b) => a.continent.localeCompare(b.continent));
+    .toSorted((a, b) => a.continent.localeCompare(b.continent));
 }

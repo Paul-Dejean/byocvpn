@@ -6,7 +6,7 @@ export function getCountryName(countryCode: string): string {
   }
   try {
     return REGION_DISPLAY_NAMES.of(countryCode.toUpperCase()) ?? "";
-  } catch (error) {
+  } catch {
     return "";
   }
 }

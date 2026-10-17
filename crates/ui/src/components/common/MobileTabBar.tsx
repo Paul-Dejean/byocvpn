@@ -9,7 +9,7 @@ interface MobileTabBarProps {
 
 export function MobileTabBar({ currentPage, onNavigate }: MobileTabBarProps) {
   return (
-    <nav className="-mx-4 flex-shrink-0 flex items-stretch border-t border-bd-moderate bg-bg-bolder safe-area-bottom">
+    <nav className="-mx-4 flex shrink-0 items-stretch border-t border-bd-moderate bg-bg-bolder safe-area-bottom">
       <MobileTab
         icon={<Server size={20} />}
         label="Servers"
@@ -45,12 +45,12 @@ function MobileTab({ icon, label, isActive, onClick }: MobileTabProps) {
       type="button"
       onClick={onClick}
       aria-current={isActive ? "page" : undefined}
-      className={`flex-1 flex flex-col items-center gap-1 pt-2 pb-2.5 text-caption transition-colors ${
+      className={`flex flex-1 flex-col items-center gap-1 pt-2 pb-2.5 text-caption transition-colors ${
         isActive ? "text-fg-lighter" : "text-fg-medium"
       }`}
     >
       <span
-        className={`w-14 h-8 rounded-full flex items-center justify-center transition-colors ${
+        className={`flex h-8 w-14 items-center justify-center rounded-full transition-colors ${
           isActive ? "bg-bg-lighter" : ""
         }`}
       >

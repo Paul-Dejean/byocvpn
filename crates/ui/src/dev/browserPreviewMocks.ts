@@ -46,11 +46,11 @@ export function installBrowserPreviewMocks() {
 }
 
 function handlePreviewCommand(command: string, args?: InvokeArgs): unknown {
-  const commandArgs = (args ?? {}) as Record<string, unknown>;
+  const commandArgs = readArgumentRecord(args);
 
   switch (command) {
     case "get_credentials":
-      return buildPreviewCredentials(commandArgs.provider as CloudProviderName);
+      return buildPreviewCredentials(readProviderArgument(commandArgs));
     case "has_profile":
       return true;
     case "list_instances":
@@ -58,17 +58,17 @@ function handlePreviewCommand(command: string, args?: InvokeArgs): unknown {
     case "list_active_spawn_jobs":
       return Array.from(spawnJobs.values());
     case "dismiss_spawn_job":
-      spawnJobs.delete(commandArgs.jobId as string);
+      spawnJobs.delete(readStringArgument(commandArgs, "jobId"));
       return null;
     case "spawn_instance":
       return simulateSpawn(
-        commandArgs.provider as CloudProviderName,
-        commandArgs.region as string,
-        commandArgs.onEvent as Channel<SpawnInstanceEvent>,
+        readProviderArgument(commandArgs),
+        readStringArgument(commandArgs, "region"),
+        readSpawnEventChannel(commandArgs),
       );
     case "terminate_instance":
       instances = instances.filter((instance) => instance.id !== commandArgs.instanceId);
-      return `Instance ${commandArgs.instanceId} terminated successfully.`;
+      return `Instance ${String(commandArgs.instanceId)} terminated successfully.`;
     case "connect":
       return connectPreviewVpn(commandArgs);
     case "disconnect":
@@ -103,9 +103,9 @@ function handlePreviewCommand(command: string, args?: InvokeArgs): unknown {
     case "plugin:store|load":
       return 1;
     case "plugin:store|get":
-      return readStoreValue(commandArgs.key as string);
+      return readStoreValue(readStringArgument(commandArgs, "key"));
     case "plugin:store|set":
-      storeValues.set(commandArgs.key as string, commandArgs.value);
+      storeValues.set(readStringArgument(commandArgs, "key"), commandArgs.value);
       return null;
     case "plugin:notification|is_permission_granted":
       return true;
@@ -141,11 +141,11 @@ function readStoreValue(key: string): [unknown, boolean] {
 
 function connectPreviewVpn(commandArgs: Record<string, unknown>): string {
   const connectedInstance: ConnectedInstance = {
-    instanceId: commandArgs.instanceId as string,
-    region: commandArgs.region as string,
-    provider: commandArgs.provider as CloudProviderName,
-    publicIpV4: (commandArgs.publicIpV4 as string | null) ?? null,
-    publicIpV6: (commandArgs.publicIpV6 as string | null) ?? null,
+    instanceId: readStringArgument(commandArgs, "instanceId"),
+    region: readStringArgument(commandArgs, "region"),
+    provider: readProviderArgument(commandArgs),
+    publicIpV4: readOptionalStringArgument(commandArgs, "publicIpV4"),
+    publicIpV6: readOptionalStringArgument(commandArgs, "publicIpV6"),
   };
   vpnStatus = {
     connected: true,
@@ -161,7 +161,7 @@ function connectPreviewVpn(commandArgs: Record<string, unknown>): string {
     connectedAt: Math.floor(Date.now() / 1000),
     connectionError: null,
   };
-  emit(VPN_STATUS_EVENT, vpnStatus);
+  void emit(VPN_STATUS_EVENT, vpnStatus);
   startMetricsTimer();
   return `Connected to instance ${connectedInstance.instanceId} successfully.`;
 }
@@ -172,7 +172,7 @@ function disconnectPreviewVpn(): string {
     metricsTimer = null;
   }
   vpnStatus = DISCONNECTED_STATUS;
-  emit(VPN_STATUS_EVENT, vpnStatus);
+  void emit(VPN_STATUS_EVENT, vpnStatus);
   return "Disconnected successfully.";
 }
 
@@ -196,7 +196,7 @@ function startMetricsTimer() {
         uploadRate,
       },
     };
-    emit(VPN_STATUS_EVENT, vpnStatus);
+    void emit(VPN_STATUS_EVENT, vpnStatus);
   }, METRICS_INTERVAL_MILLISECONDS);
 }
 
@@ -212,7 +212,12 @@ function simulateSpawn(
     instanceId: null,
     status: "RUNNING",
     error: null,
-    steps: PREVIEW_SPAWN_STEPS.map((step) => ({ ...step, status: "PENDING", error: null })),
+    steps: PREVIEW_SPAWN_STEPS.map((step) => ({
+      id: step.id,
+      label: step.label,
+      status: "PENDING",
+      error: null,
+    })),
   };
   spawnJobs.set(job.jobId, job);
   const sendEvent = channel.onmessage;
@@ -249,4 +254,49 @@ function simulateSpawn(
   }, SPAWN_STEP_INTERVAL_MILLISECONDS);
 
   return null;
+}
+
+function readArgumentRecord(args?: InvokeArgs): Record<string, unknown> {
+  if (!args || Array.isArray(args) || args instanceof ArrayBuffer || args instanceof Uint8Array) {
+    return {};
+  }
+  return args;
+}
+
+function readStringArgument(commandArguments: Record<string, unknown>, key: string): string {
+  const value = commandArguments[key];
+  if (typeof value !== "string") {
+    throw new Error(`[preview] expected a string argument for ${key}`);
+  }
+  return value;
+}
+
+function readOptionalStringArgument(
+  commandArguments: Record<string, unknown>,
+  key: string,
+): string | null {
+  const value = commandArguments[key];
+  return typeof value === "string" ? value : null;
+}
+
+function readProviderArgument(commandArguments: Record<string, unknown>): CloudProviderName {
+  const value = commandArguments.provider;
+  if (value === "AWS" || value === "ORACLE" || value === "GCP" || value === "AZURE") {
+    return value;
+  }
+  throw new Error("[preview] expected a cloud provider argument");
+}
+
+function readSpawnEventChannel(
+  commandArguments: Record<string, unknown>,
+): Channel<SpawnInstanceEvent> {
+  const value = commandArguments.onEvent;
+  if (isSpawnEventChannel(value)) {
+    return value;
+  }
+  throw new Error("[preview] expected a spawn event channel argument");
+}
+
+function isSpawnEventChannel(value: unknown): value is Channel<SpawnInstanceEvent> {
+  return value instanceof Channel;
 }

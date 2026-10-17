@@ -14,7 +14,7 @@ export function useNetworkLocation(isVpnConnected: boolean) {
     const hasJustDisconnected = wasVpnConnected.current && !isVpnConnected;
     wasVpnConnected.current = isVpnConnected;
     if (hasJustDisconnected) {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: networkLocationQueryOptions.queryKey,
       });
     }

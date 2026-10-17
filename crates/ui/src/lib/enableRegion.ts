@@ -18,9 +18,7 @@ export async function isRegionEnabled(
   provider: CloudProviderName,
   regionName: string,
 ): Promise<boolean> {
-  const regionsData = await queryClient.ensureQueryData(
-    providerRegionsQueryOptions(provider),
-  );
+  const regionsData = await queryClient.ensureQueryData(providerRegionsQueryOptions(provider));
   return regionsData.enabledRegions.has(regionName);
 }
 
@@ -31,8 +29,7 @@ export function enableRegion(
   onProgress: EnableRegionProgressListener,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const onEvent = new Channel<EnableRegionEvent>();
-    onEvent.onmessage = (event) => {
+    const onEvent = new Channel<EnableRegionEvent>((event) => {
       switch (event.kind) {
         case EnableRegionEventKind.Started:
           onProgress(JobStepStatus.Running);
@@ -52,9 +49,9 @@ export function enableRegion(
           reject(new Error(event.error));
           return;
       }
-    };
+    });
 
-    commands.enableRegion(region.name, provider, onEvent).then((result) => {
+    void commands.enableRegion(region.name, provider, onEvent).then((result) => {
       if (result.status === "error") {
         onProgress(JobStepStatus.Failed);
         reject(new Error(result.error));
@@ -68,14 +65,12 @@ function markRegionEnabled(
   provider: CloudProviderName,
   regionName: string,
 ) {
-  queryClient.setQueryData(
-    providerRegionsQueryOptions(provider).queryKey,
-    (previous) =>
-      previous
-        ? {
-            ...previous,
-            enabledRegions: new Set([...previous.enabledRegions, regionName]),
-          }
-        : previous,
+  queryClient.setQueryData(providerRegionsQueryOptions(provider).queryKey, (previous) =>
+    previous
+      ? {
+          ...previous,
+          enabledRegions: new Set([...previous.enabledRegions, regionName]),
+        }
+      : previous,
   );
 }

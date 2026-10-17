@@ -20,12 +20,13 @@ export function ProviderDropdown({
 
   useEffect(() => {
     if (!isOpen) {
-      return;
+      return undefined;
     }
     function handleClickOutside(event: MouseEvent) {
-      if (!containerRef.current?.contains(event.target as Node)) {
-        setIsOpen(false);
+      if (event.target instanceof Node && containerRef.current?.contains(event.target)) {
+        return;
       }
+      setIsOpen(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -38,9 +39,9 @@ export function ProviderDropdown({
         onClick={() => setIsOpen((previous) => !previous)}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        className="flex items-center gap-2 h-8 px-3 rounded-md bg-bg-medium border border-bd-moderate text-body-sm text-fg-lighter whitespace-nowrap hover:bg-bg-light transition-colors"
+        className="flex h-8 items-center gap-2 rounded-md border border-bd-moderate bg-bg-medium px-3 text-body-sm whitespace-nowrap text-fg-lighter transition-colors hover:bg-bg-light"
       >
-        <ProviderIcon provider={selectedProvider} className="w-4 h-4" />
+        <ProviderIcon provider={selectedProvider} className="size-4" />
         {buildProviderLabel(selectedProvider)}
         <ChevronDown size={14} className="text-fg-medium" />
       </button>
@@ -48,7 +49,7 @@ export function ProviderDropdown({
       {isOpen && (
         <ul
           role="listbox"
-          className="absolute right-0 mt-1 w-48 rounded-md bg-bg-medium border border-bd-moderate shadow-xl py-1 z-10"
+          className="absolute right-0 z-10 mt-1 w-48 rounded-md border border-bd-moderate bg-bg-medium py-1 shadow-xl"
         >
           {providers.map((provider) => (
             <li key={provider}>
@@ -60,11 +61,11 @@ export function ProviderDropdown({
                   onSelectProvider(provider);
                   setIsOpen(false);
                 }}
-                className={`w-full flex items-center gap-2 px-3 py-2 text-body-sm text-left hover:bg-bg-light transition-colors ${
+                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-body-sm transition-colors hover:bg-bg-light ${
                   provider === selectedProvider ? "text-fg-lighter" : "text-fg-medium"
                 }`}
               >
-                <ProviderIcon provider={provider} className="w-4 h-4" />
+                <ProviderIcon provider={provider} className="size-4" />
                 {buildProviderLabel(provider)}
               </button>
             </li>

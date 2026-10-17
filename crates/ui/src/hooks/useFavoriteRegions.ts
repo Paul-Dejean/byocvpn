@@ -8,9 +8,7 @@ function buildFavoritesKey(provider: CloudProviderName): string {
   return `favorite_regions/${provider}`;
 }
 
-async function fetchFavoriteRegions(
-  provider: CloudProviderName,
-): Promise<string[]> {
+async function fetchFavoriteRegions(provider: CloudProviderName): Promise<string[]> {
   const store = await loadStore(FAVORITES_STORE_FILE);
   const stored = await store.get<string[]>(buildFavoritesKey(provider));
   return stored ?? [];

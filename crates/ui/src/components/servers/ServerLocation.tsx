@@ -25,20 +25,12 @@ export function ServerLocation({
   const providerTag = <Tag>{PROVIDER_METADATA[provider].shortLabel}</Tag>;
 
   return (
-    <div
-      className={`flex items-center gap-2 min-w-0 ${layout === "stacked" ? "flex-col" : ""}`}
-    >
-      <div className="flex items-center gap-2 min-w-0">
-        <FlagIcon
-          countryCode={regionInfo.countryCode}
-          round
-          size={size === "lg" ? 24 : 20}
-        />
-        <span className={`${textSize} text-fg-lighter truncate`}>{countryName}</span>
+    <div className={`flex min-w-0 items-center gap-2 ${layout === "stacked" ? "flex-col" : ""}`}>
+      <div className="flex min-w-0 items-center gap-2">
+        <FlagIcon countryCode={regionInfo.countryCode} round size={size === "lg" ? 24 : 20} />
+        <span className={`${textSize} truncate text-fg-lighter`}>{countryName}</span>
         <span className="text-fg-moderate">|</span>
-        <span className={`${textSize} text-fg-moderate truncate`}>
-          {regionInfo.city || region}
-        </span>
+        <span className={`${textSize} truncate text-fg-moderate`}>{regionInfo.city || region}</span>
         {layout === "inline" && providerTag}
       </div>
       {layout === "stacked" && providerTag}

@@ -9,8 +9,7 @@ interface DisconnectReminderProps {
 export function DisconnectReminder({ instanceId }: DisconnectReminderProps) {
   const { recentlyDisconnectedInstanceId, clearRecentlyDisconnectedInstance } =
     useVpnConnectionContext();
-  const { isMuted, recordDismissal, muteReminder } =
-    useDisconnectReminderPreference();
+  const { isMuted, recordDismissal, muteReminder } = useDisconnectReminderPreference();
 
   if (recentlyDisconnectedInstanceId !== instanceId || isMuted) {
     return null;
@@ -18,22 +17,21 @@ export function DisconnectReminder({ instanceId }: DisconnectReminderProps) {
 
   function onDismissReminder() {
     clearRecentlyDisconnectedInstance();
-    recordDismissal();
+    void recordDismissal();
   }
 
   function onMuteReminder() {
     clearRecentlyDisconnectedInstance();
-    muteReminder();
+    void muteReminder();
   }
 
   return (
     <Banner variant="info" onDismiss={onDismissReminder}>
-      Disconnecting VPN doesn't stop this server. Terminate it when done to
-      stop charges.{" "}
+      Disconnecting VPN doesn't stop this server. Terminate it when done to stop charges.{" "}
       <button
         type="button"
         onClick={onMuteReminder}
-        className="text-fg-brand underline hover:text-fg-lighter transition-colors"
+        className="text-fg-brand underline transition-colors hover:text-fg-lighter"
       >
         Don't show again
       </button>

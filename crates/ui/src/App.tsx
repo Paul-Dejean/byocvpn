@@ -37,15 +37,12 @@ const INITIAL_ONBOARDING_STATE: OnboardingState = {
 
 function App() {
   const [selectedPage, setSelectedPage] = useState<Page | null>(null);
-  const [addAccountProvider, setAddAccountProvider] =
-    useState<CloudProviderName | null>(null);
-  const [isAddingAccountFromOnboarding, setIsAddingAccountFromOnboarding] =
-    useState(false);
-  const [onboardingState, setOnboardingState] = useState<OnboardingState>(
-    INITIAL_ONBOARDING_STATE,
+  const [addAccountProvider, setAddAccountProvider] = useState<CloudProviderName | null>(null);
+  const [isAddingAccountFromOnboarding, setIsAddingAccountFromOnboarding] = useState(false);
+  const [onboardingState, setOnboardingState] = useState<OnboardingState>(INITIAL_ONBOARDING_STATE);
+  const { data: configuredProviders, isError: isConfiguredProvidersError } = useQuery(
+    configuredProvidersQueryOptions,
   );
-  const { data: configuredProviders, isError: isConfiguredProvidersError } =
-    useQuery(configuredProvidersQueryOptions);
   useAutoTerminatedInstanceListener();
   const isMobileLayout = useIsMobileLayout();
 
@@ -53,17 +50,11 @@ function App() {
     return <AppFrame>{null}</AppFrame>;
   }
 
-  const hasConfiguredProvider =
-    configuredProviders !== undefined &&
-    configuredProviders.length > 0;
-  const page =
-    selectedPage ?? (hasConfiguredProvider ? Page.SERVERS : Page.ONBOARDING);
+  const hasConfiguredProvider = configuredProviders !== undefined && configuredProviders.length > 0;
+  const page = selectedPage ?? (hasConfiguredProvider ? Page.SERVERS : Page.ONBOARDING);
   const setPage = setSelectedPage;
 
-  function openAddAccount(
-    provider: CloudProviderName | null,
-    fromOnboarding: boolean,
-  ) {
+  function openAddAccount(provider: CloudProviderName | null, fromOnboarding: boolean) {
     setAddAccountProvider(provider);
     setIsAddingAccountFromOnboarding(fromOnboarding);
     setPage(Page.ADD_ACCOUNT);
@@ -126,42 +117,38 @@ function App() {
       <ErrorBoundary>
         <DeploymentsProvider>
           {page === Page.ONBOARDING && (
-          <VpnConnectionProvider>
-            <OnboardingPage
-              key={`${onboardingState.step}-${onboardingState.provider}`}
-              initialStep={onboardingState.step}
-              provider={onboardingState.provider}
-              onSkip={() => setPage(Page.SERVERS)}
-              onProviderSelected={(provider) => openAddAccount(provider, true)}
-              onFinished={() => setPage(Page.SERVERS)}
+            <VpnConnectionProvider>
+              <OnboardingPage
+                key={`${onboardingState.step}-${onboardingState.provider}`}
+                initialStep={onboardingState.step}
+                provider={onboardingState.provider}
+                onSkip={() => setPage(Page.SERVERS)}
+                onProviderSelected={(provider) => openAddAccount(provider, true)}
+                onFinished={() => setPage(Page.SERVERS)}
+              />
+            </VpnConnectionProvider>
+          )}
+          {page === Page.ADD_ACCOUNT && (
+            <AddAccountPage
+              key={addAccountProvider ?? "select"}
+              initialProvider={addAccountProvider}
+              onNavigateBack={handleAddAccountBack}
+              onAccountAdded={handleAccountAdded}
             />
-          </VpnConnectionProvider>
-        )}
-        {page === Page.ADD_ACCOUNT && (
-          <AddAccountPage
-            key={addAccountProvider ?? "select"}
-            initialProvider={addAccountProvider}
-            onNavigateBack={handleAddAccountBack}
-            onAccountAdded={handleAccountAdded}
-          />
-        )}
+          )}
 
-        {(page === Page.SERVERS ||
-          page === Page.PRICING ||
-          page === Page.SETTINGS) && (
-          <VpnConnectionProvider>
-            <MainLayout currentPage={page} onNavigate={setPage}>
-              {page === Page.SERVERS &&
-                (isMobileLayout ? <MobileServersPage /> : <ServersPage />)}
-              {page === Page.PRICING && <PricingPage />}
-              {page === Page.SETTINGS && (
-                <SettingsPage
-                  onNavigateToAddAccount={() => openAddAccount(null, false)}
-                />
-              )}
-            </MainLayout>
-          </VpnConnectionProvider>
-        )}
+          {(page === Page.SERVERS || page === Page.PRICING || page === Page.SETTINGS) && (
+            <VpnConnectionProvider>
+              <MainLayout currentPage={page} onNavigate={setPage}>
+                {page === Page.SERVERS &&
+                  (isMobileLayout ? <MobileServersPage /> : <ServersPage />)}
+                {page === Page.PRICING && <PricingPage />}
+                {page === Page.SETTINGS && (
+                  <SettingsPage onNavigateToAddAccount={() => openAddAccount(null, false)} />
+                )}
+              </MainLayout>
+            </VpnConnectionProvider>
+          )}
         </DeploymentsProvider>
       </ErrorBoundary>
     </AppFrame>

@@ -13,8 +13,8 @@ export function AppFrame({ children }: AppFrameProps) {
 
   if (isMobileLayout) {
     return (
-      <main className="h-dvh w-screen bg-bg-strong overflow-hidden">
-        <div className="relative h-full w-full flex flex-col bg-bg-strong overflow-hidden text-fg-lighter px-4 safe-area-top">
+      <main className="h-dvh w-screen overflow-hidden bg-bg-strong">
+        <div className="relative flex size-full flex-col overflow-hidden bg-bg-strong px-4 safe-area-top text-fg-lighter">
           {children}
         </div>
       </main>
@@ -22,9 +22,9 @@ export function AppFrame({ children }: AppFrameProps) {
   }
 
   return (
-    <main className="h-screen w-screen bg-bg-strong overflow-hidden">
+    <main className="h-screen w-screen overflow-hidden bg-bg-strong">
       <div
-        className="relative flex-shrink-0 bg-bg-strong bg-grid overflow-hidden text-fg-lighter px-4 py-3"
+        className="relative shrink-0 overflow-hidden bg-bg-strong bg-grid px-4 py-3 text-fg-lighter"
         style={{ width: APP_FRAME_WIDTH, height: APP_FRAME_HEIGHT }}
       >
         {children}

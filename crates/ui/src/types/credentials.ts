@@ -5,6 +5,7 @@ import type {
   OracleCredentials,
   ProviderCredentials,
 } from "../bindings";
+import { CloudProviderName } from "./providers";
 
 export type {
   AwsCredentials,
@@ -30,3 +31,18 @@ export type VerifiableCredentialsRequest = {
     credentials: VerifiableCredentialsMap[Provider];
   };
 }[VerifiableProvider];
+
+export function buildProviderCredentials(
+  request: VerifiableCredentialsRequest,
+): ProviderCredentials {
+  switch (request.provider) {
+    case CloudProviderName.Aws:
+      return { provider: request.provider, ...request.credentials };
+    case CloudProviderName.Gcp:
+      return { provider: request.provider, ...request.credentials };
+    case CloudProviderName.Azure:
+      return { provider: request.provider, ...request.credentials };
+    default:
+      throw new Error("Unsupported provider for verifiable credentials");
+  }
+}

@@ -6,7 +6,7 @@ import App from "./App";
 
 const queryClient = new QueryClient();
 
-renderApp();
+void renderApp();
 
 async function renderApp() {
   if (import.meta.env.DEV && !isTauri()) {
@@ -14,11 +14,16 @@ async function renderApp() {
     installBrowserPreviewMocks();
   }
 
-  ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+  const rootElement = document.getElementById("root");
+  if (!rootElement) {
+    throw new Error("Root element #root not found");
+  }
+
+  ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
       <QueryClientProvider client={queryClient}>
         <App />
       </QueryClientProvider>
-    </React.StrictMode>
+    </React.StrictMode>,
   );
 }

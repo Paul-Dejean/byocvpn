@@ -13,7 +13,6 @@ interface GcpAccountCardProps {
   onVerifyRequested: (provider: CloudProviderName) => void;
 }
 
-
 export function GcpAccountCard({
   onCredentialsSaved,
   onCredentialsDeleted,
@@ -27,20 +26,14 @@ export function GcpAccountCard({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const {
-    isSaving,
-    error,
-    saveCredentials,
-    deleteCredentials,
-    loadCredentials,
-    clearError,
-  } = useCredentials();
+  const { isSaving, error, saveCredentials, deleteCredentials, loadCredentials, clearError } =
+    useCredentials();
 
   useEffect(() => {
-    loadCredentials(CloudProviderName.Gcp).then((existing) => {
+    void loadCredentials(CloudProviderName.Gcp).then((existing) => {
       setHasCredentials(existing !== null);
     });
-  }, []);
+  }, [loadCredentials]);
 
   const resetForm = () => {
     setFormFields({ projectId: "", serviceAccountJson: "" });
@@ -63,7 +56,8 @@ export function GcpAccountCard({
   };
 
   const handleSave = async () => {
-    const success = await saveCredentials(CloudProviderName.Gcp, {
+    const success = await saveCredentials({
+      provider: CloudProviderName.Gcp,
       projectId: formFields.projectId.trim(),
       serviceAccountJson: formFields.serviceAccountJson.trim(),
     });
@@ -80,7 +74,7 @@ export function GcpAccountCard({
     const file = event.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (loadEvent) => {
+    reader.addEventListener("load", (loadEvent) => {
       const content = loadEvent.target?.result;
       if (typeof content === "string") {
         try {
@@ -93,7 +87,7 @@ export function GcpAccountCard({
           setFormFields((prev) => ({ ...prev, serviceAccountJson: content }));
         }
       }
-    };
+    });
     reader.readAsText(file);
     event.target.value = "";
   };
@@ -125,14 +119,12 @@ export function GcpAccountCard({
           onConfirmDelete={handleDeleteCredentials}
         />
       ) : (
-        <div className="p-4 flex flex-col gap-5">
+        <div className="flex flex-col gap-5 p-4">
           <div className="flex items-center gap-3">
             <AccountIconTile provider={CloudProviderName.Gcp} />
             <div>
               <h3 className="text-body-sm text-fg-lighter">
-                {hasCredentials
-                  ? "Edit Google Cloud Account"
-                  : "Add Google Cloud Account"}
+                {hasCredentials ? "Edit Google Cloud Account" : "Add Google Cloud Account"}
               </h3>
               <p className="text-caption text-fg-medium">
                 {hasCredentials
@@ -155,9 +147,7 @@ export function GcpAccountCard({
 
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-caption text-fg-medium">
-                  Service Account Key (.json)
-                </label>
+                <label className="text-caption text-fg-medium">Service Account Key (.json)</label>
                 <Button
                   variant="secondary"
                   size="md"
@@ -177,21 +167,22 @@ export function GcpAccountCard({
               </div>
               {jsonAlreadySet && !formFields.serviceAccountJson && (
                 <p className="text-caption text-fg-success-moderate">
-                  ✓ Service account key already configured — load a new file or
-                  paste below to replace it
+                  ✓ Service account key already configured — load a new file or paste below to
+                  replace it
                 </p>
               )}
               {!jsonAlreadySet && !formFields.serviceAccountJson && (
                 <p className="text-caption text-fg-moderate">
-                  Paste the contents of your service-account JSON key file or
-                  use "Load from file"
+                  Paste the contents of your service-account JSON key file or use "Load from file"
                 </p>
               )}
               <textarea
                 value={formFields.serviceAccountJson}
-                onChange={(e) => setFormFields((prev) => ({ ...prev, serviceAccountJson: e.target.value }))}
+                onChange={(e) =>
+                  setFormFields((prev) => ({ ...prev, serviceAccountJson: e.target.value }))
+                }
                 rows={6}
-                className="input font-mono text-caption resize-none"
+                className="input resize-none font-mono text-caption"
                 placeholder='{"type":"service_account","project_id":"..."}'
               />
             </div>
@@ -199,7 +190,9 @@ export function GcpAccountCard({
             {error && <Banner variant="danger">{error}</Banner>}
 
             <div className="flex gap-3 pt-2">
-              <Button variant="secondary" size="lg" onClick={handleCancel} className="flex-1">Cancel</Button>
+              <Button variant="secondary" size="lg" onClick={handleCancel} className="flex-1">
+                Cancel
+              </Button>
               <Button
                 variant="primary"
                 size="lg"

@@ -4,7 +4,8 @@ import { useCredentials } from "../../hooks/useCredentials";
 import { OnboardingHeading } from "../onboarding/OnboardingHeading";
 import { Button } from "../primitives/Button";
 import { Spinner } from "../primitives/Spinner";
-import { PROVIDER_TILE_LABELS, ProviderTile } from "./ProviderTile";
+import { ProviderTile } from "./ProviderTile";
+import { PROVIDER_TILE_LABELS } from "./ProviderTile/labels";
 
 interface ProviderSelectorProps {
   onSelectProvider: (provider: CloudProviderName) => void;
@@ -35,19 +36,22 @@ export function ProviderSelector({
 
   useEffect(() => {
     async function loadAvailableProviders() {
-      const result: CloudProviderName[] = [];
-      for (const provider of ALL_PROVIDERS) {
-        const existing = await loadCredentials(provider);
-        const shouldInclude = filter === "unconfigured" ? existing === null : existing !== null;
-        if (shouldInclude) {
-          result.push(provider);
-        }
-      }
+      const providerCredentials = await Promise.all(
+        ALL_PROVIDERS.map(async (provider) => ({
+          provider,
+          existing: await loadCredentials(provider),
+        })),
+      );
+      const result = providerCredentials
+        .filter(({ existing }) =>
+          filter === "unconfigured" ? existing === null : existing !== null,
+        )
+        .map(({ provider }) => provider);
       setAvailableProviders(result);
       setIsLoading(false);
     }
-    loadAvailableProviders();
-  }, []);
+    void loadAvailableProviders();
+  }, [filter, loadCredentials]);
 
   function handleContinue() {
     if (selectedProvider) {
@@ -56,11 +60,11 @@ export function ProviderSelector({
   }
 
   return (
-    <div className="h-full flex flex-col items-center justify-center gap-8">
+    <div className="flex h-full flex-col items-center justify-center gap-8">
       <OnboardingHeading title={title} subtitle={subtitle} />
 
       {isLoading ? (
-        <div className="h-[168px] flex items-center justify-center">
+        <div className="flex h-42 items-center justify-center">
           <Spinner size="w-6 h-6" color="border-bd-strong" />
         </div>
       ) : availableProviders.length === 0 ? (
@@ -85,7 +89,7 @@ export function ProviderSelector({
         <button
           type="button"
           onClick={onClose}
-          className="px-2 py-2 text-body-sm text-fg-lighter hover:text-fg-medium transition-colors"
+          className="p-2 text-body-sm text-fg-lighter transition-colors hover:text-fg-medium"
         >
           Back
         </button>

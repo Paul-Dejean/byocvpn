@@ -18,26 +18,18 @@ interface VpnConnectionContextValue {
   clearRecentlyDisconnectedInstance: () => void;
 }
 
-const VpnConnectionContext = createContext<VpnConnectionContextValue | null>(
-  null,
-);
+const VpnConnectionContext = createContext<VpnConnectionContextValue | null>(null);
 
 interface VpnConnectionProviderProps {
   children: ReactNode;
 }
 
-export function VpnConnectionProvider({
-  children,
-}: VpnConnectionProviderProps) {
+export function VpnConnectionProvider({ children }: VpnConnectionProviderProps) {
   const vpnConnection = useVpnConnection();
-  const recentlyDisconnectedInstance = useRecentlyDisconnectedInstance(
-    vpnConnection.vpnStatus,
-  );
+  const recentlyDisconnectedInstance = useRecentlyDisconnectedInstance(vpnConnection.vpnStatus);
 
   return (
-    <VpnConnectionContext.Provider
-      value={{ ...vpnConnection, ...recentlyDisconnectedInstance }}
-    >
+    <VpnConnectionContext.Provider value={{ ...vpnConnection, ...recentlyDisconnectedInstance }}>
       {children}
     </VpnConnectionContext.Provider>
   );
@@ -46,9 +38,7 @@ export function VpnConnectionProvider({
 export function useVpnConnectionContext() {
   const context = useContext(VpnConnectionContext);
   if (!context) {
-    throw new Error(
-      "useVpnConnectionContext must be used within VpnConnectionProvider",
-    );
+    throw new Error("useVpnConnectionContext must be used within VpnConnectionProvider");
   }
   return context;
 }

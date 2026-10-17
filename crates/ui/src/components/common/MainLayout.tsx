@@ -15,8 +15,8 @@ export function MainLayout({ currentPage, onNavigate, children }: MainLayoutProp
 
   if (isMobileLayout) {
     return (
-      <div className="flex-1 min-h-0 flex flex-col">
-        <div className="flex-1 min-h-0 overflow-hidden pb-3">{children}</div>
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="min-h-0 flex-1 overflow-hidden pb-3">{children}</div>
         <MobileTabBar currentPage={currentPage} onNavigate={onNavigate} />
       </div>
     );
@@ -25,7 +25,7 @@ export function MainLayout({ currentPage, onNavigate, children }: MainLayoutProp
   return (
     <div className="flex h-full gap-4">
       <Sidebar currentPage={currentPage} onNavigate={onNavigate} />
-      <div className="flex-1 min-w-0 h-full overflow-hidden">{children}</div>
+      <div className="h-full min-w-0 flex-1 overflow-hidden">{children}</div>
     </div>
   );
 }

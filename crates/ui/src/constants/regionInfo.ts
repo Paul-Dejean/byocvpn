@@ -210,10 +210,7 @@ const REGION_INFO_BY_PROVIDER: Record<CloudProviderName, Record<string, RegionIn
   [CloudProviderName.Oracle]: ORACLE_REGION_INFO,
 };
 
-export function getRegionInfo(
-  provider: CloudProviderName,
-  regionName: string,
-): RegionInfo {
+export function getRegionInfo(provider: CloudProviderName, regionName: string): RegionInfo {
   const providerMap = REGION_INFO_BY_PROVIDER[provider] ?? {};
   return providerMap[regionName] ?? { city: regionName, countryCode: "" };
 }

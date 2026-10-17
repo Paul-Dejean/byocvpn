@@ -4,14 +4,17 @@ const TICK_INTERVAL_MS = 1000;
 
 export function useInstanceUptime(launchedAt: string | null): number {
   const startTime = launchedAt ? new Date(launchedAt).getTime() : null;
-  const [elapsedSeconds, setElapsedSeconds] = useState(() =>
-    computeElapsedSeconds(startTime),
-  );
+  const [elapsedSeconds, setElapsedSeconds] = useState(() => computeElapsedSeconds(startTime));
+  const [previousStartTime, setPreviousStartTime] = useState(startTime);
+
+  if (previousStartTime !== startTime) {
+    setPreviousStartTime(startTime);
+    setElapsedSeconds(computeElapsedSeconds(startTime));
+  }
 
   useEffect(() => {
-    setElapsedSeconds(computeElapsedSeconds(startTime));
     if (startTime === null) {
-      return;
+      return undefined;
     }
     const interval = setInterval(() => {
       setElapsedSeconds(computeElapsedSeconds(startTime));

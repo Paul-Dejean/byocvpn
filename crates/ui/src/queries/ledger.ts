@@ -11,10 +11,7 @@ export function ledgerQueryOptions(queryClient: QueryClient) {
   });
 }
 
-export function instancePricingQueryOptions(
-  provider: CloudProviderName,
-  instanceType: string,
-) {
+export function instancePricingQueryOptions(provider: CloudProviderName, instanceType: string) {
   return queryOptions({
     queryKey: ["instance-pricing", provider, instanceType],
     queryFn: () => fetchInstancePricing(provider, instanceType),
@@ -33,9 +30,7 @@ async function fetchInstancePricing(
   return result.data;
 }
 
-async function fetchEnrichedLedger(
-  queryClient: QueryClient,
-): Promise<LedgerEntryWithCost[]> {
+async function fetchEnrichedLedger(queryClient: QueryClient): Promise<LedgerEntryWithCost[]> {
   const ledgerResult = await commands.getLedger();
   if (ledgerResult.status === "error") {
     throw new Error(ledgerResult.error);
@@ -58,10 +53,7 @@ async function enrichLedgerEntriesWithCosts(
         pricing.egressRatePerGb === null ||
         pricing.storageGb === null ||
         pricing.storageRatePerGbMonth === null;
-      const uptimeHours = computeElapsedHours(
-        entry.launchedAt,
-        entry.terminatedAt,
-      );
+      const uptimeHours = computeElapsedHours(entry.launchedAt, entry.terminatedAt);
       const bytesSentGb = entry.bytesSent / 1024 ** 3;
       const hourlyRate = pricing?.hourlyRate ?? 0;
       const ipHourlyRate = pricing?.ipHourlyRate ?? 0;
@@ -71,8 +63,7 @@ async function enrichLedgerEntriesWithCosts(
       const computeCost = uptimeHours * hourlyRate;
       const ipCost = uptimeHours * ipHourlyRate;
       const egressCost = bytesSentGb * egressRatePerGb;
-      const storageCost =
-        ((storageGb * storageRatePerGbMonth) / 730) * uptimeHours;
+      const storageCost = ((storageGb * storageRatePerGbMonth) / 730) * uptimeHours;
       const estimatedCost = computeCost + ipCost + egressCost + storageCost;
       return {
         ...entry,

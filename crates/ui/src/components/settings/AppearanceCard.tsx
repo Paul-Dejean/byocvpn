@@ -7,9 +7,7 @@ import { SettingsRow } from "./SettingsRow";
 const THEME_STORAGE_KEY = "byocvpn-theme";
 
 function readActiveTheme(): Theme {
-  return document.documentElement.dataset.theme === Theme.LIGHT
-    ? Theme.LIGHT
-    : Theme.DARK;
+  return document.documentElement.dataset.theme === Theme.LIGHT ? Theme.LIGHT : Theme.DARK;
 }
 
 function applyTheme(theme: Theme) {
@@ -32,9 +30,7 @@ export function AppearanceCard() {
       icon={isLight ? <Sun size={16} /> : <Moon size={16} />}
       title="Light mode"
       description="Use a light color scheme instead of dark"
-      control={
-        <Toggle checked={isLight} onChange={toggleTheme} ariaLabel="Toggle light mode" />
-      }
+      control={<Toggle checked={isLight} onChange={toggleTheme} ariaLabel="Toggle light mode" />}
     />
   );
 }

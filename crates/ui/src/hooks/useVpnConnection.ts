@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type Dispatch, type SetStateAction } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import toast from "react-hot-toast";
+import { toast } from "react-hot-toast";
 import { commands, events } from "../bindings";
 import { Instance, VpnStatus } from "../types";
 
@@ -18,46 +18,26 @@ export function useVpnConnection() {
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  function checkVpnStatus(): Promise<void> {
+    return refreshVpnStatus(setVpnStatus);
+  }
+
   useEffect(() => {
-    checkVpnStatus();
+    void refreshVpnStatus(setVpnStatus);
 
     const unlistenPromise = events.vpnStatus.listen((event) => {
       setVpnStatus(event.payload);
     });
 
     const unlistenFocusPromise = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
-      if (focused) checkVpnStatus();
+      if (focused) void refreshVpnStatus(setVpnStatus);
     });
 
     return () => {
-      unlistenPromise.then((unlisten) => unlisten());
-      unlistenFocusPromise.then((unlisten) => unlisten());
+      void unlistenPromise.then((unlisten) => unlisten());
+      void unlistenFocusPromise.then((unlisten) => unlisten());
     };
   }, []);
-
-  const checkVpnStatus = async () => {
-    const result = await commands.getVpnStatus();
-    if (result.status === "error") {
-      console.error("Failed to check VPN status:", result.error);
-      return;
-    }
-    const status = result.data;
-    setVpnStatus((current) => {
-      if (current.connectionError && !status.connected && !status.connectionError) {
-        return current;
-      }
-      return status;
-    });
-    if (status.connected) {
-      const subscribeResult = await commands.subscribeToVpnStatus();
-      if (subscribeResult.status === "error") {
-        console.error(
-          "Failed to resume metrics stream:",
-          subscribeResult.error,
-        );
-      }
-    }
-  };
 
   const connectToVpn = async (selectedInstance: Instance) => {
     if (!selectedInstance) return;
@@ -125,4 +105,27 @@ export function useVpnConnection() {
     disconnectFromVpn,
     clearError,
   };
+}
+
+async function refreshVpnStatus(setVpnStatus: Dispatch<SetStateAction<VpnStatus>>): Promise<void> {
+  const result = await commands.getVpnStatus();
+  if (result.status === "error") {
+    console.error("Failed to check VPN status:", result.error);
+    return;
+  }
+  const status = result.data;
+  setVpnStatus((current) => mergeVpnStatus(current, status));
+  if (status.connected) {
+    const subscribeResult = await commands.subscribeToVpnStatus();
+    if (subscribeResult.status === "error") {
+      console.error("Failed to resume metrics stream:", subscribeResult.error);
+    }
+  }
+}
+
+function mergeVpnStatus(current: VpnStatus, status: VpnStatus): VpnStatus {
+  if (current.connectionError && !status.connected && !status.connectionError) {
+    return current;
+  }
+  return status;
 }

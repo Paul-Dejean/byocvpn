@@ -28,20 +28,16 @@ export function ServerCard({
 }: ServerCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const uptimeSeconds = useInstanceUptime(instance.launchedAt);
-  const estimatedCost = useInstanceCost(
-    instance.provider,
-    instance.instanceType,
-    uptimeSeconds,
-  );
+  const estimatedCost = useInstanceCost(instance.provider, instance.instanceType, uptimeSeconds);
 
   const isInstalling = instance.state === InstanceState.Installing;
   const hasError = instance.state === InstanceState.Error;
   const canConnect = instance.state === InstanceState.Running && !isConnected;
 
   return (
-    <div className="rounded-xl bg-bg-medium border border-bd-moderate flex flex-col gap-3">
-      <div className="px-4 pt-4 flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-3 h-5">
+    <div className="flex flex-col gap-3 rounded-xl border border-bd-moderate bg-bg-medium">
+      <div className="flex flex-col gap-4 px-4 pt-4">
+        <div className="flex h-5 items-center justify-between gap-3">
           <ServerLocation provider={instance.provider} region={instance.region} />
           {isConnected && (
             <Tag tone="success" dot>
@@ -66,7 +62,7 @@ export function ServerCard({
             type="button"
             onClick={() => setIsExpanded((previous) => !previous)}
             aria-label={isExpanded ? "Hide details" : "Show details"}
-            className="ml-auto text-fg-medium hover:text-fg-lighter transition-colors"
+            className="ml-auto text-fg-medium transition-colors hover:text-fg-lighter"
           >
             <ChevronRight
               size={16}
@@ -93,7 +89,7 @@ export function ServerCard({
 
       <div className="border-t border-bd-moderate" />
 
-      <div className="px-4 pb-3 flex items-center gap-2">
+      <div className="flex items-center gap-2 px-4 pb-3">
         <Button
           variant="outline"
           size="lg"
@@ -146,7 +142,7 @@ function Detail({ label, value }: DetailProps) {
   return (
     <>
       <dt className="text-fg-medium">{label}</dt>
-      <dd className="text-fg-lighter truncate">{value || "—"}</dd>
+      <dd className="truncate text-fg-lighter">{value || "—"}</dd>
     </>
   );
 }

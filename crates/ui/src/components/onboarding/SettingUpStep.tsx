@@ -2,10 +2,7 @@ import { useEffect, useRef } from "react";
 import { CloudProviderName, Instance, Region } from "../../types";
 import { getRegionInfo } from "../../constants/regionInfo";
 import { getCountryName } from "../../lib/countryName";
-import {
-  DeploymentStatus,
-  useRegionDeployment,
-} from "../../hooks/useRegionDeployment";
+import { DeploymentStatus, useRegionDeployment } from "../../hooks/useRegionDeployment";
 import { Logo } from "../common/Logo";
 import { Button } from "../primitives/Button";
 import { DeploymentProgress } from "../deploy/DeploymentProgress";
@@ -17,12 +14,7 @@ interface SettingUpStepProps {
   onBack: () => void;
 }
 
-export function SettingUpStep({
-  provider,
-  region,
-  onComplete,
-  onBack,
-}: SettingUpStepProps) {
+export function SettingUpStep({ provider, region, onComplete, onBack }: SettingUpStepProps) {
   const deployment = useRegionDeployment(provider);
   const hasStartedDeployment = useRef(false);
 
@@ -31,7 +23,7 @@ export function SettingUpStep({
       hasStartedDeployment.current = true;
       deployment.deploy(region);
     }
-  }, []);
+  }, [deployment, region]);
 
   useEffect(() => {
     if (deployment.status === DeploymentStatus.COMPLETE && deployment.instance) {
@@ -48,9 +40,9 @@ export function SettingUpStep({
   }
 
   return (
-    <div className="h-full flex flex-col items-center justify-center gap-8">
-      <div className="w-12 h-12 rounded-xl bg-bg-medium border border-bd-moderate flex items-center justify-center">
-        <Logo className="w-6 h-6" />
+    <div className="flex h-full flex-col items-center justify-center gap-8">
+      <div className="flex size-12 items-center justify-center rounded-xl border border-bd-moderate bg-bg-medium">
+        <Logo className="size-6" />
       </div>
 
       <DeploymentProgress
@@ -60,11 +52,7 @@ export function SettingUpStep({
       />
 
       {deployment.status === DeploymentStatus.FAILED && (
-        <Button
-          variant="secondary"
-          size="lg"
-          onClick={handleBack}
-        >
+        <Button variant="secondary" size="lg" onClick={handleBack}>
           Back
         </Button>
       )}

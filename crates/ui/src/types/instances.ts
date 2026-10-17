@@ -1,7 +1,4 @@
-import type {
-  InstanceInfo,
-  InstanceState as InstanceStateBinding,
-} from "../bindings";
+import type { InstanceInfo, InstanceState as InstanceStateBinding } from "../bindings";
 
 export const InstanceState = {
   Spawning: "SPAWNING",

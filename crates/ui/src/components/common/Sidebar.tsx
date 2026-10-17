@@ -13,13 +13,10 @@ interface SidebarProps {
 
 export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
   return (
-    <nav
-      className="flex-shrink-0 flex flex-col justify-between"
-      style={{ width: SIDEBAR_WIDTH }}
-    >
+    <nav className="flex shrink-0 flex-col justify-between" style={{ width: SIDEBAR_WIDTH }}>
       <div className="flex flex-col gap-6">
-        <div className="w-[42px] h-[42px] rounded-lg bg-bg-bolder border border-bd-moderate flex items-center justify-center text-fg-lighter">
-          <Logo className="w-6 h-6" />
+        <div className="flex size-[42px] items-center justify-center rounded-lg border border-bd-moderate bg-bg-bolder text-fg-lighter">
+          <Logo className="size-6" />
         </div>
 
         <div className="flex flex-col gap-2">

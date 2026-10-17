@@ -12,15 +12,13 @@ export function NavItem({ icon, label, isActive, onClick }: NavItemProps) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-2 w-full h-9 pl-2 pr-3 rounded-md text-body-sm transition-colors ${
+      className={`flex h-9 w-full items-center gap-2 rounded-md pr-3 pl-2 text-body-sm transition-colors ${
         isActive
           ? "bg-bg-light text-fg-lighter"
           : "text-fg-medium hover:bg-bg-light hover:text-fg-lighter"
       }`}
     >
-      <span className="w-4 h-4 flex items-center justify-center">
-        {icon}
-      </span>
+      <span className="flex size-4 items-center justify-center">{icon}</span>
       {label}
     </button>
   );
