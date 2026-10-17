@@ -71,6 +71,12 @@ export function useServersPage() {
 
   async function onTerminate(instance: Instance) {
     clearError();
+    if (connectedInstance?.instanceId === instance.id) {
+      const didDisconnect = await disconnectFromVpn();
+      if (!didDisconnect) {
+        return;
+      }
+    }
     await terminateInstance(instance.id, instance.region, instance.provider);
   }
 

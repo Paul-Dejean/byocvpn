@@ -12,7 +12,7 @@ interface VpnConnectionContextValue {
   isDaemonRunning: boolean;
   error: string | null;
   connectToVpn: (instance: Instance) => Promise<void>;
-  disconnectFromVpn: () => Promise<void>;
+  disconnectFromVpn: () => Promise<boolean>;
   clearError: () => void;
   recentlyDisconnectedInstanceId: string | null;
   clearRecentlyDisconnectedInstance: () => void;

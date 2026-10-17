@@ -92,7 +92,7 @@ export function useVpnConnection() {
     console.log("VPN connected:", result.data);
   };
 
-  const disconnectFromVpn = async () => {
+  const disconnectFromVpn = async (): Promise<boolean> => {
     setError(null);
     setIsDisconnecting(true);
 
@@ -102,9 +102,10 @@ export function useVpnConnection() {
       setError(result.error);
       toast.error(result.error);
       console.error("Failed to disconnect from VPN:", result.error);
-      return;
+      return false;
     }
     console.log("VPN disconnected:", result.data);
+    return true;
   };
 
   const clearError = () => {
