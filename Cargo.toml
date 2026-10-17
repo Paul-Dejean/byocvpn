@@ -15,34 +15,34 @@ members = [
 version = "0.1.28"
 
 [workspace.dependencies]
-tokio = { version = "1.53.2", features = ["full"] }
+tokio = { version = "1.53.3", features = ["full"] }
 async-trait = "0.1.92"
 base64 = "0.23.1"
 
 serde = { version = "1.0.229", features = ["derive"] }
-serde_json = "1.0.151"
+serde_json = "1.0.154"
 specta = { version = "=2.0.0-rc.25", features = ["derive", "serde_json", "chrono"] }
 thiserror = "2.0.21"
-rand = "0.10"
+rand = "0.10.3"
 handlebars = "6.4.4"
-futures = "0.3"
-log = "0.4"
-env_logger = "0.11"
-reqwest = { version = "0.13", default-features = false, features = [
+futures = "0.3.34"
+log = "0.4.34"
+env_logger = "0.11.11"
+reqwest = { version = "0.13.5", default-features = false, features = [
     "json",
     "rustls",
 ] }
-rsa = { version = "0.9", features = ["sha2", "pem"] }
-sha2 = "0.11"
-uuid = { version = "1", features = ["v4"] }
-hex = "0.4"
-chrono = { version = "0.4", features = ["serde"] }
+rsa = { version = "0.9.10", features = ["sha2", "pem"] }
+sha2 = "0.11.1"
+uuid = { version = "1.28.0", features = ["v4"] }
+hex = "0.4.3"
+chrono = { version = "0.4.45", features = ["serde"] }
 ipnet = "2.12.2"
-tun-rs = { version = "2.8.11", features = ["async_tokio"] }
-windows-sys = "0.61"
-tauri = "2"
-humantime = "2"
-strum = { version = "0.28", features = ["derive"] }
+tun-rs = { version = "2.8.12", features = ["async_tokio"] }
+windows-sys = "0.61.2"
+tauri = "2.12.4"
+humantime = "2.4.0"
+strum = { version = "0.28.0", features = ["derive"] }
 
 
 [profile.dev]
