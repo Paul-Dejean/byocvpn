@@ -3,7 +3,7 @@ use byocvpn_core::{
     error::{DaemonError, Result},
     ipc::IpcSocket,
 };
-use log::*;
+use log::{debug, error, info};
 use serde_json::Value;
 
 use crate::{
@@ -20,11 +20,11 @@ pub async fn run_daemon() -> Result<()> {
 
     #[cfg(unix)]
     if let Some(socket_dir) = socket_path.parent() {
-        debug!("Creating socket directory: {:?}", socket_dir);
+        debug!("Creating socket directory: {}", socket_dir.display());
         tokio::fs::create_dir_all(socket_dir)
             .await
             .map_err(|error| DaemonError::SocketError {
-                reason: format!("failed to create socket directory: {}", error),
+                reason: format!("failed to create socket directory: {error}"),
             })?;
     }
 
@@ -47,7 +47,7 @@ pub async fn run_daemon() -> Result<()> {
             let response = match serde_json::from_str::<DaemonCommand>(&line) {
                 Ok(command) => handle_command(command).await,
                 Err(error) => {
-                    error!("Invalid command: {}", error);
+                    error!("Invalid command: {error}");
                     DaemonResponse::Err(DaemonError::CommandFailed {
                         command: error.to_string(),
                     })
@@ -61,7 +61,7 @@ pub async fn run_daemon() -> Result<()> {
                     }
                 }
                 Err(error) => {
-                    error!("Failed to serialize response: {}", error);
+                    error!("Failed to serialize response: {error}");
                 }
             }
         }
@@ -70,10 +70,10 @@ pub async fn run_daemon() -> Result<()> {
 
 async fn handle_command(command: DaemonCommand) -> DaemonResponse {
     match command {
-        DaemonCommand::Connect(params) => match connect_vpn(params).await {
+        DaemonCommand::Connect(params) => match connect_vpn(*params).await {
             Ok(()) => DaemonResponse::Ok(Value::Null),
             Err(error) => {
-                error!("Connect error: {}", error);
+                error!("Connect error: {error}");
                 DaemonResponse::Err(DaemonError::CommandFailed {
                     command: error.to_string(),
                 })
@@ -82,7 +82,7 @@ async fn handle_command(command: DaemonCommand) -> DaemonResponse {
         DaemonCommand::Disconnect => match disconnect_vpn().await {
             Ok(()) => DaemonResponse::Ok(Value::Null),
             Err(error) => {
-                error!("Disconnect error: {}", error);
+                error!("Disconnect error: {error}");
                 DaemonResponse::Err(DaemonError::CommandFailed {
                     command: error.to_string(),
                 })
@@ -92,14 +92,14 @@ async fn handle_command(command: DaemonCommand) -> DaemonResponse {
             Ok(status) => match serde_json::to_value(&status) {
                 Ok(value) => DaemonResponse::Ok(value),
                 Err(error) => {
-                    error!("Status serialization error: {}", error);
+                    error!("Status serialization error: {error}");
                     DaemonResponse::Err(DaemonError::CommandFailed {
                         command: error.to_string(),
                     })
                 }
             },
             Err(error) => {
-                error!("Status error: {}", error);
+                error!("Status error: {error}");
                 DaemonResponse::Err(DaemonError::CommandFailed {
                     command: error.to_string(),
                 })
@@ -110,7 +110,7 @@ async fn handle_command(command: DaemonCommand) -> DaemonResponse {
             match serde_json::to_value(&stats) {
                 Ok(value) => DaemonResponse::Ok(value),
                 Err(error) => {
-                    error!("Stats serialization error: {}", error);
+                    error!("Stats serialization error: {error}");
                     DaemonResponse::Err(DaemonError::CommandFailed {
                         command: error.to_string(),
                     })

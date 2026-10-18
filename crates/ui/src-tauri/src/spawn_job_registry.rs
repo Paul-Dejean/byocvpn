@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Mutex};
 use byocvpn_core::cloud_provider::{CloudProviderName, SpawnJob, SpawnStep, SpawnStepStatus};
 use serde::Serialize;
 
-#[derive(Debug, Clone, Serialize, PartialEq, specta::Type)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, specta::Type)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SpawnJobStatus {
     Running,
@@ -35,7 +35,7 @@ pub struct SpawnJobRegistry(Mutex<HashMap<String, SpawnJobState>>);
 
 impl SpawnJobRegistry {
     pub fn new() -> Self {
-        SpawnJobRegistry(Mutex::new(HashMap::new()))
+        Self(Mutex::new(HashMap::new()))
     }
 
     pub fn list(&self) -> Vec<SpawnJobState> {
@@ -76,30 +76,29 @@ impl SpawnJobRegistry {
         status: SpawnStepStatus,
         error: Option<String>,
     ) {
-        if let Ok(mut registry) = self.0.lock() {
-            if let Some(job) = registry.get_mut(job_id) {
-                if let Some(step) = job.steps.iter_mut().find(|step| step.id == step_id) {
-                    step.status = status;
-                    step.error = error;
-                }
-            }
+        if let Ok(mut registry) = self.0.lock()
+            && let Some(job) = registry.get_mut(job_id)
+            && let Some(step) = job.steps.iter_mut().find(|step| step.id == step_id)
+        {
+            step.status = status;
+            step.error = error;
         }
     }
 
     pub fn set_instance_id(&self, job_id: &str, instance_id: String) {
-        if let Ok(mut registry) = self.0.lock() {
-            if let Some(job) = registry.get_mut(job_id) {
-                job.instance_id = Some(instance_id);
-            }
+        if let Ok(mut registry) = self.0.lock()
+            && let Some(job) = registry.get_mut(job_id)
+        {
+            job.instance_id = Some(instance_id);
         }
     }
 
     pub fn mark_failed(&self, job_id: &str, error: String) {
-        if let Ok(mut registry) = self.0.lock() {
-            if let Some(job) = registry.get_mut(job_id) {
-                job.status = SpawnJobStatus::Failed;
-                job.error = Some(error);
-            }
+        if let Ok(mut registry) = self.0.lock()
+            && let Some(job) = registry.get_mut(job_id)
+        {
+            job.status = SpawnJobStatus::Failed;
+            job.error = Some(error);
         }
     }
 

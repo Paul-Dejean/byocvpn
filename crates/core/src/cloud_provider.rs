@@ -45,7 +45,7 @@ pub struct PermissionStatus {
     pub granted: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Display, EnumString)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Display, EnumString)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "lowercase", ascii_case_insensitive)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -57,7 +57,7 @@ pub enum CloudProviderName {
     Oracle,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum InstanceState {
@@ -116,7 +116,7 @@ pub struct SpawnJob {
     pub provider: CloudProviderName,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum SpawnStepStatus {

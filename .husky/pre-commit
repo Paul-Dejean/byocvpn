@@ -1,0 +1,1 @@
+crates/ui/node_modules/.bin/lint-staged --config lint-staged.config.mjs

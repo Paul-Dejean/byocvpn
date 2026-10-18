@@ -10,7 +10,7 @@ use byocvpn_core::{
     commands::setup::Region,
     error::{NetworkProvisioningError, Result},
 };
-use log::*;
+use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -91,7 +91,7 @@ pub enum GcpSpawnStepId {
 }
 
 impl GcpSpawnStepId {
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::SetupApi => "setup_api",
             Self::SetupVpc => "setup_vpc",
@@ -183,7 +183,7 @@ impl CloudProvider for GcpProvider {
         let request = TestIamPermissionsRequest {
             permissions: REQUIRED_PERMISSIONS
                 .iter()
-                .map(|permission| permission.to_string())
+                .map(std::string::ToString::to_string)
                 .collect(),
         };
 
@@ -191,7 +191,7 @@ impl CloudProvider for GcpProvider {
         let granted_permissions: HashSet<&str> = response
             .permissions
             .iter()
-            .map(|permission| permission.as_str())
+            .map(std::string::String::as_str)
             .collect();
 
         let permissions: Vec<PermissionStatus> = REQUIRED_PERMISSIONS
@@ -226,7 +226,7 @@ impl CloudProvider for GcpProvider {
         network::ensure_vpc(&self.client).await?;
         network::ensure_firewall_rules(&self.client).await?;
         network::ensure_subnet(&self.client, region).await?;
-        info!("GCP region {} enabled.", region);
+        info!("GCP region {region} enabled.");
         Ok(())
     }
 
@@ -274,7 +274,7 @@ impl CloudProvider for GcpProvider {
         );
 
         let image_self_link = network::get_ubuntu_image_self_link(&self.client).await?;
-        debug!("Resolved GCP Ubuntu image {}", image_self_link);
+        debug!("Resolved GCP Ubuntu image {image_self_link}");
 
         instance::spawn_instance(
             &self.client,

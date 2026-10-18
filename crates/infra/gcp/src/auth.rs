@@ -7,7 +7,7 @@ pub fn parse_credentials_from_service_account_json(
 ) -> Result<(Credentials, String)> {
     let json: serde_json::Value =
         serde_json::from_str(json_str).map_err(|error| CredentialsError::InvalidFormat {
-            reason: format!("Invalid GCP service-account JSON: {}", error),
+            reason: format!("Invalid GCP service-account JSON: {error}"),
         })?;
 
     let project_id = json["project_id"]
@@ -20,10 +20,7 @@ pub fn parse_credentials_from_service_account_json(
     let credentials = service_account::Builder::new(json)
         .build()
         .map_err(|error| CredentialsError::InvalidFormat {
-            reason: format!(
-                "Failed to build GCP credentials from service-account JSON: {}",
-                error
-            ),
+            reason: format!("Failed to build GCP credentials from service-account JSON: {error}"),
         })?;
 
     Ok((credentials, project_id))
@@ -52,7 +49,7 @@ pub async fn fetch_bearer_token(credentials: &Credentials) -> Result<String> {
         .get("authorization")
         .and_then(|value| value.to_str().ok())
         .and_then(|s| s.strip_prefix("Bearer "))
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
         .ok_or_else(|| {
             CredentialsError::MissingTokenInResponse {
                 provider: "GCP".to_string(),

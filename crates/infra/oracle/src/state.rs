@@ -33,16 +33,16 @@ impl From<&str> for OciLifecycleState {
 impl From<OciLifecycleState> for InstanceState {
     fn from(state: OciLifecycleState) -> Self {
         match state {
-            OciLifecycleState::Moving => InstanceState::Unknown,
-            OciLifecycleState::Provisioning => InstanceState::Unknown,
-            OciLifecycleState::Starting => InstanceState::Unknown,
-            OciLifecycleState::Running => InstanceState::Running,
-            OciLifecycleState::Stopping => InstanceState::Stopping,
-            OciLifecycleState::Stopped => InstanceState::Stopped,
-            OciLifecycleState::CreatingImage => InstanceState::Unknown,
-            OciLifecycleState::Terminating => InstanceState::Unknown,
-            OciLifecycleState::Terminated => InstanceState::Unknown,
-            OciLifecycleState::Unknown => InstanceState::Unknown,
+            OciLifecycleState::Moving => Self::Unknown,
+            OciLifecycleState::Provisioning => Self::Unknown,
+            OciLifecycleState::Starting => Self::Unknown,
+            OciLifecycleState::Running => Self::Running,
+            OciLifecycleState::Stopping => Self::Stopping,
+            OciLifecycleState::Stopped => Self::Stopped,
+            OciLifecycleState::CreatingImage => Self::Unknown,
+            OciLifecycleState::Terminating => Self::Unknown,
+            OciLifecycleState::Terminated => Self::Unknown,
+            OciLifecycleState::Unknown => Self::Unknown,
         }
     }
 }

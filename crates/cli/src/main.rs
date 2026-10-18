@@ -9,7 +9,7 @@ use byocvpn_core::cloud_provider::CloudProviderName;
 use byocvpn_daemon::daemon_client::UnixDaemonClient;
 use clap::{Parser, Subcommand};
 use env_logger::Env;
-use log::*;
+use log::{error, info};
 
 use crate::{
     connect::{run_connect, run_disconnect},
@@ -67,7 +67,7 @@ async fn main() {
         .init();
 
     if let Err(error) = run(Cli::parse()).await {
-        error!("{}", error);
+        error!("{error}");
         std::process::exit(1);
     }
 }
@@ -104,7 +104,7 @@ async fn run(cli: Cli) -> CliResult<()> {
     Ok(())
 }
 
-fn default_log_filter() -> &'static str {
+const fn default_log_filter() -> &'static str {
     if cfg!(debug_assertions) {
         "info"
     } else {

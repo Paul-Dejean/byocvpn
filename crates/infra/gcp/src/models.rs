@@ -50,7 +50,7 @@ pub struct CreateFirewallRuleRequest {
     pub source_ranges: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, PartialEq)]
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
 pub struct FirewallAllowed {
     #[serde(rename = "IPProtocol")]
     pub ip_protocol: String,

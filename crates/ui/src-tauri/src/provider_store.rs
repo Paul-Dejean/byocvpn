@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use log::*;
+use log::warn;
 use tauri::{AppHandle, Wry};
 use tauri_plugin_store::{Store, StoreExt};
 
@@ -17,14 +17,14 @@ impl ProviderStore {
             serde_json::Value::Bool(true),
         );
         if let Err(error) = self.0.save() {
-            warn!("Failed to save provider store: {}", error);
+            warn!("Failed to save provider store: {error}");
         }
     }
 
     pub fn clear_provisioned(&self, provider: &str) {
         self.0.delete(Self::provisioned_key(provider));
         if let Err(error) = self.0.save() {
-            warn!("Failed to save provider store: {}", error);
+            warn!("Failed to save provider store: {error}");
         }
     }
 
@@ -34,15 +34,15 @@ impl ProviderStore {
             serde_json::Value::Bool(true),
         );
         if let Err(error) = self.0.save() {
-            warn!("Failed to save provider store: {}", error);
+            warn!("Failed to save provider store: {error}");
         }
     }
 
     fn provisioned_key(provider: &str) -> String {
-        format!("provisioned/{}", provider)
+        format!("provisioned/{provider}")
     }
 
     fn region_key(provider: &str, region: &str) -> String {
-        format!("enabled_regions/{}/{}", provider, region)
+        format!("enabled_regions/{provider}/{region}")
     }
 }

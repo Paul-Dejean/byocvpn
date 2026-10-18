@@ -13,7 +13,7 @@ use byocvpn_core::{
     commands::setup::Region,
     error::{NetworkProvisioningError, Result},
 };
-use log::*;
+use log::{info, warn};
 
 use crate::constants::{
     SECURITY_GROUP_NAME, SUBNET_CIDR_BLOCK, SUBNET_NAME, VPC_CIDR_BLOCK, VPC_NAME,
@@ -33,17 +33,17 @@ pub struct AwsProviderConfig {
     pub secret_access_key: Option<String>,
 }
 impl AwsProvider {
-    pub async fn new(config: AwsProviderConfig) -> Self {
-        Self { config: config }
+    pub const fn new(config: AwsProviderConfig) -> Self {
+        Self { config }
     }
 
     pub async fn create_ec2_client(&self, region: Option<String>) -> Ec2Client {
         let sdk_config = config::get_sdk_config(&self.config, region).await;
-        return Ec2Client::new(&sdk_config);
+        Ec2Client::new(&sdk_config)
     }
     pub async fn create_ssm_client(&self, region: Option<String>) -> SsmClient {
         let sdk_config = config::get_sdk_config(&self.config, region).await;
-        return SsmClient::new(&sdk_config);
+        SsmClient::new(&sdk_config)
     }
     pub async fn create_sts_client(&self) -> StsClient {
         let sdk_config = config::get_sdk_config(&self.config, None).await;
@@ -226,7 +226,7 @@ impl CloudProvider for AwsProvider {
         .await;
         return Ok(results
             .into_iter()
-            .filter_map(|result| result.ok())
+            .filter_map(std::result::Result::ok)
             .flatten()
             .collect());
     }
@@ -269,7 +269,7 @@ impl CloudProvider for AwsProvider {
             })
             .collect();
 
-        info!("Fetched regions: {:?}", regions);
+        info!("Fetched regions: {regions:?}");
         Ok(regions)
     }
 }

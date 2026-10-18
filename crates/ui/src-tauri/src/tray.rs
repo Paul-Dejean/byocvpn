@@ -50,9 +50,8 @@ pub fn build_tray(app: &AppHandle) -> tauri::Result<tauri::tray::TrayIcon> {
 }
 
 pub fn update_tray(app: &AppHandle, vpn_status: &VpnStatus) {
-    let tray = match app.tray_by_id("main") {
-        Some(tray) => tray,
-        None => return,
+    let Some(tray) = app.tray_by_id("main") else {
+        return;
     };
 
     let was_connected = LAST_CONNECTED_STATE.swap(vpn_status.connected, Ordering::Relaxed);
@@ -72,17 +71,16 @@ pub fn update_tray(app: &AppHandle, vpn_status: &VpnStatus) {
             }
             let _ = tray.set_menu(Some(menu));
         }
-    } else if vpn_status.connected {
-        if let Some(elapsed) = vpn_status
+    } else if vpn_status.connected
+        && let Some(elapsed) = vpn_status
             .connected_at
             .and_then(|ts| get_elapsed_duration(ts).ok())
+    {
+        let label = format!("Connected · {}", format_duration(elapsed));
+        if let Ok(guard) = STATUS_MENU_ITEM.lock()
+            && let Some(ref item) = *guard
         {
-            let label = format!("Connected · {}", format_duration(elapsed));
-            if let Ok(guard) = STATUS_MENU_ITEM.lock() {
-                if let Some(ref item) = *guard {
-                    let _ = item.set_text(&label);
-                }
-            }
+            let _ = item.set_text(&label);
         }
     }
 }
@@ -95,8 +93,10 @@ fn build_tray_menu(
         vpn_status
             .connected_at
             .and_then(|timestamp| get_elapsed_duration(timestamp).ok())
-            .map(|elapsed| format!("Connected · {}", format_duration(elapsed)))
-            .unwrap_or_else(|| "Connected".to_string())
+            .map_or_else(
+                || "Connected".to_string(),
+                |elapsed| format!("Connected · {}", format_duration(elapsed)),
+            )
     } else {
         "ByocVPN — Disconnected".to_string()
     };
@@ -147,8 +147,10 @@ fn build_tooltip(vpn_status: &VpnStatus) -> String {
         vpn_status
             .connected_at
             .and_then(|timestamp| get_elapsed_duration(timestamp).ok())
-            .map(|elapsed| format!("ByocVPN — Connected · {}", format_duration(elapsed)))
-            .unwrap_or_else(|| "ByocVPN — Connected".to_string())
+            .map_or_else(
+                || "ByocVPN — Connected".to_string(),
+                |elapsed| format!("ByocVPN — Connected · {}", format_duration(elapsed)),
+            )
     } else {
         "ByocVPN — Disconnected".to_string()
     }
@@ -158,7 +160,7 @@ pub fn get_elapsed_duration(unix_secs: u64) -> Result<Duration, SystemTimeError>
     SystemTime::now().duration_since(UNIX_EPOCH + Duration::from_secs(unix_secs))
 }
 
-fn disconnected_vpn_status() -> VpnStatus {
+const fn disconnected_vpn_status() -> VpnStatus {
     VpnStatus {
         connected: false,
         instance: None,
@@ -168,7 +170,7 @@ fn disconnected_vpn_status() -> VpnStatus {
     }
 }
 
-pub(crate) fn show_main_window(app: &AppHandle) {
+pub fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
         let _ = window.set_focus();

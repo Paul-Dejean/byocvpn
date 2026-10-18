@@ -11,7 +11,7 @@ use crate::models::{
     PatchFirewallRuleRequest, PatchSubnetRequest, RegionListResponse, ServiceResponse,
     SubnetResponse, VpcResponse,
 };
-use log::*;
+use log::{debug, info};
 
 const VPC_NAME: &str = "byocvpn-vpc";
 const SUBNET_NAME: &str = "byocvpn-subnet";
@@ -42,15 +42,15 @@ async fn wait_for_operation(client: &GcpClient, operation_url: &str) -> Result<(
                     }
                     Ok(())
                 }
-                Some("PENDING") | Some("RUNNING") => {
-                    debug!("[GCP] operation pending: {}", operation_url);
+                Some("PENDING" | "RUNNING") => {
+                    debug!("[GCP] operation pending: {operation_url}");
                     Err(NetworkProvisioningError::CloudOperationTimedOut {
                         operation: operation_url.to_string(),
                     }
                     .into())
                 }
                 other => Err(NetworkProvisioningError::CloudOperationFailed {
-                    reason: format!("Unexpected GCP operation status: {:?}", other),
+                    reason: format!("Unexpected GCP operation status: {other:?}"),
                 }
                 .into()),
             }
@@ -112,7 +112,7 @@ async fn create_vpc(client: &GcpClient) -> Result<String> {
     })?;
     wait_for_operation_response(client, &operation).await?;
     let vpc: VpcResponse = client.get(&url).await?;
-    info!("GCP VPC '{}' created.", VPC_NAME);
+    info!("GCP VPC '{VPC_NAME}' created.");
     vpc.self_link.ok_or_else(|| {
         NetworkProvisioningError::MissingResourceField {
             field: "selfLink",
@@ -179,11 +179,11 @@ async fn patch_firewall_rule(client: &GcpClient, name: &str, source_range: &str)
     };
     let operation: Operation = client.patch(&url, &body).await.map_err(|error| {
         NetworkProvisioningError::SecurityGroupCreationFailed {
-            reason: format!("Failed to patch firewall rule '{}': {}", name, error),
+            reason: format!("Failed to patch firewall rule '{name}': {error}"),
         }
     })?;
     wait_for_operation_response(client, &operation).await?;
-    info!("GCP firewall rule '{}' patched.", name);
+    info!("GCP firewall rule '{name}' patched.");
     Ok(())
 }
 
@@ -211,7 +211,7 @@ async fn create_firewall_rule(
         }
     })?;
     wait_for_operation_response(client, &operation).await?;
-    info!("GCP firewall rule '{}' created.", name);
+    info!("GCP firewall rule '{name}' created.");
     Ok(())
 }
 
@@ -236,10 +236,7 @@ pub async fn ensure_firewall_rules(client: &GcpClient) -> Result<()> {
         match get_firewall_rule(client, rule_name).await {
             Some(existing_rule) => {
                 if !firewall_rule_matches_desired_state(&existing_rule, source_range) {
-                    info!(
-                        "[GCP] Firewall rule '{}' has drifted, patching...",
-                        rule_name
-                    );
+                    info!("[GCP] Firewall rule '{rule_name}' has drifted, patching...");
                     patch_firewall_rule(client, rule_name, source_range).await?;
                 }
             }
@@ -271,7 +268,7 @@ async fn find_available_subnet_cidr(client: &GcpClient) -> Result<String> {
     for second_octet in 0u16..=255 {
         for block in 0u16..16 {
             let third_octet = block * 16;
-            let candidate = format!("10.{}.{}.0/20", second_octet, third_octet);
+            let candidate = format!("10.{second_octet}.{third_octet}.0/20");
             if !used_cidrs.contains(&candidate) {
                 return Ok(candidate);
             }
@@ -334,7 +331,7 @@ async fn create_subnet(client: &GcpClient, region: &str) -> Result<String> {
     })?;
     wait_for_operation_response(client, &operation).await?;
     let subnet: SubnetResponse = client.get(&url).await?;
-    info!("GCP subnet '{}' created in {}.", SUBNET_NAME, region);
+    info!("GCP subnet '{SUBNET_NAME}' created in {region}.");
     subnet.self_link.ok_or_else(|| {
         NetworkProvisioningError::MissingResourceField {
             field: "selfLink",
@@ -361,10 +358,7 @@ pub async fn ensure_subnet(client: &GcpClient, region: &str) -> Result<String> {
                     resource: "subnet",
                 })?;
         if existing.stack_type.as_deref() != Some("IPV4_IPV6") {
-            info!(
-                "[GCP] Upgrading subnet '{}' in {} to IPV4_IPV6...",
-                SUBNET_NAME, region
-            );
+            info!("[GCP] Upgrading subnet '{SUBNET_NAME}' in {region} to IPV4_IPV6...");
             let fingerprint = existing.fingerprint.clone().unwrap_or_default();
             let patch_body = PatchSubnetRequest {
                 stack_type: "IPV4_IPV6".to_string(),
@@ -373,18 +367,15 @@ pub async fn ensure_subnet(client: &GcpClient, region: &str) -> Result<String> {
             };
             let operation: Operation = client.patch(&url, &patch_body).await.map_err(|error| {
                 NetworkProvisioningError::SubnetCreationFailed {
-                    reason: format!("Failed to upgrade subnet to IPV4_IPV6: {}", error),
+                    reason: format!("Failed to upgrade subnet to IPV4_IPV6: {error}"),
                 }
             })?;
             wait_for_operation_response(client, &operation)
                 .await
                 .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {
-                    reason: format!("Subnet IPV4_IPV6 upgrade operation failed: {}", error),
+                    reason: format!("Subnet IPV4_IPV6 upgrade operation failed: {error}"),
                 })?;
-            info!(
-                "GCP subnet '{}' upgraded to IPV4_IPV6 in {}.",
-                SUBNET_NAME, region
-            );
+            info!("GCP subnet '{SUBNET_NAME}' upgraded to IPV4_IPV6 in {region}.");
         }
         return Ok(self_link);
     }
@@ -413,7 +404,7 @@ const COMPUTE_API_SERVICE: &str = "compute.googleapis.com";
 const CLOUD_RESOURCE_MANAGER_API_SERVICE: &str = "cloudresourcemanager.googleapis.com";
 
 async fn wait_for_service_usage_operation(client: &GcpClient, operation_name: &str) -> Result<()> {
-    let url = format!("{}/{}", SERVICE_USAGE_BASE, operation_name);
+    let url = format!("{SERVICE_USAGE_BASE}/{operation_name}");
     retry(
         || {
             let url = url.clone();
@@ -444,14 +435,14 @@ async fn wait_for_service_usage_operation(client: &GcpClient, operation_name: &s
 
 pub async fn ensure_api_enabled(client: &GcpClient, api_service: &str) -> Result<()> {
     let service_name = format!("projects/{}/services/{}", client.project_id, api_service);
-    let url = format!("{}/{}", SERVICE_USAGE_BASE, service_name);
+    let url = format!("{SERVICE_USAGE_BASE}/{service_name}");
 
     let response: ServiceResponse =
         client
             .get(&url)
             .await
             .map_err(|error| NetworkProvisioningError::ProviderSetupFailed {
-                step: format!("{} API check", api_service),
+                step: format!("{api_service} API check"),
                 reason: error.to_string(),
             })?;
 
@@ -464,13 +455,13 @@ pub async fn ensure_api_enabled(client: &GcpClient, api_service: &str) -> Result
         api_service, client.project_id
     );
 
-    let enable_url = format!("{}:enable", url);
+    let enable_url = format!("{url}:enable");
     let operation: Operation =
         client
             .post(&enable_url, &EmptyRequest {})
             .await
             .map_err(|error| NetworkProvisioningError::ProviderSetupFailed {
-                step: format!("{} API enablement", api_service),
+                step: format!("{api_service} API enablement"),
                 reason: error.to_string(),
             })?;
 
@@ -479,7 +470,7 @@ pub async fn ensure_api_enabled(client: &GcpClient, api_service: &str) -> Result
             .name
             .as_deref()
             .ok_or_else(|| NetworkProvisioningError::ProviderSetupFailed {
-                step: format!("{} API enablement", api_service),
+                step: format!("{api_service} API enablement"),
                 reason: "operation response missing 'name' field".to_string(),
             })?;
 
@@ -533,8 +524,10 @@ pub async fn list_regions(client: &GcpClient) -> Result<Vec<(String, String)>> {
             let continent = continent_prefixes
                 .iter()
                 .find(|(prefix, _)| name.starts_with(prefix))
-                .map(|(_, continent)| continent.to_string())
-                .unwrap_or_else(|| "Other".to_string());
+                .map_or_else(
+                    || "Other".to_string(),
+                    |(_, continent)| continent.to_string(),
+                );
             Some((name, continent))
         })
         .collect();
@@ -543,5 +536,5 @@ pub async fn list_regions(client: &GcpClient) -> Result<Vec<(String, String)>> {
 }
 
 pub fn build_primary_zone_for_region(region: &str) -> String {
-    format!("{}-a", region)
+    format!("{region}-a")
 }

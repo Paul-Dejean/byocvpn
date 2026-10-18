@@ -11,7 +11,7 @@ use byocvpn_core::{
 };
 
 use crate::{auth::OciCredentials, client::OciClient, instance, network};
-use log::*;
+use log::{debug, error, info};
 
 pub struct OracleProviderConfig {
     pub tenancy_ocid: String,
@@ -26,7 +26,7 @@ pub struct OracleProvider {
 }
 
 impl OracleProvider {
-    pub fn new(config: OracleProviderConfig) -> Self {
+    pub const fn new(config: OracleProviderConfig) -> Self {
         Self { config }
     }
 
@@ -60,7 +60,7 @@ pub enum OracleSpawnStepId {
 }
 
 impl OracleSpawnStepId {
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::SetupVcn => "setup_vcn",
             Self::SetupIgw => "setup_igw",
@@ -279,7 +279,7 @@ impl CloudProvider for OracleProvider {
         let igw_id = network::ensure_internet_gateway(&client, compartment_ocid, &vcn_id).await?;
         network::add_default_route_to_table(&client, &route_table_id, &igw_id, &ipv6_prefix)
             .await?;
-        info!("IGW + default route ensured in {}.", region);
+        info!("IGW + default route ensured in {region}.");
 
         let security_list_id =
             network::ensure_security_list(&client, compartment_ocid, &vcn_id, &ipv6_prefix).await?;
@@ -293,7 +293,7 @@ impl CloudProvider for OracleProvider {
             &ipv6_prefix,
         )
         .await?;
-        info!("Security list attached to subnet in {}.", region);
+        info!("Security list attached to subnet in {region}.");
 
         Ok(())
     }

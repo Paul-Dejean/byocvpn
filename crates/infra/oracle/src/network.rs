@@ -2,7 +2,7 @@ use byocvpn_core::{
     error::{NetworkProvisioningError, Result},
     retry::retry,
 };
-use log::*;
+use log::info;
 use serde_json::Value;
 use tokio::time::Duration;
 
@@ -31,8 +31,7 @@ async fn get_vcn(
     compartment_ocid: &str,
 ) -> Result<Option<(String, String, String)>> {
     let url = client.build_core_url(&format!(
-        "/vcns?compartmentId={}&displayName={}",
-        compartment_ocid, VCN_DISPLAY_NAME
+        "/vcns?compartmentId={compartment_ocid}&displayName={VCN_DISPLAY_NAME}"
     ));
     let vcns: Vec<Vcn> = client.get(&url).await?;
     let vcn = vcns
@@ -42,7 +41,7 @@ async fn get_vcn(
             let ipv6_prefix = vcn
                 .ipv6_cidr_blocks
                 .and_then(|blocks| blocks.into_iter().next())
-                .ok_or(NetworkProvisioningError::VpcCreationFailed {
+                .ok_or_else(|| NetworkProvisioningError::VpcCreationFailed {
                     reason: "VCN has no IPv6 CIDR block".to_string(),
                 })?;
             Ok((vcn.id, vcn.default_route_table_id, ipv6_prefix))
@@ -71,7 +70,7 @@ async fn create_vcn(
     let ipv6_prefix = vcn
         .ipv6_cidr_blocks
         .and_then(|blocks| blocks.into_iter().next())
-        .ok_or(NetworkProvisioningError::VpcCreationFailed {
+        .ok_or_else(|| NetworkProvisioningError::VpcCreationFailed {
             reason: "created VCN has no IPv6 CIDR block".to_string(),
         })?;
     Ok((vcn.id, vcn.default_route_table_id, ipv6_prefix))
@@ -93,8 +92,7 @@ async fn get_internet_gateway(
     vcn_id: &str,
 ) -> Result<Option<String>> {
     let url = client.build_core_url(&format!(
-        "/internetGateways?compartmentId={}&vcnId={}",
-        compartment_ocid, vcn_id
+        "/internetGateways?compartmentId={compartment_ocid}&vcnId={vcn_id}"
     ));
     let existing: Vec<InternetGateway> = client.get(&url).await?;
     Ok(existing.into_iter().next().map(|igw| igw.id))
@@ -138,7 +136,7 @@ pub async fn add_default_route_to_table(
     igw_id: &str,
     ipv6_prefix: &str,
 ) -> Result<()> {
-    let url = client.build_core_url(&format!("/routeTables/{}", route_table_id));
+    let url = client.build_core_url(&format!("/routeTables/{route_table_id}"));
 
     let current: RouteTableResponse = client.get(&url).await?;
     let mut route_rules = current.route_rules;
@@ -183,8 +181,7 @@ async fn get_security_list(
     vcn_id: &str,
 ) -> Result<Option<SecurityListResponse>> {
     let url = client.build_core_url(&format!(
-        "/securityLists?compartmentId={}&vcnId={}&displayName={}",
-        compartment_ocid, vcn_id, SECURITY_LIST_NAME
+        "/securityLists?compartmentId={compartment_ocid}&vcnId={vcn_id}&displayName={SECURITY_LIST_NAME}"
     ));
     let existing: Vec<SecurityListResponse> = client.get(&url).await?;
     Ok(existing.into_iter().next())
@@ -331,8 +328,7 @@ async fn get_subnet(
     vcn_id: &str,
 ) -> Result<Option<(String, bool, Vec<String>)>> {
     let url = client.build_core_url(&format!(
-        "/subnets?compartmentId={}&vcnId={}&displayName={}",
-        compartment_ocid, vcn_id, SUBNET_DISPLAY_NAME
+        "/subnets?compartmentId={compartment_ocid}&vcnId={vcn_id}&displayName={SUBNET_DISPLAY_NAME}"
     ));
     let subnets: Vec<SubnetResponse> = client.get(&url).await?;
     let found = subnets
@@ -346,8 +342,7 @@ async fn get_subnet(
         .map(|subnet| {
             let has_ipv6 = subnet
                 .ipv6_cidr_blocks
-                .map(|blocks| !blocks.is_empty())
-                .unwrap_or(false);
+                .is_some_and(|blocks| !blocks.is_empty());
             let security_list_ids = subnet.security_list_ids.unwrap_or_default();
             (subnet.id, has_ipv6, security_list_ids)
         });
@@ -358,7 +353,7 @@ fn derive_first_subnet_ipv6_64(vcn_ipv6_prefix: &str) -> String {
     if let Some(slash_pos) = vcn_ipv6_prefix.rfind('/') {
         format!("{}/64", &vcn_ipv6_prefix[..slash_pos])
     } else {
-        format!("{}/64", vcn_ipv6_prefix)
+        format!("{vcn_ipv6_prefix}/64")
     }
 }
 
@@ -395,7 +390,7 @@ async fn ensure_subnet_security_list(
     subnet_id: &str,
     security_list_id: &str,
 ) -> Result<()> {
-    let url = client.build_core_url(&format!("/subnets/{}", subnet_id));
+    let url = client.build_core_url(&format!("/subnets/{subnet_id}"));
     client
         .put(
             &url,
@@ -434,7 +429,7 @@ pub async fn ensure_subnet(
 }
 
 pub async fn get_ubuntu_image(client: &OciClient, compartment_ocid: &str) -> Result<String> {
-    let url = client.build_core_url(&format!("/images?compartmentId={}&operatingSystem=Canonical+Ubuntu&operatingSystemVersion=22.04&shape=VM.Standard.A1.Flex&lifecycleState=AVAILABLE", compartment_ocid));
+    let url = client.build_core_url(&format!("/images?compartmentId={compartment_ocid}&operatingSystem=Canonical+Ubuntu&operatingSystemVersion=22.04&shape=VM.Standard.A1.Flex&lifecycleState=AVAILABLE"));
     let images: Vec<Image> = client.get(&url).await?;
     images
         .into_iter()
@@ -454,7 +449,7 @@ pub async fn ensure_region_subscribed(
     region_name: &str,
 ) -> Result<()> {
     let subscriptions_url =
-        client.build_identity_url(&format!("/tenancies/{}/regionSubscriptions", tenancy_ocid));
+        client.build_identity_url(&format!("/tenancies/{tenancy_ocid}/regionSubscriptions"));
 
     let subscriptions: Vec<RegionSubscription> =
         client.get(&subscriptions_url).await.map_err(|error| {
@@ -481,7 +476,7 @@ pub async fn ensure_region_subscribed(
         .map(|region| region.key)
         .ok_or_else(|| NetworkProvisioningError::ProviderSetupFailed {
             step: "region subscription".to_string(),
-            reason: format!("region '{}' not found", region_name),
+            reason: format!("region '{region_name}' not found"),
         })?;
 
     client
@@ -493,12 +488,11 @@ pub async fn ensure_region_subscribed(
         )
         .await
         .map_err(|error| NetworkProvisioningError::ProviderSetupFailed {
-            step: format!("subscribe to region {}", region_name),
+            step: format!("subscribe to region {region_name}"),
             reason: error.to_string(),
         })?;
     info!(
-        "Subscribed to region {} (key {}), waiting for it to become READY...",
-        region_name, region_key
+        "Subscribed to region {region_name} (key {region_key}), waiting for it to become READY..."
     );
 
     retry(
@@ -515,12 +509,12 @@ pub async fn ensure_region_subscribed(
                     subscription.region_name == region_name && subscription.status == "READY"
                 });
                 if is_ready {
-                    info!("Region {} is now READY.", region_name);
+                    info!("Region {region_name} is now READY.");
                     Ok(())
                 } else {
-                    info!("Region {} not yet ready, retrying in 15 s...", region_name);
+                    info!("Region {region_name} not yet ready, retrying in 15 s...");
                     Err(NetworkProvisioningError::CloudOperationTimedOut {
-                        operation: format!("region {} subscription", region_name),
+                        operation: format!("region {region_name} subscription"),
                     }
                     .into())
                 }
@@ -559,16 +553,14 @@ pub async fn list_all_regions(client: &OciClient) -> Result<Vec<(String, String)
             let country = region_geography
                 .iter()
                 .find(|(prefix, _)| region.name.starts_with(prefix))
-                .map(|(_, country)| country.to_string())
-                .unwrap_or_else(|| "Unknown".to_string());
+                .map_or_else(|| "Unknown".to_string(), |(_, country)| country.to_string());
             (region.name, country)
         })
         .collect())
 }
 
 pub async fn list_regions(client: &OciClient, tenancy_ocid: &str) -> Result<Vec<(String, String)>> {
-    let url =
-        client.build_identity_url(&format!("/tenancies/{}/regionSubscriptions", tenancy_ocid));
+    let url = client.build_identity_url(&format!("/tenancies/{tenancy_ocid}/regionSubscriptions"));
     let subscriptions: Vec<RegionSubscription> =
         client
             .get(&url)
@@ -594,8 +586,7 @@ pub async fn list_regions(client: &OciClient, tenancy_ocid: &str) -> Result<Vec<
             let country = region_geography
                 .iter()
                 .find(|(prefix, _)| subscription.region_name.starts_with(prefix))
-                .map(|(_, country)| country.to_string())
-                .unwrap_or_else(|| "Unknown".to_string());
+                .map_or_else(|| "Unknown".to_string(), |(_, country)| country.to_string());
             (subscription.region_name, country)
         })
         .collect())

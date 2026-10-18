@@ -5,7 +5,7 @@ use crate::{
     error::Result,
     wireguard_config::parse_wireguard_config,
 };
-use log::*;
+use log::info;
 
 pub async fn connect(
     provider: &dyn CloudProvider,
@@ -24,7 +24,7 @@ pub async fn connect(
 
     info!("Sending connect command to daemon...");
     let response = daemon_client
-        .send_command(DaemonCommand::Connect(VpnConnectParams {
+        .send_command(DaemonCommand::Connect(Box::new(VpnConnectParams {
             instance_id: instance_id.to_string(),
             private_key: wireguard_config.private_key,
             public_key: wireguard_config.public_key,
@@ -37,10 +37,10 @@ pub async fn connect(
             public_ip_v4,
             public_ip_v6,
             kill_switch_enabled,
-        }))
+        })))
         .await?;
 
-    info!("Daemon response: {}", response);
+    info!("Daemon response: {response}");
 
     Ok(())
 }

@@ -1,25 +1,21 @@
 use byocvpn_core::error::{ConfigurationError, Result};
 use ipnet::IpNet;
-use log::*;
+use log::{debug, error, info, warn};
 use net_route::{Handle, Route};
 
 pub async fn add_vpn_routes(interface_index: u32, server_ip: &str) -> Result<()> {
-    info!(
-        "Adding VPN routes for server {} via interface index {}",
-        server_ip, interface_index
-    );
+    info!("Adding VPN routes for server {server_ip} via interface index {interface_index}");
 
-    let server_route = format!("{}/32", server_ip);
+    let server_route = format!("{server_ip}/32");
 
     if let Err(error) = add_default_gateway_route(&server_route).await {
-        warn!("Failed to add gateway route {}: {}", server_route, error);
+        warn!("Failed to add gateway route {server_route}: {error}");
     }
 
     for destination in ["0.0.0.0/1", "128.0.0.0/1", "::/1", "8000::/1"] {
         if let Err(error) = add_interface_route(destination, interface_index).await {
             warn!(
-                "Failed to add interface route {} via index {}: {}",
-                destination, interface_index, error
+                "Failed to add interface route {destination} via index {interface_index}: {error}"
             );
         }
     }
@@ -29,22 +25,18 @@ pub async fn add_vpn_routes(interface_index: u32, server_ip: &str) -> Result<()>
 }
 
 pub async fn remove_vpn_routes(interface_index: u32, server_ip: &str) {
-    info!(
-        "Removing VPN routes for server {} via interface index {}",
-        server_ip, interface_index
-    );
+    info!("Removing VPN routes for server {server_ip} via interface index {interface_index}");
 
-    let server_route = format!("{}/32", server_ip);
+    let server_route = format!("{server_ip}/32");
 
     if let Err(error) = delete_default_gateway_route(&server_route).await {
-        warn!("Failed to remove gateway route {}: {}", server_route, error);
+        warn!("Failed to remove gateway route {server_route}: {error}");
     }
 
     for destination in ["0.0.0.0/1", "128.0.0.0/1", "::/1", "8000::/1"] {
         if let Err(error) = delete_interface_route(destination, interface_index).await {
             warn!(
-                "Failed to remove interface route {} via index {}: {}",
-                destination, interface_index, error
+                "Failed to remove interface route {destination} via index {interface_index}: {error}"
             );
         }
     }
@@ -53,24 +45,24 @@ pub async fn remove_vpn_routes(interface_index: u32, server_ip: &str) {
 }
 
 async fn add_default_gateway_route(destination: &str) -> Result<()> {
-    debug!("Adding gateway route: {}", destination);
+    debug!("Adding gateway route: {destination}");
 
     let subnet: IpNet = destination
         .parse()
         .map_err(|error| ConfigurationError::ParseError {
             value: "destination".to_string(),
-            reason: format!("Invalid subnet {}: {}", destination, error),
+            reason: format!("Invalid subnet {destination}: {error}"),
         })?;
 
     let handle = Handle::new().map_err(|error| ConfigurationError::RouteConfiguration {
-        reason: format!("failed to create route handle: {}", error),
+        reason: format!("failed to create route handle: {error}"),
     })?;
 
     let default_route = handle
         .default_route()
         .await
         .map_err(|error| ConfigurationError::RouteConfiguration {
-            reason: format!("failed to query default route: {}", error),
+            reason: format!("failed to query default route: {error}"),
         })?
         .ok_or_else(|| ConfigurationError::RouteConfiguration {
             reason: "No default route found".to_string(),
@@ -84,20 +76,20 @@ async fn add_default_gateway_route(destination: &str) -> Result<()> {
 
     let route = Route::new(subnet.addr(), subnet.prefix_len()).with_gateway(gateway);
 
-    debug!("Route configuration: {:?}", route);
+    debug!("Route configuration: {route:?}");
 
     match handle.add(&route).await {
-        Ok(_) => {
-            debug!("Added gateway route: {} via {:?}", destination, gateway);
+        Ok(()) => {
+            debug!("Added gateway route: {destination} via {gateway:?}");
             Ok(())
         }
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-            debug!("Gateway route already exists: {} (skipping)", destination);
+            debug!("Gateway route already exists: {destination} (skipping)");
             Ok(())
         }
         Err(error) => {
-            let error_message = format!("Failed to add gateway route {}: {}", destination, error);
-            error!("{}", error_message);
+            let error_message = format!("Failed to add gateway route {destination}: {error}");
+            error!("{error_message}");
             Err(ConfigurationError::RouteConfiguration {
                 reason: error_message,
             }
@@ -107,47 +99,39 @@ async fn add_default_gateway_route(destination: &str) -> Result<()> {
 }
 
 async fn add_interface_route(destination: &str, interface_index: u32) -> Result<()> {
-    debug!(
-        "Adding interface route: {} via index {}",
-        destination, interface_index
-    );
+    debug!("Adding interface route: {destination} via index {interface_index}");
 
     let subnet: IpNet = destination
         .parse()
         .map_err(|error| ConfigurationError::ParseError {
             value: "destination".to_string(),
-            reason: format!("Invalid subnet {}: {}", destination, error),
+            reason: format!("Invalid subnet {destination}: {error}"),
         })?;
 
     let handle = Handle::new().map_err(|error| ConfigurationError::RouteConfiguration {
-        reason: format!("failed to create route handle: {}", error),
+        reason: format!("failed to create route handle: {error}"),
     })?;
 
     let route = Route::new(subnet.addr(), subnet.prefix_len()).with_ifindex(interface_index);
 
-    debug!("Route configuration: {:?}", route);
+    debug!("Route configuration: {route:?}");
 
     match handle.add(&route).await {
-        Ok(_) => {
-            debug!(
-                "Added interface route: {} via index {}",
-                destination, interface_index
-            );
+        Ok(()) => {
+            debug!("Added interface route: {destination} via index {interface_index}");
             Ok(())
         }
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
             debug!(
-                "Interface route already exists: {} via index {} (skipping)",
-                destination, interface_index
+                "Interface route already exists: {destination} via index {interface_index} (skipping)"
             );
             Ok(())
         }
         Err(error) => {
             let error_message = format!(
-                "Failed to add interface route {} via index {}: {}",
-                destination, interface_index, error
+                "Failed to add interface route {destination} via index {interface_index}: {error}"
             );
-            error!("{}", error_message);
+            error!("{error_message}");
             Err(ConfigurationError::RouteConfiguration {
                 reason: error_message,
             }
@@ -157,24 +141,24 @@ async fn add_interface_route(destination: &str, interface_index: u32) -> Result<
 }
 
 async fn delete_default_gateway_route(destination: &str) -> Result<()> {
-    debug!("Deleting gateway route: {}", destination);
+    debug!("Deleting gateway route: {destination}");
 
     let subnet: IpNet =
         destination
             .parse()
             .map_err(|error| ConfigurationError::RouteConfiguration {
-                reason: format!("Invalid subnet {}: {}", destination, error),
+                reason: format!("Invalid subnet {destination}: {error}"),
             })?;
 
     let handle = Handle::new().map_err(|error| ConfigurationError::RouteConfiguration {
-        reason: format!("failed to create route handle: {}", error),
+        reason: format!("failed to create route handle: {error}"),
     })?;
 
     let default_route = handle
         .default_route()
         .await
         .map_err(|error| ConfigurationError::RouteConfiguration {
-            reason: format!("failed to query default route: {}", error),
+            reason: format!("failed to query default route: {error}"),
         })?
         .ok_or_else(|| ConfigurationError::RouteConfiguration {
             reason: "No default route found".to_string(),
@@ -189,20 +173,19 @@ async fn delete_default_gateway_route(destination: &str) -> Result<()> {
     let route = Route::new(subnet.addr(), subnet.prefix_len()).with_gateway(gateway);
 
     match handle.delete(&route).await {
-        Ok(_) => {
-            debug!("Deleted gateway route: {}", destination);
+        Ok(()) => {
+            debug!("Deleted gateway route: {destination}");
             Ok(())
         }
         Err(error)
             if error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(3) =>
         {
-            debug!("Gateway route not found: {} (already removed)", destination);
+            debug!("Gateway route not found: {destination} (already removed)");
             Ok(())
         }
         Err(error) => {
-            let error_message =
-                format!("Failed to delete gateway route {}: {}", destination, error);
-            error!("{}", error_message);
+            let error_message = format!("Failed to delete gateway route {destination}: {error}");
+            error!("{error_message}");
             Err(ConfigurationError::RouteConfiguration {
                 reason: error_message,
             }
@@ -212,47 +195,39 @@ async fn delete_default_gateway_route(destination: &str) -> Result<()> {
 }
 
 async fn delete_interface_route(destination: &str, interface_index: u32) -> Result<()> {
-    debug!(
-        "Deleting interface route: {} via index {}",
-        destination, interface_index
-    );
+    debug!("Deleting interface route: {destination} via index {interface_index}");
 
     let subnet: IpNet =
         destination
             .parse()
             .map_err(|error| ConfigurationError::RouteConfiguration {
-                reason: format!("Invalid subnet {}: {}", destination, error),
+                reason: format!("Invalid subnet {destination}: {error}"),
             })?;
 
     let handle = Handle::new().map_err(|error| ConfigurationError::RouteConfiguration {
-        reason: format!("failed to create route handle: {}", error),
+        reason: format!("failed to create route handle: {error}"),
     })?;
 
     let route = Route::new(subnet.addr(), subnet.prefix_len()).with_ifindex(interface_index);
 
     match handle.delete(&route).await {
-        Ok(_) => {
-            debug!(
-                "Deleted interface route: {} via index {}",
-                destination, interface_index
-            );
+        Ok(()) => {
+            debug!("Deleted interface route: {destination} via index {interface_index}");
             Ok(())
         }
         Err(error)
             if error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(3) =>
         {
             debug!(
-                "Interface route not found: {} via index {} (already removed)",
-                destination, interface_index
+                "Interface route not found: {destination} via index {interface_index} (already removed)"
             );
             Ok(())
         }
         Err(error) => {
             let error_message = format!(
-                "Failed to delete interface route {} via index {}: {}",
-                destination, interface_index, error
+                "Failed to delete interface route {destination} via index {interface_index}: {error}"
             );
-            error!("{}", error_message);
+            error!("{error_message}");
             Err(ConfigurationError::RouteConfiguration {
                 reason: error_message,
             }
@@ -268,7 +243,7 @@ pub async fn update_server_host_route(
     let handle = match Handle::new() {
         Ok(handle) => handle,
         Err(error) => {
-            error!("[RouteMonitor] Failed to create route handle: {}", error);
+            error!("[RouteMonitor] Failed to create route handle: {error}");
             return;
         }
     };
@@ -284,21 +259,18 @@ pub async fn update_server_host_route(
         return;
     }
 
-    info!(
-        "[RouteMonitor] Gateway changed: {:?} -> {:?}",
-        last_gateway, current_gateway
-    );
+    info!("[RouteMonitor] Gateway changed: {last_gateway:?} -> {current_gateway:?}");
     *last_gateway = current_gateway;
 
-    let server_route = format!("{}/32", server_ip);
+    let server_route = format!("{server_ip}/32");
 
     if let Err(error) = delete_default_gateway_route(&server_route).await {
-        error!("[RouteMonitor] Failed to delete old host route: {}", error);
+        error!("[RouteMonitor] Failed to delete old host route: {error}");
     }
 
     if let Err(error) = add_default_gateway_route(&server_route).await {
-        error!("[RouteMonitor] Failed to re-add host route: {}", error);
+        error!("[RouteMonitor] Failed to re-add host route: {error}");
     } else {
-        info!("[RouteMonitor] Host route for {} refreshed.", server_ip);
+        info!("[RouteMonitor] Host route for {server_ip} refreshed.");
     }
 }

@@ -7,7 +7,7 @@ use byocvpn_core::{
 };
 use byocvpn_daemon::daemon_client::UnixDaemonClient;
 use dialoguer::{Select, theme::ColorfulTheme};
-use log::*;
+use log::info;
 
 use crate::{
     error::{CliError, CliResult},
@@ -69,7 +69,7 @@ pub async fn run_disconnect(
     )
     .await?;
 
-    if offer_to_terminate && confirm_termination(&connected_instance).await? {
+    if offer_to_terminate && confirm_termination(&connected_instance)? {
         terminate_server(
             connected_instance.provider,
             &connected_instance.region,
@@ -81,7 +81,7 @@ pub async fn run_disconnect(
     Ok(())
 }
 
-async fn confirm_termination(connected_instance: &ConnectedInstance) -> CliResult<bool> {
+fn confirm_termination(connected_instance: &ConnectedInstance) -> CliResult<bool> {
     if !std::io::stdin().is_terminal() {
         return Ok(false);
     }
@@ -91,7 +91,7 @@ async fn confirm_termination(connected_instance: &ConnectedInstance) -> CliResul
             "Terminate {} in {} as well?",
             connected_instance.instance_id, connected_instance.region
         ))
-        .items(&["No", "Yes"])
+        .items(["No", "Yes"])
         .default(0)
         .interact()?;
 

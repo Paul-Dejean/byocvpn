@@ -1,6 +1,6 @@
 use byocvpn_core::error::{ConfigurationError, Result};
 use handlebars::Handlebars;
-use log::*;
+use log::debug;
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -8,7 +8,7 @@ struct WireguardCloudInitContext {
     wg_config: String,
     status_server_script: &'static str,
 }
-pub(super) fn generate_server_startup_script(
+pub fn generate_server_startup_script(
     server_private_key: &str,
     client_public_key: &str,
 ) -> Result<String> {

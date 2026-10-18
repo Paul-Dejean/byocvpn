@@ -6,10 +6,7 @@ use crate::provider::AwsProviderConfig;
 
 const DEFAULT_REGION: &str = "us-east-1";
 
-pub(super) async fn get_sdk_config(
-    config: &AwsProviderConfig,
-    region: Option<String>,
-) -> SdkConfig {
+pub async fn get_sdk_config(config: &AwsProviderConfig, region: Option<String>) -> SdkConfig {
     let region_provider = match &region {
         Some(r) => RegionProviderChain::first_try(Region::new(r.clone())).or_default_provider(),
         None => RegionProviderChain::default_provider().or_else(Region::new(DEFAULT_REGION)),
@@ -31,6 +28,5 @@ pub(super) async fn get_sdk_config(
         config_loader = config_loader.credentials_provider(provider);
     }
 
-    let config = config_loader.load().await;
-    config
+    config_loader.load().await
 }

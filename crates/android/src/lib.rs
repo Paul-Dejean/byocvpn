@@ -111,7 +111,9 @@ impl<R: Runtime> AndroidVpn<R> {
     }
 
     pub async fn stop(&self) -> Result<(), PluginInvokeError> {
-        self.0.run_mobile_plugin_async::<IgnoredAny>("stop", ()).await?;
+        self.0
+            .run_mobile_plugin_async::<IgnoredAny>("stop", ())
+            .await?;
         Ok(())
     }
 }

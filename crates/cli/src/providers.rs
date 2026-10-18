@@ -8,7 +8,7 @@ use byocvpn_core::{
 use byocvpn_gcp::{GcpProvider, credentials::GcpCredentials};
 use byocvpn_oracle::{OracleProvider, credentials::OracleCredentials};
 use dialoguer::{Select, theme::ColorfulTheme};
-use log::*;
+use log::warn;
 
 use crate::{
     error::{CliError, CliResult},
@@ -21,7 +21,7 @@ pub async fn create_cloud_provider(
     let store = CredentialStore::load().await?;
     let provider: Box<dyn CloudProvider> = match provider_name {
         CloudProviderName::Aws => {
-            Box::new(AwsProvider::new(AwsCredentials::from_store(&store)?.into()).await)
+            Box::new(AwsProvider::new(AwsCredentials::from_store(&store)?.into()))
         }
         CloudProviderName::Azure => Box::new(AzureProvider::new(
             AzureCredentials::from_store(&store)?.into(),
@@ -43,7 +43,7 @@ pub async fn terminate_server(
 ) -> CliResult<()> {
     let provider = create_cloud_provider(provider_name).await?;
     with_step(
-        &format!("Terminating {} in {}", instance_id, region),
+        &format!("Terminating {instance_id} in {region}"),
         commands::terminate::terminate_instance(&*provider, region, instance_id),
     )
     .await?;
@@ -67,7 +67,7 @@ pub async fn resolve_provider_name(
         _ => {
             let labels: Vec<String> = configured_providers
                 .iter()
-                .map(|provider_name| provider_name.to_string())
+                .map(std::string::ToString::to_string)
                 .collect();
 
             let selected_index = Select::with_theme(&ColorfulTheme::default())
@@ -95,7 +95,7 @@ pub async fn list_instances_across_providers(
     .await?;
 
     for failure_message in failure_messages {
-        warn!("{}", failure_message);
+        warn!("{failure_message}");
     }
     Ok(instances)
 }
@@ -119,10 +119,9 @@ async fn collect_instances(
         let provider = create_cloud_provider(provider_name.clone()).await?;
         match commands::list::list_instances(&*provider, region).await {
             Ok(instances) => all_instances.extend(instances),
-            Err(error) => failure_messages.push(format!(
-                "Could not list {} servers: {}",
-                provider_name, error
-            )),
+            Err(error) => {
+                failure_messages.push(format!("Could not list {provider_name} servers: {error}"));
+            }
         }
     }
     Ok((all_instances, failure_messages))

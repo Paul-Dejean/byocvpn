@@ -1,4 +1,4 @@
-use log::*;
+use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -14,9 +14,9 @@ pub async fn setup(provider: &dyn CloudProvider) -> Result<()> {
 }
 
 pub async fn enable_region(provider: &dyn CloudProvider, region: &str) -> Result<()> {
-    info!("Enabling region: {}", region);
+    info!("Enabling region: {region}");
     provider.enable_region(region).await?;
-    info!("Region enabled: {}", region);
+    info!("Region enabled: {region}");
     Ok(())
 }
 
@@ -96,6 +96,6 @@ where
         );
         on_step_progress(&step.id, SpawnStepStatus::Completed, None);
     }
-    info!("All enable-region steps completed for region: {}", region);
+    info!("All enable-region steps completed for region: {region}");
     Ok(())
 }

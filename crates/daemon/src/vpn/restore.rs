@@ -2,14 +2,13 @@ use byocvpn_core::{
     config::get_wireguard_config_file_path, daemon_client::VpnConnectParams,
     wireguard_config::parse_wireguard_config,
 };
-use log::*;
+use log::{info, warn};
 
 use crate::vpn::{connect::connect_vpn, session};
 
 pub async fn try_restore_session() {
-    let persisted_session = match session::read_session() {
-        Some(persisted_session) => persisted_session,
-        None => return,
+    let Some(persisted_session) = session::read_session() else {
+        return;
     };
 
     info!(
@@ -26,10 +25,7 @@ pub async fn try_restore_session() {
     {
         Ok(config_path) => config_path,
         Err(error) => {
-            warn!(
-                "Session restore: could not resolve WireGuard config path: {}",
-                error
-            );
+            warn!("Session restore: could not resolve WireGuard config path: {error}");
             clear_stale_session();
             return;
         }
@@ -47,10 +43,7 @@ pub async fn try_restore_session() {
     let wireguard_config = match parse_wireguard_config(&config_path.to_string_lossy()).await {
         Ok(wireguard_config) => wireguard_config,
         Err(error) => {
-            warn!(
-                "Session restore: failed to parse WireGuard config: {}",
-                error
-            );
+            warn!("Session restore: failed to parse WireGuard config: {error}");
             clear_stale_session();
             return;
         }
@@ -74,15 +67,9 @@ pub async fn try_restore_session() {
     };
 
     match connect_vpn(params).await {
-        Ok(()) => info!(
-            "Session restored successfully for instance {}",
-            restore_instance_id
-        ),
+        Ok(()) => info!("Session restored successfully for instance {restore_instance_id}"),
         Err(error) => {
-            warn!(
-                "Session restore failed for instance {}: {}",
-                restore_instance_id, error
-            );
+            warn!("Session restore failed for instance {restore_instance_id}: {error}");
             clear_stale_session();
         }
     }
@@ -90,6 +77,6 @@ pub async fn try_restore_session() {
 
 fn clear_stale_session() {
     if let Err(error) = session::clear_session() {
-        warn!("Failed to clear stale session file: {}", error);
+        warn!("Failed to clear stale session file: {error}");
     }
 }

@@ -29,7 +29,7 @@ pub struct VpnConnectParams {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum DaemonCommand {
-    Connect(VpnConnectParams),
+    Connect(Box<VpnConnectParams>),
     Disconnect,
     Status,
     Stats,

@@ -17,7 +17,7 @@ use crate::{
     startup_script::generate_server_startup_script,
     state::OciLifecycleState,
 };
-use log::*;
+use log::{debug, info, warn};
 
 const INSTANCE_SHAPE: &str = "VM.Standard.A1.Flex";
 const INSTANCE_OCPUS: f32 = 1.0;
@@ -64,8 +64,7 @@ pub async fn spawn_instance(
     };
 
     debug!(
-        "Launching OCI instance in {} (compartment {}, subnet {})",
-        region, compartment_ocid, subnet_ocid
+        "Launching OCI instance in {region} (compartment {compartment_ocid}, subnet {subnet_ocid})"
     );
     let url = client.build_core_url("/instances");
     let response: InstanceResponse = client.post(&url, &body).await.map_err(|error| {
@@ -76,10 +75,7 @@ pub async fn spawn_instance(
     })?;
 
     let instance_ocid = response.id.clone();
-    debug!(
-        "OCI instance {} created, waiting for RUNNING state",
-        instance_ocid
-    );
+    debug!("OCI instance {instance_ocid} created, waiting for RUNNING state");
     wait_until_running(client, &instance_ocid, region).await?;
 
     let details = get_instance_details(client, &instance_ocid).await?;
@@ -98,10 +94,9 @@ pub async fn spawn_instance(
 }
 
 pub async fn terminate_instance(client: &OciClient, instance_ocid: &str) -> Result<()> {
-    debug!("Terminating OCI instance {}", instance_ocid);
+    debug!("Terminating OCI instance {instance_ocid}");
     let url = client.build_core_url(&format!(
-        "/instances/{}?preserveBootVolume=false",
-        instance_ocid
+        "/instances/{instance_ocid}?preserveBootVolume=false"
     ));
     client.delete(&url).await.map_err(|error| {
         CoreError::from(ComputeProvisioningError::InstanceTerminationFailed {
@@ -109,7 +104,7 @@ pub async fn terminate_instance(client: &OciClient, instance_ocid: &str) -> Resu
             reason: error.to_string(),
         })
     })?;
-    info!("OCI instance {} terminated", instance_ocid);
+    info!("OCI instance {instance_ocid} terminated");
     Ok(())
 }
 
@@ -118,7 +113,7 @@ pub async fn list_instances(
     compartment_ocid: &str,
     region: &str,
 ) -> Result<Vec<InstanceInfo>> {
-    let url = client.build_core_url(&format!("/instances?compartmentId={}", compartment_ocid));
+    let url = client.build_core_url(&format!("/instances?compartmentId={compartment_ocid}"));
     let response: Vec<InstanceResponse> =
         client
             .get(&url)
@@ -134,14 +129,12 @@ pub async fn list_instances(
             instance
                 .display_name
                 .as_deref()
-                .map(|name| name.contains("byocvpn"))
-                .unwrap_or(false)
+                .is_some_and(|name| name.contains("byocvpn"))
                 || instance
                     .freeform_tags
                     .as_ref()
                     .and_then(|tags| tags.get("created-by"))
-                    .map(|value| value == "byocvpn")
-                    .unwrap_or(false)
+                    .is_some_and(|value| value == "byocvpn")
         })
         .map(|instance| build_instance_info(&instance, region))
         .filter(|instance| {
@@ -175,8 +168,7 @@ async fn get_first_availability_domain(
     compartment_ocid: &str,
 ) -> Result<String> {
     let url = client.build_identity_url(&format!(
-        "/availabilityDomains?compartmentId={}",
-        compartment_ocid
+        "/availabilityDomains?compartmentId={compartment_ocid}"
     ));
     let domains: Vec<AvailabilityDomain> = client.get(&url).await?;
     domains
@@ -193,7 +185,7 @@ async fn get_first_availability_domain(
 }
 
 async fn get_instance_details(client: &OciClient, instance_ocid: &str) -> Result<InstanceResponse> {
-    let url = client.build_core_url(&format!("/instances/{}", instance_ocid));
+    let url = client.build_core_url(&format!("/instances/{instance_ocid}"));
     client.get(&url).await
 }
 
@@ -210,7 +202,7 @@ async fn wait_until_running(client: &OciClient, instance_ocid: &str, _region: &s
                 not_found_count = 0;
                 match details.lifecycle_state.as_str() {
                     "RUNNING" => {
-                        debug!("Instance {} reached RUNNING state", instance_ocid);
+                        debug!("Instance {instance_ocid} reached RUNNING state");
                         return Ok(());
                     }
                     "TERMINATED" | "TERMINATING" => {
@@ -231,15 +223,14 @@ async fn wait_until_running(client: &OciClient, instance_ocid: &str, _region: &s
                     return Err(error);
                 }
                 warn!(
-                    "Instance {} not yet visible (attempt {}/{}): {}",
-                    instance_ocid, not_found_count, MAX_NOT_FOUND_RETRIES, error
+                    "Instance {instance_ocid} not yet visible (attempt {not_found_count}/{MAX_NOT_FOUND_RETRIES}): {error}"
                 );
             }
         }
         sleep(Duration::from_secs(5)).await;
     }
     Err(ComputeProvisioningError::InstanceWaitFailed {
-        reason: format!("Instance {} did not become RUNNING in time", instance_ocid),
+        reason: format!("Instance {instance_ocid} did not become RUNNING in time"),
     }
     .into())
 }
@@ -250,14 +241,10 @@ async fn get_public_ips(
     compartment_ocid: &str,
 ) -> (String, String) {
     let vnic_url = client.build_core_url(&format!(
-        "/vnicAttachments?compartmentId={}&instanceId={}",
-        compartment_ocid, instance_ocid
+        "/vnicAttachments?compartmentId={compartment_ocid}&instanceId={instance_ocid}"
     ));
     let Ok(vnic_attachments): Result<Vec<VnicAttachment>> = client.get(&vnic_url).await else {
-        warn!(
-            "Failed to fetch VNIC attachments for instance {}",
-            instance_ocid
-        );
+        warn!("Failed to fetch VNIC attachments for instance {instance_ocid}");
         return (String::new(), String::new());
     };
     let Some(vnic_ocid) = vnic_attachments
@@ -265,16 +252,13 @@ async fn get_public_ips(
         .next()
         .map(|attachment| attachment.vnic_id)
     else {
-        warn!("No VNIC attachment found for instance {}", instance_ocid);
+        warn!("No VNIC attachment found for instance {instance_ocid}");
         return (String::new(), String::new());
     };
 
-    let vnic_url = client.build_core_url(&format!("/vnics/{}", vnic_ocid));
+    let vnic_url = client.build_core_url(&format!("/vnics/{vnic_ocid}"));
     let Ok(vnic): Result<Vnic> = client.get(&vnic_url).await else {
-        warn!(
-            "Failed to fetch VNIC details for {} (instance {})",
-            vnic_ocid, instance_ocid
-        );
+        warn!("Failed to fetch VNIC details for {vnic_ocid} (instance {instance_ocid})");
         return (String::new(), String::new());
     };
     let public_ip_v4 = vnic.public_ip.unwrap_or_default();

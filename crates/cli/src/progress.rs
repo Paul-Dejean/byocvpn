@@ -40,5 +40,5 @@ fn finish_step(spinner: &ProgressBar, message: &str, succeeded: bool) {
         ProgressStyle::with_template("{msg}").unwrap_or_else(|_| ProgressStyle::default_bar()),
     );
     let symbol = if succeeded { "✔" } else { "✘" };
-    spinner.finish_with_message(format!("{} {}", symbol, message));
+    spinner.finish_with_message(format!("{symbol} {message}"));
 }

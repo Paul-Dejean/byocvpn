@@ -1,5 +1,5 @@
 use byocvpn_core::error::{Result, SystemError};
-use log::*;
+use log::{debug, error, info, warn};
 
 use crate::{
     firewall, routing::routes::remove_vpn_routes, tunnel_manager::TUNNEL_MANAGER, vpn::session,
@@ -17,26 +17,25 @@ pub async fn disconnect_vpn() -> Result<()> {
             "[VPN Disconnect] No active tunnel in memory (daemon restarted?), clearing firewall rules."
         );
         if let Err(error) = firewall::remove() {
-            warn!("[VPN Disconnect] Kill switch removal failed: {}", error);
+            warn!("[VPN Disconnect] Kill switch removal failed: {error}");
         }
         if let Err(error) = session::clear_session() {
-            warn!("[VPN Disconnect] Failed to clear session file: {}", error);
+            warn!("[VPN Disconnect] Failed to clear session file: {error}");
         }
         return Ok(());
     };
 
     match handle.route_monitor_shutdown.send(()) {
-        Ok(_) => debug!("[VPN Disconnect] Shutdown signal sent to route monitor."),
+        Ok(()) => debug!("[VPN Disconnect] Shutdown signal sent to route monitor."),
         Err(_) => warn!(
             "[VPN Disconnect] Failed to send shutdown signal (route monitor likely already stopped)."
         ),
     }
     match handle.route_monitor_task.await {
-        Ok(_) => info!("[VPN Disconnect] Route monitor stopped."),
-        Err(error) => warn!(
-            "[VPN Disconnect] Route monitor task panicked while shutting down: {:?}",
-            error
-        ),
+        Ok(()) => info!("[VPN Disconnect] Route monitor stopped."),
+        Err(error) => {
+            warn!("[VPN Disconnect] Route monitor task panicked while shutting down: {error:?}");
+        }
     }
 
     remove_vpn_routes(handle.interface_index, &handle.server_ip).await;
@@ -44,47 +43,45 @@ pub async fn disconnect_vpn() -> Result<()> {
 
     if let Some(mut dns_override_guard) = handle.dns_override_guard.take() {
         match dns_override_guard.restore_previous_dns_configuration() {
-            Ok(_) => info!("[VPN Disconnect] Restored original DNS."),
+            Ok(()) => info!("[VPN Disconnect] Restored original DNS."),
             Err(error) => warn!("[VPN Disconnect] Failed to restore DNS: {error}"),
         }
     }
 
     match handle.shutdown.send(()) {
-        Ok(_) => debug!("[VPN Disconnect] Shutdown signal sent to tunnel task."),
+        Ok(()) => debug!("[VPN Disconnect] Shutdown signal sent to tunnel task."),
         Err(_) => warn!(
             "[VPN Disconnect] Failed to send shutdown signal (tunnel task likely already stopped)."
         ),
     }
 
     match handle.metrics_shutdown.send(()) {
-        Ok(_) => debug!("[VPN Disconnect] Shutdown signal sent to metrics broadcaster."),
+        Ok(()) => debug!("[VPN Disconnect] Shutdown signal sent to metrics broadcaster."),
         Err(_) => warn!(
             "[VPN Disconnect] Failed to send shutdown signal (metrics broadcaster likely already stopped)."
         ),
     }
 
     match handle.task.await {
-        Ok(_) => debug!("[VPN Disconnect] Tunnel task stopped."),
-        Err(error) => error!(
-            "[VPN Disconnect] Tunnel task panicked while shutting down: {:?}",
-            error
-        ),
+        Ok(()) => debug!("[VPN Disconnect] Tunnel task stopped."),
+        Err(error) => {
+            error!("[VPN Disconnect] Tunnel task panicked while shutting down: {error:?}");
+        }
     }
 
     match handle.metrics_task.await {
-        Ok(_) => debug!("[VPN Disconnect] Metrics task stopped."),
-        Err(error) => warn!(
-            "[VPN Disconnect] Metrics task panicked while shutting down: {:?}",
-            error
-        ),
+        Ok(()) => debug!("[VPN Disconnect] Metrics task stopped."),
+        Err(error) => {
+            warn!("[VPN Disconnect] Metrics task panicked while shutting down: {error:?}");
+        }
     }
 
     if let Err(error) = firewall::remove() {
-        warn!("[VPN Disconnect] Kill switch removal failed: {}", error);
+        warn!("[VPN Disconnect] Kill switch removal failed: {error}");
     }
 
     if let Err(error) = session::clear_session() {
-        warn!("[VPN Disconnect] Failed to clear session file: {}", error);
+        warn!("[VPN Disconnect] Failed to clear session file: {error}");
     }
 
     info!("[VPN Disconnect] VPN disconnected.");

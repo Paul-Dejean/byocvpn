@@ -7,7 +7,7 @@ use byocvpn_core::{
 use serde_json::Value;
 
 use crate::constants;
-use log::*;
+use log::{debug, info};
 
 pub struct UnixDaemonClient;
 
@@ -23,7 +23,7 @@ impl DaemonClient for UnixDaemonClient {
 
         let serialized_command =
             serde_json::to_string(&command).map_err(|error| DaemonError::SocketError {
-                reason: format!("failed to serialize command: {}", error),
+                reason: format!("failed to serialize command: {error}"),
             })?;
         stream.send_message(&serialized_command).await?;
 
@@ -37,7 +37,7 @@ impl DaemonClient for UnixDaemonClient {
 
         let response = serde_json::from_str::<DaemonResponse>(&raw_response).map_err(|error| {
             DaemonError::InvalidResponse {
-                reason: format!("failed to parse daemon response: {}", error),
+                reason: format!("failed to parse daemon response: {error}"),
             }
         })?;
 
@@ -53,28 +53,24 @@ impl DaemonClient for UnixDaemonClient {
         match IpcStream::connect(&socket_path).await {
             Ok(mut stream) => {
                 let health_command = DaemonCommand::HealthCheck;
-                let health_message = match serde_json::to_string(&health_command) {
-                    Ok(serialized) => serialized,
-                    Err(_) => return false,
+                let Ok(health_message) = serde_json::to_string(&health_command) else {
+                    return false;
                 };
 
                 if stream.send_message(&health_message).await.is_err() {
                     return false;
                 }
 
-                match stream.read_message().await {
-                    Ok(Some(_)) => {
-                        info!("Daemon is healthy at {}", socket_path.to_string_lossy());
-                        true
-                    }
-                    _ => {
-                        debug!("Daemon did not respond to health check");
-                        false
-                    }
+                if let Ok(Some(_)) = stream.read_message().await {
+                    info!("Daemon is healthy at {}", socket_path.to_string_lossy());
+                    true
+                } else {
+                    debug!("Daemon did not respond to health check");
+                    false
                 }
             }
             Err(error) => {
-                debug!("Daemon connection error: {:?}", error);
+                debug!("Daemon connection error: {error:?}");
                 false
             }
         }

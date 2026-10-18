@@ -1,7 +1,7 @@
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
-use log::*;
+use log::info;
 use tokio::{fs, io::AsyncWriteExt};
 
 use crate::{
@@ -11,9 +11,10 @@ use crate::{
     },
     config::{generate_client_config, get_wireguard_config_file_path},
     connectivity,
-    error::{ConfigurationError, Result},
+    error::{ComputeProvisioningError, ConfigurationError, Result},
 };
 
+#[allow(clippy::too_many_arguments)]
 pub async fn run_spawn_steps<F1, F2>(
     provider: &dyn CloudProvider,
     steps: &[SpawnStep],
@@ -72,7 +73,9 @@ where
             "wireguard_ready" => {
                 let instance_ip = spawned_instance
                     .as_ref()
-                    .expect("launch step must precede wireguard_ready")
+                    .ok_or_else(|| ComputeProvisioningError::LaunchStepMissing {
+                        step: "wireguard_ready".to_string(),
+                    })?
                     .public_ip_v4
                     .clone();
                 on_step_progress("wireguard_ready", SpawnStepStatus::Running, None);
@@ -98,7 +101,12 @@ where
         }
     }
 
-    Ok(spawned_instance.expect("launch step must have run"))
+    spawned_instance.ok_or_else(|| {
+        ComputeProvisioningError::LaunchStepMissing {
+            step: "completion".to_string(),
+        }
+        .into()
+    })
 }
 
 pub async fn launch_instance(
@@ -140,12 +148,12 @@ pub async fn write_wireguard_config(
     let mut file = fs::File::create(wireguard_file_path.clone())
         .await
         .map_err(|error| ConfigurationError::TunnelConfiguration {
-            reason: format!("failed to create config file: {}", error),
+            reason: format!("failed to create config file: {error}"),
         })?;
     file.write_all(client_config.as_bytes())
         .await
         .map_err(|error| ConfigurationError::TunnelConfiguration {
-            reason: format!("failed to write config file: {}", error),
+            reason: format!("failed to write config file: {error}"),
         })?;
 
     #[cfg(unix)]
@@ -153,19 +161,19 @@ pub async fn write_wireguard_config(
         let metadata = fs::metadata(wireguard_file_path.clone())
             .await
             .map_err(|error| ConfigurationError::TunnelConfiguration {
-                reason: format!("failed to read config file metadata: {}", error),
+                reason: format!("failed to read config file metadata: {error}"),
             })?;
         let mut perms = metadata.permissions();
         perms.set_mode(0o600);
         fs::set_permissions(wireguard_file_path.clone(), perms)
             .await
             .map_err(|error| ConfigurationError::TunnelConfiguration {
-                reason: format!("failed to set config file permissions: {}", error),
+                reason: format!("failed to set config file permissions: {error}"),
             })?;
     }
 
     if let Some(path_str) = wireguard_file_path.to_str() {
-        info!("Client config written to {}", path_str);
+        info!("Client config written to {path_str}");
     }
 
     Ok(())

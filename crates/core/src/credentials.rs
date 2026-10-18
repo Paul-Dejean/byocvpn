@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use ini::Ini;
-use log::*;
+use log::debug;
 use tokio::fs::{create_dir_all, try_exists};
 
 use crate::{
@@ -14,14 +14,14 @@ async fn get_credentials_path() -> Result<PathBuf> {
     if !try_exists(&dir)
         .await
         .map_err(|error| CredentialsError::FileReadFailed {
-            reason: format!("failed to check credentials directory: {}", error),
+            reason: format!("failed to check credentials directory: {error}"),
         })?
     {
         debug!("Creating credentials directory: {}", dir.display());
         create_dir_all(&dir)
             .await
             .map_err(|error| CredentialsError::FileSaveFailed {
-                reason: format!("failed to create credentials directory: {}", error),
+                reason: format!("failed to create credentials directory: {error}"),
             })?;
     }
     Ok(dir.join("credentials"))
@@ -75,7 +75,7 @@ impl CredentialStore {
 
     pub fn require(&self, section: &str, key: &str) -> Result<String> {
         self.get(section, key)
-            .map(|value| value.to_string())
+            .map(std::string::ToString::to_string)
             .ok_or_else(|| {
                 CredentialsError::MissingField {
                     field: key.to_string(),

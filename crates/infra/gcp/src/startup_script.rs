@@ -1,6 +1,6 @@
 use byocvpn_core::error::{ConfigurationError, Result};
 use handlebars::Handlebars;
-use log::*;
+use log::debug;
 use serde::Serialize;
 
 #[derive(Serialize)]

@@ -5,7 +5,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::from_str;
 
 use crate::auth::fetch_bearer_token;
-use log::*;
+use log::{debug, error};
 
 pub struct GcpClient {
     http_client: HttpClient,
@@ -34,7 +34,7 @@ impl GcpClient {
     }
 
     pub async fn get<T: DeserializeOwned>(&self, url: &str) -> Result<T> {
-        debug!("[GCP] GET {}", url);
+        debug!("[GCP] GET {url}");
         let token = self.get_bearer_token().await?;
         let response = self
             .http_client
@@ -43,13 +43,13 @@ impl GcpClient {
             .send()
             .await
             .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("GCP GET {} failed: {}", url, error),
+                reason: format!("GCP GET {url} failed: {error}"),
             })?;
         parse_response("GET", url, response).await
     }
 
     pub async fn post<B: Serialize, T: DeserializeOwned>(&self, url: &str, body: &B) -> Result<T> {
-        debug!("[GCP] POST {}", url);
+        debug!("[GCP] POST {url}");
         let token = self.get_bearer_token().await?;
         let response = self
             .http_client
@@ -59,13 +59,13 @@ impl GcpClient {
             .send()
             .await
             .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("GCP POST {} failed: {}", url, error),
+                reason: format!("GCP POST {url} failed: {error}"),
             })?;
         parse_response("POST", url, response).await
     }
 
     pub async fn patch<B: Serialize, T: DeserializeOwned>(&self, url: &str, body: &B) -> Result<T> {
-        debug!("[GCP] PATCH {}", url);
+        debug!("[GCP] PATCH {url}");
         let token = self.get_bearer_token().await?;
         let response = self
             .http_client
@@ -75,13 +75,13 @@ impl GcpClient {
             .send()
             .await
             .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("GCP PATCH {} failed: {}", url, error),
+                reason: format!("GCP PATCH {url} failed: {error}"),
             })?;
         parse_response("PATCH", url, response).await
     }
 
     pub async fn delete(&self, url: &str) -> Result<()> {
-        debug!("[GCP] DELETE {}", url);
+        debug!("[GCP] DELETE {url}");
         let token = self.get_bearer_token().await?;
         let response = self
             .http_client
@@ -90,7 +90,7 @@ impl GcpClient {
             .send()
             .await
             .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("GCP DELETE {} failed: {}", url, error),
+                reason: format!("GCP DELETE {url} failed: {error}"),
             })?;
         let status = response.status();
         if status.is_success() || status == StatusCode::NOT_FOUND {
@@ -98,7 +98,7 @@ impl GcpClient {
         }
         let body = response.text().await.unwrap_or_default();
         Err(NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!("GCP DELETE {} returned {}: {}", url, status, body),
+            reason: format!("GCP DELETE {url} returned {status}: {body}"),
         }
         .into())
     }
@@ -115,11 +115,11 @@ async fn parse_response<T: DeserializeOwned>(
             .text()
             .await
             .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Failed to read GCP response body: {}", error),
+                reason: format!("Failed to read GCP response body: {error}"),
             })?;
 
     if status.is_success() {
-        debug!("[GCP] {} {} → {}", method, url, status);
+        debug!("[GCP] {method} {url} → {status}");
         let json_str = if body.is_empty() {
             "null"
         } else {
@@ -127,7 +127,7 @@ async fn parse_response<T: DeserializeOwned>(
         };
         from_str(json_str).map_err(|error| {
             NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Failed to parse GCP JSON: {} — body: {}", error, body),
+                reason: format!("Failed to parse GCP JSON: {error} — body: {body}"),
             }
             .into()
         })
@@ -137,9 +137,9 @@ async fn parse_response<T: DeserializeOwned>(
         }
         .into())
     } else {
-        error!("[GCP] {} {} → {} — {}", method, url, status, body);
+        error!("[GCP] {method} {url} → {status} — {body}");
         Err(NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!("GCP {} {} error {}: {}", method, url, status, body),
+            reason: format!("GCP {method} {url} error {status}: {body}"),
         }
         .into())
     }

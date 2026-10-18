@@ -20,7 +20,7 @@ use byocvpn_core::{
 use byocvpn_gcp::{GcpProvider, credentials::GcpCredentials, pricing as gcp_pricing};
 use byocvpn_oracle::{credentials::OracleCredentials, pricing as oracle_pricing};
 use chrono::Utc;
-use log::*;
+use log::{debug, error, warn};
 use serde::Serialize;
 use tauri::{AppHandle, Manager, ipc::Channel};
 use tauri_plugin_notification::NotificationExt;
@@ -31,14 +31,12 @@ use crate::provider_store::ProviderStore;
 use crate::spawn_job_registry::{SpawnJobRegistry, SpawnJobState};
 use crate::vpn_backend::{self, publish_vpn_status};
 
-pub(crate) async fn create_cloud_provider(
-    provider: CloudProviderName,
-) -> Result<Box<dyn CloudProvider>> {
-    debug!("Creating {} cloud provider", provider);
+pub async fn create_cloud_provider(provider: CloudProviderName) -> Result<Box<dyn CloudProvider>> {
+    debug!("Creating {provider} cloud provider");
     let store = CredentialStore::load().await?;
     let provider: Box<dyn CloudProvider> = match provider {
         CloudProviderName::Aws => {
-            Box::new(AwsProvider::new(AwsCredentials::from_store(&store)?.into()).await)
+            Box::new(AwsProvider::new(AwsCredentials::from_store(&store)?.into()))
         }
         CloudProviderName::Oracle => Box::new(byocvpn_oracle::OracleProvider::new(
             OracleCredentials::from_store(&store)?.into(),
@@ -56,9 +54,8 @@ pub(crate) async fn create_cloud_provider(
 #[tauri::command]
 #[specta::specta]
 pub async fn get_credentials(provider: CloudProviderName) -> Result<Option<ProviderCredentials>> {
-    let store = match CredentialStore::load().await {
-        Ok(store) => store,
-        Err(_) => return Ok(None),
+    let Ok(store) = CredentialStore::load().await else {
+        return Ok(None);
     };
     Ok(ProviderCredentials::load(provider, &store).ok())
 }
@@ -86,10 +83,7 @@ pub async fn delete_credentials(provider: CloudProviderName, app_handle: AppHand
     if let Some(provider_store) = ProviderStore::open(&app_handle) {
         provider_store.clear_provisioned(&provider.to_string());
     } else {
-        debug!(
-            "Provider store unavailable when deleting credentials for {}",
-            provider
-        );
+        debug!("Provider store unavailable when deleting credentials for {provider}");
     }
     Ok(())
 }
@@ -251,7 +245,7 @@ pub async fn spawn_instance(
 
 fn send_spawn_instance_event(channel: &Channel<SpawnInstanceEvent>, event: SpawnInstanceEvent) {
     if let Err(error) = channel.send(event) {
-        warn!("Failed to send spawn-instance event: {}", error);
+        warn!("Failed to send spawn-instance event: {error}");
     }
 }
 
@@ -272,7 +266,7 @@ fn notify_server_deployed(app_handle: &AppHandle, instance: &InstanceInfo) {
         .body(&body)
         .show()
     {
-        warn!("Failed to send server-deployed notification: {}", error);
+        warn!("Failed to send server-deployed notification: {error}");
     }
 }
 
@@ -312,7 +306,7 @@ pub async fn terminate_instance(
         ledger.mark_terminated(&instance_id);
     }
 
-    Ok(format!("Instance {} terminated successfully.", instance_id))
+    Ok(format!("Instance {instance_id} terminated successfully."))
 }
 
 #[tauri::command]
@@ -323,37 +317,17 @@ pub async fn list_instances(
 ) -> Result<Vec<InstanceInfo>> {
     let region_ref = region.as_deref();
 
-    async fn list_provider_instances(
-        provider: CloudProviderName,
-        region: Option<&str>,
-    ) -> (CloudProviderName, Option<Vec<InstanceInfo>>) {
-        match create_cloud_provider(provider.clone()).await {
-            Ok(cloud_provider) => {
-                match commands::list::list_instances(&*cloud_provider, region).await {
-                    Ok(instances) => (provider, Some(instances)),
-                    Err(error) => {
-                        error!("Failed to list {} instances: {}", provider, error);
-                        (provider, None)
-                    }
-                }
-            }
-            Err(error) => {
-                debug!("No credentials for {}, skipping: {}", provider, error);
-                (provider, None)
-            }
-        }
-    }
-
-    let (r_aws, r_oracle, r_gcp, r_azure) = tokio::join!(
+    let provider_results: [(CloudProviderName, Option<Vec<InstanceInfo>>); 4] = tokio::join!(
         list_provider_instances(CloudProviderName::Aws, region_ref),
         list_provider_instances(CloudProviderName::Oracle, region_ref),
         list_provider_instances(CloudProviderName::Gcp, region_ref),
         list_provider_instances(CloudProviderName::Azure, region_ref),
-    );
+    )
+    .into();
 
     let mut all_instances: Vec<InstanceInfo> = Vec::new();
     let mut queried_providers: Vec<CloudProviderName> = Vec::new();
-    for (provider, result) in [r_aws, r_oracle, r_gcp, r_azure] {
+    for (provider, result) in provider_results {
         if let Some(instances) = result {
             queried_providers.push(provider);
             all_instances.extend(instances);
@@ -414,12 +388,32 @@ pub async fn list_instances(
     Ok(all_instances)
 }
 
+async fn list_provider_instances(
+    provider: CloudProviderName,
+    region: Option<&str>,
+) -> (CloudProviderName, Option<Vec<InstanceInfo>>) {
+    match create_cloud_provider(provider.clone()).await {
+        Ok(cloud_provider) => {
+            match commands::list::list_instances(&*cloud_provider, region).await {
+                Ok(instances) => (provider, Some(instances)),
+                Err(error) => {
+                    error!("Failed to list {provider} instances: {error}");
+                    (provider, None)
+                }
+            }
+        }
+        Err(error) => {
+            debug!("No credentials for {provider}, skipping: {error}");
+            (provider, None)
+        }
+    }
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn has_profile() -> Result<bool> {
-    let store = match CredentialStore::load().await {
-        Ok(store) => store,
-        Err(_) => return Ok(false),
+    let Ok(store) = CredentialStore::load().await else {
+        return Ok(false);
     };
     Ok(AwsCredentials::from_store(&store).is_ok()
         || OracleCredentials::from_store(&store).is_ok()
@@ -494,10 +488,7 @@ pub async fn provision_account(
                 if let Some(provider_store) = ProviderStore::open(&app_handle) {
                     provider_store.mark_provisioned(&provider.to_string());
                 } else {
-                    debug!(
-                        "Provider store unavailable when marking {} provisioned",
-                        provider
-                    );
+                    debug!("Provider store unavailable when marking {provider} provisioned");
                 }
                 send_provision_account_event(
                     &on_event,
@@ -525,7 +516,7 @@ fn send_provision_account_event(
     event: ProvisionAccountEvent,
 ) {
     if let Err(error) = channel.send(event) {
-        warn!("Failed to send provision-account event: {}", error);
+        warn!("Failed to send provision-account event: {error}");
     }
 }
 
@@ -599,8 +590,7 @@ pub async fn enable_region(
                     provider_store.mark_region_enabled(&provider.to_string(), &region);
                 } else {
                     debug!(
-                        "Provider store unavailable when marking region {} enabled for {}",
-                        region, provider
+                        "Provider store unavailable when marking region {region} enabled for {provider}"
                     );
                 }
                 send_enable_region_event(&on_event, EnableRegionEvent::Complete { region });
@@ -621,7 +611,7 @@ pub async fn enable_region(
 
 fn send_enable_region_event(channel: &Channel<EnableRegionEvent>, event: EnableRegionEvent) {
     if let Err(error) = channel.send(event) {
-        warn!("Failed to send enable-region event: {}", error);
+        warn!("Failed to send enable-region event: {error}");
     }
 }
 
@@ -632,7 +622,7 @@ pub async fn get_regions(provider: CloudProviderName) -> Result<Vec<Region>> {
     commands::setup::get_regions(&*cloud_provider).await
 }
 
-pub(crate) async fn fetch_vpn_status(app_handle: &AppHandle) -> Result<VpnStatus> {
+pub async fn fetch_vpn_status(app_handle: &AppHandle) -> Result<VpnStatus> {
     commands::status::fetch_vpn_status(&vpn_backend::create_daemon_client(app_handle)).await
 }
 
@@ -650,8 +640,7 @@ pub async fn connect(
     let daemon_client = vpn_backend::create_daemon_client(&app_handle);
 
     let kill_switch_enabled = crate::settings_store::SettingsStore::open(&app_handle)
-        .map(|store| store.load_vpn_settings().session_killswitch)
-        .unwrap_or(true);
+        .is_none_or(|store| store.load_vpn_settings().session_killswitch);
 
     commands::connect::connect(
         &*cloud_provider,
@@ -666,24 +655,20 @@ pub async fn connect(
 
     let vpn_status = fetch_vpn_status(&app_handle).await?;
 
-    if let Some(ref connected_instance) = vpn_status.instance {
-        if let Err(error) = vpn_backend::start_status_stream(
+    if let Some(ref connected_instance) = vpn_status.instance
+        && let Err(error) = vpn_backend::start_status_stream(
             &app_handle,
             connected_instance.clone(),
             vpn_status.connected_at,
         )
         .await
-        {
-            error!("Failed to start metrics stream: {}", error);
-        }
+    {
+        error!("Failed to start metrics stream: {error}");
     }
 
     publish_vpn_status(&app_handle, &vpn_status);
 
-    Ok(format!(
-        "Connected to instance {} successfully.",
-        instance_id
-    ))
+    Ok(format!("Connected to instance {instance_id} successfully."))
 }
 
 #[tauri::command]
@@ -750,7 +735,7 @@ pub async fn get_instance_pricing(
     };
     pricing.ok_or_else(|| {
         ConfigurationError::MissingField {
-            field: format!("pricing/{}/{}", provider, instance_type),
+            field: format!("pricing/{provider}/{instance_type}"),
         }
         .into()
     })
@@ -759,7 +744,7 @@ pub async fn get_instance_pricing(
 #[tauri::command]
 #[specta::specta]
 pub async fn save_file(path: String, content: String) -> Result<()> {
-    debug!("Writing file: {}", path);
+    debug!("Writing file: {path}");
     tokio::fs::write(&path, content)
         .await
         .map_err(|error| -> Error {

@@ -2,7 +2,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use byocvpn_core::{cloud_provider::CloudProviderName, ledger::LedgerEntry};
 use chrono::{DateTime, Utc};
-use log::*;
+use log::warn;
 use tauri::{AppHandle, Wry};
 use tauri_plugin_store::{Store, StoreExt};
 
@@ -22,15 +22,24 @@ impl LedgerStore {
     }
 
     pub fn mark_terminated(&self, instance_id: &str) {
-        self.modify_entry(instance_id, |entry| entry.mark_terminated());
+        self.modify_entry(
+            instance_id,
+            byocvpn_core::ledger::LedgerEntry::mark_terminated,
+        );
     }
 
     pub fn mark_setup_complete(&self, instance_id: &str) {
-        self.modify_entry(instance_id, |entry| entry.mark_setup_complete());
+        self.modify_entry(
+            instance_id,
+            byocvpn_core::ledger::LedgerEntry::mark_setup_complete,
+        );
     }
 
     pub fn mark_connected(&self, instance_id: &str) {
-        self.modify_entry(instance_id, |entry| entry.mark_connected());
+        self.modify_entry(
+            instance_id,
+            byocvpn_core::ledger::LedgerEntry::mark_connected,
+        );
     }
 
     pub fn mark_idle_since(&self, instance_id: &str, idle_since: DateTime<Utc>) {
@@ -39,7 +48,7 @@ impl LedgerStore {
 
     pub fn update_metrics(&self, instance_id: &str, bytes_sent: u64, bytes_received: u64) {
         self.modify_entry(instance_id, |entry| {
-            entry.update_metrics(bytes_sent, bytes_received)
+            entry.update_metrics(bytes_sent, bytes_received);
         });
     }
 
@@ -58,10 +67,6 @@ impl LedgerStore {
             }
         }
         self.persist();
-    }
-
-    pub fn get_entry(&self, instance_id: &str) -> Option<LedgerEntry> {
-        self.deserialize_entry(instance_id)
     }
 
     pub fn running_entries(&self) -> Vec<LedgerEntry> {
@@ -92,7 +97,7 @@ impl LedgerStore {
         self.0.set(
             LedgerEntry::build_store_key(&entry.instance_id),
             serde_json::to_value(entry).unwrap_or_else(|error| {
-                warn!("Failed to serialize ledger entry: {}", error);
+                warn!("Failed to serialize ledger entry: {error}");
                 serde_json::Value::Null
             }),
         );
@@ -100,7 +105,7 @@ impl LedgerStore {
 
     fn persist(&self) {
         if let Err(error) = self.0.save() {
-            warn!("Failed to save ledger store: {}", error);
+            warn!("Failed to save ledger store: {error}");
         }
     }
 

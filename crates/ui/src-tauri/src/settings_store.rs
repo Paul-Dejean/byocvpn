@@ -18,8 +18,7 @@ const AUTO_TERMINATE_UNIT_KEY: &str = "autoTerminateUnit";
 const DEFAULT_AUTO_TERMINATE_THRESHOLD_MINUTES: u64 = 720;
 const DEFAULT_AUTO_TERMINATE_UNIT: DurationUnit = DurationUnit::Hours;
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[derive(specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum DurationUnit {
     Minutes,
@@ -27,10 +26,10 @@ pub enum DurationUnit {
 }
 
 impl DurationUnit {
-    fn as_str(self) -> &'static str {
+    const fn as_str(self) -> &'static str {
         match self {
-            DurationUnit::Minutes => "minutes",
-            DurationUnit::Hours => "hours",
+            Self::Minutes => "minutes",
+            Self::Hours => "hours",
         }
     }
 }
@@ -137,7 +136,7 @@ impl SettingsStore {
             serde_json::Value::String(settings.notification_unit.as_str().to_string()),
         );
         if let Err(error) = self.0.save() {
-            warn!("Failed to save notification settings: {}", error);
+            warn!("Failed to save notification settings: {error}");
         }
     }
 
@@ -181,7 +180,7 @@ impl SettingsStore {
             serde_json::Value::String(settings.auto_terminate_unit.as_str().to_string()),
         );
         if let Err(error) = self.0.save() {
-            warn!("Failed to save auto-terminate settings: {}", error);
+            warn!("Failed to save auto-terminate settings: {error}");
         }
     }
 
@@ -201,7 +200,7 @@ impl SettingsStore {
             serde_json::Value::Bool(settings.session_killswitch),
         );
         if let Err(error) = self.0.save() {
-            warn!("Failed to save VPN settings: {}", error);
+            warn!("Failed to save VPN settings: {error}");
         }
     }
 }

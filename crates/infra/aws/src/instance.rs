@@ -10,7 +10,7 @@ use byocvpn_core::{
     error::{ComputeProvisioningError, Result},
 };
 use chrono::{DateTime, Utc};
-use log::*;
+use log::{debug, info};
 use tokio::time::Duration;
 
 use crate::{
@@ -27,7 +27,7 @@ const TAG_CREATED_BY_KEY: &str = "created-by";
 const TAG_CREATED_BY_VALUE: &str = "byocvpn";
 const TAG_SPAWN_ID_KEY: &str = "byocvpn-spawn-id";
 
-pub(super) async fn spawn_instance(
+pub async fn spawn_instance(
     ec2_client: &Ec2Client,
     ssm_client: &SsmClient,
     region: &str,
@@ -46,14 +46,14 @@ pub(super) async fn spawn_instance(
     debug!("Generated startup script ({} bytes)", user_data.len());
     let encoded_user_data = general_purpose::STANDARD.encode(user_data);
 
-    let ami_id = get_al2023_ami(&ssm_client).await?;
-    debug!("Resolved AL2023 AMI: {}", ami_id);
+    let ami_id = get_al2023_ami(ssm_client).await?;
+    debug!("Resolved AL2023 AMI: {ami_id}");
 
     let security_group_id =
         network::ensure_security_group(ec2_client, &vpc_id, SECURITY_GROUP_NAME, "BYOC VPN server")
             .await?;
 
-    debug!("Resolved security group: {}", security_group_id);
+    debug!("Resolved security group: {security_group_id}");
 
     let tags = TagSpecification::builder()
         .resource_type(ResourceType::Instance)
@@ -90,10 +90,10 @@ pub(super) async fn spawn_instance(
     let instance = response
         .instances()
         .first()
-        .ok_or_else(|| ComputeProvisioningError::NoInstanceInResponse)?;
+        .ok_or(ComputeProvisioningError::NoInstanceInResponse)?;
     let instance_id = instance
         .instance_id()
-        .ok_or_else(|| ComputeProvisioningError::MissingInstanceIdentifier)?
+        .ok_or(ComputeProvisioningError::MissingInstanceIdentifier)?
         .to_string();
 
     ec2_client
@@ -118,23 +118,20 @@ pub(super) async fn spawn_instance(
     let public_ip_v4 = desc
         .reservations()
         .iter()
-        .flat_map(|reservation| reservation.instances())
-        .filter_map(|instance| instance.public_ip_address())
-        .next()
-        .ok_or_else(|| ComputeProvisioningError::MissingPublicIpv4)?
+        .flat_map(aws_sdk_ec2::types::Reservation::instances)
+        .find_map(|instance| instance.public_ip_address())
+        .ok_or(ComputeProvisioningError::MissingPublicIpv4)?
         .to_string();
 
     let public_ip_v6 = desc
         .reservations()
         .iter()
-        .flat_map(|reservation| reservation.instances())
-        .filter_map(|instance| instance.ipv6_address())
-        .next()
-        .ok_or_else(|| ComputeProvisioningError::MissingPublicIpv6)?
+        .flat_map(aws_sdk_ec2::types::Reservation::instances)
+        .find_map(|instance| instance.ipv6_address())
+        .ok_or(ComputeProvisioningError::MissingPublicIpv6)?
         .to_string();
     info!(
-        "AWS instance {} spawned in {} — IPv4: {}, IPv6: {}",
-        instance_id, region, public_ip_v4, public_ip_v6
+        "AWS instance {instance_id} spawned in {region} — IPv4: {public_ip_v4}, IPv6: {public_ip_v6}"
     );
 
     Ok(InstanceInfo {
@@ -153,7 +150,7 @@ pub(super) async fn spawn_instance(
 }
 
 pub async fn terminate_instance(ec2_client: &Ec2Client, instance_id: &str) -> Result<()> {
-    debug!("Terminating AWS instance {}", instance_id);
+    debug!("Terminating AWS instance {instance_id}");
     ec2_client
         .terminate_instances()
         .instance_ids(instance_id)
@@ -166,20 +163,20 @@ pub async fn terminate_instance(ec2_client: &Ec2Client, instance_id: &str) -> Re
             },
         )?;
 
-    info!("AWS instance {} terminated", instance_id);
+    info!("AWS instance {instance_id} terminated");
     Ok(())
 }
 
-pub(super) async fn list_instances_in_region(
+pub async fn list_instances_in_region(
     ec2_client: &Ec2Client,
     region: &str,
 ) -> Result<Vec<InstanceInfo>> {
-    debug!("Listing EC2 instances in region {}", region);
+    debug!("Listing EC2 instances in region {region}");
     let response = ec2_client
         .describe_instances()
         .filters(
             Filter::builder()
-                .name(format!("tag:{}", TAG_CREATED_BY_KEY))
+                .name(format!("tag:{TAG_CREATED_BY_KEY}"))
                 .values(TAG_CREATED_BY_VALUE)
                 .build(),
         )
@@ -201,14 +198,16 @@ pub(super) async fn list_instances_in_region(
     let instances = response
         .reservations()
         .iter()
-        .flat_map(|reservation| reservation.instances())
+        .flat_map(aws_sdk_ec2::types::Reservation::instances)
         .filter_map(|instance| {
             let id = instance.instance_id()?.to_string();
 
             let raw_state = instance
                 .state()
                 .and_then(|instance_state| {
-                    instance_state.name().map(|state_name| state_name.as_str())
+                    instance_state
+                        .name()
+                        .map(aws_sdk_ec2::types::InstanceStateName::as_str)
                 })
                 .unwrap_or("unknown");
 
@@ -226,8 +225,10 @@ pub(super) async fn list_instances_in_region(
 
             let public_ip_v4 = instance
                 .public_ip_address()
-                .map(|address| address.to_string())?;
-            let public_ip_v6 = instance.ipv6_address().map(|address| address.to_string())?;
+                .map(std::string::ToString::to_string)?;
+            let public_ip_v6 = instance
+                .ipv6_address()
+                .map(std::string::ToString::to_string)?;
 
             let instance_type = instance
                 .instance_type()

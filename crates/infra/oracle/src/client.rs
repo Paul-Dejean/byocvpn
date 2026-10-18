@@ -4,7 +4,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::{from_str, to_vec};
 
 use crate::auth::{HttpMethod, OciCredentials, build_authorization_header};
-use log::*;
+use log::{debug, error};
 
 pub struct OciClient {
     http_client: HttpClient,
@@ -34,10 +34,10 @@ impl OciClient {
     }
 
     pub async fn get<T: DeserializeOwned>(&self, url: &str) -> Result<T> {
-        debug!("[OCI] GET {}", url);
+        debug!("[OCI] GET {url}");
         let parsed = reqwest::Url::parse(url).map_err(|error| {
             NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Invalid URL {}: {}", url, error),
+                reason: format!("Invalid URL {url}: {error}"),
             }
         })?;
         let host = parsed.host_str().unwrap_or_default().to_string();
@@ -64,21 +64,21 @@ impl OciClient {
             .send()
             .await
             .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("OCI GET {} failed: {}", url, error),
+                reason: format!("OCI GET {url} failed: {error}"),
             })?;
 
         parse_response("GET", url, response).await
     }
 
     pub async fn post<B: Serialize, T: DeserializeOwned>(&self, url: &str, body: &B) -> Result<T> {
-        debug!("[OCI] POST {}", url);
+        debug!("[OCI] POST {url}");
         let body_bytes =
             to_vec(body).map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Failed to serialize body: {}", error),
+                reason: format!("Failed to serialize body: {error}"),
             })?;
         let parsed = reqwest::Url::parse(url).map_err(|error| {
             NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Invalid URL {}: {}", url, error),
+                reason: format!("Invalid URL {url}: {error}"),
             }
         })?;
         let host = parsed.host_str().unwrap_or_default().to_string();
@@ -109,21 +109,21 @@ impl OciClient {
             .send()
             .await
             .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("OCI POST {} failed: {}", url, error),
+                reason: format!("OCI POST {url} failed: {error}"),
             })?;
 
         parse_response("POST", url, response).await
     }
 
     pub async fn put<B: Serialize>(&self, url: &str, body: &B) -> Result<()> {
-        debug!("[OCI] PUT {}", url);
+        debug!("[OCI] PUT {url}");
         let body_bytes =
             to_vec(body).map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Failed to serialize body: {}", error),
+                reason: format!("Failed to serialize body: {error}"),
             })?;
         let parsed = reqwest::Url::parse(url).map_err(|error| {
             NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Invalid URL {}: {}", url, error),
+                reason: format!("Invalid URL {url}: {error}"),
             }
         })?;
         let host = parsed.host_str().unwrap_or_default().to_string();
@@ -154,27 +154,27 @@ impl OciClient {
             .send()
             .await
             .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("OCI PUT {} failed: {}", url, error),
+                reason: format!("OCI PUT {url} failed: {error}"),
             })?;
 
         let status = response.status();
         if status.is_success() {
-            debug!("[OCI] PUT {} → {}", url, status);
+            debug!("[OCI] PUT {url} → {status}");
             return Ok(());
         }
         let body_text = response.text().await.unwrap_or_default();
-        error!("[OCI] PUT {} → {} — {}", url, status, body_text);
+        error!("[OCI] PUT {url} → {status} — {body_text}");
         Err(NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!("OCI PUT {} error {}: {}", url, status, body_text),
+            reason: format!("OCI PUT {url} error {status}: {body_text}"),
         }
         .into())
     }
 
     pub async fn delete(&self, url: &str) -> Result<()> {
-        debug!("[OCI] DELETE {}", url);
+        debug!("[OCI] DELETE {url}");
         let parsed = reqwest::Url::parse(url).map_err(|error| {
             NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Invalid URL {}: {}", url, error),
+                reason: format!("Invalid URL {url}: {error}"),
             }
         })?;
         let host = parsed.host_str().unwrap_or_default().to_string();
@@ -201,7 +201,7 @@ impl OciClient {
             .send()
             .await
             .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("OCI DELETE failed: {}", error),
+                reason: format!("OCI DELETE failed: {error}"),
             })?;
 
         let status = response.status();
@@ -210,7 +210,7 @@ impl OciClient {
         }
         let body = response.text().await.unwrap_or_default();
         Err(NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!("OCI DELETE {} returned {}: {}", url, status, body),
+            reason: format!("OCI DELETE {url} returned {status}: {body}"),
         }
         .into())
     }
@@ -233,11 +233,11 @@ async fn parse_response<T: DeserializeOwned>(
             .text()
             .await
             .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Failed to read OCI response: {}", error),
+                reason: format!("Failed to read OCI response: {error}"),
             })?;
 
     if status.is_success() {
-        debug!("[OCI] {} {} → {}", method, url, status);
+        debug!("[OCI] {method} {url} → {status}");
         let json_str = if body.is_empty() {
             "null"
         } else {
@@ -245,17 +245,14 @@ async fn parse_response<T: DeserializeOwned>(
         };
         from_str(json_str).map_err(|error| {
             NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!(
-                    "Failed to parse OCI JSON response: {} — body: {}",
-                    error, body
-                ),
+                reason: format!("Failed to parse OCI JSON response: {error} — body: {body}"),
             }
             .into()
         })
     } else {
-        error!("[OCI] {} {} → {} — {}", method, url, status, body);
+        error!("[OCI] {method} {url} → {status} — {body}");
         Err(NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!("OCI {} {} error {}: {}", method, url, status, body),
+            reason: format!("OCI {method} {url} error {status}: {body}"),
         }
         .into())
     }

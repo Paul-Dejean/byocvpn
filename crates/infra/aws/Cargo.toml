@@ -27,3 +27,6 @@ aws-sdk-iam = "1.128.0"
 
 [features]
 specta = ["dep:specta"]
+
+[lints]
+workspace = true

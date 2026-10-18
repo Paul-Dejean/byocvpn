@@ -27,3 +27,6 @@ specta = { workspace = true, optional = true }
 
 [features]
 specta = ["dep:specta"]
+
+[lints]
+workspace = true

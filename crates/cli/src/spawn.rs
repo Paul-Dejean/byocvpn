@@ -28,7 +28,7 @@ pub async fn spawn_new_server(
 
 async fn spawn_server(provider: &dyn CloudProvider, region: &str) -> CliResult<InstanceInfo> {
     with_step(
-        &format!("Preparing {}", region),
+        &format!("Preparing {region}"),
         prepare_region(provider, region),
     )
     .await?;
@@ -37,7 +37,7 @@ async fn spawn_server(provider: &dyn CloudProvider, region: &str) -> CliResult<I
     let (server_private_key, server_public_key) = generate_keypair();
 
     let instance = with_step(
-        &format!("Launching server in {}", region),
+        &format!("Launching server in {region}"),
         commands::spawn::launch_instance(
             provider,
             region,

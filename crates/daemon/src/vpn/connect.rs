@@ -11,7 +11,7 @@ use byocvpn_core::{
 };
 use futures::StreamExt;
 use ipnet::IpNet;
-use log::*;
+use log::{debug, error, info, warn};
 use net_route::Handle as RouteHandle;
 use tokio::{
     net::UdpSocket,
@@ -46,16 +46,13 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
         kill_switch_enabled,
     } = params;
 
-    info!(
-        "Connecting VPN: instance={}, region={}, provider={}",
-        instance_id, region, provider
-    );
+    info!("Connecting VPN: instance={instance_id}, region={region}, provider={provider}");
 
     let tunnel_already_running = TUNNEL_MANAGER
         .lock()
         .map_err(|_| SystemError::MutexPoisoned("TUNNEL_MANAGER".to_string()))?
         .as_ref()
-        .map_or(false, |handle| !handle.task.is_finished());
+        .is_some_and(|handle| !handle.task.is_finished());
 
     if tunnel_already_running {
         error!("Connect requested but a tunnel is already running.");
@@ -68,11 +65,11 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
     let (tun, interface_index) = setup_tun_device(private_ipv4, private_ipv6)?;
     let interface_name = tun
         .name()
-        .unwrap_or_else(|_| format!("tun{}", interface_index));
+        .unwrap_or_else(|_| format!("tun{interface_index}"));
 
     if kill_switch_enabled {
         if let Err(error) = firewall::apply(&server_endpoint.ip().to_string(), &interface_name) {
-            warn!("Kill switch apply failed: {}", error);
+            warn!("Kill switch apply failed: {error}");
         }
     } else {
         warn!("Session kill switch disabled; traffic can leak if the tunnel drops.");
@@ -94,10 +91,6 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
     let (metrics_shutdown_tx, metrics_shutdown_rx) = watch::channel(());
     let metrics_task = spawn_metrics_task(metrics.clone(), metrics_shutdown_rx);
 
-    let mut manager = TUNNEL_MANAGER
-        .lock()
-        .map_err(|_| SystemError::MutexPoisoned("TUNNEL_MANAGER".to_string()))?;
-
     info!("Adding VPN routes...");
     add_vpn_routes(interface_index, &server_endpoint.ip().to_string()).await?;
 
@@ -116,6 +109,9 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
         kill_switch_enabled,
     };
 
+    let mut manager = TUNNEL_MANAGER
+        .lock()
+        .map_err(|_| SystemError::MutexPoisoned("TUNNEL_MANAGER".to_string()))?;
     *manager = Some(TunnelHandle {
         shutdown: shutdown_tx,
         task,
@@ -138,7 +134,7 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
     });
 
     if let Err(error) = session::write_session(&persisted_session) {
-        warn!("Failed to persist session: {}", error);
+        warn!("Failed to persist session: {error}");
     }
 
     info!("VPN setup complete.");
@@ -152,20 +148,17 @@ fn setup_tun_device(private_ipv4: IpNet, private_ipv6: IpNet) -> Result<(AsyncDe
         .mtu(TUNNEL_MTU)
         .build_async()
         .map_err(|error| ConfigurationError::TunnelConfiguration {
-            reason: format!("Failed to create TUN device: {}", error),
+            reason: format!("Failed to create TUN device: {error}"),
         })?;
 
     let interface_index =
         tun.if_index()
             .map_err(|error| ConfigurationError::TunnelConfiguration {
-                reason: format!("Failed to get TUN interface index: {}", error),
+                reason: format!("Failed to get TUN interface index: {error}"),
             })?;
 
     let interface_name = tun.name().unwrap_or_else(|_| "unknown".to_string());
-    info!(
-        "Created TUN device: {} (index: {})",
-        interface_name, interface_index
-    );
+    info!("Created TUN device: {interface_name} (index: {interface_index})");
     Ok((tun, interface_index))
 }
 
@@ -174,34 +167,31 @@ async fn connect_udp_socket(server_endpoint: SocketAddr) -> Result<UdpSocket> {
         "0.0.0.0:0"
             .parse()
             .map_err(|error| ConfigurationError::ParseError {
-                reason: format!("Failed to parse local socket address: {}", error),
+                reason: format!("Failed to parse local socket address: {error}"),
                 value: "0.0.0.0".to_string(),
             })?;
 
     let udp = UdpSocket::bind(local)
         .await
         .map_err(|error| SystemError::TunnelIoFailed {
-            reason: format!("Failed to bind UDP socket: {}", error),
+            reason: format!("Failed to bind UDP socket: {error}"),
         })?;
 
     debug!(
         "UDP socket bound to {}",
         udp.local_addr()
             .map_err(|error| SystemError::TunnelIoFailed {
-                reason: format!("Failed to get UDP local address: {}", error),
+                reason: format!("Failed to get UDP local address: {error}"),
             })?
     );
 
     udp.connect(server_endpoint)
         .await
         .map_err(|error| SystemError::TunnelIoFailed {
-            reason: format!(
-                "Failed to connect UDP socket to {}: {}",
-                server_endpoint, error
-            ),
+            reason: format!("Failed to connect UDP socket to {server_endpoint}: {error}"),
         })?;
 
-    info!("UDP socket connected to {}", server_endpoint);
+    info!("UDP socket connected to {server_endpoint}");
     Ok(udp)
 }
 
@@ -221,7 +211,7 @@ fn spawn_metrics_task(
                 listener
             }
             Err(error) => {
-                error!("[Metrics] Failed to create metrics socket: {}", error);
+                error!("[Metrics] Failed to create metrics socket: {error}");
                 return;
             }
         };
@@ -242,14 +232,13 @@ fn spawn_metrics_task(
                         let current_metrics = metrics.read().await.clone();
                         let snapshot = rate_tracker.sample(current_metrics);
 
-                        if let Ok(json) = serde_json::to_string(&snapshot) {
-                            if stream.write_all(json.as_bytes()).await.is_err()
-                                || stream.write_all(b"\n").await.is_err()
+                        if let Ok(json) = serde_json::to_string(&snapshot)
+                            && (stream.write_all(json.as_bytes()).await.is_err()
+                                || stream.write_all(b"\n").await.is_err())
                             {
                                 debug!("[Metrics] Client disconnected");
                                 connected_stream = None;
                             }
-                        }
                     }
                 }
 
@@ -270,7 +259,7 @@ fn spawn_route_monitor_task(
         let route_handle = match RouteHandle::new() {
             Ok(handle) => handle,
             Err(error) => {
-                error!("[RouteMonitor] Failed to create route handle: {}", error);
+                error!("[RouteMonitor] Failed to create route handle: {error}");
                 return;
             }
         };
@@ -300,17 +289,20 @@ fn spawn_route_monitor_task(
 }
 
 fn apply_dns_servers(dns_servers: Vec<String>) -> Option<DnsOverrideGuard> {
-    debug!("DNS servers from config: {:?}", dns_servers);
+    debug!("DNS servers from config: {dns_servers:?}");
 
     if dns_servers.is_empty() {
         warn!("No DNS servers found in config; leaving system DNS unchanged.");
         return None;
     }
 
-    let as_refs: Vec<&str> = dns_servers.iter().map(|s| s.as_str()).collect();
+    let as_refs: Vec<&str> = dns_servers
+        .iter()
+        .map(std::string::String::as_str)
+        .collect();
     match DnsOverrideGuard::override_system_dns(&as_refs) {
         Ok(guard) => {
-            info!("DNS servers applied: {:?}", dns_servers);
+            info!("DNS servers applied: {dns_servers:?}");
             Some(guard)
         }
         Err(error) => {

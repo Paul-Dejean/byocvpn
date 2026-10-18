@@ -3,7 +3,7 @@ use std::sync::Arc;
 use azure_identity::ClientSecretCredential;
 use byocvpn_core::error::{ComputeProvisioningError, Error, NetworkProvisioningError, Result};
 use byocvpn_core::retry::retry;
-use log::*;
+use log::{debug, warn};
 use reqwest::{Client as HttpClient, Response, StatusCode};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::from_str;
@@ -24,20 +24,22 @@ pub struct AzureClient {
 }
 
 impl AzureClient {
-    pub fn new(credential: Arc<ClientSecretCredential>, subscription_id: String) -> Self {
+    pub fn new(credential: Arc<ClientSecretCredential>, subscription_id: String) -> Result<Self> {
         let http = HttpClient::builder()
             .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
             .build()
-            .expect("failed to build reqwest client");
-        Self {
+            .map_err(|error| NetworkProvisioningError::CloudOperationFailed {
+                reason: format!("failed to build HTTP client: {error}"),
+            })?;
+        Ok(Self {
             http,
             credential,
             subscription_id,
-        }
+        })
     }
 
     pub fn build_arm_url(&self, path: &str, api_version: &str) -> String {
-        format!("{}{}?api-version={}", ARM_BASE, path, api_version)
+        format!("{ARM_BASE}{path}?api-version={api_version}")
     }
 
     pub fn build_subscription_path(&self, rest: &str) -> String {
@@ -49,7 +51,7 @@ impl AzureClient {
     }
 
     pub async fn get<T: DeserializeOwned>(&self, url: &str) -> Result<T> {
-        debug!("[Azure] GET {}", url);
+        debug!("[Azure] GET {url}");
         let token = self.get_access_token().await?;
         let response = self
             .http
@@ -58,13 +60,13 @@ impl AzureClient {
             .send()
             .await
             .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Azure GET {} connection failed: {}", url, error),
+                reason: format!("Azure GET {url} connection failed: {error}"),
             })?;
         parse_json_response("GET", url, response).await
     }
 
     pub async fn put<B: Serialize>(&self, url: &str, body: &B) -> Result<Option<String>> {
-        debug!("[Azure] PUT {}", url);
+        debug!("[Azure] PUT {url}");
         let token = self.get_access_token().await?;
         let response = self
             .http
@@ -74,13 +76,13 @@ impl AzureClient {
             .send()
             .await
             .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Azure PUT {} connection failed: {}", url, error),
+                reason: format!("Azure PUT {url} connection failed: {error}"),
             })?;
         parse_lro_response("PUT", url, response).await
     }
 
     pub async fn delete(&self, url: &str) -> Result<Option<String>> {
-        debug!("[Azure] DELETE {}", url);
+        debug!("[Azure] DELETE {url}");
         let token = self.get_access_token().await?;
         let response = self
             .http
@@ -89,13 +91,13 @@ impl AzureClient {
             .send()
             .await
             .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Azure DELETE {} connection failed: {}", url, error),
+                reason: format!("Azure DELETE {url} connection failed: {error}"),
             })?;
         parse_lro_response("DELETE", url, response).await
     }
 
     pub async fn post<B: Serialize, T: DeserializeOwned>(&self, url: &str, body: &B) -> Result<T> {
-        debug!("[Azure] POST {}", url);
+        debug!("[Azure] POST {url}");
         let token = self.get_access_token().await?;
         let response = self
             .http
@@ -105,7 +107,7 @@ impl AzureClient {
             .send()
             .await
             .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Azure POST {} connection failed: {}", url, error),
+                reason: format!("Azure POST {url} connection failed: {error}"),
             })?;
         parse_json_response("POST", url, response).await
     }
@@ -116,7 +118,7 @@ impl AzureClient {
                 let operation: AsyncOperationResponse = self.get(operation_url).await?;
                 match operation.status.as_deref() {
                     Some("Succeeded") => Ok(()),
-                    Some("Failed") | Some("Canceled") => {
+                    Some("Failed" | "Canceled") => {
                         let message = operation
                             .error
                             .as_ref()
@@ -124,18 +126,18 @@ impl AzureClient {
                             .unwrap_or("unknown error");
                         Err(ComputeProvisioningError::InstanceSpawnFailed {
                             region_name: String::new(),
-                            reason: format!("ARM operation failed: {}", message),
+                            reason: format!("ARM operation failed: {message}"),
                         }
                         .into())
                     }
-                    Some("InProgress") | Some("Running") | None => {
+                    Some("InProgress" | "Running") | None => {
                         debug!("[Azure] ARM operation in progress...");
                         Err(Error::Transient {
                             operation_name: "ARM async operation".to_string(),
                         })
                     }
                     Some(other) => {
-                        warn!("[Azure] Unexpected ARM operation status: {}", other);
+                        warn!("[Azure] Unexpected ARM operation status: {other}");
                         Err(Error::Transient {
                             operation_name: "ARM async operation".to_string(),
                         })
@@ -159,7 +161,7 @@ async fn parse_json_response<T: DeserializeOwned>(
     if status.is_success() {
         let body = response.text().await.map_err(|error| {
             NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Azure {} {} failed to read body: {}", method, url, error),
+                reason: format!("Azure {method} {url} failed to read body: {error}"),
             }
         })?;
         let json_str = if body.is_empty() {
@@ -170,8 +172,7 @@ async fn parse_json_response<T: DeserializeOwned>(
         from_str(json_str).map_err(|error| {
             NetworkProvisioningError::NetworkQueryFailed {
                 reason: format!(
-                    "Azure {} {} succeeded but body is not JSON: {} — body: {}",
-                    method, url, error, body
+                    "Azure {method} {url} succeeded but body is not JSON: {error} — body: {body}"
                 ),
             }
             .into()
@@ -179,15 +180,12 @@ async fn parse_json_response<T: DeserializeOwned>(
     } else if status == StatusCode::FORBIDDEN || status == StatusCode::UNAUTHORIZED {
         let error_body = response.text().await.unwrap_or_default();
         Err(Error::Authorization {
-            operation: format!("Azure {} {}: {}", method, url, error_body),
+            operation: format!("Azure {method} {url}: {error_body}"),
         })
     } else {
         let error_body = response.text().await.unwrap_or_default();
         Err(NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!(
-                "Azure {} {} failed with status {}: {}",
-                method, url, status, error_body
-            ),
+            reason: format!("Azure {method} {url} failed with status {status}: {error_body}"),
         }
         .into())
     }
@@ -201,22 +199,19 @@ async fn parse_lro_response(method: &str, url: &str, response: Response) -> Resu
         .get("Azure-AsyncOperation")
         .or_else(|| response.headers().get("Location"))
         .and_then(|value| value.to_str().ok())
-        .map(|s| s.to_string());
+        .map(std::string::ToString::to_string);
 
     if status.is_success() {
         Ok(async_op_url)
     } else if status == StatusCode::FORBIDDEN || status == StatusCode::UNAUTHORIZED {
         let error_body = response.text().await.unwrap_or_default();
         Err(Error::Authorization {
-            operation: format!("Azure {} {}: {}", method, url, error_body),
+            operation: format!("Azure {method} {url}: {error_body}"),
         })
     } else {
         let error_body = response.text().await.unwrap_or_default();
         Err(NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!(
-                "Azure {} {} failed with status {}: {}",
-                method, url, status, error_body
-            ),
+            reason: format!("Azure {method} {url} failed with status {status}: {error_body}"),
         }
         .into())
     }
@@ -232,5 +227,5 @@ pub fn extract_resource_group_from_id(resource_id: &str) -> Option<&str> {
 }
 
 pub fn extract_name_from_id(resource_id: &str) -> Option<&str> {
-    resource_id.split('/').filter(|s| !s.is_empty()).next_back()
+    resource_id.split('/').rfind(|s| !s.is_empty())
 }

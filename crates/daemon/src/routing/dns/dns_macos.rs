@@ -1,7 +1,7 @@
 use std::{collections::HashMap, io, process::Command};
 
 use byocvpn_core::error::{ConfigurationError, Result};
-use log::*;
+use log::{debug, info, warn};
 
 #[derive(Debug)]
 pub struct DnsOverrideGuard {
@@ -19,7 +19,7 @@ impl DnsOverrideGuard {
         }
 
         let network_service_names = list_all_enabled_network_services()?;
-        info!("Found network services: {:?}", network_service_names);
+        info!("Found network services: {network_service_names:?}");
 
         let mut original_domain_name_system_by_service = HashMap::new();
         for network_service_name in &network_service_names {
@@ -27,15 +27,12 @@ impl DnsOverrideGuard {
                 .map_err(|error| ConfigurationError::DnsConfiguration {
                     reason: error.to_string(),
                 })?;
-            info!(
-                "Original DNS for {}: {:?}",
-                network_service_name, current_domain_name_system
-            );
+            info!("Original DNS for {network_service_name}: {current_domain_name_system:?}");
             original_domain_name_system_by_service
                 .insert(network_service_name.clone(), current_domain_name_system);
         }
 
-        info!("Setting new DNS servers: {:?}", new_dns_servers);
+        info!("Setting new DNS servers: {new_dns_servers:?}");
         for network_service_name in &network_service_names {
             set_dns_for_service(network_service_name, Some(new_dns_servers)).map_err(|error| {
                 ConfigurationError::DnsConfiguration {
@@ -59,13 +56,14 @@ impl DnsOverrideGuard {
 
         for (network_service_name, original_option) in &self.original_domain_name_system_by_service
         {
-            debug!("Restoring DNS for service: {}", network_service_name);
-            debug!("Original DNS servers: {:?}", original_option);
+            debug!("Restoring DNS for service: {network_service_name}");
+            debug!("Original DNS servers: {original_option:?}");
 
             match original_option {
                 Some(list) if !list.is_empty() => {
-                    let as_slices: Vec<&str> = list.iter().map(|string| string.as_str()).collect();
-                    debug!("Setting DNS servers to: {:?}", as_slices);
+                    let as_slices: Vec<&str> =
+                        list.iter().map(std::string::String::as_str).collect();
+                    debug!("Setting DNS servers to: {as_slices:?}");
                     set_dns_for_service(network_service_name, Some(&as_slices))?;
                 }
                 Some(_) => {
@@ -88,7 +86,7 @@ impl DnsOverrideGuard {
 impl Drop for DnsOverrideGuard {
     fn drop(&mut self) {
         if let Err(error) = self.restore_previous_dns_configuration() {
-            warn!("Failed to restore DNS on drop: {}", error);
+            warn!("Failed to restore DNS on drop: {error}");
         }
     }
 }
@@ -96,11 +94,11 @@ impl Drop for DnsOverrideGuard {
 fn list_all_enabled_network_services() -> Result<Vec<String>> {
     let mut command = Command::new("networksetup");
     command.arg("-listallnetworkservices");
-    debug!("Executing command: {:?}", command);
+    debug!("Executing command: {command:?}");
     let output = command
         .output()
         .map_err(|error| ConfigurationError::DnsConfiguration {
-            reason: format!("failed to run networksetup: {}", error),
+            reason: format!("failed to run networksetup: {error}"),
         })?;
     if !output.status.success() {
         return Err(ConfigurationError::DnsConfiguration {
@@ -132,18 +130,15 @@ fn list_all_enabled_network_services() -> Result<Vec<String>> {
 fn get_dns_servers_for_service(network_service_name: &str) -> io::Result<Option<Vec<String>>> {
     let mut command = Command::new("networksetup");
     command.arg("-getdnsservers").arg(network_service_name);
-    debug!("Executing command: {:?}", command);
+    debug!("Executing command: {command:?}");
     let output = command.output()?;
 
     if !output.status.success() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!(
-                "networksetup -getdnsservers {} failed: {}",
-                network_service_name,
-                String::from_utf8_lossy(&output.stderr)
-            ),
-        ));
+        return Err(io::Error::other(format!(
+            "networksetup -getdnsservers {} failed: {}",
+            network_service_name,
+            String::from_utf8_lossy(&output.stderr)
+        )));
     }
 
     let text = String::from_utf8_lossy(&output.stdout);
@@ -179,18 +174,15 @@ fn set_dns_for_service(
         }
     }
 
-    debug!("Executing command: {:?}", command);
+    debug!("Executing command: {command:?}");
     let output = command.output()?;
 
     if !output.status.success() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!(
-                "networksetup -setdnsservers {} failed: {}",
-                network_service_name,
-                String::from_utf8_lossy(&output.stderr)
-            ),
-        ));
+        return Err(io::Error::other(format!(
+            "networksetup -setdnsservers {} failed: {}",
+            network_service_name,
+            String::from_utf8_lossy(&output.stderr)
+        )));
     }
     Ok(())
 }

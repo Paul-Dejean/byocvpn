@@ -11,7 +11,7 @@ use crate::{ledger_store::LedgerStore, vpn_backend::publish_vpn_status};
 
 const TUNNEL_DROPPED_MESSAGE: &str = "VPN tunnel dropped. Kill switch is blocking all traffic.";
 
-pub fn create_daemon_client(_app_handle: &AppHandle) -> UnixDaemonClient {
+pub const fn create_daemon_client(_app_handle: &AppHandle) -> UnixDaemonClient {
     UnixDaemonClient
 }
 

@@ -7,11 +7,11 @@ use byocvpn_core::{
     cloud_provider::PermissionStatus,
     error::{Error, Result},
 };
-use log::*;
+use log::{info, warn};
 
 use crate::aws_error::map_aws_error;
 
-pub(crate) const REQUIRED_ACTIONS: &[&str] = &[
+pub const REQUIRED_ACTIONS: &[&str] = &[
     "ec2:RunInstances",
     "ec2:TerminateInstances",
     "ec2:DescribeInstances",
@@ -36,10 +36,10 @@ pub(crate) const REQUIRED_ACTIONS: &[&str] = &[
 ];
 
 const GET_CALLER_IDENTITY_OPERATION: &str = "sts:GetCallerIdentity";
-pub(crate) const SIMULATE_POLICY_OPERATION: &str = "iam:SimulatePrincipalPolicy";
+pub const SIMULATE_POLICY_OPERATION: &str = "iam:SimulatePrincipalPolicy";
 const ASSUMED_ROLE_MARKER: &str = ":assumed-role/";
 
-pub(super) async fn verify_permissions(
+pub async fn verify_permissions(
     sts_client: &StsClient,
     iam_client: &IamClient,
 ) -> Result<Vec<PermissionStatus>> {
@@ -93,7 +93,7 @@ async fn simulate_required_actions(
 ) -> Result<HashMap<String, bool>> {
     let action_names: Vec<String> = REQUIRED_ACTIONS
         .iter()
-        .map(|action| action.to_string())
+        .map(std::string::ToString::to_string)
         .collect();
     let mut decisions = HashMap::new();
     let mut marker: Option<String> = None;

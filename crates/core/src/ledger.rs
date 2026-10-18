@@ -25,26 +25,26 @@ pub struct LedgerEntry {
 
 impl LedgerEntry {
     pub fn build_store_key(instance_id: &str) -> String {
-        format!("ledger/{}", instance_id)
+        format!("ledger/{instance_id}")
     }
 
     pub fn mark_terminated(&mut self) {
         self.terminated_at = Some(Utc::now());
     }
 
-    pub fn mark_setup_complete(&mut self) {
+    pub const fn mark_setup_complete(&mut self) {
         self.setup_complete = true;
     }
 
-    pub fn mark_connected(&mut self) {
+    pub const fn mark_connected(&mut self) {
         self.idle_since = None;
     }
 
-    pub fn mark_idle_since(&mut self, idle_since: DateTime<Utc>) {
+    pub const fn mark_idle_since(&mut self, idle_since: DateTime<Utc>) {
         self.idle_since = Some(idle_since);
     }
 
-    pub fn update_metrics(&mut self, bytes_sent: u64, bytes_received: u64) {
+    pub const fn update_metrics(&mut self, bytes_sent: u64, bytes_received: u64) {
         self.bytes_sent = bytes_sent;
         self.bytes_received = bytes_received;
     }

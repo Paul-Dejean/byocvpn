@@ -1,6 +1,6 @@
 use std::{cell::Cell, path::PathBuf, time::Instant};
 
-use log::*;
+use log::info;
 
 use crate::{
     error::Result,
@@ -33,17 +33,15 @@ where
             }
             let should_persist = LAST_PERSIST.with(|last| {
                 let now = Instant::now();
-                let due = last.get().map_or(true, |t| t.elapsed().as_secs() >= 60);
+                let due = last.get().is_none_or(|t| t.elapsed().as_secs() >= 60);
                 if due {
                     last.set(Some(now));
                 }
                 due
             });
 
-            if should_persist {
-                if let Some(ref metrics) = vpn_status.metrics {
-                    on_metrics_persist(metrics.bytes_sent, metrics.bytes_received);
-                }
+            if should_persist && let Some(ref metrics) = vpn_status.metrics {
+                on_metrics_persist(metrics.bytes_sent, metrics.bytes_received);
             }
 
             on_status_update(vpn_status);

@@ -40,9 +40,8 @@ pub fn start_server_monitor(app_handle: AppHandle) {
 }
 
 async fn tick(app_handle: &AppHandle) {
-    let settings_store = match SettingsStore::open(app_handle) {
-        Some(store) => store,
-        None => return,
+    let Some(settings_store) = SettingsStore::open(app_handle) else {
+        return;
     };
     let notification_settings = settings_store.load_notification_settings();
 
@@ -65,14 +64,12 @@ async fn tick(app_handle: &AppHandle) {
     run_auto_terminate_check(app_handle).await;
 }
 
-pub(crate) async fn run_auto_terminate_check(app_handle: &AppHandle) {
-    let settings_store = match SettingsStore::open(app_handle) {
-        Some(store) => store,
-        None => return,
+pub async fn run_auto_terminate_check(app_handle: &AppHandle) {
+    let Some(settings_store) = SettingsStore::open(app_handle) else {
+        return;
     };
-    let ledger = match LedgerStore::open(app_handle) {
-        Some(ledger) => ledger,
-        None => return,
+    let Some(ledger) = LedgerStore::open(app_handle) else {
+        return;
     };
     let running_entries = ledger.running_entries();
     if running_entries.is_empty() {
@@ -112,8 +109,7 @@ async fn fetch_connection_state(app_handle: &AppHandle) -> ConnectionState {
         Ok(status) => status,
         Err(error) => {
             warn!(
-                "[auto-terminate] skipping this round — could not read VPN status, refusing to terminate a possibly-connected server: {}",
-                error
+                "[auto-terminate] skipping this round — could not read VPN status, refusing to terminate a possibly-connected server: {error}"
             );
             return ConnectionState::Unknown;
         }
@@ -127,14 +123,13 @@ async fn fetch_connection_state(app_handle: &AppHandle) -> ConnectionState {
     if !vpn_status.connected {
         return ConnectionState::Disconnected;
     }
-    match vpn_status.instance {
-        Some(connected_instance) => ConnectionState::ConnectedTo(connected_instance.instance_id),
-        None => {
-            warn!(
-                "[auto-terminate] skipping this round — VPN reports connected but no instance is identified"
-            );
-            ConnectionState::Unknown
-        }
+    if let Some(connected_instance) = vpn_status.instance {
+        ConnectionState::ConnectedTo(connected_instance.instance_id)
+    } else {
+        warn!(
+            "[auto-terminate] skipping this round — VPN reports connected but no instance is identified"
+        );
+        ConnectionState::Unknown
     }
 }
 
@@ -175,7 +170,7 @@ fn notify_long_running(app_handle: &AppHandle, entries: &[LedgerEntry], threshol
     let map = last_notified.get_or_insert_with(HashMap::new);
 
     for entry in entries {
-        let elapsed_secs = (now_utc - entry.launched_at).num_seconds().max(0) as u64;
+        let elapsed_secs = u64::try_from((now_utc - entry.launched_at).num_seconds()).unwrap_or(0);
         let elapsed = Duration::from_secs(elapsed_secs);
         if elapsed < threshold {
             continue;
@@ -220,7 +215,10 @@ async fn auto_terminate_idle(
     threshold_minutes: u64,
     notifications_enabled: bool,
 ) {
-    let threshold = chrono::Duration::minutes(threshold_minutes as i64);
+    let threshold = i64::try_from(threshold_minutes)
+        .ok()
+        .and_then(chrono::Duration::try_minutes)
+        .unwrap_or(chrono::Duration::MAX);
     let now = Utc::now();
 
     info!(
@@ -241,9 +239,8 @@ async fn auto_terminate_idle(
             continue;
         }
 
-        let idle_since = match entry.idle_since {
-            Some(idle_since) => idle_since,
-            None => continue,
+        let Some(idle_since) = entry.idle_since else {
+            continue;
         };
         let idle_duration = now - idle_since;
         debug!(
@@ -280,7 +277,7 @@ async fn auto_terminate_idle(
         )
         .await
         {
-            Ok(_) => {
+            Ok(()) => {
                 if let Some(ledger) = LedgerStore::open(app_handle) {
                     ledger.mark_terminated(&entry.instance_id);
                 }
@@ -292,7 +289,7 @@ async fn auto_terminate_idle(
                 })
                 .emit(app_handle)
                 {
-                    warn!("[auto-terminate] failed to emit event: {}", error);
+                    warn!("[auto-terminate] failed to emit event: {error}");
                 }
             }
             Err(error) => {
@@ -318,6 +315,6 @@ fn notify_terminated(app_handle: &AppHandle, provider: &str, region: &str) {
         .body(&body)
         .show()
     {
-        warn!("[auto-terminate] failed to send notification: {}", error);
+        warn!("[auto-terminate] failed to send notification: {error}");
     }
 }

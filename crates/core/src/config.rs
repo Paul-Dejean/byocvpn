@@ -8,7 +8,7 @@ use crate::{
     cloud_provider::CloudProviderName,
     error::{ConfigurationError, Result},
 };
-use log::*;
+use log::{debug, warn};
 
 static DATA_DIRECTORY_OVERRIDE: OnceLock<PathBuf> = OnceLock::new();
 
@@ -39,10 +39,7 @@ pub fn generate_client_config(
         .map_err(|error| ConfigurationError::TemplateRender {
             reason: error.to_string(),
         })?;
-    debug!(
-        "WireGuard client config generated for server IP: {}",
-        server_ip_v4
-    );
+    debug!("WireGuard client config generated for server IP: {server_ip_v4}");
     Ok(config)
 }
 
@@ -64,13 +61,13 @@ async fn get_configs_path() -> Result<PathBuf> {
     if !try_exists(&byocvpn_dir)
         .await
         .map_err(|error| ConfigurationError::TunnelConfiguration {
-            reason: format!("failed to check configs directory: {}", error),
+            reason: format!("failed to check configs directory: {error}"),
         })?
     {
         debug!("Creating configs directory: {}", byocvpn_dir.display());
         create_dir_all(&byocvpn_dir).await.map_err(|error| {
             ConfigurationError::TunnelConfiguration {
-                reason: format!("failed to create configs directory: {}", error),
+                reason: format!("failed to create configs directory: {error}"),
             }
         })?;
     }

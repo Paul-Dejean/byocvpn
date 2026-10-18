@@ -4,10 +4,10 @@ use android_logger::Config as AndroidLoggerConfig;
 use byocvpn_core::config::set_data_directory;
 #[cfg(target_os = "android")]
 use log::LevelFilter;
-#[cfg(target_os = "android")]
-use std::{env, path::Path};
 #[cfg(desktop)]
 use specta_typescript::Typescript;
+#[cfg(target_os = "android")]
+use std::{env, path::Path};
 #[cfg(mobile)]
 use tauri::Manager;
 use tauri_specta::{Commands, Events, collect_commands, collect_events};
@@ -124,23 +124,29 @@ pub fn run() {
             server_monitor::start_server_monitor(app.handle().clone());
             Ok(())
         })
-        .on_window_event(|_window, _event| {
+        .on_window_event(|window, event| {
+            let _ = (window, event);
             #[cfg(desktop)]
-            if let tauri::WindowEvent::CloseRequested { api, .. } = _event {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
-                let _ = _window.hide();
+                let _ = window.hide();
             }
         })
         .invoke_handler(invoke_handler);
 
-    let app = builder
-        .build(tauri::generate_context!())
-        .expect("error while building tauri application");
+    let app = match builder.build(tauri::generate_context!()) {
+        Ok(app) => app,
+        Err(error) => {
+            log::error!("Error while building tauri application: {error}");
+            return;
+        }
+    };
 
-    app.run(|_app_handle, _event| {
+    app.run(|app_handle, event| {
+        let _ = (&app_handle, &event);
         #[cfg(target_os = "macos")]
-        if let tauri::RunEvent::Reopen { .. } = _event {
-            tray::show_main_window(_app_handle);
+        if let tauri::RunEvent::Reopen { .. } = event {
+            tray::show_main_window(app_handle);
         }
     });
 }

@@ -9,7 +9,7 @@ use byocvpn_core::{
     commands::setup::Region,
     error::Result,
 };
-use log::*;
+use log::{info, warn};
 use serde::Deserialize;
 
 use crate::{auth::create_credential, client::AzureClient, instance, network};
@@ -127,7 +127,7 @@ impl AzureProvider {
             &config.application_id,
             &config.secret_value,
         )?;
-        let client = AzureClient::new(credential, config.subscription_id);
+        let client = AzureClient::new(credential, config.subscription_id)?;
         Ok(Self { client })
     }
 }
@@ -141,7 +141,7 @@ pub enum AzureSpawnStepId {
 }
 
 impl AzureSpawnStepId {
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::RegionResourceGroup => "region_resource_group",
             Self::RegionVnet => "region_vnet",
@@ -243,7 +243,7 @@ impl CloudProvider for AzureProvider {
 
     async fn enable_region(&self, region: &str) -> Result<()> {
         network::ensure_region_networking(&self.client, region).await?;
-        info!("[Azure] Region '{}' enabled.", region);
+        info!("[Azure] Region '{region}' enabled.");
         Ok(())
     }
 

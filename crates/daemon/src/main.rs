@@ -10,17 +10,29 @@ async fn main() -> Result<()> {
 #[cfg(windows)]
 fn main() {
     if windows_service_impl::start_as_service().is_err() {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .expect("failed to build tokio runtime")
-            .block_on(async {
-                if let Err(error) = run_daemon().await {
-                    eprintln!("Daemon error: {}", error);
-                    std::process::exit(1);
-                }
-            });
+        run_daemon_in_foreground();
     }
+}
+
+#[cfg(windows)]
+fn run_daemon_in_foreground() {
+    let runtime = match tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            eprintln!("Failed to build tokio runtime: {error}");
+            std::process::exit(1);
+        }
+    };
+
+    runtime.block_on(async {
+        if let Err(error) = run_daemon().await {
+            eprintln!("Daemon error: {error}");
+            std::process::exit(1);
+        }
+    });
 }
 
 #[cfg(windows)]
@@ -51,7 +63,7 @@ mod windows_service_impl {
     fn service_main(_arguments: Vec<std::ffi::OsString>) {
         let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>();
 
-        let status_handle = service_control_handler::register(
+        let status_handle = match service_control_handler::register(
             if cfg!(debug_assertions) {
                 "byocvpn-daemon-dev"
             } else {
@@ -65,25 +77,37 @@ mod windows_service_impl {
                 ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
                 _ => ServiceControlHandlerResult::NotImplemented,
             },
-        )
-        .expect("failed to register service control handler");
+        ) {
+            Ok(status_handle) => status_handle,
+            Err(error) => {
+                log::error!("Failed to register service control handler: {error}");
+                return;
+            }
+        };
 
-        status_handle
-            .set_service_status(ServiceStatus {
-                service_type: ServiceType::OWN_PROCESS,
-                current_state: ServiceState::Running,
-                controls_accepted: ServiceControlAccept::STOP | ServiceControlAccept::SHUTDOWN,
-                exit_code: ServiceExitCode::Win32(0),
-                checkpoint: 0,
-                wait_hint: Duration::default(),
-                process_id: None,
-            })
-            .expect("failed to set service status to Running");
+        if let Err(error) = status_handle.set_service_status(ServiceStatus {
+            service_type: ServiceType::OWN_PROCESS,
+            current_state: ServiceState::Running,
+            controls_accepted: ServiceControlAccept::STOP | ServiceControlAccept::SHUTDOWN,
+            exit_code: ServiceExitCode::Win32(0),
+            checkpoint: 0,
+            wait_hint: Duration::default(),
+            process_id: None,
+        }) {
+            log::error!("Failed to set service status to Running: {error}");
+            return;
+        }
 
-        let runtime = tokio::runtime::Builder::new_multi_thread()
+        let runtime = match tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
-            .expect("failed to build tokio runtime");
+        {
+            Ok(runtime) => runtime,
+            Err(error) => {
+                log::error!("Failed to build tokio runtime: {error}");
+                return;
+            }
+        };
 
         runtime.block_on(async {
             tokio::select! {

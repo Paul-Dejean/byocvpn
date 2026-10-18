@@ -47,3 +47,6 @@ tauri-plugin-android-vpn = { path = "../../android" }
 android_logger = "0.15.1"
 async-trait = { workspace = true }
 tun-rs = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,5 +1,5 @@
 use byocvpn_core::error::{Result, SystemError};
-use log::*;
+use log::info;
 use std::process::Command;
 
 const ANCHOR_NAME: &str = "byocvpn";
@@ -13,17 +13,14 @@ pub fn apply(server_ip: &str, tun_name: &str) -> Result<()> {
     );
 
     std::fs::write(ANCHOR_FILE, &anchor_rules).map_err(|error| SystemError::KillSwitchFailed {
-        reason: format!("failed to write pf anchor file: {}", error),
+        reason: format!("failed to write pf anchor file: {error}"),
     })?;
 
     ensure_anchor_in_pf_conf()?;
     run_pfctl(&["-a", ANCHOR_NAME, "-f", ANCHOR_FILE])?;
     enable_pf();
 
-    info!(
-        "[KillSwitch] pf anchor applied (server={}, tun={})",
-        server_ip, tun_name
-    );
+    info!("[KillSwitch] pf anchor applied (server={server_ip}, tun={tun_name})");
     Ok(())
 }
 
@@ -43,7 +40,7 @@ fn is_anchor_line(line: &str) -> bool {
 fn ensure_anchor_in_pf_conf() -> Result<()> {
     let content =
         std::fs::read_to_string(PF_CONF).map_err(|error| SystemError::KillSwitchFailed {
-            reason: format!("failed to read {}: {}", PF_CONF, error),
+            reason: format!("failed to read {PF_CONF}: {error}"),
         })?;
 
     if content.lines().any(is_anchor_line) {
@@ -52,7 +49,7 @@ fn ensure_anchor_in_pf_conf() -> Result<()> {
 
     let updated = format!("{}\n{}\n", content.trim_end(), ANCHOR_DIRECTIVE);
     std::fs::write(PF_CONF, updated).map_err(|error| SystemError::KillSwitchFailed {
-        reason: format!("failed to write {}: {}", PF_CONF, error),
+        reason: format!("failed to write {PF_CONF}: {error}"),
     })?;
 
     run_pfctl(&["-f", PF_CONF])?;
@@ -62,7 +59,7 @@ fn ensure_anchor_in_pf_conf() -> Result<()> {
 fn remove_anchor_from_pf_conf() -> Result<()> {
     let content =
         std::fs::read_to_string(PF_CONF).map_err(|error| SystemError::KillSwitchFailed {
-            reason: format!("failed to read {}: {}", PF_CONF, error),
+            reason: format!("failed to read {PF_CONF}: {error}"),
         })?;
 
     if !content.lines().any(is_anchor_line) {
@@ -75,9 +72,9 @@ fn remove_anchor_from_pf_conf() -> Result<()> {
         .collect::<Vec<_>>()
         .join("\n");
 
-    std::fs::write(PF_CONF, format!("{}\n", updated)).map_err(|error| {
+    std::fs::write(PF_CONF, format!("{updated}\n")).map_err(|error| {
         SystemError::KillSwitchFailed {
-            reason: format!("failed to write {}: {}", PF_CONF, error),
+            reason: format!("failed to write {PF_CONF}: {error}"),
         }
     })?;
 
@@ -93,7 +90,7 @@ fn enable_pf() {
 fn run_pfctl(args: &[&str]) -> Result<()> {
     let output = Command::new("pfctl").args(args).output().map_err(|error| {
         SystemError::KillSwitchFailed {
-            reason: format!("pfctl exec failed: {}", error),
+            reason: format!("pfctl exec failed: {error}"),
         }
     })?;
 

@@ -15,7 +15,7 @@ use tokio::{
 use tun_rs::AsyncDevice;
 
 use crate::error::{ConfigurationError, Result, SystemError};
-use log::*;
+use log::{error, info, warn};
 
 pub const TUNNEL_MTU: u16 = 1280;
 
@@ -78,7 +78,7 @@ impl Tunnel {
         wg: Tunn,
         shutdown_rx: watch::Receiver<()>,
     ) -> Self {
-        Tunnel {
+        Self {
             tun,
             udp,
             wg,
@@ -113,19 +113,19 @@ impl Tunnel {
                                             metrics.packets_sent += 1;
                                         }
                                         Err(error) => {
-                                            warn!("[Tunnel] UDP send failed: {}", error);
+                                            warn!("[Tunnel] UDP send failed: {error}");
                                         }
                                     }
                                 },
                                 TunnResult::Done => {},
                                 TunnResult::Err(error) => {
-                                    error!("encapsulate error: {:?}", error);
+                                    error!("encapsulate error: {error:?}");
                                 },
                                 _ => {}
                             }
                         }
                         Err(error) => {
-                            error!("[Tunnel] TUN device read failed: {}", error);
+                            error!("[Tunnel] TUN device read failed: {error}");
                             return Err(SystemError::TunnelIoFailed { reason: error.to_string() }.into());
                         }
                     }
@@ -153,7 +153,7 @@ impl Tunnel {
                         },
                         TunnResult::Done => {},
                         TunnResult::Err(error) => {
-                            error!("decapsulate error: {:?}", error);
+                            error!("decapsulate error: {error:?}");
                         },
                     }
                 }
@@ -162,7 +162,7 @@ impl Tunnel {
                     match self.wg.update_timers(&mut out_buf) {
                         TunnResult::WriteToNetwork(packet) => {
                             if let Err(error) = self.udp.send(packet).await {
-                                warn!("[Tunnel] UDP send failed during timer update: {}", error);
+                                warn!("[Tunnel] UDP send failed during timer update: {error}");
                             }
                         },
                         TunnResult::Err(WireGuardError::ConnectionExpired) => {
@@ -170,17 +170,17 @@ impl Tunnel {
                             match self.wg.format_handshake_initiation(&mut out_buf, true) {
                                 TunnResult::WriteToNetwork(packet) => {
                                     if let Err(error) = self.udp.send(packet).await {
-                                        warn!("[Tunnel] Handshake initiation send failed: {}", error);
+                                        warn!("[Tunnel] Handshake initiation send failed: {error}");
                                     }
                                 },
                                 TunnResult::Err(error) => {
-                                    error!("[Tunnel] Handshake initiation failed: {:?}", error);
+                                    error!("[Tunnel] Handshake initiation failed: {error:?}");
                                 },
                                 _ => {}
                             }
                         },
                         TunnResult::Err(error) => {
-                            error!("[Tunnel] Timer update error: {:?}", error);
+                            error!("[Tunnel] Timer update error: {error:?}");
                         },
                         _ => {}
                     }
@@ -230,7 +230,7 @@ pub struct TunnelRateTracker {
 
 impl TunnelRateTracker {
     pub fn new() -> Self {
-        TunnelRateTracker {
+        Self {
             last_metrics: TunnelMetrics::default(),
             last_sampled_at: Instant::now(),
             upload_history: VecDeque::with_capacity(RATE_HISTORY_LENGTH),
@@ -277,6 +277,11 @@ impl Default for TunnelRateTracker {
     }
 }
 
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
 fn calculate_instant_rate(current_bytes: u64, previous_bytes: u64, elapsed_seconds: f64) -> u64 {
     if elapsed_seconds > 0.0 {
         (current_bytes.saturating_sub(previous_bytes) as f64 / elapsed_seconds) as u64

@@ -51,7 +51,7 @@ pub fn build_authorization_header(
     credentials: &OciCredentials,
 ) -> Result<(String, String)> {
     let mut headers_to_sign = vec![
-        ("(request-target)", format!("{} {}", method, path)),
+        ("(request-target)", format!("{method} {path}")),
         ("host", host.to_string()),
         ("date", date.to_string()),
     ];
@@ -69,7 +69,7 @@ pub fn build_authorization_header(
 
     let signing_string = headers_to_sign
         .iter()
-        .map(|(name, value)| format!("{}: {}", name, value))
+        .map(|(name, value)| format!("{name}: {value}"))
         .collect::<Vec<_>>()
         .join("\n");
 

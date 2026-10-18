@@ -20,7 +20,7 @@ use crate::{
     startup_script::generate_server_startup_script,
     state::GcpInstanceStatus,
 };
-use log::*;
+use log::debug;
 
 const MACHINE_TYPE: &str = "e2-micro";
 const DISK_TYPE_SUFFIX: &str = "pd-standard";
@@ -126,7 +126,7 @@ pub async fn spawn_instance(
     let public_ip_v4 = extract_public_ip_v4(&instance);
     let public_ip_v6 = extract_public_ip_v6(&instance);
 
-    let id = format!("{}/{}", zone, instance_name);
+    let id = format!("{zone}/{instance_name}");
     Ok(InstanceInfo {
         id,
         name: Some(instance_name),
@@ -171,7 +171,7 @@ pub async fn list_instances(client: &GcpClient, region: &str) -> Result<Vec<Inst
     let mut instances = Vec::new();
     if let Some(items) = response.items {
         for (zone_key, zone_data) in items {
-            if !zone_key.starts_with(&format!("zones/{}", region)) {
+            if !zone_key.starts_with(&format!("zones/{region}")) {
                 continue;
             }
             let zone = zone_key.trim_start_matches("zones/").to_string();
@@ -217,10 +217,10 @@ fn parse_instance_id(instance_id: &str) -> Result<(&str, &str)> {
     let mut parts = instance_id.splitn(2, '/');
     let zone = parts
         .next()
-        .ok_or_else(|| ComputeProvisioningError::MissingInstanceIdentifier)?;
+        .ok_or(ComputeProvisioningError::MissingInstanceIdentifier)?;
     let name = parts
         .next()
-        .ok_or_else(|| ComputeProvisioningError::MissingInstanceIdentifier)?;
+        .ok_or(ComputeProvisioningError::MissingInstanceIdentifier)?;
     Ok((zone, name))
 }
 
@@ -290,12 +290,12 @@ fn parse_instance_info(
     }
     let public_ip_v4 = extract_public_ip_v4(instance);
     let public_ip_v6 = extract_public_ip_v6(instance);
-    let id = format!("{}/{}", zone, name);
+    let id = format!("{zone}/{name}");
 
     let instance_type = instance
         .machine_type
         .as_deref()
-        .and_then(|machine_type_url| machine_type_url.split('/').last())
+        .and_then(|machine_type_url| machine_type_url.split('/').next_back())
         .unwrap_or(MACHINE_TYPE)
         .to_string();
 
@@ -334,31 +334,28 @@ async fn wait_for_zone_operation(
     retry(
         || async move {
             let operation: ZoneOperationResponse = client.get(operation_url).await?;
-            match operation.status.as_deref() {
-                Some("DONE") => {
-                    if let Some(error) = operation.error {
-                        let message = error
-                            .errors
-                            .as_ref()
-                            .and_then(|errors| errors.first())
-                            .and_then(|detail| detail.message.as_deref())
-                            .unwrap_or("unknown error");
-                        return Err(ComputeProvisioningError::InstanceSpawnFailed {
-                            region_name: region.to_string(),
-                            reason: message.to_string(),
-                        }
-                        .into());
-                    }
-                    Ok(())
-                }
-                _ => {
-                    debug!("[GCP] Waiting for instance creation...");
-                    Err(ComputeProvisioningError::InstanceSpawnFailed {
+            if operation.status.as_deref() == Some("DONE") {
+                if let Some(error) = operation.error {
+                    let message = error
+                        .errors
+                        .as_ref()
+                        .and_then(|errors| errors.first())
+                        .and_then(|detail| detail.message.as_deref())
+                        .unwrap_or("unknown error");
+                    return Err(ComputeProvisioningError::InstanceSpawnFailed {
                         region_name: region.to_string(),
-                        reason: "Timed out waiting for instance creation operation".to_string(),
+                        reason: message.to_string(),
                     }
-                    .into())
+                    .into());
                 }
+                Ok(())
+            } else {
+                debug!("[GCP] Waiting for instance creation...");
+                Err(ComputeProvisioningError::InstanceSpawnFailed {
+                    region_name: region.to_string(),
+                    reason: "Timed out waiting for instance creation operation".to_string(),
+                }
+                .into())
             }
         },
         60,

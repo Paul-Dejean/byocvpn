@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use base64::{Engine, engine::general_purpose};
 use ini::Ini;
 use ipnet::IpNet;
-use log::*;
+use log::debug;
 
 use crate::error::{ConfigurationError, Result};
 
@@ -21,7 +21,7 @@ pub async fn parse_wireguard_config(config_path: &str) -> Result<WireguardConfig
     fn require_section<'a>(config: &'a Ini, name: &str) -> Result<&'a ini::Properties> {
         config.section(Some(name)).ok_or_else(|| {
             ConfigurationError::MissingField {
-                field: format!("[{}] section", name),
+                field: format!("[{name}] section"),
             }
             .into()
         })
@@ -39,7 +39,7 @@ pub async fn parse_wireguard_config(config_path: &str) -> Result<WireguardConfig
     fn decode_base64(value: &str, field: &str) -> Result<Vec<u8>> {
         general_purpose::STANDARD.decode(value).map_err(|error| {
             ConfigurationError::InvalidFile {
-                reason: format!("Invalid {}: {}", field, error),
+                reason: format!("Invalid {field}: {error}"),
             }
             .into()
         })
@@ -51,7 +51,7 @@ pub async fn parse_wireguard_config(config_path: &str) -> Result<WireguardConfig
     {
         value.parse().map_err(|error| {
             ConfigurationError::InvalidFile {
-                reason: format!("Invalid {}: {}", field, error),
+                reason: format!("Invalid {field}: {error}"),
             }
             .into()
         })
@@ -60,15 +60,15 @@ pub async fn parse_wireguard_config(config_path: &str) -> Result<WireguardConfig
     let instance_id = std::path::Path::new(config_path)
         .file_stem()
         .and_then(|s| s.to_str())
-        .map(|s| s.to_string())
-        .ok_or(ConfigurationError::InvalidValue {
+        .map(std::string::ToString::to_string)
+        .ok_or_else(|| ConfigurationError::InvalidValue {
             field: "filename".to_string(),
             reason: "unable to extract instance ID".to_string(),
         })?;
 
     let config =
         Ini::load_from_file(config_path).map_err(|error| ConfigurationError::InvalidFile {
-            reason: format!("Failed to read config file: {}", error),
+            reason: format!("Failed to read config file: {error}"),
         })?;
 
     let interface = require_section(&config, "Interface")?;
@@ -83,26 +83,23 @@ pub async fn parse_wireguard_config(config_path: &str) -> Result<WireguardConfig
         .map(|address| parse_value::<IpNet>(address.trim(), "Address"))
         .collect::<Result<Vec<_>>>()?;
 
-    let private_ipv4 = addresses
+    let private_ipv4 = *addresses
         .iter()
         .find(|ip| ip.addr().is_ipv4())
-        .ok_or(ConfigurationError::MissingField {
+        .ok_or_else(|| ConfigurationError::MissingField {
             field: "IPv4 address".to_string(),
-        })?
-        .clone();
-    let private_ipv6 = addresses
+        })?;
+    let private_ipv6 = *addresses
         .iter()
         .find(|ip| ip.addr().is_ipv6())
-        .ok_or(ConfigurationError::MissingField {
+        .ok_or_else(|| ConfigurationError::MissingField {
             field: "IPv6 address".to_string(),
-        })?
-        .clone();
+        })?;
 
     let dns_servers = parse_dns_servers_from_interface_section(interface);
 
     debug!(
-        "Parsed WireGuard config: server_endpoint={}, private_ipv4={}, private_ipv6={}, dns_servers={:?}",
-        server_endpoint, private_ipv4, private_ipv6, dns_servers
+        "Parsed WireGuard config: server_endpoint={server_endpoint}, private_ipv4={private_ipv4}, private_ipv6={private_ipv6}, dns_servers={dns_servers:?}"
     );
 
     Ok(WireguardConfig {
@@ -122,8 +119,8 @@ fn parse_dns_servers_from_interface_section(interface_section: &ini::Properties)
     };
     value
         .split(|c: char| c == ',' || c.is_whitespace())
-        .map(|p| p.trim())
+        .map(str::trim)
         .filter(|p| !p.is_empty())
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
         .collect()
 }

@@ -6,7 +6,7 @@ use tokio::{
 };
 
 use crate::error::{Result, SystemError};
-use log::*;
+use log::debug;
 
 const PROBE_MAX_ATTEMPTS: u32 = 30;
 const PROBE_RETRY_DELAY_SECS: u64 = 10;
@@ -25,7 +25,7 @@ pub enum ProbeStatus {
 }
 
 pub async fn probe_status(ip_address: &str) -> ProbeStatus {
-    let address = format!("{}:51820", ip_address);
+    let address = format!("{ip_address}:51820");
 
     let connect = timeout(
         TokioDuration::from_secs(PROBE_CONNECT_TIMEOUT_SECS),
@@ -52,7 +52,7 @@ pub async fn probe_status(ip_address: &str) -> ProbeStatus {
 
 pub async fn wait_until_ready(ip_address: &str) -> Result<()> {
     for attempt in 1..=PROBE_MAX_ATTEMPTS {
-        debug!("[probe] attempt {}/{}", attempt, PROBE_MAX_ATTEMPTS);
+        debug!("[probe] attempt {attempt}/{PROBE_MAX_ATTEMPTS}");
 
         match probe_status(ip_address).await {
             ProbeStatus::Ready => {

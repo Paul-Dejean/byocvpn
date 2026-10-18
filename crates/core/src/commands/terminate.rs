@@ -5,7 +5,7 @@ use crate::{
     config::get_wireguard_config_file_path,
     error::{ConfigurationError, Result},
 };
-use log::*;
+use log::info;
 
 pub async fn terminate_instance(
     provider: &dyn CloudProvider,
@@ -26,9 +26,9 @@ pub async fn terminate_instance(
         fs::remove_file(&wireguard_file_path)
             .await
             .map_err(|error| ConfigurationError::TunnelConfiguration {
-                reason: format!("failed to remove config file: {}", error),
+                reason: format!("failed to remove config file: {error}"),
             })?;
     }
-    info!("Terminated instance: {}", instance_id);
+    info!("Terminated instance: {instance_id}");
     Ok(())
 }

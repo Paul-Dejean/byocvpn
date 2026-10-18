@@ -3,7 +3,7 @@ use std::sync::Arc;
 use azure_core::credentials::{Secret, TokenCredential};
 use azure_identity::ClientSecretCredential;
 use byocvpn_core::error::{CredentialsError, Result};
-use log::*;
+use log::debug;
 
 pub fn create_credential(
     tenant_id: &str,
@@ -14,10 +14,7 @@ pub fn create_credential(
     ClientSecretCredential::new(tenant_id, application_id.to_string(), secret, None).map_err(
         |error| {
             CredentialsError::InvalidFormat {
-                reason: format!(
-                    "Failed to create Azure service-principal credential: {}",
-                    error
-                ),
+                reason: format!("Failed to create Azure service-principal credential: {error}"),
             }
             .into()
         },

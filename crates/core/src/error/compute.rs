@@ -26,6 +26,9 @@ pub enum ComputeProvisioningError {
     #[error("instance missing public IPv6 address")]
     MissingPublicIpv6,
 
+    #[error("the launch step must run before {step}")]
+    LaunchStepMissing { step: String },
+
     #[error("AMI {name} lookup failed: {reason}")]
     AmiLookupFailed { name: String, reason: String },
 }

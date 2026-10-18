@@ -15,22 +15,19 @@ const REGION_FIELD: &str = "region";
 fn normalize_pem(raw: &str) -> String {
     let normalised = raw.replace("\r\n", "\n").replace('\r', "\n");
 
-    let begin_pos = match normalised.find("-----BEGIN ") {
-        Some(pos) => pos,
-        None => return normalised.trim().to_string(),
+    let Some(begin_pos) = normalised.find("-----BEGIN ") else {
+        return normalised.trim().to_string();
     };
 
     let end_prefix = "-----END ";
-    let end_start = match normalised.rfind(end_prefix) {
-        Some(pos) => pos,
-        None => return normalised[begin_pos..].trim().to_string(),
+    let Some(end_start) = normalised.rfind(end_prefix) else {
+        return normalised[begin_pos..].trim().to_string();
     };
 
     let rest = &normalised[end_start..];
-    let end_line_end = rest
-        .find('\n')
-        .map(|newline_offset| end_start + newline_offset + 1)
-        .unwrap_or(normalised.len());
+    let end_line_end = rest.find('\n').map_or(normalised.len(), |newline_offset| {
+        end_start + newline_offset + 1
+    });
 
     normalised[begin_pos..end_line_end].trim_end().to_string()
 }

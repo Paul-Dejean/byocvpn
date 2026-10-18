@@ -2,10 +2,10 @@ use byocvpn_core::{
     cloud_provider::CloudProviderName,
     error::{ConfigurationError, Result},
 };
-use log::*;
+use log::debug;
 use serde::{Deserialize, Serialize};
 
-fn default_kill_switch_enabled() -> bool {
+const fn default_kill_switch_enabled() -> bool {
     true
 }
 
@@ -24,12 +24,12 @@ pub fn write_session(session: &PersistedSession) -> Result<()> {
     let path = byocvpn_core::config::session_file_path()?;
     let json = serde_json::to_string(session).map_err(|error| {
         ConfigurationError::TunnelConfiguration {
-            reason: format!("failed to serialize session: {}", error),
+            reason: format!("failed to serialize session: {error}"),
         }
     })?;
     std::fs::write(&path, json.as_bytes()).map_err(|error| {
         ConfigurationError::TunnelConfiguration {
-            reason: format!("failed to write session file: {}", error),
+            reason: format!("failed to write session file: {error}"),
         }
     })?;
     debug!("Session persisted to {}", path.display());
@@ -45,7 +45,7 @@ pub fn clear_session() -> Result<()> {
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(ConfigurationError::TunnelConfiguration {
-            reason: format!("failed to remove session file: {}", error),
+            reason: format!("failed to remove session file: {error}"),
         }
         .into()),
     }

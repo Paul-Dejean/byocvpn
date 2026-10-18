@@ -9,11 +9,11 @@ where
         SdkError::ServiceError(service_error) => {
             let code = service_error.err().code().unwrap_or("UnknownError");
             let message = service_error.err().message().unwrap_or("no message");
-            format!("{}: {}", code, message)
+            format!("{code}: {message}")
         }
         SdkError::TimeoutError(_) => "request timed out".to_string(),
-        SdkError::DispatchFailure(error) => format!("dispatch failure: {:?}", error),
-        other => format!("{}", other),
+        SdkError::DispatchFailure(error) => format!("dispatch failure: {error:?}"),
+        other => format!("{other}"),
     }
 }
 

@@ -1,7 +1,7 @@
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use byocvpn_core::error::{ConfigurationError, Result};
 use handlebars::Handlebars;
-use log::*;
+use log::debug;
 use serde::Serialize;
 
 #[derive(Serialize)]

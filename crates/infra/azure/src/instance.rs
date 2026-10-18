@@ -5,7 +5,7 @@ use byocvpn_core::{
 };
 use chrono::{DateTime, Utc};
 use futures::future::join_all;
-use log::*;
+use log::{debug, error, info, warn};
 use tokio::time::Duration;
 use uuid::Uuid;
 
@@ -40,8 +40,8 @@ const IMAGE_SKU: &str = "22_04-lts-gen2";
 const API_VERSION_COMPUTE: &str = "2024-07-01";
 
 fn build_spawn_error(location: &str, context: &str, error: impl std::fmt::Display) -> Error {
-    let reason = format!("{}: {}", context, error);
-    error!("[Azure] spawn error in {}: {}", location, reason);
+    let reason = format!("{context}: {error}");
+    error!("[Azure] spawn error in {location}: {reason}");
     ComputeProvisioningError::InstanceSpawnFailed {
         region_name: location.to_string(),
         reason,
@@ -54,15 +54,12 @@ pub async fn spawn_instance(
     location: &str,
     params: &SpawnInstanceParams<'_>,
 ) -> Result<InstanceInfo> {
-    info!("[Azure] Spawning instance in '{}'...", location);
+    info!("[Azure] Spawning instance in '{location}'...");
 
     ensure_providers_registered(client)
         .await
         .map_err(|error| build_spawn_error(location, "Provider registration", error))?;
-    debug!(
-        "[Azure] Provider registration confirmed for '{}'.",
-        location
-    );
+    debug!("[Azure] Provider registration confirmed for '{location}'.");
 
     let network_ids = ensure_region_networking(client, location)
         .await
@@ -113,8 +110,7 @@ pub async fn spawn_instance(
         generate_server_startup_script(params.server_private_key, params.client_public_key)
             .map_err(|error| build_spawn_error(location, "Startup script", error))?;
     let vm_path = client.build_subscription_path(&format!(
-        "/resourceGroups/{}/providers/Microsoft.Compute/virtualMachines/{}",
-        resource_group, vm_name
+        "/resourceGroups/{resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}"
     ));
     let vm_url = client.build_arm_url(&vm_path, API_VERSION_COMPUTE);
 
@@ -167,17 +163,14 @@ pub async fn spawn_instance(
             };
             match client.put(&vm_url, &vm_body).await {
                 Ok(operation_url) => {
-                    info!("[Azure] VM '{}' creating with size {}...", vm_name, vm_size);
+                    info!("[Azure] VM '{vm_name}' creating with size {vm_size}...");
                     result = Some((operation_url, vm_size));
                     break;
                 }
                 Err(error) => {
                     last_error = error.to_string();
                     if last_error.contains("SkuNotAvailable") {
-                        warn!(
-                            "[Azure] {} not available in {}, trying next size...",
-                            vm_size, location
-                        );
+                        warn!("[Azure] {vm_size} not available in {location}, trying next size...");
                     } else {
                         cleanup_vm_resources(client, &resource_group, &vm_name).await;
                         return Err(build_spawn_error(location, "VM creation", &last_error));
@@ -185,16 +178,15 @@ pub async fn spawn_instance(
                 }
             }
         }
-        match result {
-            Some((operation_url, vm_size)) => (operation_url, vm_size),
-            None => {
-                cleanup_vm_resources(client, &resource_group, &vm_name).await;
-                return Err(build_spawn_error(
-                    location,
-                    "VM creation",
-                    format!("No available VM size in {}: {}", location, last_error),
-                ));
-            }
+        if let Some((operation_url, vm_size)) = result {
+            (operation_url, vm_size)
+        } else {
+            cleanup_vm_resources(client, &resource_group, &vm_name).await;
+            return Err(build_spawn_error(
+                location,
+                "VM creation",
+                format!("No available VM size in {location}: {last_error}"),
+            ));
         }
     };
 
@@ -227,8 +219,8 @@ pub async fn spawn_instance(
         }
     );
 
-    let instance_id = format!("{}/{}", resource_group, vm_name);
-    info!("[Azure] VM '{}' created in {}.", vm_name, location);
+    let instance_id = format!("{resource_group}/{vm_name}");
+    info!("[Azure] VM '{vm_name}' created in {location}.");
 
     Ok(InstanceInfo {
         id: instance_id,
@@ -246,12 +238,11 @@ pub async fn spawn_instance(
 }
 
 pub async fn terminate_instance(client: &AzureClient, instance_id: &str) -> Result<()> {
-    info!("[Azure] Terminating instance '{}'...", instance_id);
+    info!("[Azure] Terminating instance '{instance_id}'...");
     let (resource_group, vm_name) = parse_instance_id(instance_id)?;
 
     let vm_path = client.build_subscription_path(&format!(
-        "/resourceGroups/{}/providers/Microsoft.Compute/virtualMachines/{}",
-        resource_group, vm_name
+        "/resourceGroups/{resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}"
     ));
     let vm_url = client.build_arm_url(&vm_path, API_VERSION_COMPUTE);
 
@@ -274,7 +265,7 @@ pub async fn terminate_instance(client: &AzureClient, instance_id: &str) -> Resu
             )?;
     }
 
-    info!("[Azure] VM '{}' deleted.", vm_name);
+    info!("[Azure] VM '{vm_name}' deleted.");
 
     let client_clone = client.clone();
     let resource_group_owned = resource_group.to_string();
@@ -310,8 +301,7 @@ pub async fn list_all_instances(client: &AzureClient) -> Result<Vec<InstanceInfo
                 .tags
                 .as_ref()
                 .and_then(|tags| tags.get("created-by"))
-                .map(|tag_value| tag_value == "byocvpn")
-                .unwrap_or(false)
+                .is_some_and(|tag_value| tag_value == "byocvpn")
         })
         .collect();
 
@@ -327,7 +317,7 @@ pub async fn list_all_instances(client: &AzureClient) -> Result<Vec<InstanceInfo
         match result {
             Ok(Some(instance)) => instances.push(instance),
             Ok(None) => {}
-            Err(error) => error!("[Azure] Failed to resolve VM info: {}", error),
+            Err(error) => error!("[Azure] Failed to resolve VM info: {error}"),
         }
     }
 
@@ -352,17 +342,14 @@ async fn resolve_vm_info(
     client: &AzureClient,
     virtual_machine: &VmResponse,
 ) -> Result<Option<InstanceInfo>> {
-    let vm_name = match virtual_machine.name.clone() {
-        Some(name) => name,
-        None => return Ok(None),
+    let Some(vm_name) = virtual_machine.name.clone() else {
+        return Ok(None);
     };
-    let location = match virtual_machine.location.clone() {
-        Some(location_value) => location_value,
-        None => return Ok(None),
+    let Some(location) = virtual_machine.location.clone() else {
+        return Ok(None);
     };
-    let vm_id = match virtual_machine.id.as_deref() {
-        Some(id) => id,
-        None => return Ok(None),
+    let Some(vm_id) = virtual_machine.id.as_deref() else {
+        return Ok(None);
     };
 
     let resource_group = crate::client::extract_resource_group_from_id(vm_id)
@@ -404,7 +391,7 @@ async fn resolve_vm_info(
         .await
         .unwrap_or_default();
 
-    let instance_id = format!("{}/{}", resource_group, vm_name);
+    let instance_id = format!("{resource_group}/{vm_name}");
 
     Ok(Some(InstanceInfo {
         id: instance_id,
@@ -442,7 +429,7 @@ async fn wait_for_vm_creation(
             let operation: AsyncOperationResponse = client.get(operation_url).await?;
             match operation.status.as_deref() {
                 Some("Succeeded") => Ok(()),
-                Some("Failed") | Some("Canceled") => {
+                Some("Failed" | "Canceled") => {
                     let message = operation
                         .error
                         .as_ref()

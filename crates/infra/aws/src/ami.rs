@@ -4,11 +4,11 @@ use byocvpn_core::error::{ComputeProvisioningError, Result};
 
 use crate::aws_error::map_aws_error;
 
-pub(super) const AL2023_AMI_SSM_PARAMETER: &str =
+pub const AL2023_AMI_SSM_PARAMETER: &str =
     "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64";
 const AL2023_AMI_NAME: &str = "al2023";
 
-pub(super) async fn get_al2023_ami(ssm_client: &SsmClient) -> Result<String> {
+pub async fn get_al2023_ami(ssm_client: &SsmClient) -> Result<String> {
     let result = ssm_client
         .get_parameter()
         .name(AL2023_AMI_SSM_PARAMETER)
@@ -30,7 +30,7 @@ pub(super) async fn get_al2023_ami(ssm_client: &SsmClient) -> Result<String> {
     let ami_id = result
         .parameter()
         .and_then(|p| p.value())
-        .ok_or(ComputeProvisioningError::AmiLookupFailed {
+        .ok_or_else(|| ComputeProvisioningError::AmiLookupFailed {
             name: AL2023_AMI_NAME.to_string(),
             reason: "parameter not found".to_string(),
         })?

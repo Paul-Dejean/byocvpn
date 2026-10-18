@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{os::unix::fs::PermissionsExt, path::PathBuf};
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
@@ -20,7 +20,6 @@ impl IpcSocket {
             reason: format!("failed to bind socket at {}: {}", path.display(), error),
         })?;
 
-        use std::os::unix::fs::PermissionsExt;
         if let Ok(metadata) = std::fs::metadata(&path) {
             let mut perms = metadata.permissions();
             perms.set_mode(0o777);
@@ -36,12 +35,12 @@ impl IpcSocket {
                 .accept()
                 .await
                 .map_err(|error| DaemonError::SocketError {
-                    reason: format!("failed to accept connection: {}", error),
+                    reason: format!("failed to accept connection: {error}"),
                 })?;
         Ok(IpcStream { stream })
     }
 
-    pub fn path(&self) -> &PathBuf {
+    pub const fn path(&self) -> &PathBuf {
         &self.path
     }
 }
@@ -72,13 +71,13 @@ impl IpcStream {
             .write_all(message.as_bytes())
             .await
             .map_err(|error| DaemonError::SocketError {
-                reason: format!("failed to send message: {}", error),
+                reason: format!("failed to send message: {error}"),
             })?;
         self.stream
             .write_all(b"\n")
             .await
             .map_err(|error| DaemonError::SocketError {
-                reason: format!("failed to send message terminator: {}", error),
+                reason: format!("failed to send message terminator: {error}"),
             })?;
         Ok(())
     }
@@ -86,19 +85,20 @@ impl IpcStream {
     pub async fn read_message(&mut self) -> Result<Option<String>> {
         let mut reader = BufReader::new(&mut self.stream);
         let mut line = String::new();
-        match reader
+        if reader
             .read_line(&mut line)
             .await
             .map_err(|error| DaemonError::SocketError {
-                reason: format!("failed to read message: {}", error),
-            })? {
-            0 => Ok(None),
-            _ => {
-                if line.ends_with('\n') {
-                    line.pop();
-                }
-                Ok(Some(line))
+                reason: format!("failed to read message: {error}"),
+            })?
+            == 0
+        {
+            Ok(None)
+        } else {
+            if line.ends_with('\n') {
+                line.pop();
             }
+            Ok(Some(line))
         }
     }
 
@@ -107,7 +107,7 @@ impl IpcStream {
             .write_all(data)
             .await
             .map_err(|error| DaemonError::SocketError {
-                reason: format!("failed to write data: {}", error),
+                reason: format!("failed to write data: {error}"),
             })?;
         Ok(())
     }

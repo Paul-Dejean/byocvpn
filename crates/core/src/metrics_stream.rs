@@ -12,11 +12,12 @@ use crate::{
     ipc::IpcStream,
     tunnel::{ConnectedInstance, TunnelMetrics, VpnStatus},
 };
-use log::*;
+use log::{debug, error, info, warn};
 
 static STREAM_STATE: StdMutex<Option<(ConnectedInstance, Option<u64>)>> = StdMutex::new(None);
 static STREAM_GENERATION: AtomicU64 = AtomicU64::new(0);
 
+#[allow(clippy::unused_async)]
 pub async fn start<F>(
     socket_path: PathBuf,
     connected_instance: ConnectedInstance,
@@ -46,28 +47,24 @@ where
             for attempt in 1..=5 {
                 match IpcStream::connect(&socket_path).await {
                     Ok(connected_stream) => {
-                        info!("Connected to metrics socket on attempt {}", attempt);
+                        info!("Connected to metrics socket on attempt {attempt}");
                         maybe_stream = Some(connected_stream);
                         break;
                     }
                     Err(error) => {
-                        debug!(
-                            "Failed to connect to metrics socket (attempt {}): {}",
-                            attempt, error
-                        );
+                        debug!("Failed to connect to metrics socket (attempt {attempt}): {error}");
                         tokio::time::sleep(Duration::from_millis(500)).await;
                     }
                 }
             }
-            match maybe_stream {
-                Some(connected_stream) => connected_stream,
-                None => {
-                    warn!("Failed to connect to metrics socket after retries");
-                    if let Ok(mut state) = STREAM_STATE.lock() {
-                        *state = None;
-                    }
-                    return;
+            if let Some(connected_stream) = maybe_stream {
+                connected_stream
+            } else {
+                warn!("Failed to connect to metrics socket after retries");
+                if let Ok(mut state) = STREAM_STATE.lock() {
+                    *state = None;
                 }
+                return;
             }
         };
 
@@ -98,7 +95,7 @@ where
                                 connection_error: None,
                             });
                         } else {
-                            error!("Failed to parse metrics: {}", line);
+                            error!("Failed to parse metrics: {line}");
                         }
                     }
                     Ok(None) => {
@@ -106,7 +103,7 @@ where
                         break 'read true;
                     }
                     Err(error) => {
-                        error!("Error reading from metrics socket: {}", error);
+                        error!("Error reading from metrics socket: {error}");
                         break 'read true;
                     }
                 }
@@ -132,10 +129,7 @@ where
             loop {
                 tokio::time::sleep(Duration::from_secs(3)).await;
 
-                let is_cancelled = STREAM_STATE
-                    .lock()
-                    .ok()
-                    .map_or(true, |guard| guard.is_none())
+                let is_cancelled = STREAM_STATE.lock().ok().is_none_or(|guard| guard.is_none())
                     || STREAM_GENERATION.load(Ordering::SeqCst) != generation;
 
                 if is_cancelled {
@@ -150,7 +144,7 @@ where
                         continue 'reconnect;
                     }
                     Err(error) => {
-                        debug!("Metrics socket reconnect attempt failed: {}", error);
+                        debug!("Metrics socket reconnect attempt failed: {error}");
                     }
                 }
             }
@@ -160,6 +154,7 @@ where
     Ok(())
 }
 
+#[allow(clippy::unused_async)]
 pub async fn stop() -> Result<()> {
     let mut state = STREAM_STATE.lock().map_err(|error| {
         warn!("Failed to acquire metrics stream state lock: {error}");

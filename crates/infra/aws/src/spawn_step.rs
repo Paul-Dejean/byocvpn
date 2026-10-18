@@ -11,7 +11,7 @@ pub enum AwsSpawnStepId {
 }
 
 impl AwsSpawnStepId {
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::SetupVpc => "setup_vpc",
             Self::SetupIgw => "setup_igw",

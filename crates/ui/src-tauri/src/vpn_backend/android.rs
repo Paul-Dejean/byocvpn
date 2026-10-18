@@ -69,7 +69,7 @@ impl DaemonClient for AndroidDaemonClient {
     async fn send_command(&self, command: DaemonCommand) -> Result<Value> {
         match command {
             DaemonCommand::Connect(connect_params) => {
-                connect_tunnel(&self.vpn_service, connect_params).await?;
+                connect_tunnel(&self.vpn_service, *connect_params).await?;
                 Ok(Value::Null)
             }
             DaemonCommand::Disconnect => {
@@ -266,10 +266,9 @@ async fn run_status_stream(
         };
         let smoothed_metrics = rate_tracker.sample(raw_metrics);
 
-        let is_persist_due =
-            last_persisted_at.map_or(true, |persisted_at| {
-                persisted_at.elapsed() >= METRICS_PERSIST_INTERVAL
-            });
+        let is_persist_due = last_persisted_at.map_or(true, |persisted_at| {
+            persisted_at.elapsed() >= METRICS_PERSIST_INTERVAL
+        });
         if is_persist_due {
             last_persisted_at = Some(Instant::now());
             if let Some(ledger) = LedgerStore::open(&app_handle) {
