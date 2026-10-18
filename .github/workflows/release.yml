@@ -74,6 +74,8 @@ jobs:
           cache-on-failure: true
 
       - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: crates/ui/package.json
 
       - uses: actions/setup-node@v6
         with:
@@ -224,6 +226,8 @@ jobs:
           cache-on-failure: true
 
       - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: crates/ui/package.json
 
       - uses: actions/setup-node@v6
         with:
