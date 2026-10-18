@@ -9,7 +9,8 @@
     "opener:default",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "x-apple.systempreferences:*" }, { "url": "ms-settings:*" }]
+      "allow": [{ "url": "x-apple.systempreferences:*" }, { "url": "ms-settings:*" },
+        { "url": "https://github.com/Paul-Dejean/byocvpn/*" }]
     },
     "store:default",
     "notification:default",

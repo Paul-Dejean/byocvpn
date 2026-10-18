@@ -4,6 +4,7 @@ import { toast } from "react-hot-toast";
 import { useCredentials } from "../hooks/useCredentials";
 import { useAccounts } from "../hooks/useAccounts";
 import { usePermissions } from "../hooks/usePermissions";
+import { isAndroid } from "../lib/platform";
 import { CloudProviderName } from "../types";
 import { AwsAccountCard } from "../components/settings/AwsAccountCard";
 import { OracleAccountCard } from "../components/settings/OracleAccountCard";
@@ -15,6 +16,7 @@ import { NotificationSettingsCard } from "../components/settings/NotificationSet
 import { SessionKillswitchCard } from "../components/settings/SessionKillswitchCard";
 import { AutoTerminateSettingsCard } from "../components/settings/AutoTerminateSettingsCard";
 import { AppearanceCard } from "../components/settings/AppearanceCard";
+import { UpdateCheckCard } from "../components/settings/UpdateCheckCard";
 import { SettingsSection } from "../components/settings/SettingsSection";
 import { Button } from "../components/primitives/Button";
 
@@ -150,6 +152,12 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
         <SettingsSection title="Appearance">
           <AppearanceCard />
         </SettingsSection>
+
+        {!isAndroid() && (
+          <SettingsSection title="Updates">
+            <UpdateCheckCard />
+          </SettingsSection>
+        )}
 
         <SettingsSection title="VPN">
           <SessionKillswitchCard />
