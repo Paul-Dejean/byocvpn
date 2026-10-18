@@ -127,7 +127,6 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
         dns_override_guard,
         server_ip: server_endpoint.ip().to_string(),
         interface_index,
-        interface_name: interface_name.clone(),
         instance: Some(ConnectedInstance {
             instance_id,
             public_ip_v4,
