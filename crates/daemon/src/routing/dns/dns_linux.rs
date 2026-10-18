@@ -1,7 +1,7 @@
 use std::{io, process::Command};
 
 use byocvpn_core::error::{ConfigurationError, Result};
-use log::*;
+use log::{debug, info, warn};
 
 const TUN_INTERFACE_NAME: &str = "tun0";
 
@@ -19,10 +19,7 @@ impl DnsOverrideGuard {
             .into());
         }
 
-        info!(
-            "Setting DNS servers on {} via resolvectl: {:?}",
-            TUN_INTERFACE_NAME, new_dns_servers
-        );
+        info!("Setting DNS servers on {TUN_INTERFACE_NAME} via resolvectl: {new_dns_servers:?}");
 
         let mut set_dns_command = Command::new("resolvectl");
         set_dns_command.arg("dns").arg(TUN_INTERFACE_NAME);
@@ -30,12 +27,12 @@ impl DnsOverrideGuard {
             set_dns_command.arg(server);
         }
 
-        debug!("Executing: {:?}", set_dns_command);
+        debug!("Executing: {set_dns_command:?}");
         let set_dns_output =
             set_dns_command
                 .output()
                 .map_err(|error| ConfigurationError::DnsConfiguration {
-                    reason: format!("failed to run resolvectl dns: {}", error),
+                    reason: format!("failed to run resolvectl dns: {error}"),
                 })?;
 
         if !set_dns_output.status.success() {
@@ -54,12 +51,12 @@ impl DnsOverrideGuard {
             .arg(TUN_INTERFACE_NAME)
             .arg("~.");
 
-        debug!("Executing: {:?}", set_domain_command);
+        debug!("Executing: {set_domain_command:?}");
         let set_domain_output =
             set_domain_command
                 .output()
                 .map_err(|error| ConfigurationError::DnsConfiguration {
-                    reason: format!("failed to run resolvectl domain: {}", error),
+                    reason: format!("failed to run resolvectl domain: {error}"),
                 })?;
 
         if !set_domain_output.status.success() {
@@ -72,7 +69,7 @@ impl DnsOverrideGuard {
             .into());
         }
 
-        info!("DNS successfully configured on {}", TUN_INTERFACE_NAME);
+        info!("DNS successfully configured on {TUN_INTERFACE_NAME}");
 
         Ok(Self {
             dns_override_active: true,
@@ -84,29 +81,23 @@ impl DnsOverrideGuard {
             return Ok(());
         }
 
-        info!(
-            "Reverting DNS settings on {} via resolvectl",
-            TUN_INTERFACE_NAME
-        );
+        info!("Reverting DNS settings on {TUN_INTERFACE_NAME} via resolvectl");
 
         let mut revert_command = Command::new("resolvectl");
         revert_command.arg("revert").arg(TUN_INTERFACE_NAME);
 
-        debug!("Executing: {:?}", revert_command);
+        debug!("Executing: {revert_command:?}");
         let revert_output = revert_command.output()?;
 
         if !revert_output.status.success() {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!(
-                    "resolvectl revert failed: {}",
-                    String::from_utf8_lossy(&revert_output.stderr)
-                ),
-            ));
+            return Err(io::Error::other(format!(
+                "resolvectl revert failed: {}",
+                String::from_utf8_lossy(&revert_output.stderr)
+            )));
         }
 
         self.dns_override_active = false;
-        info!("DNS restoration completed on {}", TUN_INTERFACE_NAME);
+        info!("DNS restoration completed on {TUN_INTERFACE_NAME}");
         Ok(())
     }
 }
@@ -114,7 +105,7 @@ impl DnsOverrideGuard {
 impl Drop for DnsOverrideGuard {
     fn drop(&mut self) {
         if let Err(error) = self.restore_previous_dns_configuration() {
-            warn!("Failed to restore DNS on drop: {}", error);
+            warn!("Failed to restore DNS on drop: {error}");
         }
     }
 }

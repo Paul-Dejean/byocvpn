@@ -1,6 +1,7 @@
 use byocvpn_core::error::{Result, SystemError};
-use log::*;
 use std::process::Command;
+
+use log::info;
 
 const CHAIN: &str = "BYOCVPN_KS";
 
@@ -14,7 +15,7 @@ pub fn apply(server_ip: &str, tun_name: &str) -> Result<()> {
         "-A",
         CHAIN,
         "-d",
-        &format!("{}/32", server_ip),
+        &format!("{server_ip}/32"),
         "-p",
         "udp",
         "--dport",
@@ -29,13 +30,11 @@ pub fn apply(server_ip: &str, tun_name: &str) -> Result<()> {
     run_iptables(&["-I", "OUTPUT", "1", "-j", CHAIN])?;
     run_iptables(&["-I", "INPUT", "1", "-j", CHAIN])?;
 
-    info!(
-        "[KillSwitch] iptables chain applied (server={}, tun={})",
-        server_ip, tun_name
-    );
+    info!("[KillSwitch] iptables chain applied (server={server_ip}, tun={tun_name})");
     Ok(())
 }
 
+#[allow(clippy::unnecessary_wraps)]
 pub fn remove() -> Result<()> {
     remove_if_exists();
     info!("[KillSwitch] iptables chain removed");
@@ -54,7 +53,7 @@ fn run_iptables(args: &[&str]) -> Result<()> {
         .args(args)
         .output()
         .map_err(|error| SystemError::KillSwitchFailed {
-            reason: format!("iptables exec failed: {}", error),
+            reason: format!("iptables exec failed: {error}"),
         })?;
 
     if !output.status.success() {
