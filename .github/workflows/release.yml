@@ -21,7 +21,7 @@ jobs:
           RELEASE_ID=$(gh api "repos/${{ github.repository }}/releases" \
             --method POST \
             -f tag_name="${{ github.ref_name }}" \
-            -f name="ByocVPN ${{ github.ref_name }}" \
+            -f name="${{ github.ref_name }}" \
             -F draft=true \
             -F prerelease=false \
             --jq .id)
