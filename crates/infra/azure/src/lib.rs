@@ -1,13 +1,22 @@
 mod arm_error;
+mod arm_resource;
 mod auth;
 mod client;
 mod constants;
 pub mod credentials;
 mod instance;
 mod models;
-mod network;
+mod network_security_group;
+mod permissions;
 mod pricing;
 mod provider;
+mod provider_registration;
+mod regions;
+mod resource_group;
+mod resource_operations;
 mod state;
+mod subnet;
+mod virtual_network;
+mod vm_network;
 
 pub use provider::{AzureProvider, AzureProviderConfig};

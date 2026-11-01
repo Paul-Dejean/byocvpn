@@ -74,9 +74,8 @@ pub struct SecurityRuleProperties {
 
 #[derive(Deserialize)]
 pub struct NsgResponse {
-    pub id: Option<String>,
     pub location: Option<String>,
-    pub tags: Option<serde_json::Value>,
+    pub tags: Option<HashMap<String, String>>,
     pub properties: Option<NsgResponseProperties>,
 }
 
@@ -107,11 +106,6 @@ pub struct AddressSpace {
     pub address_prefixes: Vec<String>,
 }
 
-#[derive(Deserialize)]
-pub struct VnetResponse {
-    pub id: Option<String>,
-}
-
 // ── Subnet ────────────────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
@@ -133,7 +127,6 @@ pub struct ResourceReference {
 
 #[derive(Deserialize)]
 pub struct SubnetResponse {
-    pub id: Option<String>,
     pub properties: Option<SubnetResponseProperties>,
 }
 
@@ -188,7 +181,17 @@ pub struct PublicIpProperties {
 
 #[derive(Deserialize)]
 pub struct PublicIpResponse {
-    pub id: Option<String>,
+    pub properties: Option<PublicIpResponseProperties>,
+}
+
+#[derive(Deserialize)]
+pub struct PublicIpListResponse {
+    pub value: Option<Vec<PublicIpListItem>>,
+}
+
+#[derive(Deserialize)]
+pub struct PublicIpListItem {
+    pub name: Option<String>,
     pub properties: Option<PublicIpResponseProperties>,
 }
 
@@ -230,11 +233,6 @@ pub struct IpConfigurationProperties {
     pub public_ip_address: ResourceReference,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub primary: Option<bool>,
-}
-
-#[derive(Deserialize)]
-pub struct NicResponse {
-    pub id: Option<String>,
 }
 
 // ── VM ────────────────────────────────────────────────────────────────────────

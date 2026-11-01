@@ -11,6 +11,7 @@ use serde_json::from_str;
 use tokio::time::Duration;
 
 use crate::arm_error::parse_arm_error;
+use crate::arm_resource::ArmResource;
 use crate::auth::get_access_token;
 use crate::models::AsyncOperationResponse;
 
@@ -48,6 +49,17 @@ impl AzureClient {
 
     pub fn build_subscription_path(&self, rest: &str) -> String {
         format!("/subscriptions/{}{}", self.subscription_id, rest)
+    }
+
+    pub fn build_resource_id(&self, resource: &ArmResource) -> String {
+        self.build_subscription_path(resource.get_subscription_relative_path())
+    }
+
+    pub fn build_resource_url(&self, resource: &ArmResource) -> String {
+        Self::build_arm_url(
+            &self.build_resource_id(resource),
+            resource.get_api_version(),
+        )
     }
 
     async fn get_access_token(&self) -> Result<String> {

@@ -8,106 +8,14 @@ use byocvpn_core::{
     commands::setup::Region,
     error::Result,
 };
-use log::{info, warn};
-use serde::Deserialize;
+use log::info;
 use strum::{Display, EnumString};
 
-use crate::{auth::create_credential, client::AzureClient, instance, network, pricing};
-
-const REQUIRED_ACTIONS: &[&str] = &[
-    "Microsoft.Compute/register/action",
-    "Microsoft.Compute/locations/operations/read",
-    "Microsoft.Compute/virtualMachines/read",
-    "Microsoft.Compute/virtualMachines/write",
-    "Microsoft.Compute/virtualMachines/delete",
-    "Microsoft.Network/register/action",
-    "Microsoft.Network/locations/operations/read",
-    "Microsoft.Network/locations/operationResults/read",
-    "Microsoft.Network/networkInterfaces/join/action",
-    "Microsoft.Network/networkInterfaces/read",
-    "Microsoft.Network/networkInterfaces/write",
-    "Microsoft.Network/networkInterfaces/delete",
-    "Microsoft.Network/networkSecurityGroups/join/action",
-    "Microsoft.Network/networkSecurityGroups/read",
-    "Microsoft.Network/networkSecurityGroups/write",
-    "Microsoft.Network/networkSecurityGroups/delete",
-    "Microsoft.Network/publicIPAddresses/join/action",
-    "Microsoft.Network/publicIPAddresses/read",
-    "Microsoft.Network/publicIPAddresses/write",
-    "Microsoft.Network/publicIPAddresses/delete",
-    "Microsoft.Network/virtualNetworks/read",
-    "Microsoft.Network/virtualNetworks/write",
-    "Microsoft.Network/virtualNetworks/delete",
-    "Microsoft.Network/virtualNetworks/subnets/join/action",
-    "Microsoft.Network/virtualNetworks/subnets/read",
-    "Microsoft.Network/virtualNetworks/subnets/write",
-    "Microsoft.Network/virtualNetworks/subnets/delete",
-    "Microsoft.Resources/register/action",
-    "Microsoft.Resources/subscriptions/locations/read",
-    "Microsoft.Resources/subscriptions/providers/read",
-    "Microsoft.Resources/subscriptions/resourceGroups/read",
-    "Microsoft.Resources/subscriptions/resourceGroups/write",
-    "Microsoft.Resources/subscriptions/resourceGroups/delete",
-];
-
-#[derive(Deserialize)]
-struct PermissionsResponse {
-    #[serde(default)]
-    value: Vec<PermissionSet>,
-}
-
-#[derive(Deserialize, Default)]
-struct PermissionSet {
-    #[serde(default)]
-    actions: Vec<String>,
-    #[serde(default, rename = "notActions")]
-    not_actions: Vec<String>,
-}
-
-fn wildcard_matches(pattern: &str, action: &str) -> bool {
-    let pattern: Vec<char> = pattern.to_lowercase().chars().collect();
-    let action: Vec<char> = action.to_lowercase().chars().collect();
-    let mut pattern_index = 0;
-    let mut action_index = 0;
-    let mut star_pattern_index: Option<usize> = None;
-    let mut star_action_index = 0;
-
-    while action_index < action.len() {
-        if pattern_index < pattern.len() && pattern[pattern_index] == action[action_index] {
-            pattern_index += 1;
-            action_index += 1;
-        } else if pattern_index < pattern.len() && pattern[pattern_index] == '*' {
-            star_pattern_index = Some(pattern_index);
-            star_action_index = action_index;
-            pattern_index += 1;
-        } else if let Some(star_index) = star_pattern_index {
-            pattern_index = star_index + 1;
-            star_action_index += 1;
-            action_index = star_action_index;
-        } else {
-            return false;
-        }
-    }
-
-    while pattern_index < pattern.len() && pattern[pattern_index] == '*' {
-        pattern_index += 1;
-    }
-    pattern_index == pattern.len()
-}
-
-fn is_action_granted(action: &str, permission_sets: &[PermissionSet]) -> bool {
-    permission_sets.iter().any(|permission_set| {
-        let allowed = permission_set
-            .actions
-            .iter()
-            .any(|pattern| wildcard_matches(pattern, action));
-        let denied = permission_set
-            .not_actions
-            .iter()
-            .any(|pattern| wildcard_matches(pattern, action));
-        allowed && !denied
-    })
-}
+use crate::{
+    auth::create_credential, client::AzureClient, instance, network_security_group::ensure_nsg,
+    permissions, pricing, provider_registration::ensure_providers_registered, regions,
+    resource_group::ensure_resource_group, subnet::ensure_subnet, virtual_network::ensure_vnet,
+};
 
 pub struct AzureProviderConfig {
     pub subscription_id: String,
@@ -171,44 +79,22 @@ impl CloudProvider for AzureProvider {
             .map_err(|_| build_unknown_step_error(CloudProviderName::Azure, step_id))?;
         match step {
             AzureSpawnStepId::RegionResourceGroup => {
-                network::ensure_resource_group(&self.client, region).await
+                ensure_resource_group(&self.client, region).await
             }
-            AzureSpawnStepId::RegionVnet => {
-                let nsg_id = network::ensure_nsg(&self.client, region).await?;
-                network::ensure_vnet(&self.client, region).await?;
-                network::ensure_subnet(&self.client, region, &nsg_id).await?;
+            AzureSpawnStepId::RegionVnet => self.ensure_region_network_resources(region).await,
+            AzureSpawnStepId::SetupNetwork => {
+                ensure_providers_registered(&self.client).await?;
+                ensure_resource_group(&self.client, region).await?;
+                self.ensure_region_network_resources(region).await?;
+                info!("[Azure] Region '{region}' enabled.");
                 Ok(())
             }
-            AzureSpawnStepId::SetupNetwork => self.ensure_region_network(region).await,
-            _ => Ok(()),
+            AzureSpawnStepId::Launch | AzureSpawnStepId::WireguardReady => Ok(()),
         }
     }
 
     async fn verify_permissions(&self) -> Result<Vec<PermissionStatus>> {
-        let path = self
-            .client
-            .build_subscription_path("/providers/Microsoft.Authorization/permissions");
-        let url = AzureClient::build_arm_url(&path, "2018-07-01");
-
-        let response: PermissionsResponse = self.client.get(&url).await?;
-
-        let permissions: Vec<PermissionStatus> = REQUIRED_ACTIONS
-            .iter()
-            .map(|action| {
-                let granted = is_action_granted(action, &response.value);
-                if granted {
-                    info!("permission check {action}: authorized");
-                } else {
-                    warn!("permission check {action}: denied");
-                }
-                PermissionStatus {
-                    permission: action.to_string(),
-                    granted,
-                }
-            })
-            .collect();
-
-        Ok(permissions)
+        permissions::verify_permissions(&self.client).await
     }
 
     fn get_provision_account_steps(&self) -> Vec<JobStep> {
@@ -256,7 +142,7 @@ impl CloudProvider for AzureProvider {
     }
 
     async fn get_regions(&self) -> Result<Vec<Region>> {
-        let region_list = network::list_regions(&self.client).await?;
+        let region_list = regions::list_regions(&self.client).await?;
         Ok(region_list
             .into_iter()
             .map(|(name, country)| Region { name, country })
@@ -265,9 +151,10 @@ impl CloudProvider for AzureProvider {
 }
 
 impl AzureProvider {
-    async fn ensure_region_network(&self, region: &str) -> Result<()> {
-        network::ensure_region_networking(&self.client, region).await?;
-        info!("[Azure] Region '{region}' enabled.");
+    async fn ensure_region_network_resources(&self, region: &str) -> Result<()> {
+        let nsg_id = ensure_nsg(&self.client, region).await?;
+        ensure_vnet(&self.client, region).await?;
+        ensure_subnet(&self.client, region, &nsg_id).await?;
         Ok(())
     }
 }
