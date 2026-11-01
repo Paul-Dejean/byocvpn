@@ -76,6 +76,8 @@ async function loadCredentials<T extends CloudProviderName>(
 ): Promise<ProviderCredentialsFor<T> | null> {
   const result = await commands.getCredentials(provider);
   if (result.status === "error") {
+    toast.error(summarizeError(result.error));
+    console.error("Failed to load credentials:", result.error);
     return null;
   }
   const credentials = result.data;

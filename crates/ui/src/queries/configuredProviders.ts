@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { commands } from "../bindings";
+import { AppErrorException } from "../lib/appError";
 import { CloudProviderName } from "../types";
 
 export const configuredProvidersQueryOptions = queryOptions({
@@ -13,7 +14,7 @@ async function fetchConfiguredProviders(): Promise<CloudProviderName[]> {
     Object.values(CloudProviderName).map(async (provider) => {
       const result = await commands.getCredentials(provider);
       if (result.status === "error") {
-        return null;
+        throw new AppErrorException(result.error);
       }
       return result.data !== null ? provider : null;
     }),

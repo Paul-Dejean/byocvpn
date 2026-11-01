@@ -163,9 +163,8 @@ pub async fn ensure_providers_registered(client: &AzureClient) -> Result<()> {
         let status_url = AzureClient::build_arm_url(&status_path, API_VERSION_RESOURCE_GROUPS);
         let registration_state = client
             .get::<ProviderRegistrationResponse>(&status_url)
-            .await
-            .ok()
-            .and_then(|response| response.registration_state);
+            .await?
+            .registration_state;
 
         if registration_state.as_deref() == Some("Registered") {
             continue;
@@ -223,7 +222,8 @@ async fn get_resource_group_by_location(
 
     match client.get::<IgnoredAny>(&url).await {
         Ok(_) => Ok(Some(resource_group)),
-        Err(_) => Ok(None),
+        Err(error) if error.is_not_found() => Ok(None),
+        Err(error) => Err(error),
     }
 }
 
@@ -277,7 +277,8 @@ async fn get_nsg(client: &AzureClient, location: &str) -> Result<Option<String>>
 
     match client.get::<NsgResponse>(&url).await {
         Ok(response) => Ok(Some(response.id.unwrap_or_default())),
-        Err(_) => Ok(None),
+        Err(error) if error.is_not_found() => Ok(None),
+        Err(error) => Err(error),
     }
 }
 
@@ -445,7 +446,8 @@ async fn get_vnet(client: &AzureClient, location: &str) -> Result<Option<String>
 
     match client.get::<VnetResponse>(&url).await {
         Ok(response) => Ok(Some(response.id.unwrap_or_default())),
-        Err(_) => Ok(None),
+        Err(error) if error.is_not_found() => Ok(None),
+        Err(error) => Err(error),
     }
 }
 
@@ -521,7 +523,8 @@ async fn get_subnet(client: &AzureClient, location: &str) -> Result<Option<Exist
                 Ok(None)
             }
         }
-        Err(_) => Ok(None),
+        Err(error) if error.is_not_found() => Ok(None),
+        Err(error) => Err(error),
     }
 }
 
@@ -686,7 +689,8 @@ async fn get_public_ip_id(
     let url = build_public_ip_url(client, location, vm_name, version);
     match client.get::<PublicIpResponse>(&url).await {
         Ok(response) => Ok(Some(response.id.unwrap_or_default())),
-        Err(_) => Ok(None),
+        Err(error) if error.is_not_found() => Ok(None),
+        Err(error) => Err(error),
     }
 }
 

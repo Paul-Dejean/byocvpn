@@ -1,5 +1,5 @@
 use byocvpn_core::error::{Result, SystemError};
-use log::info;
+use log::{debug, info};
 use std::process::Command;
 
 const ANCHOR_NAME: &str = "byocvpn";
@@ -18,7 +18,7 @@ pub fn apply(server_ip: &str, tun_name: &str) -> Result<()> {
 
     ensure_anchor_in_pf_conf()?;
     run_pfctl(&["-a", ANCHOR_NAME, "-f", ANCHOR_FILE])?;
-    enable_pf();
+    enable_pf()?;
 
     info!("[KillSwitch] pf anchor applied (server={server_ip}, tun={tun_name})");
     Ok(())
@@ -82,9 +82,20 @@ fn remove_anchor_from_pf_conf() -> Result<()> {
     Ok(())
 }
 
-fn enable_pf() {
-    // pfctl -e returns non-zero when pf is already enabled — that's fine
-    let _ = Command::new("pfctl").args(["-e"]).output();
+fn enable_pf() -> Result<()> {
+    let output = Command::new("pfctl")
+        .args(["-e"])
+        .output()
+        .map_err(|error| SystemError::KillSwitchFailed {
+            reason: format!("pfctl exec failed: {error}"),
+        })?;
+    if !output.status.success() {
+        debug!(
+            "[KillSwitch] pfctl -e exited with {}, pf is already enabled",
+            output.status
+        );
+    }
+    Ok(())
 }
 
 fn run_pfctl(args: &[&str]) -> Result<()> {

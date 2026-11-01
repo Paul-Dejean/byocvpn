@@ -4,7 +4,7 @@ use byocvpn_core::{
     cloud_provider::{CloudProviderName, InstanceInfo, PermissionStatus, PricingInfo},
     commands,
     commands::setup::Region,
-    error::{ConfigurationError, Error, Result},
+    error::{ConfigurationError, CredentialsError, Error, Result},
     instances,
     job_registry::SpawnJobState,
     jobs::{
@@ -28,7 +28,11 @@ use crate::vpn_backend::{self, publish_vpn_status};
 #[tauri::command]
 #[specta::specta]
 pub async fn get_credentials(provider: CloudProviderName) -> Result<Option<ProviderCredentials>> {
-    Ok(ProviderCredentials::load(provider).await.ok())
+    match ProviderCredentials::load(provider).await {
+        Ok(credentials) => Ok(Some(credentials)),
+        Err(Error::Credentials(CredentialsError::MissingField { .. })) => Ok(None),
+        Err(error) => Err(error),
+    }
 }
 
 #[tauri::command]

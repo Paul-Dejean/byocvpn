@@ -2,8 +2,9 @@ use byocvpn_core::{
     cloud_provider::CloudProviderName,
     error::{ConfigurationError, Result},
 };
-use log::debug;
+use log::{debug, warn};
 use serde::{Deserialize, Serialize};
+use std::io::ErrorKind;
 
 const fn default_kill_switch_enabled() -> bool {
     true
@@ -53,6 +54,22 @@ pub fn clear_session() -> Result<()> {
 
 pub fn read_session() -> Option<PersistedSession> {
     let path = byocvpn_core::config::session_file_path().ok()?;
-    let json = std::fs::read_to_string(&path).ok()?;
-    serde_json::from_str(&json).ok()
+    let json = match std::fs::read_to_string(&path) {
+        Ok(json) => json,
+        Err(error) if error.kind() == ErrorKind::NotFound => return None,
+        Err(error) => {
+            warn!("failed to read session file {}: {error}", path.display());
+            return None;
+        }
+    };
+    match serde_json::from_str(&json) {
+        Ok(session) => Some(session),
+        Err(error) => {
+            warn!(
+                "ignoring unreadable session file {}: {error}",
+                path.display()
+            );
+            None
+        }
+    }
 }

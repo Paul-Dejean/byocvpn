@@ -132,13 +132,17 @@ pub async fn ensure_vpc(client: &GcpClient) -> Result<String> {
     create_vpc(client).await
 }
 
-async fn get_firewall_rule(client: &GcpClient, name: &str) -> Option<FirewallRuleResponse> {
+async fn get_firewall_rule(client: &GcpClient, name: &str) -> Result<Option<FirewallRuleResponse>> {
     let url = format!(
         "{}/global/firewalls/{}",
         client.build_compute_base_url(),
         name
     );
-    client.get::<FirewallRuleResponse>(&url).await.ok()
+    match client.get::<FirewallRuleResponse>(&url).await {
+        Ok(rule) => Ok(Some(rule)),
+        Err(error) if error.is_not_found() => Ok(None),
+        Err(error) => Err(error),
+    }
 }
 
 fn build_desired_firewall_allowed() -> Vec<FirewallAllowed> {
@@ -236,7 +240,7 @@ pub async fn ensure_firewall_rules(client: &GcpClient) -> Result<()> {
             "Allow WireGuard UDP and health TCP on 51820 (IPv6) for byocvpn",
         ),
     ] {
-        match get_firewall_rule(client, rule_name).await {
+        match get_firewall_rule(client, rule_name).await? {
             Some(existing_rule) => {
                 if !firewall_rule_matches_desired_state(&existing_rule, source_range) {
                     info!("[GCP] Firewall rule '{rule_name}' has drifted, patching...");

@@ -1,5 +1,10 @@
-use std::{os::unix::fs::PermissionsExt, path::PathBuf};
+use std::{
+    io::ErrorKind,
+    os::unix::fs::PermissionsExt,
+    path::{Path, PathBuf},
+};
 
+use log::{debug, warn};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
 
@@ -12,19 +17,28 @@ pub struct IpcSocket {
 
 impl IpcSocket {
     pub async fn bind(path: PathBuf) -> Result<Self> {
-        if tokio::fs::try_exists(&path).await.unwrap_or(false) {
-            let _ = tokio::fs::remove_file(&path).await;
-        }
+        remove_stale_socket_file(&path).await;
 
         let listener = UnixListener::bind(&path).map_err(|error| DaemonError::SocketError {
             reason: format!("failed to bind socket at {}: {}", path.display(), error),
         })?;
 
-        if let Ok(metadata) = std::fs::metadata(&path) {
-            let mut perms = metadata.permissions();
-            perms.set_mode(0o777);
-            let _ = std::fs::set_permissions(&path, perms);
-        }
+        let mut permissions = tokio::fs::metadata(&path)
+            .await
+            .map_err(|error| DaemonError::SocketError {
+                reason: format!("failed to stat socket at {}: {}", path.display(), error),
+            })?
+            .permissions();
+        permissions.set_mode(0o777);
+        tokio::fs::set_permissions(&path, permissions)
+            .await
+            .map_err(|error| DaemonError::SocketError {
+                reason: format!(
+                    "failed to set permissions on socket at {}: {}",
+                    path.display(),
+                    error
+                ),
+            })?;
 
         Ok(Self { listener, path })
     }
@@ -42,6 +56,17 @@ impl IpcSocket {
 
     pub const fn path(&self) -> &PathBuf {
         &self.path
+    }
+}
+
+async fn remove_stale_socket_file(path: &Path) {
+    match tokio::fs::remove_file(path).await {
+        Ok(()) => debug!("removed stale socket file at {}", path.display()),
+        Err(error) if error.kind() == ErrorKind::NotFound => {}
+        Err(error) => warn!(
+            "failed to remove stale socket file at {}: {error}",
+            path.display()
+        ),
     }
 }
 

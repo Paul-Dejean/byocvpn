@@ -127,6 +127,10 @@ impl Error {
         }
     }
 
+    pub fn is_not_found(&self) -> bool {
+        self.kind() == ErrorKind::NotFound
+    }
+
     pub fn kind(&self) -> ErrorKind {
         match self {
             Self::Authentication => ErrorKind::Authentication,
