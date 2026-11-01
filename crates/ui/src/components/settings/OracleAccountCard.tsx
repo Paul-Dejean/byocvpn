@@ -1,16 +1,23 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useCredentials } from "../../hooks";
 import { CloudProviderName } from "../../types";
-import { Upload } from "lucide-react";
-import { Button } from "../primitives/Button";
-import { AccountIconTile, AccountRow } from "./AccountRow";
-import { ErrorBanner } from "../common/ErrorBanner";
+import { KeyFileField } from "../accounts/KeyFileField";
 import { FormField } from "../primitives/FormField";
+import { AccountEditForm } from "./AccountEditForm";
+import { AccountRow } from "./AccountRow";
 
 interface OracleAccountCardProps {
   onCredentialsSaved: (provider: CloudProviderName) => void;
   onCredentialsDeleted: () => void;
 }
+
+const EMPTY_FORM = {
+  tenancyOcid: "",
+  userOcid: "",
+  fingerprint: "",
+  privateKeyPem: "",
+  region: "",
+};
 
 export function OracleAccountCard({
   onCredentialsSaved,
@@ -20,15 +27,7 @@ export function OracleAccountCard({
   const [hasCredentials, setHasCredentials] = useState<boolean | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [pemAlreadySet, setPemAlreadySet] = useState(false);
-  const [formFields, setFormFields] = useState({
-    tenancyOcid: "",
-    userOcid: "",
-    fingerprint: "",
-    privateKeyPem: "",
-    region: "",
-  });
-
-  const pemFileInputRef = useRef<HTMLInputElement>(null);
+  const [formFields, setFormFields] = useState(EMPTY_FORM);
 
   const { isSaving, error, saveCredentials, deleteCredentials, loadCredentials, clearError } =
     useCredentials();
@@ -40,13 +39,7 @@ export function OracleAccountCard({
   }, [loadCredentials]);
 
   const resetForm = () => {
-    setFormFields({
-      tenancyOcid: "",
-      userOcid: "",
-      fingerprint: "",
-      privateKeyPem: "",
-      region: "",
-    });
+    setFormFields(EMPTY_FORM);
     setPemAlreadySet(false);
   };
 
@@ -89,20 +82,6 @@ export function OracleAccountCard({
     }
   };
 
-  const handlePemFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.addEventListener("load", (loadEvent) => {
-      const content = loadEvent.target?.result;
-      if (typeof content === "string") {
-        setFormFields((prev) => ({ ...prev, privateKeyPem: content }));
-      }
-    });
-    reader.readAsText(file);
-    event.target.value = "";
-  };
-
   const handleDeleteCredentials = async () => {
     const success = await deleteCredentials(CloudProviderName.Oracle);
     if (success) {
@@ -119,132 +98,80 @@ export function OracleAccountCard({
     (formFields.privateKeyPem.trim() || pemAlreadySet) &&
     formFields.region.trim();
 
+  if (!isEditing) {
+    return (
+      <AccountRow
+        provider={CloudProviderName.Oracle}
+        title="Oracle Cloud Account"
+        hasCredentials={hasCredentials}
+        isConfirmingDelete={isConfirmingDelete}
+        onEdit={handleEditOpen}
+        onRequestDelete={() => setIsConfirmingDelete(true)}
+        onCancelDelete={() => setIsConfirmingDelete(false)}
+        onConfirmDelete={handleDeleteCredentials}
+      />
+    );
+  }
+
   return (
-    <div>
-      {!isEditing ? (
-        <AccountRow
-          provider={CloudProviderName.Oracle}
-          title="Oracle Cloud Account"
-          hasCredentials={hasCredentials}
-          isConfirmingDelete={isConfirmingDelete}
-          onEdit={handleEditOpen}
-          onRequestDelete={() => setIsConfirmingDelete(true)}
-          onCancelDelete={() => setIsConfirmingDelete(false)}
-          onConfirmDelete={handleDeleteCredentials}
-        />
-      ) : (
-        <div className="flex flex-col gap-5 p-4">
-          <div className="flex items-center gap-3">
-            <AccountIconTile provider={CloudProviderName.Oracle} />
-            <div>
-              <h3 className="text-body-sm text-fg-lighter">
-                {hasCredentials ? "Edit Oracle Cloud Account" : "Add Oracle Cloud Account"}
-              </h3>
-              <p className="text-caption text-fg-medium">
-                {hasCredentials
-                  ? "Update your OCI API signing credentials"
-                  : "Enter your OCI API signing credentials"}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-4">
-            <FormField
-              label="Tenancy OCID"
-              hint="e.g. ocid1.tenancy.oc1..aaaaaa…"
-              type="text"
-              mono
-              value={formFields.tenancyOcid}
-              onChange={(value) => setFormFields((prev) => ({ ...prev, tenancyOcid: value }))}
-            />
-
-            <FormField
-              label="User OCID"
-              hint="e.g. ocid1.user.oc1..aaaaaa…"
-              type="text"
-              mono
-              value={formFields.userOcid}
-              onChange={(value) => setFormFields((prev) => ({ ...prev, userOcid: value }))}
-            />
-
-            <FormField
-              label="Key Fingerprint"
-              hint="e.g. xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx"
-              type="text"
-              mono
-              value={formFields.fingerprint}
-              onChange={(value) => setFormFields((prev) => ({ ...prev, fingerprint: value }))}
-            />
-
-            <FormField
-              label="Home Region"
-              hint="e.g. us-ashburn-1"
-              type="text"
-              mono
-              value={formFields.region}
-              onChange={(value) => setFormFields((prev) => ({ ...prev, region: value }))}
-            />
-
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-caption text-fg-medium">Private Key (.pem)</label>
-                <Button
-                  variant="secondary"
-                  size="md"
-                  type="button"
-                  onClick={() => pemFileInputRef.current?.click()}
-                  icon={<Upload size={14} />}
-                >
-                  Load from file
-                </Button>
-                <input
-                  ref={pemFileInputRef}
-                  type="file"
-                  accept=".pem"
-                  onChange={handlePemFileChange}
-                  className="hidden"
-                />
-              </div>
-              {pemAlreadySet && !formFields.privateKeyPem && (
-                <p className="text-caption text-fg-success-moderate">
-                  ✓ Private key already configured — load a new file or paste below to replace it
-                </p>
-              )}
-              {!pemAlreadySet && !formFields.privateKeyPem && (
-                <p className="text-caption text-fg-moderate">
-                  Paste the contents of your .pem file or use "Load from file"
-                </p>
-              )}
-              <textarea
-                value={formFields.privateKeyPem}
-                onChange={(e) =>
-                  setFormFields((prev) => ({ ...prev, privateKeyPem: e.target.value }))
-                }
-                rows={6}
-                className="input resize-none font-mono text-caption"
-              />
-            </div>
-
-            {error && <ErrorBanner error={error} />}
-
-            <div className="flex gap-3 pt-2">
-              <Button variant="secondary" size="lg" onClick={handleCancel} className="flex-1">
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                size="lg"
-                onClick={handleSave}
-                loading={isSaving}
-                disabled={!isFormValid}
-                className="flex-1"
-              >
-                {isSaving ? "Saving..." : "Save Account"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    <AccountEditForm
+      provider={CloudProviderName.Oracle}
+      title={hasCredentials ? "Edit Oracle Cloud Account" : "Add Oracle Cloud Account"}
+      subtitle={
+        hasCredentials
+          ? "Update your OCI API signing credentials"
+          : "Enter your OCI API signing credentials"
+      }
+      error={error}
+      isSaving={isSaving}
+      isFormValid={!!isFormValid}
+      onCancel={handleCancel}
+      onSave={handleSave}
+    >
+      <FormField
+        label="Tenancy OCID"
+        hint="e.g. ocid1.tenancy.oc1..aaaaaa…"
+        type="text"
+        mono
+        value={formFields.tenancyOcid}
+        onChange={(value) => setFormFields((prev) => ({ ...prev, tenancyOcid: value }))}
+      />
+      <FormField
+        label="User OCID"
+        hint="e.g. ocid1.user.oc1..aaaaaa…"
+        type="text"
+        mono
+        value={formFields.userOcid}
+        onChange={(value) => setFormFields((prev) => ({ ...prev, userOcid: value }))}
+      />
+      <FormField
+        label="Key Fingerprint"
+        hint="e.g. xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx"
+        type="text"
+        mono
+        value={formFields.fingerprint}
+        onChange={(value) => setFormFields((prev) => ({ ...prev, fingerprint: value }))}
+      />
+      <FormField
+        label="Home Region"
+        hint="e.g. us-ashburn-1"
+        type="text"
+        mono
+        value={formFields.region}
+        onChange={(value) => setFormFields((prev) => ({ ...prev, region: value }))}
+      />
+      <KeyFileField
+        label="Private Key (.pem)"
+        accept=".pem"
+        value={formFields.privateKeyPem}
+        onChange={(content) => setFormFields((prev) => ({ ...prev, privateKeyPem: content }))}
+        alreadySetMessage={
+          pemAlreadySet
+            ? "✓ Private key already configured — load a new file or paste below to replace it"
+            : undefined
+        }
+        emptyHint='Paste the contents of your .pem file or use "Load from file"'
+      />
+    </AccountEditForm>
   );
 }

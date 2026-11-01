@@ -11,7 +11,7 @@
     "typescript/no-explicit-any": "error",
     "eqeqeq": ["error", "always", { "null": "ignore" }],
     "typescript/no-non-null-assertion": "error",
-    "max-lines-per-function": ["warn", { "max": 300 }],
+    "max-lines-per-function": ["error", { "max": 200 }],
     "import/no-unassigned-import": ["warn", { "allow": ["**/*.css"] }],
     "no-restricted-imports": [
       "warn",

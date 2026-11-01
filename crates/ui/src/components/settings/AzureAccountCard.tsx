@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import { useCredentials } from "../../hooks";
 import { CloudProviderName } from "../../types";
-import { Button } from "../primitives/Button";
-import { AccountIconTile, AccountRow } from "./AccountRow";
-import { ErrorBanner } from "../common/ErrorBanner";
 import { FormField } from "../primitives/FormField";
+import { AccountEditForm } from "./AccountEditForm";
+import { AccountRow } from "./AccountRow";
 
 interface AzureAccountCardProps {
   onCredentialsSaved: (provider: CloudProviderName) => void;
@@ -94,101 +93,80 @@ export function AzureAccountCard({
     formFields.applicationId.trim() &&
     (formFields.secretValue.trim() || secretAlreadySet);
 
+  if (!isEditing) {
+    return (
+      <AccountRow
+        provider={CloudProviderName.Azure}
+        title="Azure Account"
+        hasCredentials={hasCredentials}
+        isConfirmingDelete={isConfirmingDelete}
+        onEdit={handleEditOpen}
+        onVerify={() => onVerifyRequested(CloudProviderName.Azure)}
+        onRequestDelete={() => setIsConfirmingDelete(true)}
+        onCancelDelete={() => setIsConfirmingDelete(false)}
+        onConfirmDelete={handleDeleteCredentials}
+      />
+    );
+  }
+
   return (
-    <div>
-      {!isEditing ? (
-        <AccountRow
-          provider={CloudProviderName.Azure}
-          title="Azure Account"
-          hasCredentials={hasCredentials}
-          isConfirmingDelete={isConfirmingDelete}
-          onEdit={handleEditOpen}
-          onVerify={() => onVerifyRequested(CloudProviderName.Azure)}
-          onRequestDelete={() => setIsConfirmingDelete(true)}
-          onCancelDelete={() => setIsConfirmingDelete(false)}
-          onConfirmDelete={handleDeleteCredentials}
-        />
-      ) : (
-        <div className="flex flex-col gap-5 p-4">
-          <div className="flex items-center gap-3">
-            <AccountIconTile provider={CloudProviderName.Azure} />
-            <div>
-              <h3 className="text-body-sm text-fg-lighter">
-                {hasCredentials ? "Edit Azure Account" : "Add Azure Account"}
-              </h3>
-              <p className="text-caption text-fg-medium">
-                {hasCredentials
-                  ? "Update your Azure service-principal credentials"
-                  : "Enter your Azure service-principal credentials"}
-              </p>
-            </div>
-          </div>
+    <AccountEditForm
+      provider={CloudProviderName.Azure}
+      title={hasCredentials ? "Edit Azure Account" : "Add Azure Account"}
+      subtitle={
+        hasCredentials
+          ? "Update your Azure service-principal credentials"
+          : "Enter your Azure service-principal credentials"
+      }
+      error={error}
+      isSaving={isSaving}
+      isFormValid={!!isFormValid}
+      onCancel={handleCancel}
+      onSave={handleSave}
+    >
+      <FormField
+        label="Subscription ID"
+        hint="e.g. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+        type="text"
+        mono
+        value={formFields.subscriptionId}
+        onChange={(value) => setFormFields((prev) => ({ ...prev, subscriptionId: value }))}
+        placeholder="00000000-0000-0000-0000-000000000000"
+      />
 
-          <div className="flex flex-col gap-4">
-            <FormField
-              label="Subscription ID"
-              hint="e.g. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-              type="text"
-              mono
-              value={formFields.subscriptionId}
-              onChange={(value) => setFormFields((prev) => ({ ...prev, subscriptionId: value }))}
-              placeholder="00000000-0000-0000-0000-000000000000"
-            />
+      <FormField
+        label="Tenant ID"
+        hint="Your Azure Active Directory tenant ID (UUID)"
+        type="text"
+        mono
+        value={formFields.tenantId}
+        onChange={(value) => setFormFields((prev) => ({ ...prev, tenantId: value }))}
+        placeholder="00000000-0000-0000-0000-000000000000"
+      />
 
-            <FormField
-              label="Tenant ID"
-              hint="Your Azure Active Directory tenant ID (UUID)"
-              type="text"
-              mono
-              value={formFields.tenantId}
-              onChange={(value) => setFormFields((prev) => ({ ...prev, tenantId: value }))}
-              placeholder="00000000-0000-0000-0000-000000000000"
-            />
+      <FormField
+        label="Application ID"
+        hint="Application ID of the service principal"
+        type="text"
+        mono
+        value={formFields.applicationId}
+        onChange={(value) => setFormFields((prev) => ({ ...prev, applicationId: value }))}
+        placeholder="00000000-0000-0000-0000-000000000000"
+      />
 
-            <FormField
-              label="Application ID"
-              hint="Application ID of the service principal"
-              type="text"
-              mono
-              value={formFields.applicationId}
-              onChange={(value) => setFormFields((prev) => ({ ...prev, applicationId: value }))}
-              placeholder="00000000-0000-0000-0000-000000000000"
-            />
-
-            <FormField
-              label="Secret Value"
-              hint={
-                secretAlreadySet
-                  ? "Secret value already configured. Enter a new value to replace it."
-                  : "Secret value from your app registration"
-              }
-              type="password"
-              mono
-              value={formFields.secretValue}
-              onChange={(value) => setFormFields((prev) => ({ ...prev, secretValue: value }))}
-              placeholder={secretAlreadySet ? "Enter new secret to replace" : "Secret value"}
-            />
-
-            {error && <ErrorBanner error={error} />}
-
-            <div className="flex gap-3 pt-2">
-              <Button variant="secondary" size="lg" onClick={handleCancel} className="flex-1">
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                size="lg"
-                onClick={handleSave}
-                loading={isSaving}
-                disabled={!isFormValid}
-                className="flex-1"
-              >
-                {isSaving ? "Saving..." : "Save Account"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      <FormField
+        label="Secret Value"
+        hint={
+          secretAlreadySet
+            ? "Secret value already configured. Enter a new value to replace it."
+            : "Secret value from your app registration"
+        }
+        type="password"
+        mono
+        value={formFields.secretValue}
+        onChange={(value) => setFormFields((prev) => ({ ...prev, secretValue: value }))}
+        placeholder={secretAlreadySet ? "Enter new secret to replace" : "Secret value"}
+      />
+    </AccountEditForm>
   );
 }

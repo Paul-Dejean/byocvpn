@@ -1,17 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useCredentials } from "../../hooks";
 import { CloudProviderName } from "../../types";
-import { Upload } from "lucide-react";
-import { Button } from "../primitives/Button";
-import { AccountIconTile, AccountRow } from "./AccountRow";
-import { ErrorBanner } from "../common/ErrorBanner";
+import { readProjectIdFromServiceAccountJson } from "../../lib/serviceAccountJson";
+import { KeyFileField } from "../accounts/KeyFileField";
 import { FormField } from "../primitives/FormField";
+import { AccountEditForm } from "./AccountEditForm";
+import { AccountRow } from "./AccountRow";
 
 interface GcpAccountCardProps {
   onCredentialsSaved: (provider: CloudProviderName) => void;
   onCredentialsDeleted: () => void;
   onVerifyRequested: (provider: CloudProviderName) => void;
 }
+
+const EMPTY_FORM = { projectId: "", serviceAccountJson: "" };
 
 export function GcpAccountCard({
   onCredentialsSaved,
@@ -22,9 +24,7 @@ export function GcpAccountCard({
   const [hasCredentials, setHasCredentials] = useState<boolean | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [jsonAlreadySet, setJsonAlreadySet] = useState(false);
-  const [formFields, setFormFields] = useState({ projectId: "", serviceAccountJson: "" });
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [formFields, setFormFields] = useState(EMPTY_FORM);
 
   const { isSaving, error, saveCredentials, deleteCredentials, loadCredentials, clearError } =
     useCredentials();
@@ -36,7 +36,7 @@ export function GcpAccountCard({
   }, [loadCredentials]);
 
   const resetForm = () => {
-    setFormFields({ projectId: "", serviceAccountJson: "" });
+    setFormFields(EMPTY_FORM);
     setJsonAlreadySet(false);
   };
 
@@ -70,26 +70,11 @@ export function GcpAccountCard({
     }
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.addEventListener("load", (loadEvent) => {
-      const content = loadEvent.target?.result;
-      if (typeof content === "string") {
-        try {
-          const parsed = JSON.parse(content);
-          setFormFields((prev) => ({
-            serviceAccountJson: content,
-            projectId: parsed.project_id && !prev.projectId ? parsed.project_id : prev.projectId,
-          }));
-        } catch {
-          setFormFields((prev) => ({ ...prev, serviceAccountJson: content }));
-        }
-      }
-    });
-    reader.readAsText(file);
-    event.target.value = "";
+  const handleKeyFileLoaded = (content: string) => {
+    const parsedProjectId = readProjectIdFromServiceAccountJson(content);
+    if (parsedProjectId) {
+      setFormFields((prev) => ({ ...prev, projectId: prev.projectId || parsedProjectId }));
+    }
   };
 
   const handleDeleteCredentials = async () => {
@@ -104,109 +89,60 @@ export function GcpAccountCard({
   const isFormValid =
     formFields.projectId.trim() && (formFields.serviceAccountJson.trim() || jsonAlreadySet);
 
+  if (!isEditing) {
+    return (
+      <AccountRow
+        provider={CloudProviderName.Gcp}
+        title="Google Cloud Account"
+        hasCredentials={hasCredentials}
+        isConfirmingDelete={isConfirmingDelete}
+        onEdit={handleEditOpen}
+        onVerify={() => onVerifyRequested(CloudProviderName.Gcp)}
+        onRequestDelete={() => setIsConfirmingDelete(true)}
+        onCancelDelete={() => setIsConfirmingDelete(false)}
+        onConfirmDelete={handleDeleteCredentials}
+      />
+    );
+  }
+
   return (
-    <div>
-      {!isEditing ? (
-        <AccountRow
-          provider={CloudProviderName.Gcp}
-          title="Google Cloud Account"
-          hasCredentials={hasCredentials}
-          isConfirmingDelete={isConfirmingDelete}
-          onEdit={handleEditOpen}
-          onVerify={() => onVerifyRequested(CloudProviderName.Gcp)}
-          onRequestDelete={() => setIsConfirmingDelete(true)}
-          onCancelDelete={() => setIsConfirmingDelete(false)}
-          onConfirmDelete={handleDeleteCredentials}
-        />
-      ) : (
-        <div className="flex flex-col gap-5 p-4">
-          <div className="flex items-center gap-3">
-            <AccountIconTile provider={CloudProviderName.Gcp} />
-            <div>
-              <h3 className="text-body-sm text-fg-lighter">
-                {hasCredentials ? "Edit Google Cloud Account" : "Add Google Cloud Account"}
-              </h3>
-              <p className="text-caption text-fg-medium">
-                {hasCredentials
-                  ? "Update your GCP service-account key"
-                  : "Enter your GCP service-account key"}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-4">
-            <FormField
-              label="Project ID"
-              hint="e.g. my-project-123456"
-              type="text"
-              mono
-              value={formFields.projectId}
-              onChange={(value) => setFormFields((prev) => ({ ...prev, projectId: value }))}
-              placeholder="my-gcp-project"
-            />
-
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-caption text-fg-medium">Service Account Key (.json)</label>
-                <Button
-                  variant="secondary"
-                  size="md"
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  icon={<Upload size={14} />}
-                >
-                  Load from file
-                </Button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".json,application/json"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-              </div>
-              {jsonAlreadySet && !formFields.serviceAccountJson && (
-                <p className="text-caption text-fg-success-moderate">
-                  ✓ Service account key already configured — load a new file or paste below to
-                  replace it
-                </p>
-              )}
-              {!jsonAlreadySet && !formFields.serviceAccountJson && (
-                <p className="text-caption text-fg-moderate">
-                  Paste the contents of your service-account JSON key file or use "Load from file"
-                </p>
-              )}
-              <textarea
-                value={formFields.serviceAccountJson}
-                onChange={(e) =>
-                  setFormFields((prev) => ({ ...prev, serviceAccountJson: e.target.value }))
-                }
-                rows={6}
-                className="input resize-none font-mono text-caption"
-                placeholder='{"type":"service_account","project_id":"..."}'
-              />
-            </div>
-
-            {error && <ErrorBanner error={error} />}
-
-            <div className="flex gap-3 pt-2">
-              <Button variant="secondary" size="lg" onClick={handleCancel} className="flex-1">
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                size="lg"
-                onClick={handleSave}
-                loading={isSaving}
-                disabled={!isFormValid}
-                className="flex-1"
-              >
-                {isSaving ? "Saving..." : "Save Account"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    <AccountEditForm
+      provider={CloudProviderName.Gcp}
+      title={hasCredentials ? "Edit Google Cloud Account" : "Add Google Cloud Account"}
+      subtitle={
+        hasCredentials
+          ? "Update your GCP service-account key"
+          : "Enter your GCP service-account key"
+      }
+      error={error}
+      isSaving={isSaving}
+      isFormValid={!!isFormValid}
+      onCancel={handleCancel}
+      onSave={handleSave}
+    >
+      <FormField
+        label="Project ID"
+        hint="e.g. my-project-123456"
+        type="text"
+        mono
+        value={formFields.projectId}
+        onChange={(value) => setFormFields((prev) => ({ ...prev, projectId: value }))}
+        placeholder="my-gcp-project"
+      />
+      <KeyFileField
+        label="Service Account Key (.json)"
+        accept=".json,application/json"
+        value={formFields.serviceAccountJson}
+        onChange={(content) => setFormFields((prev) => ({ ...prev, serviceAccountJson: content }))}
+        onFileLoaded={handleKeyFileLoaded}
+        placeholder='{"type":"service_account","project_id":"..."}'
+        alreadySetMessage={
+          jsonAlreadySet
+            ? "✓ Service account key already configured — load a new file or paste below to replace it"
+            : undefined
+        }
+        emptyHint='Paste the contents of your service-account JSON key file or use "Load from file"'
+      />
+    </AccountEditForm>
   );
 }

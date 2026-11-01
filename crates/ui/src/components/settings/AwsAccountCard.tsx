@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import { useCredentials } from "../../hooks";
 import { CloudProviderName } from "../../types";
-import { Button } from "../primitives/Button";
-import { AccountIconTile, AccountRow } from "./AccountRow";
-import { ErrorBanner } from "../common/ErrorBanner";
 import { FormField } from "../primitives/FormField";
+import { AccountEditForm } from "./AccountEditForm";
+import { AccountRow } from "./AccountRow";
 
 interface AwsAccountCardProps {
   onCredentialsSaved: (provider: CloudProviderName) => void;
@@ -74,74 +73,51 @@ export function AwsAccountCard({
     }
   };
 
+  if (!isEditing) {
+    return (
+      <AccountRow
+        provider={CloudProviderName.Aws}
+        title="AWS Account"
+        hasCredentials={hasCredentials}
+        isConfirmingDelete={isConfirmingDelete}
+        onEdit={handleEditOpen}
+        onVerify={() => onVerifyRequested(CloudProviderName.Aws)}
+        onRequestDelete={() => setIsConfirmingDelete(true)}
+        onCancelDelete={() => setIsConfirmingDelete(false)}
+        onConfirmDelete={handleDelete}
+      />
+    );
+  }
+
   return (
-    <div>
-      {!isEditing ? (
-        <AccountRow
-          provider={CloudProviderName.Aws}
-          title="AWS Account"
-          hasCredentials={hasCredentials}
-          isConfirmingDelete={isConfirmingDelete}
-          onEdit={handleEditOpen}
-          onVerify={() => onVerifyRequested(CloudProviderName.Aws)}
-          onRequestDelete={() => setIsConfirmingDelete(true)}
-          onCancelDelete={() => setIsConfirmingDelete(false)}
-          onConfirmDelete={handleDelete}
-        />
-      ) : (
-        <div className="flex flex-col gap-5 p-4">
-          <div className="flex items-center gap-3">
-            <AccountIconTile provider={CloudProviderName.Aws} />
-            <div>
-              <h3 className="text-body-sm text-fg-lighter">
-                {hasCredentials ? "Edit AWS Account" : "Add AWS Account"}
-              </h3>
-              <p className="text-caption text-fg-medium">
-                {hasCredentials
-                  ? "Update your AWS access credentials"
-                  : "Enter your AWS access credentials"}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-4">
-            <FormField
-              label="Access Key ID"
-              hint="e.g. AKIAIOSFODNN7EXAMPLE"
-              type="text"
-              mono
-              value={formFields.accessKey}
-              onChange={(value) => setFormFields((prev) => ({ ...prev, accessKey: value }))}
-            />
-            <FormField
-              label="Secret Access Key"
-              hint="Leave blank to keep your existing key"
-              type="password"
-              mono
-              value={formFields.secretKey}
-              onChange={(value) => setFormFields((prev) => ({ ...prev, secretKey: value }))}
-            />
-
-            {error && <ErrorBanner error={error} />}
-
-            <div className="flex gap-3 pt-2">
-              <Button variant="secondary" size="lg" onClick={handleCancel} className="flex-1">
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                size="lg"
-                onClick={handleSave}
-                loading={isSaving}
-                disabled={!formFields.accessKey.trim()}
-                className="flex-1"
-              >
-                {isSaving ? "Saving..." : "Save Account"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    <AccountEditForm
+      provider={CloudProviderName.Aws}
+      title={hasCredentials ? "Edit AWS Account" : "Add AWS Account"}
+      subtitle={
+        hasCredentials ? "Update your AWS access credentials" : "Enter your AWS access credentials"
+      }
+      error={error}
+      isSaving={isSaving}
+      isFormValid={!!formFields.accessKey.trim()}
+      onCancel={handleCancel}
+      onSave={handleSave}
+    >
+      <FormField
+        label="Access Key ID"
+        hint="e.g. AKIAIOSFODNN7EXAMPLE"
+        type="text"
+        mono
+        value={formFields.accessKey}
+        onChange={(value) => setFormFields((prev) => ({ ...prev, accessKey: value }))}
+      />
+      <FormField
+        label="Secret Access Key"
+        hint="Leave blank to keep your existing key"
+        type="password"
+        mono
+        value={formFields.secretKey}
+        onChange={(value) => setFormFields((prev) => ({ ...prev, secretKey: value }))}
+      />
+    </AccountEditForm>
   );
 }
