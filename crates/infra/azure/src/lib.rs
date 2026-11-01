@@ -1,5 +1,7 @@
+pub mod arm_error;
 pub mod auth;
 pub mod client;
+pub mod constants;
 pub mod credentials;
 pub mod instance;
 pub mod models;

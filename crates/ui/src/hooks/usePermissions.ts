@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { commands } from "../bindings";
-import { CloudProviderName, Permissions } from "../types";
+import { AppError, CloudProviderName, Permissions } from "../types";
 
 export function usePermissions() {
   const [permissions, setPermissions] = useState<Permissions | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AppError | null>(null);
 
   async function verifyPermissions(provider: CloudProviderName): Promise<Permissions | null> {
     setIsVerifying(true);

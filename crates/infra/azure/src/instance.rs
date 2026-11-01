@@ -3,7 +3,7 @@ use byocvpn_core::server_startup::{PackageManager, generate_server_startup_scrip
 use byocvpn_core::{
     cloud_provider::{CloudProviderName, InstanceInfo, InstanceState, SpawnInstanceParams},
     error::{ComputeProvisioningError, Error, Result},
-    retry::retry,
+    retry::{RetryPolicy, retry},
 };
 use chrono::{DateTime, Utc};
 use futures::future::join_all;
@@ -11,6 +11,7 @@ use log::{debug, error, info, warn};
 use tokio::time::Duration;
 use uuid::Uuid;
 
+use crate::arm_error::{ArmErrorCode, extract_arm_error_code};
 use crate::{
     client::AzureClient,
     models::{
@@ -173,8 +174,10 @@ pub async fn spawn_instance(
                     break;
                 }
                 Err(error) => {
+                    let sku_unavailable =
+                        extract_arm_error_code(&error) == Some(ArmErrorCode::SkuNotAvailable);
                     last_error = error.to_string();
-                    if last_error.contains("SkuNotAvailable") {
+                    if sku_unavailable {
                         warn!("[Azure] {vm_size} not available in {location}, trying next size...");
                     } else {
                         cleanup_vm_resources(client, &resource_group, &vm_name).await;
@@ -456,8 +459,7 @@ async fn wait_for_vm_creation(
                 }
             }
         },
-        60,
-        Duration::from_secs(10),
+        RetryPolicy::fixed(60, Duration::from_secs(10)),
     )
     .await
 }

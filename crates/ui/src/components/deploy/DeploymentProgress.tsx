@@ -1,10 +1,11 @@
-import { JobStepState } from "../../types";
+import { AppError, JobStepState } from "../../types";
+import { summarizeError } from "../../lib/describeError";
 import { DeploymentStepList } from "./DeploymentStepList";
 
 interface DeploymentProgressProps {
   title: string;
   steps: JobStepState[];
-  error: string | null;
+  error: AppError | null;
 }
 
 export function DeploymentProgress({ title, steps, error }: DeploymentProgressProps) {
@@ -21,7 +22,9 @@ export function DeploymentProgress({ title, steps, error }: DeploymentProgressPr
         <DeploymentStepList steps={steps} />
       </div>
 
-      {error && <p className="max-w-90 text-body-sm text-fg-danger-moderate">{error}</p>}
+      {error && (
+        <p className="max-w-90 text-body-sm text-fg-danger-moderate">{summarizeError(error)}</p>
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { Instance } from "../../types";
 import { useVpnConnectionContext } from "../../contexts/VpnConnectionContext";
 import { Button } from "../primitives/Button";
-import { Banner } from "../primitives/Banner";
+import { ErrorBanner } from "../common/ErrorBanner";
 import { ServerLocation } from "../servers/ServerLocation";
 import { OnboardingHeading } from "./OnboardingHeading";
 
@@ -36,7 +36,7 @@ export function ReadyStep({ instance, onConnected }: ReadyStepProps) {
         >
           Secure my connection
         </Button>
-        {error && <Banner variant="danger">{error}</Banner>}
+        {error && <ErrorBanner error={error} />}
       </div>
     </div>
   );

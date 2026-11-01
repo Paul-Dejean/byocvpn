@@ -1,7 +1,15 @@
 import { createContext, ReactNode, useContext, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { SpawnInstanceEvent } from "../bindings";
-import { CloudProviderName, Instance, JobStepState, JobStepStatus, Region } from "../types";
+import {
+  AppError,
+  CloudProviderName,
+  Instance,
+  JobStepState,
+  JobStepStatus,
+  Region,
+} from "../types";
+import { toAppError } from "../lib/appError";
 import { useInstances } from "../hooks/useInstances";
 import { enableRegion, isRegionEnabled } from "../lib/enableRegion";
 import { buildDeploymentSteps } from "../lib/deploymentSteps";
@@ -18,7 +26,7 @@ export interface Deployment {
   region: Region;
   status: DeploymentStatus;
   steps: JobStepState[];
-  error: string | null;
+  error: AppError | null;
   jobId: string | null;
   instance: Instance | null;
 }
@@ -65,7 +73,7 @@ export function DeploymentsProvider({ children }: DeploymentsProviderProps) {
     updateDeployment(deploymentId, (deployment) => ({
       ...deployment,
       status: DeploymentStatus.FAILED,
-      error: error instanceof Error ? error.message : String(error),
+      error: toAppError(error),
       steps: deployment.steps.map((step) =>
         step.status === JobStepStatus.Running ? { ...step, status: JobStepStatus.Failed } : step,
       ),

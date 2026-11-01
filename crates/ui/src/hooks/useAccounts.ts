@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Channel } from "@tauri-apps/api/core";
 import { toast } from "react-hot-toast";
 import { ProvisionAccountEvent, commands } from "../bindings";
-import { CloudProviderName, JobStepState, JobStepStatus } from "../types";
+import { AppError, CloudProviderName, JobStepState, JobStepStatus } from "../types";
+import { summarizeError } from "../lib/describeError";
 
 const ProvisionEventKind = {
   Started: "STARTED",
@@ -19,13 +20,13 @@ export interface ProvisionJobState {
 
 interface UseAccountsOptions {
   onComplete?: (provider: CloudProviderName) => void;
-  onFailed?: (error: string) => void;
+  onFailed?: (error: AppError) => void;
 }
 
 export function useAccounts({ onComplete, onFailed }: UseAccountsOptions = {}) {
   const [activeProvisionJob, setActiveProvisionJob] = useState<ProvisionJobState | null>(null);
   const [isProvisionComplete, setIsProvisionComplete] = useState(false);
-  const [provisionError, setProvisionError] = useState<string | null>(null);
+  const [provisionError, setProvisionError] = useState<AppError | null>(null);
 
   function resetProvisionState() {
     setActiveProvisionJob(null);
@@ -83,7 +84,7 @@ export function useAccounts({ onComplete, onFailed }: UseAccountsOptions = {}) {
 
     const result = await commands.provisionAccount(provider, onEvent);
     if (result.status === "error") {
-      toast.error(result.error);
+      toast.error(summarizeError(result.error));
     }
   }
 

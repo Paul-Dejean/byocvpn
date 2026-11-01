@@ -5,6 +5,7 @@ import { useCredentials } from "../hooks/useCredentials";
 import { useAccounts } from "../hooks/useAccounts";
 import { usePermissions } from "../hooks/usePermissions";
 import { isAndroid } from "../lib/platform";
+import { summarizeError } from "../lib/describeError";
 import { CloudProviderName } from "../types";
 import { AwsAccountCard } from "../components/settings/AwsAccountCard";
 import { OracleAccountCard } from "../components/settings/OracleAccountCard";
@@ -39,7 +40,7 @@ export function SettingsPage({ onNavigateToAddAccount }: SettingsPageProps) {
     provisionAccount,
     resetProvisionState,
   } = useAccounts({
-    onFailed: () => toast.error("Account setup failed"),
+    onFailed: (error) => toast.error(`Account setup failed: ${summarizeError(error)}`),
   });
 
   const {

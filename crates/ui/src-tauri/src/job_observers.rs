@@ -1,6 +1,6 @@
 use byocvpn_core::{
     cloud_provider::{CloudProviderName, InstanceInfo, JobStep, JobStepStatus},
-    error::Error,
+    error::{Error, ErrorPayload},
     job_registry::SpawnJobState,
     jobs::{
         JobObserver, enable_region::EnableRegionObserver,
@@ -25,7 +25,7 @@ pub enum SpawnInstanceEvent {
     Progress {
         step_id: String,
         status: JobStepStatus,
-        error: Option<String>,
+        error: Option<ErrorPayload>,
     },
     InstanceLaunched {
         instance: InstanceInfo,
@@ -34,7 +34,7 @@ pub enum SpawnInstanceEvent {
         instance: InstanceInfo,
     },
     Failed {
-        error: String,
+        error: ErrorPayload,
     },
 }
 
@@ -50,13 +50,13 @@ pub enum ProvisionAccountEvent {
     Progress {
         step_id: String,
         status: JobStepStatus,
-        error: Option<String>,
+        error: Option<ErrorPayload>,
     },
     Complete {
         provider: CloudProviderName,
     },
     Failed {
-        error: String,
+        error: ErrorPayload,
     },
 }
 
@@ -72,13 +72,13 @@ pub enum EnableRegionEvent {
     Progress {
         step_id: String,
         status: JobStepStatus,
-        error: Option<String>,
+        error: Option<ErrorPayload>,
     },
     Complete {
         region: String,
     },
     Failed {
-        error: String,
+        error: ErrorPayload,
     },
 }
 
@@ -97,7 +97,7 @@ impl SpawnEventForwarder {
 }
 
 impl JobObserver for SpawnEventForwarder {
-    fn on_step_changed(&self, step: &JobStep, status: JobStepStatus, error: Option<String>) {
+    fn on_step_changed(&self, step: &JobStep, status: JobStepStatus, error: Option<ErrorPayload>) {
         send_channel_event(
             &self.channel,
             SpawnInstanceEvent::Progress {
@@ -140,7 +140,7 @@ impl SpawnJobObserver for SpawnEventForwarder {
         send_channel_event(
             &self.channel,
             SpawnInstanceEvent::Failed {
-                error: error.to_string(),
+                error: error.to_payload(),
             },
         );
     }
@@ -157,7 +157,7 @@ impl ProvisionAccountEventForwarder {
 }
 
 impl JobObserver for ProvisionAccountEventForwarder {
-    fn on_step_changed(&self, step: &JobStep, status: JobStepStatus, error: Option<String>) {
+    fn on_step_changed(&self, step: &JobStep, status: JobStepStatus, error: Option<ErrorPayload>) {
         send_channel_event(
             &self.channel,
             ProvisionAccountEvent::Progress {
@@ -193,7 +193,7 @@ impl ProvisionAccountObserver for ProvisionAccountEventForwarder {
         send_channel_event(
             &self.channel,
             ProvisionAccountEvent::Failed {
-                error: error.to_string(),
+                error: error.to_payload(),
             },
         );
     }
@@ -210,7 +210,7 @@ impl EnableRegionEventForwarder {
 }
 
 impl JobObserver for EnableRegionEventForwarder {
-    fn on_step_changed(&self, step: &JobStep, status: JobStepStatus, error: Option<String>) {
+    fn on_step_changed(&self, step: &JobStep, status: JobStepStatus, error: Option<ErrorPayload>) {
         send_channel_event(
             &self.channel,
             EnableRegionEvent::Progress {
@@ -246,7 +246,7 @@ impl EnableRegionObserver for EnableRegionEventForwarder {
         send_channel_event(
             &self.channel,
             EnableRegionEvent::Failed {
-                error: error.to_string(),
+                error: error.to_payload(),
             },
         );
     }

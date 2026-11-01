@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { commands } from "../bindings";
+import { AppErrorException } from "../lib/appError";
 import { CloudProviderName, Region, RegionGroup } from "../types";
 
 export interface ProviderRegionsData {
@@ -18,7 +19,7 @@ export function providerRegionsQueryOptions(provider: CloudProviderName) {
 async function fetchProviderRegions(provider: CloudProviderName): Promise<ProviderRegionsData> {
   const regionsResult = await commands.getRegions(provider);
   if (regionsResult.status === "error") {
-    throw new Error(regionsResult.error);
+    throw new AppErrorException(regionsResult.error);
   }
   const regions = regionsResult.data;
   const enabledRegions = new Set<string>(await commands.getEnabledRegions(provider));

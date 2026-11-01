@@ -1,6 +1,7 @@
-use byocvpn_core::error::{NetworkProvisioningError, Result};
+use byocvpn_core::cloud_provider::CloudProviderName;
+use byocvpn_core::error::{Error, NetworkProvisioningError, Result};
 use reqwest::{Client as HttpClient, Response, StatusCode};
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{from_str, to_vec};
 
 use crate::auth::{HttpMethod, OciCredentials, build_authorization_header};
@@ -164,10 +165,7 @@ impl OciClient {
         }
         let body_text = response.text().await.unwrap_or_default();
         error!("[OCI] PUT {url} → {status} — {body_text}");
-        Err(NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!("OCI PUT {url} error {status}: {body_text}"),
-        }
-        .into())
+        Err(build_request_error("PUT", url, status, &body_text))
     }
 
     pub async fn delete(&self, url: &str) -> Result<()> {
@@ -209,10 +207,7 @@ impl OciClient {
             return Ok(());
         }
         let body = response.text().await.unwrap_or_default();
-        Err(NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!("OCI DELETE {url} returned {status}: {body}"),
-        }
-        .into())
+        Err(build_request_error("DELETE", url, status, &body))
     }
 }
 
@@ -251,9 +246,26 @@ async fn parse_response<T: DeserializeOwned>(
         })
     } else {
         error!("[OCI] {method} {url} → {status} — {body}");
-        Err(NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!("OCI {method} {url} error {status}: {body}"),
-        }
-        .into())
+        Err(build_request_error(method, url, status, &body))
     }
+}
+
+#[derive(Deserialize)]
+struct OciErrorResponse {
+    code: Option<String>,
+    message: Option<String>,
+}
+
+fn build_request_error(method: &str, url: &str, status: StatusCode, body: &str) -> Error {
+    let error_body = from_str::<OciErrorResponse>(body).ok();
+    Error::cloud_api_rejected(
+        CloudProviderName::Oracle,
+        format!("{method} {url}"),
+        status.as_u16(),
+        error_body
+            .as_ref()
+            .and_then(|error_body| error_body.code.clone()),
+        error_body.and_then(|error_body| error_body.message),
+        body,
+    )
 }

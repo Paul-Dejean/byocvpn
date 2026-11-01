@@ -14,7 +14,7 @@ use crate::{
     config::{generate_client_config, get_wireguard_config_file_path},
     connectivity,
     crypto::generate_keypair,
-    error::{ComputeProvisioningError, ConfigurationError, Error, Result},
+    error::{ComputeProvisioningError, ConfigurationError, Error, ErrorPayload, Result},
     job_registry::{SpawnJobRegistry, SpawnJobState},
     jobs::{JobObserver, JobSteps, build_job_id, run_job_steps},
     ledger::LedgerEntry,
@@ -85,7 +85,7 @@ pub async fn run_spawn_job(
         Err(error) => {
             context
                 .spawn_jobs
-                .mark_failed(&job.job_id, error.to_string());
+                .mark_failed(&job.job_id, error.to_payload());
             warn!("Spawn job {} failed: {error}", job.job_id);
             observer.on_job_failed(&error);
             Err(error)
@@ -144,7 +144,7 @@ struct RegistryTrackingObserver<'a> {
 }
 
 impl JobObserver for RegistryTrackingObserver<'_> {
-    fn on_step_changed(&self, step: &JobStep, status: JobStepStatus, error: Option<String>) {
+    fn on_step_changed(&self, step: &JobStep, status: JobStepStatus, error: Option<ErrorPayload>) {
         self.registry
             .update_step_status(self.job_id, &step.id, status.clone(), error.clone());
         self.observer.on_step_changed(step, status, error);

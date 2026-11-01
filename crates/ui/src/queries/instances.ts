@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { commands } from "../bindings";
+import { AppErrorException } from "../lib/appError";
 import { Instance } from "../types";
 
 export const instancesQueryOptions = queryOptions({
@@ -12,7 +13,7 @@ export const instancesQueryOptions = queryOptions({
 async function fetchInstances(): Promise<Instance[]> {
   const result = await commands.listInstances(null);
   if (result.status === "error") {
-    throw new Error(result.error);
+    throw new AppErrorException(result.error);
   }
   return result.data;
 }

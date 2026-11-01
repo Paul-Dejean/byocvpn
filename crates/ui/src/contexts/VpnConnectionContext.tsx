@@ -1,5 +1,5 @@
 import { createContext, useContext, ReactNode } from "react";
-import { Instance } from "../types";
+import { AppError, Instance } from "../types";
 import { useVpnConnection } from "../hooks/useVpnConnection";
 import { useRecentlyDisconnectedInstance } from "../hooks/useRecentlyDisconnectedInstance";
 import { VpnStatus } from "../types";
@@ -10,7 +10,7 @@ interface VpnConnectionContextValue {
   isConnecting: boolean;
   isDisconnecting: boolean;
   isDaemonRunning: boolean;
-  error: string | null;
+  error: AppError | null;
   connectToVpn: (instance: Instance) => Promise<void>;
   disconnectFromVpn: () => Promise<boolean>;
   clearError: () => void;

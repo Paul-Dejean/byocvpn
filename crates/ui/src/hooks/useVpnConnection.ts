@@ -2,7 +2,8 @@ import { useState, useEffect, type Dispatch, type SetStateAction } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { toast } from "react-hot-toast";
 import { commands, events } from "../bindings";
-import { Instance, VpnStatus } from "../types";
+import { AppError, Instance, VpnStatus } from "../types";
+import { summarizeError } from "../lib/describeError";
 
 const initialVpnStatus: VpnStatus = {
   connected: false,
@@ -16,7 +17,7 @@ export function useVpnConnection() {
   const [vpnStatus, setVpnStatus] = useState<VpnStatus>(initialVpnStatus);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AppError | null>(null);
 
   function checkVpnStatus(): Promise<void> {
     return refreshVpnStatus(setVpnStatus);
@@ -50,7 +51,7 @@ export function useVpnConnection() {
       if (disconnectResult.status === "error") {
         setIsConnecting(false);
         setError(disconnectResult.error);
-        toast.error(disconnectResult.error);
+        toast.error(summarizeError(disconnectResult.error));
         return;
       }
     }
@@ -66,7 +67,7 @@ export function useVpnConnection() {
     if (result.status === "error") {
       setError(result.error);
       console.error("Failed to connect to VPN:", result.error);
-      toast.error(result.error);
+      toast.error(summarizeError(result.error));
       return;
     }
     console.log("VPN connected:", result.data);
@@ -80,7 +81,7 @@ export function useVpnConnection() {
     setIsDisconnecting(false);
     if (result.status === "error") {
       setError(result.error);
-      toast.error(result.error);
+      toast.error(summarizeError(result.error));
       console.error("Failed to disconnect from VPN:", result.error);
       return false;
     }

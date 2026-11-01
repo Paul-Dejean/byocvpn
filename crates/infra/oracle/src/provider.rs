@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use async_trait::async_trait;
 use byocvpn_core::{
     cloud_provider::{
@@ -12,6 +10,7 @@ use byocvpn_core::{
 
 use crate::{auth::OciCredentials, client::OciClient, instance, network, pricing};
 use log::{debug, error, info};
+use strum::{Display, EnumString};
 
 pub struct OracleProviderConfig {
     pub tenancy_ocid: String,
@@ -46,6 +45,8 @@ impl OracleProvider {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Display, EnumString)]
+#[strum(serialize_all = "snake_case")]
 pub enum OracleSpawnStepId {
     SetupVcn,
     SetupIgw,
@@ -59,43 +60,6 @@ pub enum OracleSpawnStepId {
     WireguardReady,
 }
 
-impl OracleSpawnStepId {
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::SetupVcn => "setup_vcn",
-            Self::SetupIgw => "setup_igw",
-            Self::RegionSubscribe => "region_subscribe",
-            Self::RegionVcn => "region_vcn",
-            Self::RegionIgw => "region_igw",
-            Self::RegionSecurityList => "region_security_list",
-            Self::RegionSubnet => "region_subnet",
-            Self::SetupNetwork => "setup_network",
-            Self::Launch => "launch",
-            Self::WireguardReady => "wireguard_ready",
-        }
-    }
-}
-
-impl FromStr for OracleSpawnStepId {
-    type Err = ();
-
-    fn from_str(s: &str) -> std::result::Result<Self, ()> {
-        match s {
-            "setup_vcn" => Ok(Self::SetupVcn),
-            "setup_igw" => Ok(Self::SetupIgw),
-            "region_subscribe" => Ok(Self::RegionSubscribe),
-            "region_vcn" => Ok(Self::RegionVcn),
-            "region_igw" => Ok(Self::RegionIgw),
-            "region_security_list" => Ok(Self::RegionSecurityList),
-            "region_subnet" => Ok(Self::RegionSubnet),
-            "setup_network" => Ok(Self::SetupNetwork),
-            "launch" => Ok(Self::Launch),
-            "wireguard_ready" => Ok(Self::WireguardReady),
-            _ => Err(()),
-        }
-    }
-}
-
 #[async_trait]
 impl CloudProvider for OracleProvider {
     fn get_provider_name(&self) -> CloudProviderName {
@@ -105,15 +69,15 @@ impl CloudProvider for OracleProvider {
     fn get_spawn_steps(&self, _region: &str) -> Vec<JobStep> {
         vec![
             JobStep {
-                id: OracleSpawnStepId::SetupNetwork.as_str().into(),
+                id: OracleSpawnStepId::SetupNetwork.to_string(),
                 label: "Verifying network infrastructure".into(),
             },
             JobStep {
-                id: OracleSpawnStepId::Launch.as_str().into(),
+                id: OracleSpawnStepId::Launch.to_string(),
                 label: "Launching Ampere A1 instance".into(),
             },
             JobStep {
-                id: OracleSpawnStepId::WireguardReady.as_str().into(),
+                id: OracleSpawnStepId::WireguardReady.to_string(),
                 label: "Waiting for WireGuard to start".into(),
             },
         ]
@@ -214,11 +178,11 @@ impl CloudProvider for OracleProvider {
     fn get_provision_account_steps(&self) -> Vec<JobStep> {
         vec![
             JobStep {
-                id: OracleSpawnStepId::SetupVcn.as_str().into(),
+                id: OracleSpawnStepId::SetupVcn.to_string(),
                 label: "Creating home VCN".into(),
             },
             JobStep {
-                id: OracleSpawnStepId::SetupIgw.as_str().into(),
+                id: OracleSpawnStepId::SetupIgw.to_string(),
                 label: "Creating internet gateway".into(),
             },
         ]
@@ -231,23 +195,23 @@ impl CloudProvider for OracleProvider {
     fn get_enable_region_steps(&self, _region: &str) -> Vec<JobStep> {
         vec![
             JobStep {
-                id: OracleSpawnStepId::RegionSubscribe.as_str().into(),
+                id: OracleSpawnStepId::RegionSubscribe.to_string(),
                 label: "Subscribing to region \u{2014} this may take several minutes".into(),
             },
             JobStep {
-                id: OracleSpawnStepId::RegionVcn.as_str().into(),
+                id: OracleSpawnStepId::RegionVcn.to_string(),
                 label: "Creating regional VCN".into(),
             },
             JobStep {
-                id: OracleSpawnStepId::RegionIgw.as_str().into(),
+                id: OracleSpawnStepId::RegionIgw.to_string(),
                 label: "Creating regional internet gateway".into(),
             },
             JobStep {
-                id: OracleSpawnStepId::RegionSecurityList.as_str().into(),
+                id: OracleSpawnStepId::RegionSecurityList.to_string(),
                 label: "Creating security list".into(),
             },
             JobStep {
-                id: OracleSpawnStepId::RegionSubnet.as_str().into(),
+                id: OracleSpawnStepId::RegionSubnet.to_string(),
                 label: "Creating subnet".into(),
             },
         ]
@@ -347,9 +311,9 @@ impl CloudProvider for OracleProvider {
 
 impl OracleProvider {
     async fn ensure_account_network(&self) -> Result<()> {
-        self.run_spawn_step(OracleSpawnStepId::SetupVcn.as_str(), "")
+        self.run_spawn_step(&OracleSpawnStepId::SetupVcn.to_string(), "")
             .await?;
-        self.run_spawn_step(OracleSpawnStepId::SetupIgw.as_str(), "")
+        self.run_spawn_step(&OracleSpawnStepId::SetupIgw.to_string(), "")
             .await?;
         Ok(())
     }

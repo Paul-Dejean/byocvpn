@@ -1,13 +1,13 @@
 import { Check, X } from "lucide-react";
-import { Permissions } from "../../types";
+import { AppError, Permissions } from "../../types";
 import { Spinner } from "../primitives/Spinner";
 import { Tag } from "../primitives/Tag";
-import { Banner } from "../primitives/Banner";
+import { ErrorBanner } from "./ErrorBanner";
 
 interface PermissionsPanelProps {
   permissions: Permissions | null;
   isVerifying: boolean;
-  error: string | null;
+  error: AppError | null;
 }
 
 export function PermissionsPanel({ permissions, isVerifying, error }: PermissionsPanelProps) {
@@ -21,7 +21,7 @@ export function PermissionsPanel({ permissions, isVerifying, error }: Permission
   }
 
   if (error) {
-    return <Banner variant="danger">{error}</Banner>;
+    return <ErrorBanner error={error} />;
   }
 
   if (!permissions) {

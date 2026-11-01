@@ -4,7 +4,7 @@ import { CloudProviderName } from "../../types";
 import { Upload } from "lucide-react";
 import { Button } from "../primitives/Button";
 import { AccountIconTile, AccountRow } from "./AccountRow";
-import { Banner } from "../primitives/Banner";
+import { ErrorBanner } from "../common/ErrorBanner";
 import { FormField } from "../primitives/FormField";
 
 interface OracleAccountCardProps {
@@ -225,7 +225,7 @@ export function OracleAccountCard({
               />
             </div>
 
-            {error && <Banner variant="danger">{error}</Banner>}
+            {error && <ErrorBanner error={error} />}
 
             <div className="flex gap-3 pt-2">
               <Button variant="secondary" size="lg" onClick={handleCancel} className="flex-1">

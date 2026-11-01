@@ -64,15 +64,15 @@ impl CloudProvider for AwsProvider {
     fn get_spawn_steps(&self, _region: &str) -> Vec<JobStep> {
         vec![
             JobStep {
-                id: AwsSpawnStepId::SetupNetwork.as_str().into(),
+                id: AwsSpawnStepId::SetupNetwork.to_string(),
                 label: "Verifying network infrastructure".into(),
             },
             JobStep {
-                id: AwsSpawnStepId::LaunchingInstance.as_str().into(),
+                id: AwsSpawnStepId::Launch.to_string(),
                 label: "Launching EC2 instance".into(),
             },
             JobStep {
-                id: AwsSpawnStepId::WireguardReady.as_str().into(),
+                id: AwsSpawnStepId::WireguardReady.to_string(),
                 label: "Waiting for WireGuard to start".into(),
             },
         ]
@@ -95,19 +95,19 @@ impl CloudProvider for AwsProvider {
     fn get_enable_region_steps(&self, _region: &str) -> Vec<JobStep> {
         vec![
             JobStep {
-                id: AwsSpawnStepId::SetupVpc.as_str().into(),
+                id: AwsSpawnStepId::SetupVpc.to_string(),
                 label: "Creating VPC".into(),
             },
             JobStep {
-                id: AwsSpawnStepId::SetupIgw.as_str().into(),
+                id: AwsSpawnStepId::SetupIgw.to_string(),
                 label: "Creating internet gateway".into(),
             },
             JobStep {
-                id: AwsSpawnStepId::RegionSubnets.as_str().into(),
+                id: AwsSpawnStepId::RegionSubnets.to_string(),
                 label: "Creating subnets".into(),
             },
             JobStep {
-                id: AwsSpawnStepId::RegionSecurityGroup.as_str().into(),
+                id: AwsSpawnStepId::RegionSecurityGroup.to_string(),
                 label: "Configuring security group".into(),
             },
         ]
@@ -264,13 +264,13 @@ impl CloudProvider for AwsProvider {
 
 impl AwsProvider {
     async fn ensure_region_network(&self, region: &str) -> Result<()> {
-        self.run_spawn_step(AwsSpawnStepId::SetupVpc.as_str(), region)
+        self.run_spawn_step(&AwsSpawnStepId::SetupVpc.to_string(), region)
             .await?;
-        self.run_spawn_step(AwsSpawnStepId::SetupIgw.as_str(), region)
+        self.run_spawn_step(&AwsSpawnStepId::SetupIgw.to_string(), region)
             .await?;
-        self.run_spawn_step(AwsSpawnStepId::RegionSubnets.as_str(), region)
+        self.run_spawn_step(&AwsSpawnStepId::RegionSubnets.to_string(), region)
             .await?;
-        self.run_spawn_step(AwsSpawnStepId::RegionSecurityGroup.as_str(), region)
+        self.run_spawn_step(&AwsSpawnStepId::RegionSecurityGroup.to_string(), region)
             .await?;
         Ok(())
     }

@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use async_trait::async_trait;
 use byocvpn_core::{
     cloud_provider::{
@@ -11,6 +9,7 @@ use byocvpn_core::{
 };
 use log::{info, warn};
 use serde::Deserialize;
+use strum::{Display, EnumString};
 
 use crate::{auth::create_credential, client::AzureClient, instance, network, pricing};
 
@@ -132,39 +131,14 @@ impl AzureProvider {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Display, EnumString)]
+#[strum(serialize_all = "snake_case")]
 pub enum AzureSpawnStepId {
     RegionResourceGroup,
     RegionVnet,
     SetupNetwork,
     Launch,
     WireguardReady,
-}
-
-impl AzureSpawnStepId {
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::RegionResourceGroup => "region_resource_group",
-            Self::RegionVnet => "region_vnet",
-            Self::SetupNetwork => "setup_network",
-            Self::Launch => "launch",
-            Self::WireguardReady => "wireguard_ready",
-        }
-    }
-}
-
-impl FromStr for AzureSpawnStepId {
-    type Err = ();
-
-    fn from_str(s: &str) -> std::result::Result<Self, ()> {
-        match s {
-            "region_resource_group" => Ok(Self::RegionResourceGroup),
-            "region_vnet" => Ok(Self::RegionVnet),
-            "setup_network" => Ok(Self::SetupNetwork),
-            "launch" => Ok(Self::Launch),
-            "wireguard_ready" => Ok(Self::WireguardReady),
-            _ => Err(()),
-        }
-    }
 }
 
 #[async_trait]
@@ -176,15 +150,15 @@ impl CloudProvider for AzureProvider {
     fn get_spawn_steps(&self, _region: &str) -> Vec<JobStep> {
         vec![
             JobStep {
-                id: AzureSpawnStepId::SetupNetwork.as_str().into(),
+                id: AzureSpawnStepId::SetupNetwork.to_string(),
                 label: "Verifying network infrastructure".into(),
             },
             JobStep {
-                id: AzureSpawnStepId::Launch.as_str().into(),
+                id: AzureSpawnStepId::Launch.to_string(),
                 label: "Launching virtual machine".into(),
             },
             JobStep {
-                id: AzureSpawnStepId::WireguardReady.as_str().into(),
+                id: AzureSpawnStepId::WireguardReady.to_string(),
                 label: "Waiting for WireGuard to start".into(),
             },
         ]
@@ -247,11 +221,11 @@ impl CloudProvider for AzureProvider {
     fn get_enable_region_steps(&self, _region: &str) -> Vec<JobStep> {
         vec![
             JobStep {
-                id: AzureSpawnStepId::RegionResourceGroup.as_str().into(),
+                id: AzureSpawnStepId::RegionResourceGroup.to_string(),
                 label: "Creating resource group".into(),
             },
             JobStep {
-                id: AzureSpawnStepId::RegionVnet.as_str().into(),
+                id: AzureSpawnStepId::RegionVnet.to_string(),
                 label: "Creating VNet and subnet".into(),
             },
         ]
