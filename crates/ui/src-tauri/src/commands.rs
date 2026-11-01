@@ -1,122 +1,65 @@
-use std::collections::HashSet;
-
-use byocvpn_aws::{AwsCredentials, AwsProvider, pricing as aws_pricing};
-use byocvpn_azure::{AzureProvider, credentials::AzureCredentials, pricing as azure_pricing};
+use byocvpn_app::ProviderCredentials;
 use byocvpn_core::{
-    cloud_provider::{
-        CloudProvider, CloudProviderName, InstanceInfo, InstanceState, PermissionStatus,
-        PricingInfo, SpawnJob, SpawnStep, SpawnStepStatus,
-    },
+    app_context::AppContext,
+    cloud_provider::{CloudProviderName, InstanceInfo, PermissionStatus, PricingInfo},
     commands,
     commands::setup::Region,
-    connectivity::{self, ProbeStatus},
-    credentials::{CredentialStore, StoredCredentials},
-    crypto::generate_keypair,
-    daemon_client::DaemonClient,
     error::{ConfigurationError, Error, Result},
+    instances,
+    job_registry::SpawnJobState,
+    jobs::{
+        enable_region::run_enable_region_job, provision_account::run_provision_account_job,
+        spawn::run_spawn_job,
+    },
     ledger::LedgerEntry,
+    session::{self, ConnectTarget},
+    settings::{AutoTerminateSettings, NotificationSettings, UiPreferences, VpnSettings},
     tunnel::VpnStatus,
 };
-use byocvpn_gcp::{GcpProvider, credentials::GcpCredentials, pricing as gcp_pricing};
-use byocvpn_oracle::{credentials::OracleCredentials, pricing as oracle_pricing};
-use chrono::Utc;
-use log::{debug, error, warn};
-use serde::Serialize;
+use log::{debug, error};
 use tauri::{AppHandle, Manager, ipc::Channel};
-use tauri_plugin_notification::NotificationExt;
 
-use crate::ledger_store::LedgerStore;
-use crate::provider_credentials::ProviderCredentials;
-use crate::provider_store::ProviderStore;
-use crate::spawn_job_registry::{SpawnJobRegistry, SpawnJobState};
+use crate::job_observers::{
+    EnableRegionEvent, EnableRegionEventForwarder, ProvisionAccountEvent,
+    ProvisionAccountEventForwarder, SpawnEventForwarder, SpawnInstanceEvent,
+};
 use crate::vpn_backend::{self, publish_vpn_status};
-
-pub async fn create_cloud_provider(provider: CloudProviderName) -> Result<Box<dyn CloudProvider>> {
-    debug!("Creating {provider} cloud provider");
-    let store = CredentialStore::load().await?;
-    let provider: Box<dyn CloudProvider> = match provider {
-        CloudProviderName::Aws => {
-            Box::new(AwsProvider::new(AwsCredentials::from_store(&store)?.into()))
-        }
-        CloudProviderName::Oracle => Box::new(byocvpn_oracle::OracleProvider::new(
-            OracleCredentials::from_store(&store)?.into(),
-        )),
-        CloudProviderName::Gcp => Box::new(GcpProvider::new(
-            GcpCredentials::from_store(&store)?.into(),
-        )?),
-        CloudProviderName::Azure => Box::new(AzureProvider::new(
-            AzureCredentials::from_store(&store)?.into(),
-        )?),
-    };
-    Ok(provider)
-}
 
 #[tauri::command]
 #[specta::specta]
 pub async fn get_credentials(provider: CloudProviderName) -> Result<Option<ProviderCredentials>> {
-    let Ok(store) = CredentialStore::load().await else {
-        return Ok(None);
-    };
-    Ok(ProviderCredentials::load(provider, &store).ok())
+    Ok(ProviderCredentials::load(provider).await.ok())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn save_credentials(credentials: ProviderCredentials) -> Result<()> {
-    let mut store = CredentialStore::load().await?;
-    credentials.write_to_store(&mut store);
-    store.save()
+    credentials.save().await
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_credentials(provider: CloudProviderName, app_handle: AppHandle) -> Result<()> {
-    let mut store = CredentialStore::load().await?;
-    let section = match provider {
-        CloudProviderName::Aws => AwsCredentials::CREDENTIALS_SECTION,
-        CloudProviderName::Oracle => OracleCredentials::CREDENTIALS_SECTION,
-        CloudProviderName::Gcp => GcpCredentials::CREDENTIALS_SECTION,
-        CloudProviderName::Azure => AzureCredentials::CREDENTIALS_SECTION,
-    };
-    store.delete_section(section);
-    store.save()?;
-    if let Some(provider_store) = ProviderStore::open(&app_handle) {
-        provider_store.clear_provisioned(&provider.to_string());
-    } else {
-        debug!("Provider store unavailable when deleting credentials for {provider}");
-    }
+    ProviderCredentials::delete(provider.clone()).await?;
+    app_handle
+        .state::<AppContext>()
+        .provider_flags
+        .clear_provisioned(&provider);
     Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn verify_permissions(provider: CloudProviderName) -> Result<Vec<PermissionStatus>> {
-    let cloud_provider = create_cloud_provider(provider).await?;
+pub async fn verify_permissions(
+    provider: CloudProviderName,
+    app_handle: AppHandle,
+) -> Result<Vec<PermissionStatus>> {
+    let cloud_provider = app_handle
+        .state::<AppContext>()
+        .providers
+        .create(provider)
+        .await?;
     commands::verify_permissions::verify_permissions(&*cloud_provider).await
-}
-
-#[derive(Clone, Serialize)]
-#[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE")]
-#[derive(specta::Type)]
-pub enum SpawnInstanceEvent {
-    Started {
-        job: SpawnJobState,
-    },
-    #[serde(rename_all = "camelCase")]
-    Progress {
-        step_id: String,
-        status: SpawnStepStatus,
-        error: Option<String>,
-    },
-    InstanceLaunched {
-        instance: InstanceInfo,
-    },
-    Complete {
-        instance: InstanceInfo,
-    },
-    Failed {
-        error: String,
-    },
 }
 
 #[tauri::command]
@@ -127,167 +70,36 @@ pub async fn spawn_instance(
     on_event: Channel<SpawnInstanceEvent>,
     app_handle: AppHandle,
 ) -> Result<()> {
-    let cloud_provider = create_cloud_provider(provider.clone()).await?;
-
-    let (client_private_key, client_public_key) = generate_keypair();
-    let (server_private_key, server_public_key) = generate_keypair();
-
-    let job = SpawnJob {
-        job_id: format!("{}-{}", provider, Utc::now().timestamp_millis()),
-        steps: cloud_provider.get_spawn_steps(&region),
-        region: region.clone(),
-        provider: provider.clone(),
-    };
-
-    let job_id = job.job_id.clone();
-    let steps = job.steps.clone();
-
-    let job_state = app_handle.state::<SpawnJobRegistry>().register(job);
-    send_spawn_instance_event(&on_event, SpawnInstanceEvent::Started { job: job_state });
+    let cloud_provider = app_handle
+        .state::<AppContext>()
+        .providers
+        .create(provider)
+        .await?;
+    let observer = SpawnEventForwarder::new(app_handle.clone(), on_event);
 
     tauri::async_runtime::spawn(async move {
-        let job_id_for_progress = job_id.clone();
-        let job_id_for_launched = job_id.clone();
-        let progress_handle = app_handle.clone();
-        let launched_handle = app_handle.clone();
-        let progress_channel = on_event.clone();
-        let launched_channel = on_event.clone();
-        let region_for_launched = region.clone();
-        let provider_for_launched = provider.clone();
-
-        let result = commands::spawn::run_spawn_steps(
-            &*cloud_provider,
-            &steps,
-            &region,
-            &job_id,
-            &client_private_key,
-            &server_private_key,
-            &client_public_key,
-            &server_public_key,
-            move |step_id, status, error| {
-                progress_handle
-                    .state::<SpawnJobRegistry>()
-                    .update_step_status(
-                        &job_id_for_progress,
-                        step_id,
-                        status.clone(),
-                        error.clone(),
-                    );
-
-                send_spawn_instance_event(
-                    &progress_channel,
-                    SpawnInstanceEvent::Progress {
-                        step_id: step_id.to_string(),
-                        status,
-                        error,
-                    },
-                );
-            },
-            move |instance| {
-                launched_handle
-                    .state::<SpawnJobRegistry>()
-                    .set_instance_id(&job_id_for_launched, instance.id.clone());
-
-                if let Some(ledger) = LedgerStore::open(&launched_handle) {
-                    let entry = LedgerEntry {
-                        instance_id: instance.id.clone(),
-                        provider: provider_for_launched.clone(),
-                        region: region_for_launched.clone(),
-                        instance_type: instance.instance_type.clone(),
-                        launched_at: instance.launched_at.unwrap_or_else(Utc::now),
-                        terminated_at: None,
-                        idle_since: Some(Utc::now()),
-                        setup_complete: false,
-                        bytes_sent: 0,
-                        bytes_received: 0,
-                    };
-                    ledger.set_entry(&entry);
-                }
-
-                let mut installing_instance = instance.clone();
-                installing_instance.state = InstanceState::Installing;
-                send_spawn_instance_event(
-                    &launched_channel,
-                    SpawnInstanceEvent::InstanceLaunched {
-                        instance: installing_instance,
-                    },
-                );
-            },
-        )
-        .await;
-
-        match result {
-            Ok(mut instance) => {
-                app_handle.state::<SpawnJobRegistry>().deregister(&job_id);
-                if let Some(ledger) = LedgerStore::open(&app_handle) {
-                    ledger.mark_setup_complete(&instance.id);
-                }
-                instance.state = InstanceState::Running;
-                notify_server_deployed(&app_handle, &instance);
-                send_spawn_instance_event(&on_event, SpawnInstanceEvent::Complete { instance });
-            }
-            Err(error) => {
-                app_handle
-                    .state::<SpawnJobRegistry>()
-                    .mark_failed(&job_id, error.to_string());
-                send_spawn_instance_event(
-                    &on_event,
-                    SpawnInstanceEvent::Failed {
-                        error: error.to_string(),
-                    },
-                );
-            }
+        let context = app_handle.state::<AppContext>();
+        if let Err(error) = run_spawn_job(&*cloud_provider, &context, &region, &observer).await {
+            debug!("Spawn job in {region} ended with error: {error}");
         }
     });
 
     Ok(())
 }
 
-fn send_spawn_instance_event(channel: &Channel<SpawnInstanceEvent>, event: SpawnInstanceEvent) {
-    if let Err(error) = channel.send(event) {
-        warn!("Failed to send spawn-instance event: {error}");
-    }
-}
-
-fn notify_server_deployed(app_handle: &AppHandle, instance: &InstanceInfo) {
-    if has_focused_window(app_handle) {
-        return;
-    }
-
-    let body = format!(
-        "Your {} server in {} is ready to connect.",
-        instance.provider.to_string().to_uppercase(),
-        instance.region
-    );
-    if let Err(error) = app_handle
-        .notification()
-        .builder()
-        .title("ByocVPN — Server Ready")
-        .body(&body)
-        .show()
-    {
-        warn!("Failed to send server-deployed notification: {error}");
-    }
-}
-
-fn has_focused_window(app_handle: &AppHandle) -> bool {
-    app_handle.webview_windows().values().any(|window| {
-        window.is_visible().unwrap_or(false)
-            && window.is_focused().unwrap_or(false)
-            && !window.is_minimized().unwrap_or(false)
-    })
-}
-
 #[tauri::command]
 #[specta::specta]
 pub async fn list_active_spawn_jobs(app_handle: AppHandle) -> Result<Vec<SpawnJobState>> {
-    Ok(app_handle.state::<SpawnJobRegistry>().list())
+    Ok(app_handle.state::<AppContext>().spawn_jobs.list())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn dismiss_spawn_job(job_id: String, app_handle: AppHandle) -> Result<()> {
-    app_handle.state::<SpawnJobRegistry>().deregister(&job_id);
+    app_handle
+        .state::<AppContext>()
+        .spawn_jobs
+        .deregister(&job_id);
     Ok(())
 }
 
@@ -299,13 +111,8 @@ pub async fn terminate_instance(
     provider: CloudProviderName,
     app_handle: AppHandle,
 ) -> Result<String> {
-    let cloud_provider = create_cloud_provider(provider).await?;
-    commands::terminate::terminate_instance(&*cloud_provider, &region, &instance_id).await?;
-
-    if let Some(ledger) = LedgerStore::open(&app_handle) {
-        ledger.mark_terminated(&instance_id);
-    }
-
+    let context = app_handle.state::<AppContext>();
+    instances::terminate_instance(&context, provider, &region, &instance_id).await?;
     Ok(format!("Instance {instance_id} terminated successfully."))
 }
 
@@ -315,133 +122,26 @@ pub async fn list_instances(
     region: Option<String>,
     app_handle: AppHandle,
 ) -> Result<Vec<InstanceInfo>> {
-    let region_ref = region.as_deref();
-
-    let provider_results: [(CloudProviderName, Option<Vec<InstanceInfo>>); 4] = tokio::join!(
-        list_provider_instances(CloudProviderName::Aws, region_ref),
-        list_provider_instances(CloudProviderName::Oracle, region_ref),
-        list_provider_instances(CloudProviderName::Gcp, region_ref),
-        list_provider_instances(CloudProviderName::Azure, region_ref),
-    )
-    .into();
-
-    let mut all_instances: Vec<InstanceInfo> = Vec::new();
-    let mut queried_providers: Vec<CloudProviderName> = Vec::new();
-    for (provider, result) in provider_results {
-        if let Some(instances) = result {
-            queried_providers.push(provider);
-            all_instances.extend(instances);
-        }
+    let context = app_handle.state::<AppContext>();
+    let listing = instances::list_instances(&context, None, region.as_deref()).await?;
+    for failure in &listing.failures {
+        error!(
+            "Failed to list {} instances: {}",
+            failure.provider, failure.error
+        );
     }
-
-    if let Some(ledger) = LedgerStore::open(&app_handle) {
-        let running_ids: HashSet<&str> = all_instances.iter().map(|i| i.id.as_str()).collect();
-        ledger.reconcile_terminated(&running_ids, &queried_providers);
-
-        let in_progress_ids = app_handle
-            .state::<SpawnJobRegistry>()
-            .instance_ids_in_progress();
-
-        let mut probe_handles = Vec::new();
-        for instance in &all_instances {
-            if instance.state != InstanceState::Running {
-                continue;
-            }
-            if in_progress_ids.contains(&instance.id) {
-                continue;
-            }
-            let instance_id = instance.id.clone();
-            let instance_ip = instance.public_ip_v4.clone();
-            probe_handles.push(tokio::spawn(async move {
-                (instance_id, connectivity::probe_status(&instance_ip).await)
-            }));
-        }
-
-        let mut probe_results = std::collections::HashMap::new();
-        for handle in probe_handles {
-            if let Ok((instance_id, status)) = handle.await {
-                probe_results.insert(instance_id, status);
-            }
-        }
-
-        for instance in &mut all_instances {
-            if in_progress_ids.contains(&instance.id) {
-                instance.state = InstanceState::Installing;
-            } else if let Some(probe_status) = probe_results.remove(&instance.id) {
-                match probe_status {
-                    ProbeStatus::Ready => {
-                        ledger.mark_setup_complete(&instance.id);
-                        instance.state = InstanceState::Running;
-                    }
-                    ProbeStatus::Error(reason) => {
-                        instance.state = InstanceState::Error;
-                        instance.error_reason = Some(reason);
-                    }
-                    ProbeStatus::Installing => {
-                        instance.state = InstanceState::Installing;
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(all_instances)
-}
-
-async fn list_provider_instances(
-    provider: CloudProviderName,
-    region: Option<&str>,
-) -> (CloudProviderName, Option<Vec<InstanceInfo>>) {
-    match create_cloud_provider(provider.clone()).await {
-        Ok(cloud_provider) => {
-            match commands::list::list_instances(&*cloud_provider, region).await {
-                Ok(instances) => (provider, Some(instances)),
-                Err(error) => {
-                    error!("Failed to list {provider} instances: {error}");
-                    (provider, None)
-                }
-            }
-        }
-        Err(error) => {
-            debug!("No credentials for {provider}, skipping: {error}");
-            (provider, None)
-        }
-    }
+    Ok(listing.instances)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn has_profile() -> Result<bool> {
-    let Ok(store) = CredentialStore::load().await else {
-        return Ok(false);
-    };
-    Ok(AwsCredentials::from_store(&store).is_ok()
-        || OracleCredentials::from_store(&store).is_ok()
-        || GcpCredentials::from_store(&store).is_ok()
-        || AzureCredentials::from_store(&store).is_ok())
-}
-
-#[derive(Clone, Serialize)]
-#[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE")]
-#[derive(specta::Type)]
-pub enum ProvisionAccountEvent {
-    #[serde(rename_all = "camelCase")]
-    Started {
-        job_id: String,
-        steps: Vec<SpawnStep>,
-    },
-    #[serde(rename_all = "camelCase")]
-    Progress {
-        step_id: String,
-        status: SpawnStepStatus,
-        error: Option<String>,
-    },
-    Complete {
-        provider: CloudProviderName,
-    },
-    Failed {
-        error: String,
-    },
+pub async fn has_profile(app_handle: AppHandle) -> Result<bool> {
+    let configured_providers = app_handle
+        .state::<AppContext>()
+        .providers
+        .list_configured()
+        .await?;
+    Ok(!configured_providers.is_empty())
 }
 
 #[tauri::command]
@@ -451,96 +151,21 @@ pub async fn provision_account(
     on_event: Channel<ProvisionAccountEvent>,
     app_handle: AppHandle,
 ) -> Result<()> {
-    let cloud_provider = create_cloud_provider(provider.clone()).await?;
-
-    let job_id = format!("{}-{}", provider, Utc::now().timestamp_millis());
-    let steps = cloud_provider.get_provision_account_steps();
-
-    send_provision_account_event(
-        &on_event,
-        ProvisionAccountEvent::Started {
-            job_id,
-            steps: steps.clone(),
-        },
-    );
+    let cloud_provider = app_handle
+        .state::<AppContext>()
+        .providers
+        .create(provider.clone())
+        .await?;
+    let observer = ProvisionAccountEventForwarder::new(on_event);
 
     tauri::async_runtime::spawn(async move {
-        let progress_channel = on_event.clone();
-
-        let result = commands::setup::run_provision_account_steps(
-            &*cloud_provider,
-            &steps,
-            move |step_id, status, error| {
-                send_provision_account_event(
-                    &progress_channel,
-                    ProvisionAccountEvent::Progress {
-                        step_id: step_id.to_string(),
-                        status,
-                        error,
-                    },
-                );
-            },
-        )
-        .await;
-
-        match result {
-            Ok(()) => {
-                if let Some(provider_store) = ProviderStore::open(&app_handle) {
-                    provider_store.mark_provisioned(&provider.to_string());
-                } else {
-                    debug!("Provider store unavailable when marking {provider} provisioned");
-                }
-                send_provision_account_event(
-                    &on_event,
-                    ProvisionAccountEvent::Complete {
-                        provider: cloud_provider.get_provider_name(),
-                    },
-                );
-            }
-            Err(error) => {
-                send_provision_account_event(
-                    &on_event,
-                    ProvisionAccountEvent::Failed {
-                        error: error.to_string(),
-                    },
-                );
-            }
+        let context = app_handle.state::<AppContext>();
+        if let Err(error) = run_provision_account_job(&*cloud_provider, &context, &observer).await {
+            debug!("Provision account job for {provider} ended with error: {error}");
         }
     });
 
     Ok(())
-}
-
-fn send_provision_account_event(
-    channel: &Channel<ProvisionAccountEvent>,
-    event: ProvisionAccountEvent,
-) {
-    if let Err(error) = channel.send(event) {
-        warn!("Failed to send provision-account event: {error}");
-    }
-}
-
-#[derive(Clone, Serialize)]
-#[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE")]
-#[derive(specta::Type)]
-pub enum EnableRegionEvent {
-    #[serde(rename_all = "camelCase")]
-    Started {
-        job_id: String,
-        steps: Vec<SpawnStep>,
-    },
-    #[serde(rename_all = "camelCase")]
-    Progress {
-        step_id: String,
-        status: SpawnStepStatus,
-        error: Option<String>,
-    },
-    Complete {
-        region: String,
-    },
-    Failed {
-        error: String,
-    },
 }
 
 #[tauri::command]
@@ -551,74 +176,36 @@ pub async fn enable_region(
     on_event: Channel<EnableRegionEvent>,
     app_handle: AppHandle,
 ) -> Result<()> {
-    let cloud_provider = create_cloud_provider(provider.clone()).await?;
-
-    let job_id = format!("{}-{}-{}", provider, region, Utc::now().timestamp_millis());
-    let steps = cloud_provider.get_enable_region_steps(&region);
-
-    send_enable_region_event(
-        &on_event,
-        EnableRegionEvent::Started {
-            job_id,
-            steps: steps.clone(),
-        },
-    );
+    let cloud_provider = app_handle
+        .state::<AppContext>()
+        .providers
+        .create(provider.clone())
+        .await?;
+    let observer = EnableRegionEventForwarder::new(on_event);
 
     tauri::async_runtime::spawn(async move {
-        let progress_channel = on_event.clone();
-
-        let result = commands::setup::run_enable_region_steps(
-            &*cloud_provider,
-            &steps,
-            &region,
-            move |step_id, status, error| {
-                send_enable_region_event(
-                    &progress_channel,
-                    EnableRegionEvent::Progress {
-                        step_id: step_id.to_string(),
-                        status,
-                        error,
-                    },
-                );
-            },
-        )
-        .await;
-
-        match result {
-            Ok(()) => {
-                if let Some(provider_store) = ProviderStore::open(&app_handle) {
-                    provider_store.mark_region_enabled(&provider.to_string(), &region);
-                } else {
-                    debug!(
-                        "Provider store unavailable when marking region {region} enabled for {provider}"
-                    );
-                }
-                send_enable_region_event(&on_event, EnableRegionEvent::Complete { region });
-            }
-            Err(error) => {
-                send_enable_region_event(
-                    &on_event,
-                    EnableRegionEvent::Failed {
-                        error: error.to_string(),
-                    },
-                );
-            }
+        let context = app_handle.state::<AppContext>();
+        if let Err(error) =
+            run_enable_region_job(&*cloud_provider, &context, &region, &observer).await
+        {
+            debug!("Enable region job for {provider} {region} ended with error: {error}");
         }
     });
 
     Ok(())
 }
 
-fn send_enable_region_event(channel: &Channel<EnableRegionEvent>, event: EnableRegionEvent) {
-    if let Err(error) = channel.send(event) {
-        warn!("Failed to send enable-region event: {error}");
-    }
-}
-
 #[tauri::command]
 #[specta::specta]
-pub async fn get_regions(provider: CloudProviderName) -> Result<Vec<Region>> {
-    let cloud_provider = create_cloud_provider(provider).await?;
+pub async fn get_regions(
+    provider: CloudProviderName,
+    app_handle: AppHandle,
+) -> Result<Vec<Region>> {
+    let cloud_provider = app_handle
+        .state::<AppContext>()
+        .providers
+        .create(provider)
+        .await?;
     commands::setup::get_regions(&*cloud_provider).await
 }
 
@@ -636,20 +223,18 @@ pub async fn connect(
     public_ip_v6: Option<String>,
     app_handle: AppHandle,
 ) -> Result<String> {
-    let cloud_provider = create_cloud_provider(provider).await?;
     let daemon_client = vpn_backend::create_daemon_client(&app_handle);
-
-    let kill_switch_enabled = crate::settings_store::SettingsStore::open(&app_handle)
-        .is_none_or(|store| store.load_vpn_settings().session_killswitch);
-
-    commands::connect::connect(
-        &*cloud_provider,
+    let context = app_handle.state::<AppContext>();
+    session::connect(
+        &context,
         &daemon_client,
-        region.as_str(),
-        &instance_id,
-        public_ip_v4,
-        public_ip_v6,
-        kill_switch_enabled,
+        ConnectTarget {
+            provider,
+            region,
+            instance_id: instance_id.clone(),
+            public_ip_v4,
+            public_ip_v6,
+        },
     )
     .await?;
 
@@ -677,13 +262,7 @@ pub async fn disconnect(app_handle: AppHandle) -> Result<String> {
     vpn_backend::stop_status_stream().await?;
 
     let daemon_client = vpn_backend::create_daemon_client(&app_handle);
-    if daemon_client.is_daemon_running().await {
-        commands::disconnect::disconnect(&daemon_client).await?;
-    } else {
-        return Err(byocvpn_core::error::Error::Daemon(
-            byocvpn_core::error::DaemonError::NotRunning,
-        ));
-    }
+    session::disconnect(&daemon_client).await?;
 
     let disconnected_status = VpnStatus {
         connected: false,
@@ -726,19 +305,10 @@ pub async fn subscribe_to_vpn_status(app_handle: AppHandle) -> Result<()> {
 pub async fn get_instance_pricing(
     provider: CloudProviderName,
     instance_type: String,
+    app_handle: AppHandle,
 ) -> Result<PricingInfo> {
-    let pricing = match provider {
-        CloudProviderName::Aws => aws_pricing::get_pricing(&instance_type),
-        CloudProviderName::Azure => azure_pricing::get_pricing(&instance_type),
-        CloudProviderName::Gcp => gcp_pricing::get_pricing(&instance_type),
-        CloudProviderName::Oracle => oracle_pricing::get_pricing(&instance_type),
-    };
-    pricing.ok_or_else(|| {
-        ConfigurationError::MissingField {
-            field: format!("pricing/{provider}/{instance_type}"),
-        }
-        .into()
-    })
+    let context = app_handle.state::<AppContext>();
+    instances::get_instance_pricing(&context, provider, &instance_type).await
 }
 
 #[tauri::command]
@@ -758,11 +328,86 @@ pub async fn save_file(path: String, content: String) -> Result<()> {
 #[tauri::command]
 #[specta::specta]
 pub async fn get_ledger(app_handle: AppHandle) -> Result<Vec<LedgerEntry>> {
-    let ledger = LedgerStore::open(&app_handle).ok_or_else(|| -> Error {
-        ConfigurationError::InvalidFile {
-            reason: "failed to open ledger store".to_string(),
-        }
-        .into()
-    })?;
-    Ok(ledger.all_entries())
+    Ok(app_handle.state::<AppContext>().ledger.all_entries())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_enabled_regions(provider: CloudProviderName, app_handle: AppHandle) -> Vec<String> {
+    app_handle
+        .state::<AppContext>()
+        .provider_flags
+        .list_enabled_regions(&provider)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_notification_settings(app_handle: AppHandle) -> NotificationSettings {
+    app_handle
+        .state::<AppContext>()
+        .settings
+        .load_notification_settings()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn save_notification_settings(app_handle: AppHandle, settings: NotificationSettings) {
+    app_handle
+        .state::<AppContext>()
+        .settings
+        .save_notification_settings(settings);
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_auto_terminate_settings(app_handle: AppHandle) -> AutoTerminateSettings {
+    app_handle
+        .state::<AppContext>()
+        .settings
+        .load_auto_terminate_settings()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn save_auto_terminate_settings(app_handle: AppHandle, settings: AutoTerminateSettings) {
+    app_handle
+        .state::<AppContext>()
+        .settings
+        .save_auto_terminate_settings(settings);
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_vpn_settings(app_handle: AppHandle) -> VpnSettings {
+    app_handle
+        .state::<AppContext>()
+        .settings
+        .load_vpn_settings()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn save_vpn_settings(app_handle: AppHandle, settings: VpnSettings) {
+    app_handle
+        .state::<AppContext>()
+        .settings
+        .save_vpn_settings(settings);
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_ui_preferences(app_handle: AppHandle) -> UiPreferences {
+    app_handle
+        .state::<AppContext>()
+        .settings
+        .load_ui_preferences()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn save_ui_preferences(app_handle: AppHandle, preferences: UiPreferences) {
+    app_handle
+        .state::<AppContext>()
+        .settings
+        .save_ui_preferences(preferences);
 }

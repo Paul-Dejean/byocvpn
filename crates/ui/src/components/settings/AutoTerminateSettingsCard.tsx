@@ -25,11 +25,9 @@ export function AutoTerminateSettingsCard() {
 
   const updateSettings = (updated: AutoTerminateSettings) => {
     setSettings(updated);
-    void commands.saveAutoTerminateSettings(updated).then((result) => {
-      if (result.status === "error") {
-        console.error("Failed to save auto-terminate settings:", result.error);
-      }
-    });
+    commands
+      .saveAutoTerminateSettings(updated)
+      .catch((error) => console.error("Failed to save auto-terminate settings:", error));
   };
 
   const toggleEnabled = () => {

@@ -1,0 +1,28 @@
+[package]
+name = "byocvpn_app"
+version.workspace = true
+edition = "2024"
+
+[dependencies]
+byocvpn_core = { path = "../core" }
+byocvpn_aws = { path = "../infra/aws" }
+byocvpn_azure = { path = "../infra/azure" }
+byocvpn_gcp = { path = "../infra/gcp" }
+byocvpn_oracle = { path = "../infra/oracle" }
+async-trait = { workspace = true }
+log = { workspace = true }
+serde = { workspace = true }
+specta = { workspace = true, optional = true }
+
+[features]
+specta = [
+    "dep:specta",
+    "byocvpn_core/specta",
+    "byocvpn_aws/specta",
+    "byocvpn_azure/specta",
+    "byocvpn_gcp/specta",
+    "byocvpn_oracle/specta",
+]
+
+[lints]
+workspace = true

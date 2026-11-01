@@ -18,6 +18,7 @@ Built with Rust (Tauri 2) backend and React/TypeScript frontend.
 | Crate            | Description                                             |
 | ---------------- | ------------------------------------------------------- |
 | `byocvpn_core`   | Shared types, WireGuard tunnel management, IPC protocol |
+| `byocvpn_app`    | Instantiates core with the concrete providers           |
 | `byocvpn_aws`    | AWS provider (EC2)                                      |
 | `byocvpn_azure`  | Azure provider                                          |
 | `byocvpn_gcp`    | GCP provider                                            |

@@ -4,7 +4,7 @@ use crate::{
     tunnel::VpnStatus,
 };
 
-pub async fn fetch_vpn_status(client: &impl DaemonClient) -> Result<VpnStatus> {
+pub async fn fetch_vpn_status(client: &dyn DaemonClient) -> Result<VpnStatus> {
     if !client.is_daemon_running().await {
         return Ok(VpnStatus {
             connected: false,

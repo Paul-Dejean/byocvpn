@@ -8,6 +8,7 @@ import {
   ProviderCredentials,
   SpawnInstanceEvent,
   SpawnJobState,
+  UiPreferences,
   VpnStatus,
 } from "../bindings";
 import {
@@ -35,7 +36,13 @@ const DISCONNECTED_STATUS: VpnStatus = {
 let instances = buildPreviewInstances();
 const ledger = buildPreviewLedger(instances);
 const spawnJobs = new Map<string, SpawnJobState>();
-const storeValues = new Map<string, unknown>();
+let uiPreferences: UiPreferences = {
+  favoriteRegions: {},
+  lastDeployProvider: null,
+  disconnectReminderDismissalCount: 0,
+  updateCheckEnabled: true,
+  dismissedUpdateVersion: null,
+};
 let vpnStatus: VpnStatus = DISCONNECTED_STATUS;
 let metricsTimer: number | null = null;
 
@@ -100,12 +107,12 @@ function handlePreviewCommand(command: string, args?: InvokeArgs): unknown {
         { permission: "ec2:RunInstances", granted: true },
         { permission: "ec2:TerminateInstances", granted: true },
       ];
-    case "plugin:store|load":
-      return 1;
-    case "plugin:store|get":
-      return readStoreValue(readStringArgument(commandArgs, "key"));
-    case "plugin:store|set":
-      storeValues.set(readStringArgument(commandArgs, "key"), commandArgs.value);
+    case "get_enabled_regions":
+      return PREVIEW_REGIONS.map((region) => region.name);
+    case "get_ui_preferences":
+      return uiPreferences;
+    case "save_ui_preferences":
+      uiPreferences = readUiPreferencesArgument(commandArgs);
       return null;
     case "plugin:notification|is_permission_granted":
       return true;
@@ -133,10 +140,6 @@ function buildPreviewCredentials(provider: CloudProviderName): ProviderCredentia
     privateKeyPem: "-----BEGIN PRIVATE KEY-----",
     region: "us-ashburn-1",
   };
-}
-
-function readStoreValue(key: string): [unknown, boolean] {
-  return storeValues.has(key) ? [storeValues.get(key), true] : [null, false];
 }
 
 function connectPreviewVpn(commandArgs: Record<string, unknown>): string {
@@ -277,6 +280,23 @@ function readOptionalStringArgument(
 ): string | null {
   const value = commandArguments[key];
   return typeof value === "string" ? value : null;
+}
+
+function readUiPreferencesArgument(commandArguments: Record<string, unknown>): UiPreferences {
+  const value = commandArguments.preferences;
+  if (isUiPreferences(value)) {
+    return value;
+  }
+  throw new Error("[preview] expected a UI preferences argument");
+}
+
+function isUiPreferences(value: unknown): value is UiPreferences {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "favoriteRegions" in value &&
+    "updateCheckEnabled" in value
+  );
 }
 
 function readProviderArgument(commandArguments: Record<string, unknown>): CloudProviderName {

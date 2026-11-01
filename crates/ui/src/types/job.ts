@@ -1,9 +1,9 @@
 import type {
+  JobStep as JobStepBinding,
+  JobStepStatus as JobStepStatusBinding,
   SpawnJobState,
   SpawnJobStatus as SpawnJobStatusBinding,
   SpawnJobStep,
-  SpawnStep,
-  SpawnStepStatus,
 } from "../bindings";
 
 export const JobStepStatus = {
@@ -11,11 +11,11 @@ export const JobStepStatus = {
   Running: "RUNNING",
   Completed: "COMPLETED",
   Failed: "FAILED",
-} as const satisfies Record<string, SpawnStepStatus>;
+} as const satisfies Record<string, JobStepStatusBinding>;
 
-export type JobStepStatus = SpawnStepStatus;
+export type JobStepStatus = JobStepStatusBinding;
 
-export type JobStep = SpawnStep;
+export type JobStep = JobStepBinding;
 
 export type JobStepState = SpawnJobStep;
 

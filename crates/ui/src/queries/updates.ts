@@ -1,11 +1,8 @@
 import { queryOptions } from "@tanstack/react-query";
 import { getVersion } from "@tauri-apps/api/app";
-import { load as loadStore } from "@tauri-apps/plugin-store";
+import { commands } from "../bindings";
 import { isNewerVersion } from "../lib/version";
 
-const UPDATES_STORE_FILE = "updates.json";
-const CHECK_ENABLED_KEY = "updates/check_enabled";
-const DISMISSED_VERSION_KEY = "updates/dismissed_version";
 const LATEST_RELEASE_API_URL = "https://api.github.com/repos/Paul-Dejean/byocvpn/releases/latest";
 const RELEASE_PAGE_URL_PREFIX = "https://github.com/Paul-Dejean/byocvpn/";
 const RELEASE_CHECK_STALE_TIME_MS = 6 * 60 * 60 * 1000;
@@ -40,24 +37,20 @@ export const availableUpdateQueryOptions = queryOptions({
 });
 
 export async function persistCheckEnabled(checkEnabled: boolean): Promise<void> {
-  const store = await loadStore(UPDATES_STORE_FILE);
-  await store.set(CHECK_ENABLED_KEY, checkEnabled);
-  await store.save();
+  const preferences = await commands.getUiPreferences();
+  await commands.saveUiPreferences({ ...preferences, updateCheckEnabled: checkEnabled });
 }
 
 export async function persistDismissedVersion(dismissedVersion: string): Promise<void> {
-  const store = await loadStore(UPDATES_STORE_FILE);
-  await store.set(DISMISSED_VERSION_KEY, dismissedVersion);
-  await store.save();
+  const preferences = await commands.getUiPreferences();
+  await commands.saveUiPreferences({ ...preferences, dismissedUpdateVersion: dismissedVersion });
 }
 
 async function fetchUpdatePreferences(): Promise<UpdatePreferences> {
-  const store = await loadStore(UPDATES_STORE_FILE);
-  const checkEnabled = await store.get<boolean>(CHECK_ENABLED_KEY);
-  const dismissedVersion = await store.get<string>(DISMISSED_VERSION_KEY);
+  const preferences = await commands.getUiPreferences();
   return {
-    checkEnabled: checkEnabled ?? true,
-    dismissedVersion: dismissedVersion ?? null,
+    checkEnabled: preferences.updateCheckEnabled,
+    dismissedVersion: preferences.dismissedUpdateVersion,
   };
 }
 

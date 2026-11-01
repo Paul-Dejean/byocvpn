@@ -7,8 +7,8 @@ use aws_sdk_ssm::Client as SsmClient;
 use aws_sdk_sts::Client as StsClient;
 use byocvpn_core::{
     cloud_provider::{
-        CloudProvider, CloudProviderName, InstanceInfo, PermissionStatus, SpawnInstanceParams,
-        SpawnStep, TerminateInstanceParams,
+        CloudProvider, CloudProviderName, InstanceInfo, JobStep, PermissionStatus, PricingInfo,
+        SpawnInstanceParams, TerminateInstanceParams,
     },
     commands::setup::Region,
     error::{NetworkProvisioningError, Result},
@@ -19,7 +19,7 @@ use crate::constants::{
     SECURITY_GROUP_NAME, SUBNET_CIDR_BLOCK, SUBNET_NAME, VPC_CIDR_BLOCK, VPC_NAME,
 };
 use crate::spawn_step::AwsSpawnStepId;
-use crate::{config, instance, network, permissions};
+use crate::{config, instance, network, permissions, pricing};
 
 const INTERNET_GATEWAY_NAME: &str = "byocvpn-igw";
 const MAIN_ROUTE_TABLE_NAME: &str = "byocvpn-main-route-table";
@@ -61,17 +61,17 @@ impl CloudProvider for AwsProvider {
         CloudProviderName::Aws
     }
 
-    fn get_spawn_steps(&self, _region: &str) -> Vec<SpawnStep> {
+    fn get_spawn_steps(&self, _region: &str) -> Vec<JobStep> {
         vec![
-            SpawnStep {
+            JobStep {
                 id: AwsSpawnStepId::SetupNetwork.as_str().into(),
                 label: "Verifying network infrastructure".into(),
             },
-            SpawnStep {
+            JobStep {
                 id: AwsSpawnStepId::LaunchingInstance.as_str().into(),
                 label: "Launching EC2 instance".into(),
             },
-            SpawnStep {
+            JobStep {
                 id: AwsSpawnStepId::WireguardReady.as_str().into(),
                 label: "Waiting for WireGuard to start".into(),
             },
@@ -84,23 +84,7 @@ impl CloudProvider for AwsProvider {
         permissions::verify_permissions(&sts_client, &iam_client).await
     }
 
-    async fn setup(&self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn enable_region(&self, region: &str) -> Result<()> {
-        self.run_spawn_step(AwsSpawnStepId::SetupVpc.as_str(), region)
-            .await?;
-        self.run_spawn_step(AwsSpawnStepId::SetupIgw.as_str(), region)
-            .await?;
-        self.run_spawn_step(AwsSpawnStepId::RegionSubnets.as_str(), region)
-            .await?;
-        self.run_spawn_step(AwsSpawnStepId::RegionSecurityGroup.as_str(), region)
-            .await?;
-        Ok(())
-    }
-
-    fn get_provision_account_steps(&self) -> Vec<SpawnStep> {
+    fn get_provision_account_steps(&self) -> Vec<JobStep> {
         vec![]
     }
 
@@ -108,21 +92,21 @@ impl CloudProvider for AwsProvider {
         Ok(())
     }
 
-    fn get_enable_region_steps(&self, _region: &str) -> Vec<SpawnStep> {
+    fn get_enable_region_steps(&self, _region: &str) -> Vec<JobStep> {
         vec![
-            SpawnStep {
+            JobStep {
                 id: AwsSpawnStepId::SetupVpc.as_str().into(),
                 label: "Creating VPC".into(),
             },
-            SpawnStep {
+            JobStep {
                 id: AwsSpawnStepId::SetupIgw.as_str().into(),
                 label: "Creating internet gateway".into(),
             },
-            SpawnStep {
+            JobStep {
                 id: AwsSpawnStepId::RegionSubnets.as_str().into(),
                 label: "Creating subnets".into(),
             },
-            SpawnStep {
+            JobStep {
                 id: AwsSpawnStepId::RegionSecurityGroup.as_str().into(),
                 label: "Configuring security group".into(),
             },
@@ -173,7 +157,7 @@ impl CloudProvider for AwsProvider {
                 .await?;
                 Ok(())
             }
-            AwsSpawnStepId::SetupNetwork => self.enable_region(region).await,
+            AwsSpawnStepId::SetupNetwork => self.ensure_region_network(region).await,
             _ => Ok(()),
         }
     }
@@ -231,6 +215,10 @@ impl CloudProvider for AwsProvider {
             .collect());
     }
 
+    fn get_pricing(&self, instance_type: &str) -> Option<PricingInfo> {
+        pricing::get_pricing(instance_type)
+    }
+
     async fn get_regions(&self) -> Result<Vec<Region>> {
         let ec2_client = self.create_ec2_client(None).await;
         let regions_map = HashMap::from([
@@ -271,5 +259,19 @@ impl CloudProvider for AwsProvider {
 
         info!("Fetched regions: {regions:?}");
         Ok(regions)
+    }
+}
+
+impl AwsProvider {
+    async fn ensure_region_network(&self, region: &str) -> Result<()> {
+        self.run_spawn_step(AwsSpawnStepId::SetupVpc.as_str(), region)
+            .await?;
+        self.run_spawn_step(AwsSpawnStepId::SetupIgw.as_str(), region)
+            .await?;
+        self.run_spawn_step(AwsSpawnStepId::RegionSubnets.as_str(), region)
+            .await?;
+        self.run_spawn_step(AwsSpawnStepId::RegionSecurityGroup.as_str(), region)
+            .await?;
+        Ok(())
     }
 }

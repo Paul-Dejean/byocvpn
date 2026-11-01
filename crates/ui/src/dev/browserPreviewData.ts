@@ -4,7 +4,7 @@ import {
   LedgerEntry,
   PricingInfo,
   Region,
-  SpawnStep,
+  JobStep,
 } from "../bindings";
 
 const HOUR_IN_MILLISECONDS = 3_600_000;
@@ -27,7 +27,7 @@ export const PREVIEW_PRICING: PricingInfo = {
   storageRatePerGbMonth: 0.08,
 };
 
-export const PREVIEW_SPAWN_STEPS: SpawnStep[] = [
+export const PREVIEW_SPAWN_STEPS: JobStep[] = [
   { id: "network", label: "Create network" },
   { id: "launch", label: "Launch instance" },
   { id: "install", label: "Install WireGuard" },

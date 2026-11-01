@@ -3,8 +3,8 @@ use std::str::FromStr;
 use async_trait::async_trait;
 use byocvpn_core::{
     cloud_provider::{
-        CloudProvider, CloudProviderName, InstanceInfo, PermissionStatus, SpawnInstanceParams,
-        SpawnStep, TerminateInstanceParams,
+        CloudProvider, CloudProviderName, InstanceInfo, JobStep, PermissionStatus, PricingInfo,
+        SpawnInstanceParams, TerminateInstanceParams,
     },
     commands::setup::Region,
     error::Result,
@@ -12,7 +12,7 @@ use byocvpn_core::{
 use log::{info, warn};
 use serde::Deserialize;
 
-use crate::{auth::create_credential, client::AzureClient, instance, network};
+use crate::{auth::create_credential, client::AzureClient, instance, network, pricing};
 
 const REQUIRED_ACTIONS: &[&str] = &[
     "Microsoft.Compute/register/action",
@@ -173,17 +173,17 @@ impl CloudProvider for AzureProvider {
         CloudProviderName::Azure
     }
 
-    fn get_spawn_steps(&self, _region: &str) -> Vec<SpawnStep> {
+    fn get_spawn_steps(&self, _region: &str) -> Vec<JobStep> {
         vec![
-            SpawnStep {
+            JobStep {
                 id: AzureSpawnStepId::SetupNetwork.as_str().into(),
                 label: "Verifying network infrastructure".into(),
             },
-            SpawnStep {
+            JobStep {
                 id: AzureSpawnStepId::Launch.as_str().into(),
                 label: "Launching virtual machine".into(),
             },
-            SpawnStep {
+            JobStep {
                 id: AzureSpawnStepId::WireguardReady.as_str().into(),
                 label: "Waiting for WireGuard to start".into(),
             },
@@ -204,7 +204,7 @@ impl CloudProvider for AzureProvider {
                 network::ensure_subnet(&self.client, region, &nsg_id).await?;
                 Ok(())
             }
-            AzureSpawnStepId::SetupNetwork => self.enable_region(region).await,
+            AzureSpawnStepId::SetupNetwork => self.ensure_region_network(region).await,
             _ => Ok(()),
         }
     }
@@ -236,18 +236,7 @@ impl CloudProvider for AzureProvider {
         Ok(permissions)
     }
 
-    async fn setup(&self) -> Result<()> {
-        info!("[Azure] setup() — no global resources required.");
-        Ok(())
-    }
-
-    async fn enable_region(&self, region: &str) -> Result<()> {
-        network::ensure_region_networking(&self.client, region).await?;
-        info!("[Azure] Region '{region}' enabled.");
-        Ok(())
-    }
-
-    fn get_provision_account_steps(&self) -> Vec<SpawnStep> {
+    fn get_provision_account_steps(&self) -> Vec<JobStep> {
         vec![]
     }
 
@@ -255,13 +244,13 @@ impl CloudProvider for AzureProvider {
         Ok(())
     }
 
-    fn get_enable_region_steps(&self, _region: &str) -> Vec<SpawnStep> {
+    fn get_enable_region_steps(&self, _region: &str) -> Vec<JobStep> {
         vec![
-            SpawnStep {
+            JobStep {
                 id: AzureSpawnStepId::RegionResourceGroup.as_str().into(),
                 label: "Creating resource group".into(),
             },
-            SpawnStep {
+            JobStep {
                 id: AzureSpawnStepId::RegionVnet.as_str().into(),
                 label: "Creating VNet and subnet".into(),
             },
@@ -287,11 +276,23 @@ impl CloudProvider for AzureProvider {
         }
     }
 
+    fn get_pricing(&self, instance_type: &str) -> Option<PricingInfo> {
+        pricing::get_pricing(instance_type)
+    }
+
     async fn get_regions(&self) -> Result<Vec<Region>> {
         let region_list = network::list_regions(&self.client).await?;
         Ok(region_list
             .into_iter()
             .map(|(name, country)| Region { name, country })
             .collect())
+    }
+}
+
+impl AzureProvider {
+    async fn ensure_region_network(&self, region: &str) -> Result<()> {
+        network::ensure_region_networking(&self.client, region).await?;
+        info!("[Azure] Region '{region}' enabled.");
+        Ok(())
     }
 }

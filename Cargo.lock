@@ -1085,6 +1085,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
+name = "byocvpn_app"
+version = "0.1.30"
+dependencies = [
+ "async-trait",
+ "byocvpn_aws",
+ "byocvpn_azure",
+ "byocvpn_core",
+ "byocvpn_gcp",
+ "byocvpn_oracle",
+ "log",
+ "serde",
+ "specta",
+]
+
+[[package]]
 name = "byocvpn_aws"
 version = "0.1.30"
 dependencies = [
@@ -1135,12 +1150,9 @@ dependencies = [
 name = "byocvpn_cli"
 version = "0.1.30"
 dependencies = [
- "byocvpn_aws",
- "byocvpn_azure",
+ "byocvpn_app",
  "byocvpn_core",
  "byocvpn_daemon",
- "byocvpn_gcp",
- "byocvpn_oracle",
  "clap",
  "dialoguer",
  "env_logger",
@@ -6644,22 +6656,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tauri-plugin-store"
-version = "2.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3c6fdaac41e60f2313a440fa1776f3a5fdd16800ff967915e9800985b680822"
-dependencies = [
- "dunce",
- "serde",
- "serde_json",
- "tauri",
- "tauri-plugin",
- "thiserror 2.0.21",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "tauri-runtime"
 version = "2.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7307,12 +7303,9 @@ version = "0.1.30"
 dependencies = [
  "android_logger",
  "async-trait",
- "byocvpn_aws",
- "byocvpn_azure",
+ "byocvpn_app",
  "byocvpn_core",
  "byocvpn_daemon",
- "byocvpn_gcp",
- "byocvpn_oracle",
  "chrono",
  "env_logger",
  "humantime",
@@ -7327,7 +7320,6 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-notification",
  "tauri-plugin-opener",
- "tauri-plugin-store",
  "tauri-specta",
  "tokio",
  "tun-rs",

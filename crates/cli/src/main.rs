@@ -5,6 +5,7 @@ mod providers;
 mod spawn;
 mod terminate;
 
+use byocvpn_app::open_app_context;
 use byocvpn_core::cloud_provider::CloudProviderName;
 use byocvpn_daemon::daemon_client::UnixDaemonClient;
 use clap::{Parser, Subcommand};
@@ -73,26 +74,27 @@ async fn main() {
 }
 
 async fn run(cli: Cli) -> CliResult<()> {
+    let context = open_app_context()?;
     match cli.command {
         Commands::Spawn { provider, region } => {
-            let instance = spawn_new_server(provider, region).await?;
+            let instance = spawn_new_server(&context, provider, region).await?;
             info!(
                 "Instance ID: {}\nPublic IPv4: {}\nPublic IPv6: {}",
                 instance.id, instance.public_ip_v4, instance.public_ip_v6
             );
         }
         Commands::Connect { instance_id } => {
-            run_connect(&UnixDaemonClient, instance_id).await?;
+            run_connect(&context, &UnixDaemonClient, instance_id).await?;
         }
         Commands::Disconnect => {
-            run_disconnect(&UnixDaemonClient, true).await?;
+            run_disconnect(&context, &UnixDaemonClient, true).await?;
         }
         Commands::Terminate { instance_id } => {
-            run_terminate(&UnixDaemonClient, instance_id).await?;
+            run_terminate(&context, &UnixDaemonClient, instance_id).await?;
         }
         Commands::List { provider, region } => {
             let active_instances =
-                list_instances_across_providers(provider, region.as_deref()).await?;
+                list_instances_across_providers(&context, provider, region.as_deref()).await?;
             if active_instances.is_empty() {
                 info!("No active instances");
             }

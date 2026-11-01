@@ -1,74 +1,33 @@
 use byocvpn_core::{
+    app_context::AppContext,
     cloud_provider::{CloudProvider, CloudProviderName, InstanceInfo},
     commands,
-    connectivity::wait_until_ready,
-    crypto::generate_keypair,
-    error::Result,
+    jobs::{region_preparation::ensure_region_ready, spawn::run_spawn_job},
 };
 use dialoguer::{Select, theme::ColorfulTheme};
 
 use crate::{
     error::{CliError, CliResult},
-    progress::with_step,
-    providers::{create_cloud_provider, resolve_provider_name},
+    progress::TerminalJobObserver,
+    providers::resolve_provider_name,
 };
 
 pub async fn spawn_new_server(
+    context: &AppContext,
     requested_provider: Option<CloudProviderName>,
     requested_region: Option<String>,
 ) -> CliResult<InstanceInfo> {
-    let provider_name = resolve_provider_name(requested_provider).await?;
-    let provider = create_cloud_provider(provider_name).await?;
+    let provider_name = resolve_provider_name(context, requested_provider).await?;
+    let provider = context.providers.create(provider_name).await?;
     let region = match requested_region {
         Some(region) => region,
         None => choose_region(&*provider).await?,
     };
-    spawn_server(&*provider, &region).await
-}
 
-async fn spawn_server(provider: &dyn CloudProvider, region: &str) -> CliResult<InstanceInfo> {
-    with_step(
-        &format!("Preparing {region}"),
-        prepare_region(provider, region),
-    )
-    .await?;
-
-    let (client_private_key, client_public_key) = generate_keypair();
-    let (server_private_key, server_public_key) = generate_keypair();
-
-    let instance = with_step(
-        &format!("Launching server in {region}"),
-        commands::spawn::launch_instance(
-            provider,
-            region,
-            "",
-            &server_private_key,
-            &client_public_key,
-        ),
-    )
-    .await?;
-
-    with_step(
-        "Waiting for the server to accept connections",
-        wait_until_ready(&instance.public_ip_v4),
-    )
-    .await?;
-
-    commands::spawn::write_wireguard_config(
-        &provider.get_provider_name(),
-        region,
-        &instance,
-        &client_private_key,
-        &server_public_key,
-    )
-    .await?;
-
+    let observer = TerminalJobObserver::default();
+    ensure_region_ready(&*provider, context, &region, &observer).await?;
+    let instance = run_spawn_job(&*provider, context, &region, &observer).await?;
     Ok(instance)
-}
-
-async fn prepare_region(provider: &dyn CloudProvider, region: &str) -> Result<()> {
-    commands::setup::setup(provider).await?;
-    commands::setup::enable_region(provider, region).await
 }
 
 async fn choose_region(provider: &dyn CloudProvider) -> CliResult<String> {

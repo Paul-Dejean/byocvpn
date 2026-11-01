@@ -1,13 +1,14 @@
 use byocvpn_core::{
+    app_context::AppContext,
     commands,
     error::Result,
     metrics_stream,
     tunnel::{ConnectedInstance, VpnStatus},
 };
 use byocvpn_daemon::{constants::metrics_socket_path, daemon_client::UnixDaemonClient};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
-use crate::{ledger_store::LedgerStore, vpn_backend::publish_vpn_status};
+use crate::vpn_backend::publish_vpn_status;
 
 const TUNNEL_DROPPED_MESSAGE: &str = "VPN tunnel dropped. Kill switch is blocking all traffic.";
 
@@ -57,9 +58,11 @@ pub async fn start_status_subscription(
             );
         },
         move |bytes_sent, bytes_received| {
-            if let Some(ledger) = LedgerStore::open(&ledger_handle) {
-                ledger.update_metrics(&instance_id, bytes_sent, bytes_received);
-            }
+            ledger_handle.state::<AppContext>().ledger.update_metrics(
+                &instance_id,
+                bytes_sent,
+                bytes_received,
+            );
         },
     )
     .await

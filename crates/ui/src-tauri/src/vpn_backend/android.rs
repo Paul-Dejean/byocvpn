@@ -10,6 +10,7 @@ use std::{
 
 use async_trait::async_trait;
 use byocvpn_core::{
+    app_context::AppContext,
     daemon_client::{DaemonClient, DaemonCommand, VpnConnectParams},
     error::{ConfigurationError, DaemonError, Error, Result, SystemError},
     tunnel::{
@@ -20,7 +21,7 @@ use byocvpn_core::{
 use log::*;
 use serde::Serialize;
 use serde_json::Value;
-use tauri::{AppHandle, Wry, async_runtime, plugin::mobile::PluginInvokeError};
+use tauri::{AppHandle, Manager, Wry, async_runtime, plugin::mobile::PluginInvokeError};
 use tauri_plugin_android_vpn::{AndroidVpn, AndroidVpnExt, TunnelInterfaceRequest};
 use tokio::{
     net::UdpSocket,
@@ -30,7 +31,7 @@ use tokio::{
 };
 use tun_rs::AsyncDevice;
 
-use crate::{ledger_store::LedgerStore, vpn_backend::publish_vpn_status};
+use crate::vpn_backend::publish_vpn_status;
 
 const VPN_SESSION_NAME: &str = "ByocVPN";
 const STATUS_INTERVAL: Duration = Duration::from_secs(1);
@@ -271,13 +272,11 @@ async fn run_status_stream(
         });
         if is_persist_due {
             last_persisted_at = Some(Instant::now());
-            if let Some(ledger) = LedgerStore::open(&app_handle) {
-                ledger.update_metrics(
-                    &connected_instance.instance_id,
-                    smoothed_metrics.bytes_sent,
-                    smoothed_metrics.bytes_received,
-                );
-            }
+            app_handle.state::<AppContext>().ledger.update_metrics(
+                &connected_instance.instance_id,
+                smoothed_metrics.bytes_sent,
+                smoothed_metrics.bytes_received,
+            );
         }
 
         publish_vpn_status(

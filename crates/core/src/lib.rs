@@ -1,5 +1,6 @@
 pub const STATUS_SERVER_SCRIPT: &str = include_str!("templates/status_server.py");
 
+pub mod app_context;
 pub mod cloud_provider;
 pub mod commands;
 pub mod config;
@@ -8,9 +9,18 @@ pub mod credentials;
 pub mod crypto;
 pub mod daemon_client;
 pub mod error;
+pub mod instances;
 pub mod ipc;
+pub mod job_registry;
+pub mod jobs;
+pub mod json_store;
 pub mod ledger;
 pub mod metrics_stream;
+pub mod provider_factory;
+pub mod provider_flags;
 pub mod retry;
+pub mod server_monitor;
+pub mod session;
+pub mod settings;
 pub mod tunnel;
 pub mod wireguard_config;

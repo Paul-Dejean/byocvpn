@@ -32,11 +32,9 @@ function DesktopKillswitchRow() {
       sessionKillswitch: !settings.sessionKillswitch,
     };
     setSettings(updated);
-    void commands.saveVpnSettings(updated).then((result) => {
-      if (result.status === "error") {
-        console.error("Failed to save VPN settings:", result.error);
-      }
-    });
+    commands
+      .saveVpnSettings(updated)
+      .catch((error) => console.error("Failed to save VPN settings:", error));
   };
 
   return (

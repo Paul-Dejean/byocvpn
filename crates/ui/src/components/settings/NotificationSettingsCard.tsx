@@ -32,11 +32,9 @@ export function NotificationSettingsCard() {
 
   const updateSettings = (updated: NotificationSettings) => {
     setSettings(updated);
-    void commands.saveNotificationSettings(updated).then((result) => {
-      if (result.status === "error") {
-        console.error("Failed to save notification settings:", result.error);
-      }
-    });
+    commands
+      .saveNotificationSettings(updated)
+      .catch((error) => console.error("Failed to save notification settings:", error));
   };
 
   const toggleEnabled = async () => {

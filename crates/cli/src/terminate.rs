@@ -1,4 +1,4 @@
-use byocvpn_core::{cloud_provider::InstanceInfo, commands};
+use byocvpn_core::{app_context::AppContext, cloud_provider::InstanceInfo, commands};
 use byocvpn_daemon::daemon_client::UnixDaemonClient;
 use dialoguer::{Select, theme::ColorfulTheme};
 
@@ -11,21 +11,22 @@ use crate::{
 };
 
 pub async fn run_terminate(
+    context: &AppContext,
     daemon_client: &UnixDaemonClient,
     instance_id: Option<String>,
 ) -> CliResult<()> {
     let instance = match instance_id {
-        Some(instance_id) => find_instance(&instance_id).await?,
-        None => choose_instance_to_terminate().await?,
+        Some(instance_id) => find_instance(context, &instance_id).await?,
+        None => choose_instance_to_terminate(context).await?,
     };
 
-    disconnect_if_connected_to(daemon_client, &instance).await?;
+    disconnect_if_connected_to(context, daemon_client, &instance).await?;
 
-    terminate_server(instance.provider, &instance.region, &instance.id).await
+    terminate_server(context, instance.provider, &instance.region, &instance.id).await
 }
 
-async fn choose_instance_to_terminate() -> CliResult<InstanceInfo> {
-    let instances = list_instances_across_providers(None, None).await?;
+async fn choose_instance_to_terminate(context: &AppContext) -> CliResult<InstanceInfo> {
+    let instances = list_instances_across_providers(context, None, None).await?;
 
     if instances.is_empty() {
         return Err(CliError::NoInstancesFound);
@@ -46,6 +47,7 @@ async fn choose_instance_to_terminate() -> CliResult<InstanceInfo> {
 }
 
 async fn disconnect_if_connected_to(
+    context: &AppContext,
     daemon_client: &UnixDaemonClient,
     instance: &InstanceInfo,
 ) -> CliResult<()> {
@@ -57,7 +59,7 @@ async fn disconnect_if_connected_to(
             .is_some_and(|connected| connected.instance_id == instance.id);
 
     if is_connected_to_instance {
-        run_disconnect(daemon_client, false).await?;
+        run_disconnect(context, daemon_client, false).await?;
     }
     Ok(())
 }

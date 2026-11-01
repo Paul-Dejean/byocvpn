@@ -4,8 +4,8 @@ use std::str::FromStr;
 use async_trait::async_trait;
 use byocvpn_core::{
     cloud_provider::{
-        CloudProvider, CloudProviderName, InstanceInfo, PermissionStatus, SpawnInstanceParams,
-        SpawnStep, TerminateInstanceParams,
+        CloudProvider, CloudProviderName, InstanceInfo, JobStep, PermissionStatus, PricingInfo,
+        SpawnInstanceParams, TerminateInstanceParams,
     },
     commands::setup::Region,
     error::{NetworkProvisioningError, Result},
@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     auth::parse_credentials_from_service_account_json, client::GcpClient, instance, network,
+    pricing,
 };
 
 const REQUIRED_PERMISSIONS: &[&str] = &[
@@ -127,17 +128,17 @@ impl CloudProvider for GcpProvider {
         CloudProviderName::Gcp
     }
 
-    fn get_spawn_steps(&self, _region: &str) -> Vec<SpawnStep> {
+    fn get_spawn_steps(&self, _region: &str) -> Vec<JobStep> {
         vec![
-            SpawnStep {
+            JobStep {
                 id: GcpSpawnStepId::SetupNetwork.as_str().into(),
                 label: "Verifying network infrastructure".into(),
             },
-            SpawnStep {
+            JobStep {
                 id: GcpSpawnStepId::Launch.as_str().into(),
                 label: "Launching Compute Engine instance".into(),
             },
-            SpawnStep {
+            JobStep {
                 id: GcpSpawnStepId::WireguardReady.as_str().into(),
                 label: "Waiting for WireGuard to start".into(),
             },
@@ -166,8 +167,8 @@ impl CloudProvider for GcpProvider {
                 Ok(())
             }
             GcpSpawnStepId::SetupNetwork => {
-                self.setup().await?;
-                self.enable_region(region).await
+                self.ensure_account_network().await?;
+                self.ensure_region_network(region).await
             }
             _ => Ok(()),
         }
@@ -213,34 +214,17 @@ impl CloudProvider for GcpProvider {
         Ok(permissions)
     }
 
-    async fn setup(&self) -> Result<()> {
-        network::ensure_compute_api_enabled(&self.client).await?;
-        network::ensure_vpc(&self.client).await?;
-        network::ensure_firewall_rules(&self.client).await?;
-        info!("GCP setup complete (VPC + firewall).");
-        Ok(())
-    }
-
-    async fn enable_region(&self, region: &str) -> Result<()> {
-        network::ensure_compute_api_enabled(&self.client).await?;
-        network::ensure_vpc(&self.client).await?;
-        network::ensure_firewall_rules(&self.client).await?;
-        network::ensure_subnet(&self.client, region).await?;
-        info!("GCP region {region} enabled.");
-        Ok(())
-    }
-
-    fn get_provision_account_steps(&self) -> Vec<SpawnStep> {
+    fn get_provision_account_steps(&self) -> Vec<JobStep> {
         vec![
-            SpawnStep {
+            JobStep {
                 id: GcpSpawnStepId::SetupApi.as_str().into(),
                 label: "Enabling Compute Engine API".into(),
             },
-            SpawnStep {
+            JobStep {
                 id: GcpSpawnStepId::SetupVpc.as_str().into(),
                 label: "Creating VPC network".into(),
             },
-            SpawnStep {
+            JobStep {
                 id: GcpSpawnStepId::SetupFirewall.as_str().into(),
                 label: "Creating firewall rules".into(),
             },
@@ -251,8 +235,8 @@ impl CloudProvider for GcpProvider {
         self.run_spawn_step(step_id, "").await
     }
 
-    fn get_enable_region_steps(&self, _region: &str) -> Vec<SpawnStep> {
-        vec![SpawnStep {
+    fn get_enable_region_steps(&self, _region: &str) -> Vec<JobStep> {
+        vec![JobStep {
             id: GcpSpawnStepId::RegionSubnet.as_str().into(),
             label: "Creating regional subnet".into(),
         }]
@@ -297,6 +281,10 @@ impl CloudProvider for GcpProvider {
         }
     }
 
+    fn get_pricing(&self, instance_type: &str) -> Option<PricingInfo> {
+        pricing::get_pricing(instance_type)
+    }
+
     async fn get_regions(&self) -> Result<Vec<Region>> {
         network::ensure_compute_api_enabled(&self.client).await?;
         let region_list = network::list_regions(&self.client).await?;
@@ -304,5 +292,24 @@ impl CloudProvider for GcpProvider {
             .into_iter()
             .map(|(name, country)| Region { name, country })
             .collect())
+    }
+}
+
+impl GcpProvider {
+    async fn ensure_account_network(&self) -> Result<()> {
+        network::ensure_compute_api_enabled(&self.client).await?;
+        network::ensure_vpc(&self.client).await?;
+        network::ensure_firewall_rules(&self.client).await?;
+        info!("GCP setup complete (VPC + firewall).");
+        Ok(())
+    }
+
+    async fn ensure_region_network(&self, region: &str) -> Result<()> {
+        network::ensure_compute_api_enabled(&self.client).await?;
+        network::ensure_vpc(&self.client).await?;
+        network::ensure_firewall_rules(&self.client).await?;
+        network::ensure_subnet(&self.client, region).await?;
+        info!("GCP region {region} enabled.");
+        Ok(())
     }
 }

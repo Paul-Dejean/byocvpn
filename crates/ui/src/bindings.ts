@@ -33,12 +33,15 @@ export const commands = {
 	saveFile: (path: string, content: string) => typedError<null, string>(__TAURI_INVOKE("save_file", { path, content })),
 	listActiveSpawnJobs: () => typedError<SpawnJobState[], string>(__TAURI_INVOKE("list_active_spawn_jobs")),
 	dismissSpawnJob: (jobId: string) => typedError<null, string>(__TAURI_INVOKE("dismiss_spawn_job", { jobId })),
+	getEnabledRegions: (provider: CloudProviderName) => __TAURI_INVOKE<string[]>("get_enabled_regions", { provider }),
 	getNotificationSettings: () => __TAURI_INVOKE<NotificationSettings>("get_notification_settings"),
-	saveNotificationSettings: (settings: NotificationSettings) => typedError<null, string>(__TAURI_INVOKE("save_notification_settings", { settings })),
+	saveNotificationSettings: (settings: NotificationSettings) => __TAURI_INVOKE<void>("save_notification_settings", { settings }),
 	getAutoTerminateSettings: () => __TAURI_INVOKE<AutoTerminateSettings>("get_auto_terminate_settings"),
-	saveAutoTerminateSettings: (settings: AutoTerminateSettings) => typedError<null, string>(__TAURI_INVOKE("save_auto_terminate_settings", { settings })),
+	saveAutoTerminateSettings: (settings: AutoTerminateSettings) => __TAURI_INVOKE<void>("save_auto_terminate_settings", { settings }),
 	getVpnSettings: () => __TAURI_INVOKE<VpnSettings>("get_vpn_settings"),
-	saveVpnSettings: (settings: VpnSettings) => typedError<null, string>(__TAURI_INVOKE("save_vpn_settings", { settings })),
+	saveVpnSettings: (settings: VpnSettings) => __TAURI_INVOKE<void>("save_vpn_settings", { settings }),
+	getUiPreferences: () => __TAURI_INVOKE<UiPreferences>("get_ui_preferences"),
+	saveUiPreferences: (preferences: UiPreferences) => __TAURI_INVOKE<void>("save_ui_preferences", { preferences }),
 };
 
 /** Events */
@@ -78,7 +81,7 @@ export type ConnectedInstance = {
 
 export type DurationUnit = "minutes" | "hours";
 
-export type EnableRegionEvent = { kind: "STARTED"; jobId: string; steps: SpawnStep[] } | { kind: "PROGRESS"; stepId: string; status: SpawnStepStatus; error: string | null } | { kind: "COMPLETE"; region: string } | { kind: "FAILED"; error: string };
+export type EnableRegionEvent = { kind: "STARTED"; jobId: string; steps: JobStep[] } | { kind: "PROGRESS"; stepId: string; status: JobStepStatus; error: string | null } | { kind: "COMPLETE"; region: string } | { kind: "FAILED"; error: string };
 
 export type GcpCredentials = {
 	projectId: string,
@@ -104,6 +107,13 @@ export type InstanceInfo = {
 };
 
 export type InstanceState = "SPAWNING" | "INSTALLING" | "ERROR" | "RUNNING" | "STOPPING" | "STOPPED" | "UNKNOWN";
+
+export type JobStep = {
+	id: string,
+	label: string,
+};
+
+export type JobStepStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
 
 export type LedgerEntry = {
 	instanceId: string,
@@ -155,14 +165,14 @@ export type ProviderCredentials = {
 	provider: "AZURE",
 } & AzureCredentials;
 
-export type ProvisionAccountEvent = { kind: "STARTED"; jobId: string; steps: SpawnStep[] } | { kind: "PROGRESS"; stepId: string; status: SpawnStepStatus; error: string | null } | { kind: "COMPLETE"; provider: CloudProviderName } | { kind: "FAILED"; error: string };
+export type ProvisionAccountEvent = { kind: "STARTED"; jobId: string; steps: JobStep[] } | { kind: "PROGRESS"; stepId: string; status: JobStepStatus; error: string | null } | { kind: "COMPLETE"; provider: CloudProviderName } | { kind: "FAILED"; error: string };
 
 export type Region = {
 	name: string,
 	country: string,
 };
 
-export type SpawnInstanceEvent = { kind: "STARTED"; job: SpawnJobState } | { kind: "PROGRESS"; stepId: string; status: SpawnStepStatus; error: string | null } | { kind: "INSTANCE_LAUNCHED"; instance: InstanceInfo } | { kind: "COMPLETE"; instance: InstanceInfo } | { kind: "FAILED"; error: string };
+export type SpawnInstanceEvent = { kind: "STARTED"; job: SpawnJobState } | { kind: "PROGRESS"; stepId: string; status: JobStepStatus; error: string | null } | { kind: "INSTANCE_LAUNCHED"; instance: InstanceInfo } | { kind: "COMPLETE"; instance: InstanceInfo } | { kind: "FAILED"; error: string };
 
 export type SpawnJobState = {
 	jobId: string,
@@ -179,16 +189,9 @@ export type SpawnJobStatus = "RUNNING" | "FAILED";
 export type SpawnJobStep = {
 	id: string,
 	label: string,
-	status: SpawnStepStatus,
+	status: JobStepStatus,
 	error: string | null,
 };
-
-export type SpawnStep = {
-	id: string,
-	label: string,
-};
-
-export type SpawnStepStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
 
 export type TunnelMetrics = {
 	bytesSent: number,
@@ -197,6 +200,14 @@ export type TunnelMetrics = {
 	packetsReceived: number,
 	uploadRate: number,
 	downloadRate: number,
+};
+
+export type UiPreferences = {
+	favoriteRegions: Partial<{ [key in CloudProviderName]: string[] }>,
+	lastDeployProvider: CloudProviderName | null,
+	disconnectReminderDismissalCount: number,
+	updateCheckEnabled: boolean,
+	dismissedUpdateVersion: string | null,
 };
 
 export type VpnSettings = {

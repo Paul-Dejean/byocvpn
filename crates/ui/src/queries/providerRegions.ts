@@ -1,5 +1,4 @@
 import { queryOptions } from "@tanstack/react-query";
-import { load as loadStore } from "@tauri-apps/plugin-store";
 import { commands } from "../bindings";
 import { CloudProviderName, Region, RegionGroup } from "../types";
 
@@ -22,18 +21,7 @@ async function fetchProviderRegions(provider: CloudProviderName): Promise<Provid
     throw new Error(regionsResult.error);
   }
   const regions = regionsResult.data;
-  const store = await loadStore("providers.json");
-  const regionFlags = await Promise.all(
-    regions.map(async (region) => ({
-      name: region.name,
-      enabled: await store.get<boolean>(`enabled_regions/${provider}/${region.name}`),
-    })),
-  );
-  const enabledRegions = new Set<string>(
-    regionFlags
-      .filter((regionFlag) => regionFlag.enabled === true)
-      .map((regionFlag) => regionFlag.name),
-  );
+  const enabledRegions = new Set<string>(await commands.getEnabledRegions(provider));
   return { groupedRegions: groupRegionsByCountry(regions), enabledRegions };
 }
 

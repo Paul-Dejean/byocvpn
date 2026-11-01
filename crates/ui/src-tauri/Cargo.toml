@@ -22,7 +22,6 @@ tauri = { workspace = true, features = ["tray-icon", "specta"] }
 tauri-plugin-dialog = "2.8.3"
 tauri-plugin-opener = "2.7.2"
 tauri-plugin-notification = "2.7.0"
-tauri-plugin-store = "2.5.0"
 chrono = { workspace = true }
 humantime = { workspace = true }
 serde = { workspace = true }
@@ -31,10 +30,7 @@ specta = { workspace = true }
 specta-typescript = "=0.0.12"
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 byocvpn_core = { path = "../../core", features = ["specta"] }
-byocvpn_aws = { path = "../../infra/aws", features = ["specta"] }
-byocvpn_oracle = { path = "../../infra/oracle", features = ["specta"] }
-byocvpn_gcp = { path = "../../infra/gcp", features = ["specta"] }
-byocvpn_azure = { path = "../../infra/azure", features = ["specta"] }
+byocvpn_app = { path = "../../app", features = ["specta"] }
 tokio = { workspace = true }
 log = { workspace = true }
 env_logger = { workspace = true }

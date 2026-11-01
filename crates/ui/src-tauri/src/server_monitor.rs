@@ -1,320 +1,90 @@
-use std::{
-    collections::HashMap,
-    sync::Mutex,
-    time::{Duration, SystemTime},
-};
+use std::time::Duration;
 
-use byocvpn_core::{commands, ledger::LedgerEntry};
-use chrono::Utc;
+use byocvpn_core::{
+    app_context::AppContext,
+    ledger::LedgerEntry,
+    server_monitor::{self, ServerMonitorObserver},
+};
 use humantime::format_duration;
-use log::{debug, info, warn};
-use tauri::{AppHandle, async_runtime};
+use log::warn;
+use tauri::{AppHandle, Manager, async_runtime};
 use tauri_plugin_notification::NotificationExt;
 use tauri_specta::Event;
 use tokio::time::interval;
 
-use crate::commands::{create_cloud_provider, fetch_vpn_status};
-use crate::events::InstanceAutoTerminatedEvent;
-use crate::ledger_store::LedgerStore;
-use crate::settings_store::SettingsStore;
+use crate::{events::InstanceAutoTerminatedEvent, vpn_backend};
 
 const CHECK_INTERVAL_SECONDS: u64 = 60;
-const MIN_AUTO_TERMINATE_MINUTES: u64 = 5;
-
-static LAST_NOTIFIED_AT: Mutex<Option<HashMap<String, SystemTime>>> = Mutex::new(None);
-
-enum ConnectionState {
-    Unknown,
-    Disconnected,
-    ConnectedTo(String),
-}
 
 pub fn start_server_monitor(app_handle: AppHandle) {
     async_runtime::spawn(async move {
         let mut ticker = interval(Duration::from_secs(CHECK_INTERVAL_SECONDS));
         loop {
             ticker.tick().await;
-            tick(&app_handle).await;
+            let context = app_handle.state::<AppContext>();
+            let daemon_client = vpn_backend::create_daemon_client(&app_handle);
+            let observer = DesktopMonitorObserver {
+                app_handle: app_handle.clone(),
+            };
+            server_monitor::run_monitor_tick(&context, &daemon_client, &observer).await;
         }
     });
 }
 
-async fn tick(app_handle: &AppHandle) {
-    let Some(settings_store) = SettingsStore::open(app_handle) else {
-        return;
-    };
-    let notification_settings = settings_store.load_notification_settings();
-
-    let running_entries = match LedgerStore::open(app_handle) {
-        Some(ledger) => ledger.running_entries(),
-        None => return,
-    };
-    if running_entries.is_empty() {
-        return;
-    }
-
-    if notification_settings.notification_enabled {
-        notify_long_running(
-            app_handle,
-            &running_entries,
-            notification_settings.notification_threshold_minutes,
-        );
-    }
-
-    run_auto_terminate_check(app_handle).await;
-}
-
 pub async fn run_auto_terminate_check(app_handle: &AppHandle) {
-    let Some(settings_store) = SettingsStore::open(app_handle) else {
-        return;
+    let context = app_handle.state::<AppContext>();
+    let daemon_client = vpn_backend::create_daemon_client(app_handle);
+    let observer = DesktopMonitorObserver {
+        app_handle: app_handle.clone(),
     };
-    let Some(ledger) = LedgerStore::open(app_handle) else {
-        return;
-    };
-    let running_entries = ledger.running_entries();
-    if running_entries.is_empty() {
-        return;
-    }
-
-    let connected_instance_id = match fetch_connection_state(app_handle).await {
-        ConnectionState::ConnectedTo(instance_id) => Some(instance_id),
-        ConnectionState::Disconnected => None,
-        ConnectionState::Unknown => return,
-    };
-    let running_entries =
-        refresh_idle_state(&ledger, running_entries, connected_instance_id.as_deref());
-
-    let auto_terminate_settings = settings_store.load_auto_terminate_settings();
-    if !auto_terminate_settings.auto_terminate_enabled
-        || auto_terminate_settings.auto_terminate_threshold_minutes == 0
-    {
-        return;
-    }
-
-    let notification_settings = settings_store.load_notification_settings();
-    auto_terminate_idle(
-        app_handle,
-        &running_entries,
-        connected_instance_id.as_deref(),
-        auto_terminate_settings
-            .auto_terminate_threshold_minutes
-            .max(MIN_AUTO_TERMINATE_MINUTES),
-        notification_settings.notification_enabled,
-    )
-    .await;
+    server_monitor::run_auto_terminate_check(&context, &daemon_client, &observer).await;
 }
 
-async fn fetch_connection_state(app_handle: &AppHandle) -> ConnectionState {
-    let vpn_status = match fetch_vpn_status(app_handle).await {
-        Ok(status) => status,
-        Err(error) => {
-            warn!(
-                "[auto-terminate] skipping this round — could not read VPN status, refusing to terminate a possibly-connected server: {error}"
-            );
-            return ConnectionState::Unknown;
-        }
-    };
-
-    debug!(
-        "[auto-terminate] raw daemon VpnStatus: connected={}, instance={:?}, connected_at={:?}",
-        vpn_status.connected, vpn_status.instance, vpn_status.connected_at
-    );
-
-    if !vpn_status.connected {
-        return ConnectionState::Disconnected;
-    }
-    if let Some(connected_instance) = vpn_status.instance {
-        ConnectionState::ConnectedTo(connected_instance.instance_id)
-    } else {
-        warn!(
-            "[auto-terminate] skipping this round — VPN reports connected but no instance is identified"
-        );
-        ConnectionState::Unknown
-    }
+struct DesktopMonitorObserver {
+    app_handle: AppHandle,
 }
 
-fn refresh_idle_state(
-    ledger: &LedgerStore,
-    entries: Vec<LedgerEntry>,
-    connected_instance_id: Option<&str>,
-) -> Vec<LedgerEntry> {
-    let now = Utc::now();
-    entries
-        .into_iter()
-        .map(|mut entry| {
-            let is_connected = connected_instance_id == Some(entry.instance_id.as_str());
-            if is_connected && entry.idle_since.is_some() {
-                ledger.mark_connected(&entry.instance_id);
-                entry.mark_connected();
-            } else if !is_connected && entry.idle_since.is_none() {
-                ledger.mark_idle_since(&entry.instance_id, now);
-                entry.mark_idle_since(now);
-            }
-            entry
-        })
-        .collect()
-}
-
-fn notify_long_running(app_handle: &AppHandle, entries: &[LedgerEntry], threshold_minutes: u64) {
-    let threshold = Duration::from_secs(threshold_minutes * 60);
-    let now = SystemTime::now();
-    let now_utc = Utc::now();
-
-    let mut last_notified = match LAST_NOTIFIED_AT.lock() {
-        Ok(guard) => guard,
-        Err(error) => {
-            warn!("Failed to acquire uptime notifier lock: {error}");
-            return;
-        }
-    };
-    let map = last_notified.get_or_insert_with(HashMap::new);
-
-    for entry in entries {
-        let elapsed_secs = u64::try_from((now_utc - entry.launched_at).num_seconds()).unwrap_or(0);
-        let elapsed = Duration::from_secs(elapsed_secs);
-        if elapsed < threshold {
-            continue;
-        }
-
-        let should_notify = match map.get(&entry.instance_id) {
-            None => true,
-            Some(last_time) => match now.duration_since(*last_time) {
-                Ok(since_last) => since_last >= threshold,
-                Err(_) => false,
-            },
-        };
-        if !should_notify {
-            continue;
-        }
-
-        map.insert(entry.instance_id.clone(), now);
-
-        let provider = format!("{}", entry.provider).to_uppercase();
-        let duration_text = format_duration(elapsed);
+impl ServerMonitorObserver for DesktopMonitorObserver {
+    fn on_long_running(&self, entry: &LedgerEntry, running_for: Duration) {
         let body = format!(
-            "Your {provider} server in {} has been running for {duration_text}. Consider terminating it to avoid unnecessary costs.",
+            "Your {} server in {} has been running for {}. Consider terminating it to avoid unnecessary costs.",
+            entry.provider.to_string().to_uppercase(),
             entry.region,
+            format_duration(running_for)
         );
+        self.show_notification("ByocVPN — Server Running", &body);
+    }
 
-        if let Err(error) = app_handle
+    fn on_auto_terminated(&self, entry: &LedgerEntry, notifications_enabled: bool) {
+        if notifications_enabled {
+            let body = format!(
+                "Your {} server in {} was automatically terminated after running idle without a VPN connection.",
+                entry.provider.to_string().to_uppercase(),
+                entry.region
+            );
+            self.show_notification("ByocVPN — Server Auto-Terminated", &body);
+        }
+        if let Err(error) = (InstanceAutoTerminatedEvent {
+            instance_id: entry.instance_id.clone(),
+        })
+        .emit(&self.app_handle)
+        {
+            warn!("[auto-terminate] failed to emit event: {error}");
+        }
+    }
+}
+
+impl DesktopMonitorObserver {
+    fn show_notification(&self, title: &str, body: &str) {
+        if let Err(error) = self
+            .app_handle
             .notification()
             .builder()
-            .title("ByocVPN — Server Running")
-            .body(&body)
+            .title(title)
+            .body(body)
             .show()
         {
-            warn!("Failed to send uptime notification: {error}");
+            warn!("Failed to show notification {title:?}: {error}");
         }
-    }
-}
-
-async fn auto_terminate_idle(
-    app_handle: &AppHandle,
-    entries: &[LedgerEntry],
-    connected_instance_id: Option<&str>,
-    threshold_minutes: u64,
-    notifications_enabled: bool,
-) {
-    let threshold = i64::try_from(threshold_minutes)
-        .ok()
-        .and_then(chrono::Duration::try_minutes)
-        .unwrap_or(chrono::Duration::MAX);
-    let now = Utc::now();
-
-    info!(
-        "[auto-terminate] round start: connected_instance_id={:?}, running_ledger_ids={:?}",
-        connected_instance_id,
-        entries
-            .iter()
-            .map(|entry| entry.instance_id.as_str())
-            .collect::<Vec<_>>()
-    );
-
-    for entry in entries {
-        if connected_instance_id == Some(entry.instance_id.as_str()) {
-            info!(
-                "[auto-terminate] skipping {} — VPN is currently connected to it",
-                entry.instance_id
-            );
-            continue;
-        }
-
-        let Some(idle_since) = entry.idle_since else {
-            continue;
-        };
-        let idle_duration = now - idle_since;
-        debug!(
-            "[auto-terminate] evaluating entry: ledger_id={:?}, idle_secs={}, threshold_secs={}, expired={}",
-            entry.instance_id,
-            idle_duration.num_seconds(),
-            threshold.num_seconds(),
-            idle_duration >= threshold
-        );
-        if idle_duration < threshold {
-            continue;
-        }
-
-        info!(
-            "[auto-terminate] {} ({}) idle for more than {}min; terminating",
-            entry.instance_id, entry.provider, threshold_minutes
-        );
-
-        let cloud_provider = match create_cloud_provider(entry.provider.clone()).await {
-            Ok(provider) => provider,
-            Err(error) => {
-                warn!(
-                    "[auto-terminate] could not build provider for {}: {}",
-                    entry.instance_id, error
-                );
-                continue;
-            }
-        };
-
-        match commands::terminate::terminate_instance(
-            &*cloud_provider,
-            &entry.region,
-            &entry.instance_id,
-        )
-        .await
-        {
-            Ok(()) => {
-                if let Some(ledger) = LedgerStore::open(app_handle) {
-                    ledger.mark_terminated(&entry.instance_id);
-                }
-                if notifications_enabled {
-                    notify_terminated(app_handle, &entry.provider.to_string(), &entry.region);
-                }
-                if let Err(error) = (InstanceAutoTerminatedEvent {
-                    instance_id: entry.instance_id.clone(),
-                })
-                .emit(app_handle)
-                {
-                    warn!("[auto-terminate] failed to emit event: {error}");
-                }
-            }
-            Err(error) => {
-                warn!(
-                    "[auto-terminate] failed to terminate {}: {}",
-                    entry.instance_id, error
-                );
-            }
-        }
-    }
-}
-
-fn notify_terminated(app_handle: &AppHandle, provider: &str, region: &str) {
-    let body = format!(
-        "Your {} server in {} was automatically terminated after running idle without a VPN connection.",
-        provider.to_uppercase(),
-        region
-    );
-    if let Err(error) = app_handle
-        .notification()
-        .builder()
-        .title("ByocVPN — Server Auto-Terminated")
-        .body(&body)
-        .show()
-    {
-        warn!("[auto-terminate] failed to send notification: {error}");
     }
 }

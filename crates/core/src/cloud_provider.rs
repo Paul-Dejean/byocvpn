@@ -19,22 +19,21 @@ pub struct TerminateInstanceParams<'a> {
 
 #[async_trait]
 pub trait CloudProvider: Send + Sync {
-    async fn setup(&self) -> Result<()>;
     async fn verify_permissions(&self) -> Result<Vec<PermissionStatus>>;
-    async fn enable_region(&self, region: &str) -> Result<()>;
     async fn spawn_instance(&self, params: &SpawnInstanceParams) -> Result<InstanceInfo>;
     async fn terminate_instance(&self, params: &TerminateInstanceParams) -> Result<()>;
     async fn list_instances(&self, region: Option<&str>) -> Result<Vec<InstanceInfo>>;
     async fn get_regions(&self) -> Result<Vec<Region>>;
+    fn get_pricing(&self, instance_type: &str) -> Option<PricingInfo>;
     fn get_provider_name(&self) -> CloudProviderName;
 
-    fn get_spawn_steps(&self, region: &str) -> Vec<SpawnStep>;
+    fn get_spawn_steps(&self, region: &str) -> Vec<JobStep>;
     async fn run_spawn_step(&self, step_id: &str, region: &str) -> Result<()>;
 
-    fn get_provision_account_steps(&self) -> Vec<SpawnStep>;
+    fn get_provision_account_steps(&self) -> Vec<JobStep>;
     async fn run_provision_account_step(&self, step_id: &str) -> Result<()>;
 
-    fn get_enable_region_steps(&self, region: &str) -> Vec<SpawnStep>;
+    fn get_enable_region_steps(&self, region: &str) -> Vec<JobStep>;
     async fn run_enable_region_step(&self, step_id: &str, region: &str) -> Result<()>;
 }
 
@@ -45,7 +44,9 @@ pub struct PermissionStatus {
     pub granted: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Display, EnumString)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Display, EnumString,
+)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "lowercase", ascii_case_insensitive)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -101,7 +102,7 @@ pub struct PricingInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
-pub struct SpawnStep {
+pub struct JobStep {
     pub id: String,
     pub label: String,
 }
@@ -111,7 +112,7 @@ pub struct SpawnStep {
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct SpawnJob {
     pub job_id: String,
-    pub steps: Vec<SpawnStep>,
+    pub steps: Vec<JobStep>,
     pub region: String,
     pub provider: CloudProviderName,
 }
@@ -119,75 +120,9 @@ pub struct SpawnJob {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
-pub enum SpawnStepStatus {
+pub enum JobStepStatus {
     Pending,
     Running,
     Completed,
     Failed,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SpawnProgressEvent {
-    pub job_id: String,
-    pub step_id: String,
-    pub status: SpawnStepStatus,
-    pub error: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SpawnCompleteEvent {
-    pub job_id: String,
-    pub instance: InstanceInfo,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProvisionAccountJob {
-    pub job_id: String,
-    pub steps: Vec<SpawnStep>,
-    pub provider: CloudProviderName,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProvisionAccountProgressEvent {
-    pub job_id: String,
-    pub step_id: String,
-    pub status: SpawnStepStatus,
-    pub error: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProvisionAccountCompleteEvent {
-    pub job_id: String,
-    pub provider: CloudProviderName,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EnableRegionJob {
-    pub job_id: String,
-    pub steps: Vec<SpawnStep>,
-    pub region: String,
-    pub provider: CloudProviderName,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EnableRegionProgressEvent {
-    pub job_id: String,
-    pub step_id: String,
-    pub status: SpawnStepStatus,
-    pub error: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EnableRegionCompleteEvent {
-    pub job_id: String,
-    pub region: String,
-    pub provider: CloudProviderName,
 }

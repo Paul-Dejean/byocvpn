@@ -1,5 +1,6 @@
 #[cfg(target_os = "android")]
 use android_logger::Config as AndroidLoggerConfig;
+use byocvpn_app::open_app_context;
 #[cfg(mobile)]
 use byocvpn_core::config::set_data_directory;
 #[cfg(target_os = "android")]
@@ -8,7 +9,6 @@ use log::LevelFilter;
 use specta_typescript::Typescript;
 #[cfg(target_os = "android")]
 use std::{env, path::Path};
-#[cfg(mobile)]
 use tauri::Manager;
 use tauri_specta::{Commands, Events, collect_commands, collect_events};
 
@@ -28,12 +28,9 @@ const ANDROID_CERTIFICATE_DIRECTORIES: [&str; 2] = [
 
 mod commands;
 mod events;
-mod ledger_store;
-mod provider_credentials;
-mod provider_store;
+mod job_observers;
 mod server_monitor;
-mod settings_store;
-mod spawn_job_registry;
+mod store_migration;
 #[cfg(desktop)]
 mod tray;
 #[cfg(mobile)]
@@ -63,12 +60,15 @@ fn build_specta_commands() -> Commands<tauri::Wry> {
         commands::save_file,
         commands::list_active_spawn_jobs,
         commands::dismiss_spawn_job,
-        settings_store::get_notification_settings,
-        settings_store::save_notification_settings,
-        settings_store::get_auto_terminate_settings,
-        settings_store::save_auto_terminate_settings,
-        settings_store::get_vpn_settings,
-        settings_store::save_vpn_settings,
+        commands::get_enabled_regions,
+        commands::get_notification_settings,
+        commands::save_notification_settings,
+        commands::get_auto_terminate_settings,
+        commands::save_auto_terminate_settings,
+        commands::get_vpn_settings,
+        commands::save_vpn_settings,
+        commands::get_ui_preferences,
+        commands::save_ui_preferences,
     ]
 }
 
@@ -107,17 +107,18 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_store::Builder::default().build());
+        .plugin(tauri_plugin_opener::init());
 
     #[cfg(target_os = "android")]
     let builder = builder.plugin(tauri_plugin_android_vpn::init());
 
     let builder = builder
-        .manage(spawn_job_registry::SpawnJobRegistry::new())
         .setup(move |app| {
             #[cfg(mobile)]
             set_data_directory(app.path().app_data_dir()?);
+            let context = open_app_context()?;
+            store_migration::import_legacy_stores(app.handle(), &context);
+            app.manage(context);
             specta_builder.mount_events(app);
             #[cfg(desktop)]
             tray::build_tray(app.handle())?;
