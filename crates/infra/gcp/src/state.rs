@@ -1,5 +1,8 @@
 use byocvpn_core::cloud_provider::InstanceState;
+use strum::EnumString;
 
+#[derive(EnumString)]
+#[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum GcpInstanceStatus {
     Provisioning,
     Staging,
@@ -12,19 +15,9 @@ pub enum GcpInstanceStatus {
     Unknown,
 }
 
-impl From<&str> for GcpInstanceStatus {
-    fn from(s: &str) -> Self {
-        match s {
-            "PROVISIONING" => Self::Provisioning,
-            "STAGING" => Self::Staging,
-            "RUNNING" => Self::Running,
-            "STOPPING" => Self::Stopping,
-            "SUSPENDING" => Self::Suspending,
-            "SUSPENDED" => Self::Suspended,
-            "REPAIRING" => Self::Repairing,
-            "TERMINATED" => Self::Terminated,
-            _ => Self::Unknown,
-        }
+impl GcpInstanceStatus {
+    pub(super) fn from_state_name(state_name: &str) -> Self {
+        state_name.parse().unwrap_or(Self::Unknown)
     }
 }
 

@@ -302,7 +302,7 @@ fn build_instance_info(instance: &InstanceResponse, region: &str) -> InstanceInf
     InstanceInfo {
         id: instance.id.clone(),
         name: instance.display_name.clone(),
-        state: OciLifecycleState::from(instance.lifecycle_state.as_str()).into(),
+        state: OciLifecycleState::from_state_name(&instance.lifecycle_state).into(),
         public_ip_v4: String::new(),
         public_ip_v6: String::new(),
         region: region.to_string(),

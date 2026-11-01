@@ -5,6 +5,7 @@ use aws_sdk_ec2::Client as Ec2Client;
 use aws_sdk_iam::Client as IamClient;
 use aws_sdk_ssm::Client as SsmClient;
 use aws_sdk_sts::Client as StsClient;
+use byocvpn_core::jobs::build_unknown_step_error;
 use byocvpn_core::{
     cloud_provider::{
         CloudProvider, CloudProviderName, InstanceInfo, JobStep, PermissionStatus, PricingInfo,
@@ -88,8 +89,8 @@ impl CloudProvider for AwsProvider {
         vec![]
     }
 
-    async fn run_provision_account_step(&self, _step_id: &str) -> Result<()> {
-        Ok(())
+    async fn run_provision_account_step(&self, step_id: &str) -> Result<()> {
+        Err(build_unknown_step_error(CloudProviderName::Aws, step_id))
     }
 
     fn get_enable_region_steps(&self, _region: &str) -> Vec<JobStep> {
@@ -118,9 +119,9 @@ impl CloudProvider for AwsProvider {
     }
 
     async fn run_spawn_step(&self, step_id: &str, region: &str) -> Result<()> {
-        let Ok(step) = step_id.parse::<AwsSpawnStepId>() else {
-            return Ok(());
-        };
+        let step = step_id
+            .parse::<AwsSpawnStepId>()
+            .map_err(|_| build_unknown_step_error(CloudProviderName::Aws, step_id))?;
         match step {
             AwsSpawnStepId::SetupVpc => {
                 let ec2 = self.create_ec2_client(Some(region.to_string())).await;

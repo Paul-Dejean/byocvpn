@@ -1,11 +1,11 @@
-pub mod auth;
-pub mod client;
+mod auth;
+mod client;
 pub mod credentials;
-pub mod instance;
-pub mod models;
-pub mod network;
-pub mod pricing;
-pub mod provider;
-pub mod state;
+mod instance;
+mod models;
+mod network;
+mod pricing;
+mod provider;
+mod state;
 
 pub use provider::{GcpProvider, GcpProviderConfig};

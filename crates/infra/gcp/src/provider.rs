@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use async_trait::async_trait;
+use byocvpn_core::jobs::build_unknown_step_error;
 use byocvpn_core::{
     cloud_provider::{
         CloudProvider, CloudProviderName, InstanceInfo, JobStep, PermissionStatus, PricingInfo,
@@ -117,9 +118,9 @@ impl CloudProvider for GcpProvider {
     }
 
     async fn run_spawn_step(&self, step_id: &str, region: &str) -> Result<()> {
-        let Ok(step) = step_id.parse::<GcpSpawnStepId>() else {
-            return Ok(());
-        };
+        let step = step_id
+            .parse::<GcpSpawnStepId>()
+            .map_err(|_| build_unknown_step_error(CloudProviderName::Gcp, step_id))?;
         match step {
             GcpSpawnStepId::SetupApi => {
                 network::ensure_compute_api_enabled(&self.client).await?;

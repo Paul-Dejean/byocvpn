@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use byocvpn_core::jobs::build_unknown_step_error;
 use byocvpn_core::{
     cloud_provider::{
         CloudProvider, CloudProviderName, InstanceInfo, JobStep, PermissionStatus, PricingInfo,
@@ -84,9 +85,9 @@ impl CloudProvider for OracleProvider {
     }
 
     async fn run_spawn_step(&self, step_id: &str, region: &str) -> Result<()> {
-        let Ok(step) = step_id.parse::<OracleSpawnStepId>() else {
-            return Ok(());
-        };
+        let step = step_id
+            .parse::<OracleSpawnStepId>()
+            .map_err(|_| build_unknown_step_error(CloudProviderName::Oracle, step_id))?;
         match step {
             OracleSpawnStepId::SetupNetwork => {
                 self.ensure_account_network().await?;

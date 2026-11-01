@@ -26,6 +26,9 @@ const INTERNET_GATEWAY_NAME: &str = "byocvpn-igw";
 const IPV4_ALL_CIDR: &str = "0.0.0.0/0";
 const IPV6_ALL_CIDR: &str = "::/0";
 
+const REGION_SUBSCRIPTION_POLL_POLICY: RetryPolicy =
+    RetryPolicy::fixed(40, Duration::from_secs(15));
+
 async fn get_vcn(
     client: &OciClient,
     compartment_ocid: &str,
@@ -515,7 +518,7 @@ pub async fn ensure_region_subscribed(
                 }
             }
         },
-        RetryPolicy::fixed(40, Duration::from_secs(15)),
+        REGION_SUBSCRIPTION_POLL_POLICY,
     )
     .await
 }

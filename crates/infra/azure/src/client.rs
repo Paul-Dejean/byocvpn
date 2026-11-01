@@ -18,6 +18,8 @@ const ARM_BASE: &str = "https://management.azure.com";
 
 const REQUEST_TIMEOUT_SECS: u64 = 90;
 
+const ASYNC_OPERATION_POLL_POLICY: RetryPolicy = RetryPolicy::fixed(120, Duration::from_secs(5));
+
 #[derive(Clone)]
 pub struct AzureClient {
     http: HttpClient,
@@ -40,7 +42,7 @@ impl AzureClient {
         })
     }
 
-    pub fn build_arm_url(&self, path: &str, api_version: &str) -> String {
+    pub fn build_arm_url(path: &str, api_version: &str) -> String {
         format!("{ARM_BASE}{path}?api-version={api_version}")
     }
 
@@ -146,7 +148,7 @@ impl AzureClient {
                     }
                 }
             },
-            RetryPolicy::fixed(120, Duration::from_secs(5)),
+            ASYNC_OPERATION_POLL_POLICY,
         )
         .await
     }
@@ -221,8 +223,4 @@ pub fn extract_resource_group_from_id(resource_id: &str) -> Option<&str> {
         .windows(2)
         .find(|pair| pair[0].eq_ignore_ascii_case("resourceGroups"))
         .map(|pair| pair[1])
-}
-
-pub fn extract_name_from_id(resource_id: &str) -> Option<&str> {
-    resource_id.split('/').rfind(|s| !s.is_empty())
 }

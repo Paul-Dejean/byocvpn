@@ -48,7 +48,7 @@ pub async fn fetch_bearer_token(credentials: &Credentials) -> Result<String> {
     headers
         .get("authorization")
         .and_then(|value| value.to_str().ok())
-        .and_then(|s| s.strip_prefix("Bearer "))
+        .and_then(|header_value| header_value.strip_prefix("Bearer "))
         .map(std::string::ToString::to_string)
         .ok_or_else(|| {
             CredentialsError::MissingTokenInResponse {

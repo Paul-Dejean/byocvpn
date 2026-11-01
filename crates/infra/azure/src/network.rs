@@ -1,7 +1,7 @@
 use byocvpn_core::error::{Error, NetworkProvisioningError, Result};
 use byocvpn_core::retry::{RetryPolicy, retry, retry_if};
 use log::{debug, error, info, warn};
-use serde::Serialize;
+use serde::{Serialize, de::IgnoredAny};
 use tokio::time::Duration;
 
 use crate::arm_error::{ArmErrorCode, extract_arm_error_code};
@@ -11,13 +11,13 @@ use crate::models::{
     AddressSpace, EmptyRequest, IpConfiguration, IpConfigurationProperties, LocationListResponse,
     NicProperties, NicRequest, NicResponse, NsgProperties, NsgRequest, NsgResponse,
     ProviderRegistrationResponse, PublicIpProperties, PublicIpRequest, PublicIpResponse,
-    PublicIpSku, ResourceGroupRequest, ResourceGroupResponse, ResourceReference, SecurityRule,
-    SecurityRuleProperties, SubnetRequest, SubnetRequestProperties, SubnetResponse, VnetProperties,
-    VnetRequest, VnetResponse, byocvpn_tags,
+    PublicIpSku, ResourceGroupRequest, ResourceReference, SecurityRule, SecurityRuleProperties,
+    SubnetRequest, SubnetRequestProperties, SubnetResponse, VnetProperties, VnetRequest,
+    VnetResponse, byocvpn_tags,
 };
 
 const API_VERSION_RESOURCE_GROUPS: &str = "2021-04-01";
-pub(crate) const API_VERSION_NETWORK: &str = "2024-05-01";
+pub const API_VERSION_NETWORK: &str = "2024-05-01";
 const API_VERSION_LOCATIONS: &str = "2022-12-01";
 
 const VPC_NAME: &str = "byocvpn-vnet";
@@ -35,7 +35,7 @@ const SUBNET_IPV6_CIDR: &str = "fd00::/64";
 
 pub async fn list_regions(client: &AzureClient) -> Result<Vec<(String, String)>> {
     let path = client.build_subscription_path("/locations");
-    let url = client.build_arm_url(&path, API_VERSION_LOCATIONS);
+    let url = AzureClient::build_arm_url(&path, API_VERSION_LOCATIONS);
 
     let response: LocationListResponse = client
         .get(&url)
@@ -94,6 +94,9 @@ pub async fn ensure_region_networking(
 const PROVIDER_REGISTRATION_RETRY_POLICY: RetryPolicy =
     RetryPolicy::exponential(30, Duration::from_secs(5), Duration::from_secs(60));
 
+const PROVIDER_REGISTRATION_POLL_POLICY: RetryPolicy =
+    RetryPolicy::fixed(60, Duration::from_secs(5));
+
 async fn put_with_provider_retry<B: Serialize>(
     client: &AzureClient,
     url: &str,
@@ -138,7 +141,7 @@ fn is_missing_subscription_registration(error: &Error) -> bool {
 
 async fn request_network_provider_registration(client: &AzureClient) {
     let register_path = client.build_subscription_path("/providers/Microsoft.Network/register");
-    let register_url = client.build_arm_url(&register_path, API_VERSION_RESOURCE_GROUPS);
+    let register_url = AzureClient::build_arm_url(&register_path, API_VERSION_RESOURCE_GROUPS);
     match client
         .post::<_, ProviderRegistrationResponse>(&register_url, &EmptyRequest {})
         .await
@@ -157,7 +160,7 @@ pub async fn ensure_providers_registered(client: &AzureClient) -> Result<()> {
 
     for namespace in NAMESPACES {
         let status_path = client.build_subscription_path(&format!("/providers/{namespace}"));
-        let status_url = client.build_arm_url(&status_path, API_VERSION_RESOURCE_GROUPS);
+        let status_url = AzureClient::build_arm_url(&status_path, API_VERSION_RESOURCE_GROUPS);
         let registration_state = client
             .get::<ProviderRegistrationResponse>(&status_url)
             .await
@@ -170,7 +173,7 @@ pub async fn ensure_providers_registered(client: &AzureClient) -> Result<()> {
 
         let register_path =
             client.build_subscription_path(&format!("/providers/{namespace}/register"));
-        let register_url = client.build_arm_url(&register_path, API_VERSION_RESOURCE_GROUPS);
+        let register_url = AzureClient::build_arm_url(&register_path, API_VERSION_RESOURCE_GROUPS);
         info!("[Azure] Registering provider '{namespace}'...");
         client
             .post::<_, ProviderRegistrationResponse>(&register_url, &EmptyRequest {})
@@ -203,7 +206,7 @@ pub async fn ensure_providers_registered(client: &AzureClient) -> Result<()> {
                     }
                 }
             },
-            RetryPolicy::fixed(60, Duration::from_secs(5)),
+            PROVIDER_REGISTRATION_POLL_POLICY,
         )
         .await?;
     }
@@ -216,9 +219,9 @@ async fn get_resource_group_by_location(
 ) -> Result<Option<String>> {
     let resource_group = build_resource_group_name(location);
     let path = client.build_subscription_path(&format!("/resourceGroups/{resource_group}"));
-    let url = client.build_arm_url(&path, API_VERSION_RESOURCE_GROUPS);
+    let url = AzureClient::build_arm_url(&path, API_VERSION_RESOURCE_GROUPS);
 
-    match client.get::<ResourceGroupResponse>(&url).await {
+    match client.get::<IgnoredAny>(&url).await {
         Ok(_) => Ok(Some(resource_group)),
         Err(_) => Ok(None),
     }
@@ -227,7 +230,7 @@ async fn get_resource_group_by_location(
 async fn create_resource_group(client: &AzureClient, location: &str) -> Result<()> {
     let resource_group = build_resource_group_name(location);
     let path = client.build_subscription_path(&format!("/resourceGroups/{resource_group}"));
-    let url = client.build_arm_url(&path, API_VERSION_RESOURCE_GROUPS);
+    let url = AzureClient::build_arm_url(&path, API_VERSION_RESOURCE_GROUPS);
 
     let body = ResourceGroupRequest {
         location: location.to_string(),
@@ -270,7 +273,7 @@ async fn get_nsg(client: &AzureClient, location: &str) -> Result<Option<String>>
     let path = client.build_subscription_path(&format!(
         "/resourceGroups/{resource_group}/providers/Microsoft.Network/networkSecurityGroups/{NSG_NAME}"
     ));
-    let url = client.build_arm_url(&path, API_VERSION_NETWORK);
+    let url = AzureClient::build_arm_url(&path, API_VERSION_NETWORK);
 
     match client.get::<NsgResponse>(&url).await {
         Ok(response) => Ok(Some(response.id.unwrap_or_default())),
@@ -326,7 +329,7 @@ async fn patch_nsg_rules(client: &AzureClient, location: &str) -> Result<()> {
     let path = client.build_subscription_path(&format!(
         "/resourceGroups/{resource_group}/providers/Microsoft.Network/networkSecurityGroups/{NSG_NAME}"
     ));
-    let url = client.build_arm_url(&path, "2023-05-01");
+    let url = AzureClient::build_arm_url(&path, "2023-05-01");
 
     let current_nsg: NsgResponse = client
         .get(&url)
@@ -393,7 +396,7 @@ async fn create_nsg(client: &AzureClient, location: &str) -> Result<String> {
     let path = client.build_subscription_path(&format!(
         "/resourceGroups/{resource_group}/providers/Microsoft.Network/networkSecurityGroups/{NSG_NAME}"
     ));
-    let url = client.build_arm_url(&path, API_VERSION_NETWORK);
+    let url = AzureClient::build_arm_url(&path, API_VERSION_NETWORK);
 
     let body = NsgRequest {
         location: location.to_string(),
@@ -438,7 +441,7 @@ async fn get_vnet(client: &AzureClient, location: &str) -> Result<Option<String>
     let path = client.build_subscription_path(&format!(
         "/resourceGroups/{resource_group}/providers/Microsoft.Network/virtualNetworks/{VPC_NAME}"
     ));
-    let url = client.build_arm_url(&path, API_VERSION_NETWORK);
+    let url = AzureClient::build_arm_url(&path, API_VERSION_NETWORK);
 
     match client.get::<VnetResponse>(&url).await {
         Ok(response) => Ok(Some(response.id.unwrap_or_default())),
@@ -451,7 +454,7 @@ async fn create_vnet(client: &AzureClient, location: &str) -> Result<String> {
     let path = client.build_subscription_path(&format!(
         "/resourceGroups/{resource_group}/providers/Microsoft.Network/virtualNetworks/{VPC_NAME}"
     ));
-    let url = client.build_arm_url(&path, API_VERSION_NETWORK);
+    let url = AzureClient::build_arm_url(&path, API_VERSION_NETWORK);
 
     let body = VnetRequest {
         location: location.to_string(),
@@ -495,7 +498,7 @@ async fn get_subnet(client: &AzureClient, location: &str) -> Result<Option<Exist
     let path = client.build_subscription_path(&format!(
         "/resourceGroups/{resource_group}/providers/Microsoft.Network/virtualNetworks/{VPC_NAME}/subnets/{SUBNET_NAME}"
     ));
-    let url = client.build_arm_url(&path, API_VERSION_NETWORK);
+    let url = AzureClient::build_arm_url(&path, API_VERSION_NETWORK);
 
     match client.get::<SubnetResponse>(&url).await {
         Ok(existing) => {
@@ -527,7 +530,7 @@ async fn create_subnet(client: &AzureClient, location: &str, nsg_id: &str) -> Re
     let path = client.build_subscription_path(&format!(
         "/resourceGroups/{resource_group}/providers/Microsoft.Network/virtualNetworks/{VPC_NAME}/subnets/{SUBNET_NAME}"
     ));
-    let url = client.build_arm_url(&path, API_VERSION_NETWORK);
+    let url = AzureClient::build_arm_url(&path, API_VERSION_NETWORK);
 
     let cidr = SUBNET_CIDR;
     let cidr_ipv6 = SUBNET_IPV6_CIDR;
@@ -565,7 +568,7 @@ async fn patch_subnet_nsg_association(
     let path = client.build_subscription_path(&format!(
         "/resourceGroups/{resource_group}/providers/Microsoft.Network/virtualNetworks/{VPC_NAME}/subnets/{SUBNET_NAME}"
     ));
-    let url = client.build_arm_url(&path, "2023-05-01");
+    let url = AzureClient::build_arm_url(&path, "2023-05-01");
 
     info!("[Azure] Subnet '{SUBNET_NAME}' NSG association has drifted — patching...");
 
@@ -603,7 +606,7 @@ pub async fn ensure_subnet(client: &AzureClient, location: &str, nsg_id: &str) -
         let path = client.build_subscription_path(&format!(
             "/resourceGroups/{resource_group}/providers/Microsoft.Network/virtualNetworks/{VPC_NAME}/subnets/{SUBNET_NAME}"
         ));
-        let url = client.build_arm_url(&path, API_VERSION_NETWORK);
+        let url = AzureClient::build_arm_url(&path, API_VERSION_NETWORK);
         let subnet_body: SubnetResponse = client.get(&url).await.map_err(|error| {
             NetworkProvisioningError::NetworkQueryFailed {
                 reason: format!("Failed to fetch subnet for drift check: {error}"),
@@ -671,7 +674,7 @@ fn build_public_ip_url(
     let path = client.build_subscription_path(&format!(
         "/resourceGroups/{resource_group}/providers/Microsoft.Network/publicIPAddresses/{name}"
     ));
-    client.build_arm_url(&path, API_VERSION_NETWORK)
+    AzureClient::build_arm_url(&path, API_VERSION_NETWORK)
 }
 
 async fn get_public_ip_id(
@@ -782,7 +785,7 @@ pub async fn create_nic(
     let path = client.build_subscription_path(&format!(
         "/resourceGroups/{resource_group}/providers/Microsoft.Network/networkInterfaces/{nic_name}"
     ));
-    let url = client.build_arm_url(&path, API_VERSION_NETWORK);
+    let url = AzureClient::build_arm_url(&path, API_VERSION_NETWORK);
 
     let body = NicRequest {
         location: location.to_string(),
@@ -850,7 +853,7 @@ async fn delete_network_resource(
     let path = client.build_subscription_path(&format!(
         "/resourceGroups/{resource_group}/providers/Microsoft.Network/{resource_type}/{resource_name}"
     ));
-    let url = client.build_arm_url(&path, API_VERSION_NETWORK);
+    let url = AzureClient::build_arm_url(&path, API_VERSION_NETWORK);
 
     info!("[Azure] Deleting {resource_type} '{resource_name}'...");
     match client.delete(&url).await {

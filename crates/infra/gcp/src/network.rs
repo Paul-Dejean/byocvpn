@@ -21,6 +21,10 @@ const FIREWALL_TAG: &str = "byocvpn";
 const IPV4_ALL_CIDR: &str = "0.0.0.0/0";
 const IPV6_ALL_CIDR: &str = "::/0";
 
+const GLOBAL_OPERATION_POLL_POLICY: RetryPolicy = RetryPolicy::fixed(60, Duration::from_secs(3));
+const SERVICE_USAGE_OPERATION_POLL_POLICY: RetryPolicy =
+    RetryPolicy::fixed(30, Duration::from_secs(5));
+
 async fn wait_for_operation(client: &GcpClient, operation_url: &str) -> Result<()> {
     retry(
         || async move {
@@ -55,7 +59,7 @@ async fn wait_for_operation(client: &GcpClient, operation_url: &str) -> Result<(
                 .into()),
             }
         },
-        RetryPolicy::fixed(60, Duration::from_secs(3)),
+        GLOBAL_OPERATION_POLL_POLICY,
     )
     .await
 }
@@ -424,7 +428,7 @@ async fn wait_for_service_usage_operation(client: &GcpClient, operation_name: &s
                 .into())
             }
         },
-        RetryPolicy::fixed(30, Duration::from_secs(5)),
+        SERVICE_USAGE_OPERATION_POLL_POLICY,
     )
     .await
 }

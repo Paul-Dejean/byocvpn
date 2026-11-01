@@ -41,6 +41,8 @@ const IMAGE_OFFER: &str = "0001-com-ubuntu-server-jammy";
 const IMAGE_SKU: &str = "22_04-lts-gen2";
 const API_VERSION_COMPUTE: &str = "2024-07-01";
 
+const VM_CREATION_POLL_POLICY: RetryPolicy = RetryPolicy::fixed(60, Duration::from_secs(10));
+
 fn build_spawn_error(location: &str, context: &str, error: impl std::fmt::Display) -> Error {
     let reason = format!("{context}: {error}");
     error!("[Azure] spawn error in {location}: {reason}");
@@ -118,7 +120,7 @@ pub async fn spawn_instance(
     let vm_path = client.build_subscription_path(&format!(
         "/resourceGroups/{resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}"
     ));
-    let vm_url = client.build_arm_url(&vm_path, API_VERSION_COMPUTE);
+    let vm_url = AzureClient::build_arm_url(&vm_path, API_VERSION_COMPUTE);
 
     let admin_password = format!(
         "Byocvpn!{}",
@@ -252,7 +254,7 @@ pub async fn terminate_instance(client: &AzureClient, instance_id: &str) -> Resu
     let vm_path = client.build_subscription_path(&format!(
         "/resourceGroups/{resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}"
     ));
-    let vm_url = client.build_arm_url(&vm_path, API_VERSION_COMPUTE);
+    let vm_url = AzureClient::build_arm_url(&vm_path, API_VERSION_COMPUTE);
 
     let async_op_url = client.delete(&vm_url).await.map_err(|error| {
         ComputeProvisioningError::InstanceTerminationFailed {
@@ -296,7 +298,7 @@ pub async fn list_instances(client: &AzureClient, location: &str) -> Result<Vec<
 pub async fn list_all_instances(client: &AzureClient) -> Result<Vec<InstanceInfo>> {
     debug!("[Azure] Listing all virtual machines across subscription...");
     let path = client.build_subscription_path("/providers/Microsoft.Compute/virtualMachines");
-    let url = client.build_arm_url(&path, API_VERSION_COMPUTE);
+    let url = AzureClient::build_arm_url(&path, API_VERSION_COMPUTE);
 
     let response: VmListResponse = client.get(&url).await?;
 
@@ -376,7 +378,7 @@ async fn resolve_vm_info(
         .and_then(|properties| properties.provisioning_state.as_deref())
         .unwrap_or("Unknown");
 
-    let state: InstanceState = AzureProvisioningState::from(provisioning_state).into();
+    let state: InstanceState = AzureProvisioningState::from_state_name(provisioning_state).into();
 
     let instance_type = virtual_machine
         .properties
@@ -459,7 +461,7 @@ async fn wait_for_vm_creation(
                 }
             }
         },
-        RetryPolicy::fixed(60, Duration::from_secs(10)),
+        VM_CREATION_POLL_POLICY,
     )
     .await
 }

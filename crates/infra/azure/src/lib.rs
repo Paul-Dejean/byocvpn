@@ -1,13 +1,13 @@
-pub mod arm_error;
-pub mod auth;
-pub mod client;
-pub mod constants;
+mod arm_error;
+mod auth;
+mod client;
+mod constants;
 pub mod credentials;
-pub mod instance;
-pub mod models;
-pub mod network;
-pub mod pricing;
-pub mod provider;
-pub mod state;
+mod instance;
+mod models;
+mod network;
+mod pricing;
+mod provider;
+mod state;
 
 pub use provider::{AzureProvider, AzureProviderConfig};

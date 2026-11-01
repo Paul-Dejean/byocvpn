@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use byocvpn_core::jobs::build_unknown_step_error;
 use byocvpn_core::{
     cloud_provider::{
         CloudProvider, CloudProviderName, InstanceInfo, JobStep, PermissionStatus, PricingInfo,
@@ -165,9 +166,9 @@ impl CloudProvider for AzureProvider {
     }
 
     async fn run_spawn_step(&self, step_id: &str, region: &str) -> Result<()> {
-        let Ok(step) = step_id.parse::<AzureSpawnStepId>() else {
-            return Ok(());
-        };
+        let step = step_id
+            .parse::<AzureSpawnStepId>()
+            .map_err(|_| build_unknown_step_error(CloudProviderName::Azure, step_id))?;
         match step {
             AzureSpawnStepId::RegionResourceGroup => {
                 network::ensure_resource_group(&self.client, region).await
@@ -187,7 +188,7 @@ impl CloudProvider for AzureProvider {
         let path = self
             .client
             .build_subscription_path("/providers/Microsoft.Authorization/permissions");
-        let url = self.client.build_arm_url(&path, "2018-07-01");
+        let url = AzureClient::build_arm_url(&path, "2018-07-01");
 
         let response: PermissionsResponse = self.client.get(&url).await?;
 
@@ -214,8 +215,8 @@ impl CloudProvider for AzureProvider {
         vec![]
     }
 
-    async fn run_provision_account_step(&self, _step_id: &str) -> Result<()> {
-        Ok(())
+    async fn run_provision_account_step(&self, step_id: &str) -> Result<()> {
+        Err(build_unknown_step_error(CloudProviderName::Azure, step_id))
     }
 
     fn get_enable_region_steps(&self, _region: &str) -> Vec<JobStep> {

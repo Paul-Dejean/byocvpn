@@ -28,6 +28,8 @@ const INSTANCE_LABEL_KEY: &str = "created-by";
 const INSTANCE_LABEL_VALUE: &str = "byocvpn";
 const INSTANCE_TAG: &str = "byocvpn";
 
+const ZONE_OPERATION_POLL_POLICY: RetryPolicy = RetryPolicy::fixed(60, Duration::from_secs(3));
+
 pub async fn spawn_instance(
     client: &GcpClient,
     subnet_self_link: &str,
@@ -280,7 +282,7 @@ fn parse_instance_info(
 ) -> Option<InstanceInfo> {
     let name = instance.name.clone()?;
     let status: InstanceState =
-        GcpInstanceStatus::from(instance.status.as_deref().unwrap_or("UNKNOWN")).into();
+        GcpInstanceStatus::from_state_name(instance.status.as_deref().unwrap_or_default()).into();
 
     if !matches!(
         status,
@@ -361,7 +363,7 @@ async fn wait_for_zone_operation(
                 .into())
             }
         },
-        RetryPolicy::fixed(60, Duration::from_secs(3)),
+        ZONE_OPERATION_POLL_POLICY,
     )
     .await
 }

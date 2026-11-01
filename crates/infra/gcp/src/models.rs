@@ -73,8 +73,6 @@ pub struct FirewallRuleResponse {
     pub allowed: Option<Vec<FirewallAllowed>>,
     pub source_ranges: Option<Vec<String>>,
     pub target_tags: Option<Vec<String>>,
-    pub direction: Option<String>,
-    pub priority: Option<u32>,
 }
 
 #[derive(Serialize)]
@@ -224,7 +222,6 @@ pub struct InstanceResponse {
     pub machine_type: Option<String>,
     pub creation_timestamp: Option<String>,
     pub network_interfaces: Option<Vec<NetworkInterfaceResponse>>,
-    pub self_link: Option<String>,
     pub labels: Option<HashMap<String, String>>,
 }
 

@@ -1,5 +1,8 @@
 use byocvpn_core::cloud_provider::InstanceState;
+use strum::EnumString;
 
+#[derive(EnumString)]
+#[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum OciLifecycleState {
     Moving,
     Provisioning,
@@ -13,20 +16,9 @@ pub enum OciLifecycleState {
     Unknown,
 }
 
-impl From<&str> for OciLifecycleState {
-    fn from(s: &str) -> Self {
-        match s {
-            "MOVING" => Self::Moving,
-            "PROVISIONING" => Self::Provisioning,
-            "STARTING" => Self::Starting,
-            "RUNNING" => Self::Running,
-            "STOPPING" => Self::Stopping,
-            "STOPPED" => Self::Stopped,
-            "CREATING_IMAGE" => Self::CreatingImage,
-            "TERMINATING" => Self::Terminating,
-            "TERMINATED" => Self::Terminated,
-            _ => Self::Unknown,
-        }
+impl OciLifecycleState {
+    pub(super) fn from_state_name(state_name: &str) -> Self {
+        state_name.parse().unwrap_or(Self::Unknown)
     }
 }
 

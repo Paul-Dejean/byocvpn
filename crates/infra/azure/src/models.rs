@@ -38,11 +38,6 @@ pub struct ResourceGroupRequest {
     pub tags: HashMap<String, String>,
 }
 
-#[derive(Deserialize)]
-pub struct ResourceGroupResponse {
-    pub id: Option<String>,
-}
-
 // ── NSG ───────────────────────────────────────────────────────────────────────
 
 #[derive(Serialize)]

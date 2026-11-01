@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::cloud_provider::CloudProviderName;
+
 #[derive(Debug, Error)]
 pub enum SystemError {
     #[error("mutex poisoned: {0}")]
@@ -16,4 +18,10 @@ pub enum SystemError {
 
     #[error("kill switch operation failed: {reason}")]
     KillSwitchFailed { reason: String },
+
+    #[error("{provider} has no job step with id {step_id}")]
+    UnknownJobStep {
+        provider: CloudProviderName,
+        step_id: String,
+    },
 }

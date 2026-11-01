@@ -9,7 +9,7 @@ use log::{debug, error};
 
 use crate::{
     cloud_provider::{CloudProviderName, JobStep, JobStepStatus},
-    error::{ErrorPayload, Result},
+    error::{Error, ErrorPayload, Result, SystemError},
 };
 
 pub trait JobObserver: Send + Sync {
@@ -50,4 +50,12 @@ pub fn build_job_id(provider: &CloudProviderName, region: Option<&str>) -> Strin
         Some(region) => format!("{provider}-{region}-{timestamp}"),
         None => format!("{provider}-{timestamp}"),
     }
+}
+
+pub fn build_unknown_step_error(provider: CloudProviderName, step_id: &str) -> Error {
+    SystemError::UnknownJobStep {
+        provider,
+        step_id: step_id.to_string(),
+    }
+    .into()
 }

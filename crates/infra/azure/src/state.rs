@@ -1,5 +1,8 @@
 use byocvpn_core::cloud_provider::InstanceState;
+use strum::EnumString;
 
+#[derive(EnumString)]
+#[strum(serialize_all = "PascalCase")]
 pub enum AzureProvisioningState {
     Creating,
     Updating,
@@ -11,18 +14,9 @@ pub enum AzureProvisioningState {
     Unknown,
 }
 
-impl From<&str> for AzureProvisioningState {
-    fn from(s: &str) -> Self {
-        match s {
-            "Creating" => Self::Creating,
-            "Updating" => Self::Updating,
-            "Succeeded" => Self::Succeeded,
-            "Deleting" => Self::Deleting,
-            "Deleted" => Self::Deleted,
-            "Failed" => Self::Failed,
-            "Canceled" => Self::Canceled,
-            _ => Self::Unknown,
-        }
+impl AzureProvisioningState {
+    pub(super) fn from_state_name(state_name: &str) -> Self {
+        state_name.parse().unwrap_or(Self::Unknown)
     }
 }
 
