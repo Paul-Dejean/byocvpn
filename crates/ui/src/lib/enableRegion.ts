@@ -2,6 +2,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { Channel } from "@tauri-apps/api/core";
 import { EnableRegionEvent, commands } from "../bindings";
 import { providerRegionsQueryOptions } from "../queries/providerRegions";
+import { AppErrorException } from "./appError";
 import { CloudProviderName, JobStepStatus, Region } from "../types";
 
 const EnableRegionEventKind = {
@@ -46,7 +47,7 @@ export function enableRegion(
           return;
         case EnableRegionEventKind.Failed:
           onProgress(JobStepStatus.Failed);
-          reject(new Error(event.error));
+          reject(new AppErrorException(event.error));
           return;
       }
     });
@@ -54,7 +55,7 @@ export function enableRegion(
     void commands.enableRegion(region.name, provider, onEvent).then((result) => {
       if (result.status === "error") {
         onProgress(JobStepStatus.Failed);
-        reject(new Error(result.error));
+        reject(new AppErrorException(result.error));
       }
     });
   });

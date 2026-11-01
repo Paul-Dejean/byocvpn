@@ -371,9 +371,7 @@ pub async fn ensure_subnet(client: &GcpClient, region: &str) -> Result<String> {
             })?;
             wait_for_operation_response(client, &operation)
                 .await
-                .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {
-                    reason: format!("Subnet IPV4_IPV6 upgrade operation failed: {error}"),
-                })?;
+                .map_err(|error| error.with_context("Subnet IPV4_IPV6 upgrade operation failed"))?;
             info!("GCP subnet '{SUBNET_NAME}' upgraded to IPV4_IPV6 in {region}.");
         }
         return Ok(self_link);
@@ -490,13 +488,10 @@ pub async fn ensure_cloud_resource_manager_api_enabled(client: &GcpClient) -> Re
 
 pub async fn list_regions(client: &GcpClient) -> Result<Vec<(String, String)>> {
     let url = format!("{}/regions", client.build_compute_base_url());
-    let response: RegionListResponse =
-        client
-            .get(&url)
-            .await
-            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: error.to_string(),
-            })?;
+    let response: RegionListResponse = client
+        .get(&url)
+        .await
+        .map_err(|error| error.with_context("network query failed"))?;
 
     let continent_prefixes: &[(&str, &str)] = &[
         ("us-", "North America"),

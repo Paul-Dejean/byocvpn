@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { commands } from "../bindings";
+import { AppErrorException } from "../lib/appError";
 import { SpawnJob } from "../types";
 
 const RUNNING_JOB_POLL_INTERVAL_MS = 3000;
@@ -15,7 +16,7 @@ export const spawnJobsQueryOptions = queryOptions({
 async function fetchActiveSpawnJobs(): Promise<SpawnJob[]> {
   const result = await commands.listActiveSpawnJobs();
   if (result.status === "error") {
-    throw new Error(result.error);
+    throw new AppErrorException(result.error);
   }
   return result.data;
 }

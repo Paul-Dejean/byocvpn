@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
-import { CloudProviderName, Permissions } from "../../types";
+import { AppError, CloudProviderName, Permissions } from "../../types";
 import { PROVIDER_METADATA } from "../../constants/providers";
 import { Banner } from "../primitives/Banner";
 import { Button } from "../primitives/Button";
@@ -11,7 +11,7 @@ interface PermissionsDrawerProps {
   provider: CloudProviderName | null;
   permissions: Permissions | null;
   isVerifying: boolean;
-  error: string | null;
+  error: AppError | null;
   onClose: () => void;
   onRetry: () => void;
 }
@@ -38,7 +38,9 @@ export function PermissionsDrawer({
 }: PermissionsDrawerProps) {
   const providerLabel = provider ? PROVIDER_METADATA[provider].shortLabel : "";
   const isMissingSimulatePermission =
-    provider === CloudProviderName.Aws && error !== null && error.includes(SIMULATE_POLICY_ACTION);
+    provider === CloudProviderName.Aws &&
+    error !== null &&
+    mentionsAction(error, SIMULATE_POLICY_ACTION);
 
   return (
     <Drawer
@@ -70,6 +72,10 @@ export function PermissionsDrawer({
       )}
     </Drawer>
   );
+}
+
+function mentionsAction(error: AppError, action: string): boolean {
+  return error.message.includes(action) || (error.detail?.includes(action) ?? false);
 }
 
 function MissingSimulatePermission() {

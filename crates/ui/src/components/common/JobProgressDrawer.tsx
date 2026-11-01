@@ -1,9 +1,10 @@
 import { Check, Circle, Sparkles, X } from "lucide-react";
-import { CloudProviderName, JobStepState, JobStepStatus } from "../../types";
+import { AppError, CloudProviderName, JobStepState, JobStepStatus } from "../../types";
 import { PROVIDER_METADATA } from "../../constants/providers";
 import { Drawer } from "../primitives/Drawer";
 import { Button } from "../primitives/Button";
 import { Banner } from "../primitives/Banner";
+import { ErrorBanner } from "./ErrorBanner";
 
 interface JobProgressDrawerProps {
   isOpen: boolean;
@@ -14,7 +15,7 @@ interface JobProgressDrawerProps {
   steps: JobStepState[];
   isComplete: boolean;
   successMessage?: string;
-  error: string | null;
+  error: AppError | null;
 }
 
 export function JobProgressDrawer({
@@ -51,15 +52,7 @@ export function JobProgressDrawer({
           />
         )}
 
-        {error && (
-          <Banner
-            variant="danger"
-            icon={<X size={16} className="text-fg-danger-moderate" />}
-            title="Provisioning failed"
-          >
-            {error}
-          </Banner>
-        )}
+        {error && <ErrorBanner title="Provisioning failed" error={error} />}
       </div>
     </Drawer>
   );

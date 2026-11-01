@@ -1,5 +1,6 @@
 import { QueryClient, queryOptions } from "@tanstack/react-query";
 import { commands } from "../bindings";
+import { AppErrorException } from "../lib/appError";
 import { computeElapsedHours } from "../lib/time";
 import { CloudProviderName } from "../types";
 import { LedgerEntry, LedgerEntryWithCost, PricingInfo } from "../types/ledger";
@@ -25,7 +26,7 @@ async function fetchInstancePricing(
 ): Promise<PricingInfo> {
   const result = await commands.getInstancePricing(provider, instanceType);
   if (result.status === "error") {
-    throw new Error(result.error);
+    throw new AppErrorException(result.error);
   }
   return result.data;
 }
@@ -33,7 +34,7 @@ async function fetchInstancePricing(
 async function fetchEnrichedLedger(queryClient: QueryClient): Promise<LedgerEntryWithCost[]> {
   const ledgerResult = await commands.getLedger();
   if (ledgerResult.status === "error") {
-    throw new Error(ledgerResult.error);
+    throw new AppErrorException(ledgerResult.error);
   }
   const ledgerEntries = ledgerResult.data;
   return enrichLedgerEntriesWithCosts(ledgerEntries, queryClient);

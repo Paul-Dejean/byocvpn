@@ -1,4 +1,5 @@
-import { CloudProviderName, JobStepState } from "../../types";
+import { AppError, CloudProviderName, JobStepState } from "../../types";
+import { summarizeError } from "../../lib/describeError";
 import { Button } from "../primitives/Button";
 import { ServerLocation } from "../servers/ServerLocation";
 import { DeploymentStepList } from "./DeploymentStepList";
@@ -8,7 +9,7 @@ interface DeploymentCardProps {
   region: string;
   steps: JobStepState[];
   hasFailed: boolean;
-  error: string | null;
+  error: AppError | null;
   onDismiss: () => void;
 }
 
@@ -30,7 +31,9 @@ export function DeploymentCard({
 
         <DeploymentStepList steps={steps} compact />
 
-        {hasFailed && error && <p className="text-caption text-fg-danger-moderate">{error}</p>}
+        {hasFailed && error && (
+          <p className="text-caption text-fg-danger-moderate">{summarizeError(error)}</p>
+        )}
       </div>
 
       {hasFailed && (

@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { extractErrorMessage } from "../lib/extractErrorMessage";
+import { toAppError } from "../lib/appError";
+import { summarizeError } from "../lib/describeError";
 import { ledgerQueryOptions } from "../queries/ledger";
 
 export function useLedger() {
@@ -9,7 +10,7 @@ export function useLedger() {
   return {
     entries: data ?? [],
     isLoading,
-    error: error ? extractErrorMessage(error, "Failed to load cost ledger") : null,
+    error: error ? summarizeError(toAppError(error)) : null,
     refetch: () => {
       void refetch();
     },

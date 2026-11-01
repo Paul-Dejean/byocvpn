@@ -2,7 +2,7 @@ use std::{future::Future, sync::Mutex, time::Duration};
 
 use byocvpn_core::{
     cloud_provider::{CloudProviderName, InstanceInfo, JobStep, JobStepStatus},
-    error::Error,
+    error::{Error, ErrorPayload},
     job_registry::SpawnJobState,
     jobs::{
         JobObserver, enable_region::EnableRegionObserver,
@@ -39,7 +39,7 @@ pub struct TerminalJobObserver {
 }
 
 impl JobObserver for TerminalJobObserver {
-    fn on_step_changed(&self, step: &JobStep, status: JobStepStatus, _error: Option<String>) {
+    fn on_step_changed(&self, step: &JobStep, status: JobStepStatus, _error: Option<ErrorPayload>) {
         match status {
             JobStepStatus::Running => self.start_step(&step.label),
             JobStepStatus::Completed => self.finish_step(true),

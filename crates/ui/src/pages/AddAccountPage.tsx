@@ -3,15 +3,17 @@ import { ArrowLeft, Check, Copy, Download, FileText, Upload } from "lucide-react
 import { Button } from "../components/primitives/Button";
 import { CollapsibleSection } from "../components/primitives/CollapsibleSection";
 import { IconButton } from "../components/primitives/IconButton";
-import { Banner } from "../components/primitives/Banner";
+import { ErrorBanner } from "../components/common/ErrorBanner";
 import { FormField } from "../components/primitives/FormField";
 import { commands } from "../bindings";
 import { fromPromise } from "../lib/result";
+import { summarizeError } from "../lib/describeError";
 import { save } from "@tauri-apps/plugin-dialog";
 import { toast } from "react-hot-toast";
 import { useCredentials } from "../hooks/useCredentials";
 import { useAccounts } from "../hooks/useAccounts";
 import {
+  AppError,
   AwsCredentials,
   AzureCredentials,
   buildProviderCredentials,
@@ -343,7 +345,7 @@ export function AddAccountPage({
     provisionAccount,
     resetProvisionState,
   } = useAccounts({
-    onFailed: () => toast.error("Account setup failed"),
+    onFailed: (error) => toast.error(`Account setup failed: ${summarizeError(error)}`),
   });
 
   const { saveCredentials } = useCredentials();
@@ -897,7 +899,7 @@ function PolicyBox({ policy }: PolicyBoxProps) {
     }
     const saveResult = await commands.saveFile(savePath, policy.content);
     if (saveResult.status === "error") {
-      toast.error(saveResult.error);
+      toast.error(summarizeError(saveResult.error));
     }
   };
 
@@ -936,7 +938,7 @@ function PolicyBox({ policy }: PolicyBoxProps) {
 }
 
 interface CredentialsFormShellProps {
-  error: string | null;
+  error: AppError | null;
   isSaving: boolean;
   isFormValid: boolean;
   onSubmit: () => void;
@@ -956,7 +958,7 @@ function CredentialsFormShell({
     <div className="flex flex-col gap-4">
       {children}
 
-      {error && <Banner variant="danger">{error}</Banner>}
+      {error && <ErrorBanner error={error} />}
 
       <div className="flex gap-3 pt-1">
         <Button variant="secondary" size="lg" onClick={onCancel} className="flex-1">

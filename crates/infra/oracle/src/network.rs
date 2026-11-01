@@ -167,12 +167,7 @@ pub async fn add_default_route_to_table(
     client
         .put(&url, &UpdateRouteTableRequest { route_rules })
         .await
-        .map_err(|error| {
-            NetworkProvisioningError::RouteTableOperationFailed {
-                reason: error.to_string(),
-            }
-            .into()
-        })
+        .map_err(|error| error.with_context("route table operation failed"))
 }
 
 async fn get_security_list(
@@ -527,13 +522,10 @@ pub async fn ensure_region_subscribed(
 
 pub async fn list_all_regions(client: &OciClient) -> Result<Vec<(String, String)>> {
     let url = client.build_identity_url("/regions");
-    let regions: Vec<Region> =
-        client
-            .get(&url)
-            .await
-            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: error.to_string(),
-            })?;
+    let regions: Vec<Region> = client
+        .get(&url)
+        .await
+        .map_err(|error| error.with_context("network query failed"))?;
     let region_geography = [
         ("us-", "North America"),
         ("eu-", "Europe"),
@@ -560,13 +552,10 @@ pub async fn list_all_regions(client: &OciClient) -> Result<Vec<(String, String)
 
 pub async fn list_regions(client: &OciClient, tenancy_ocid: &str) -> Result<Vec<(String, String)>> {
     let url = client.build_identity_url(&format!("/tenancies/{tenancy_ocid}/regionSubscriptions"));
-    let subscriptions: Vec<RegionSubscription> =
-        client
-            .get(&url)
-            .await
-            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: error.to_string(),
-            })?;
+    let subscriptions: Vec<RegionSubscription> = client
+        .get(&url)
+        .await
+        .map_err(|error| error.with_context("network query failed"))?;
     let region_geography = [
         ("us-", "North America"),
         ("eu-", "Europe"),

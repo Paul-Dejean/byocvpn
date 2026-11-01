@@ -3,10 +3,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Channel } from "@tauri-apps/api/core";
 import { toast } from "react-hot-toast";
 import { SpawnInstanceEvent, commands } from "../bindings";
-import { CloudProviderName, Instance, InstanceState, SpawnJob } from "../types";
+import { AppError, CloudProviderName, Instance, InstanceState, SpawnJob } from "../types";
 import { Result } from "../lib/result";
 import { getRegionInfo } from "../constants/regionInfo";
 import { getCountryName } from "../lib/countryName";
+import { summarizeError } from "../lib/describeError";
 import { instancesQueryOptions } from "../queries/instances";
 import { spawnJobsQueryOptions } from "../queries/spawnJobs";
 
@@ -88,7 +89,7 @@ export function useInstances() {
 
       case SpawnEventKind.Failed:
         refetchSpawnJobs();
-        toast.error("Server deployment failed");
+        toast.error(`Server deployment failed: ${summarizeError(event.error)}`);
         return;
     }
   }
@@ -113,7 +114,7 @@ export function useInstances() {
 
     const result = await commands.spawnInstance(region, provider, onEvent);
     if (result.status === "error") {
-      toast.error(result.error);
+      toast.error(summarizeError(result.error));
       return null;
     }
     return await startedJob;
@@ -122,7 +123,7 @@ export function useInstances() {
   async function dismissSpawnJob(jobId: string): Promise<void> {
     const result = await commands.dismissSpawnJob(jobId);
     if (result.status === "error") {
-      toast.error(result.error);
+      toast.error(summarizeError(result.error));
       return;
     }
     await queryClient.invalidateQueries({
@@ -134,12 +135,12 @@ export function useInstances() {
     instanceId: string,
     region: string,
     provider: CloudProviderName,
-  ): Promise<Result<string>> {
+  ): Promise<Result<string, AppError>> {
     setTerminatingInstanceId(instanceId);
     const result = await commands.terminateInstance(instanceId, region, provider);
     if (result.status === "error") {
       setTerminatingInstanceId(null);
-      toast.error(result.error);
+      toast.error(summarizeError(result.error));
       return result;
     }
     queryClient.setQueryData(instancesQueryOptions.queryKey, (previous = []) =>

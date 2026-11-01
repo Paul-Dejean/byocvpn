@@ -13,26 +13,26 @@ export const commands = {
 	provider: "GCP",
 } & GcpCredentials | {
 	provider: "AZURE",
-} & AzureCredentials | null, string>(__TAURI_INVOKE("get_credentials", { provider })),
-	saveCredentials: (credentials: ProviderCredentials) => typedError<null, string>(__TAURI_INVOKE("save_credentials", { credentials })),
-	deleteCredentials: (provider: CloudProviderName) => typedError<null, string>(__TAURI_INVOKE("delete_credentials", { provider })),
-	verifyPermissions: (provider: CloudProviderName) => typedError<PermissionStatus[], string>(__TAURI_INVOKE("verify_permissions", { provider })),
-	spawnInstance: (region: string, provider: CloudProviderName, onEvent: Channel<SpawnInstanceEvent>) => typedError<null, string>(__TAURI_INVOKE("spawn_instance", { region, provider, onEvent })),
-	terminateInstance: (instanceId: string, region: string, provider: CloudProviderName) => typedError<string, string>(__TAURI_INVOKE("terminate_instance", { instanceId, region, provider })),
-	listInstances: (region: string | null) => typedError<InstanceInfo[], string>(__TAURI_INVOKE("list_instances", { region })),
-	hasProfile: () => typedError<boolean, string>(__TAURI_INVOKE("has_profile")),
-	provisionAccount: (provider: CloudProviderName, onEvent: Channel<ProvisionAccountEvent>) => typedError<null, string>(__TAURI_INVOKE("provision_account", { provider, onEvent })),
-	enableRegion: (region: string, provider: CloudProviderName, onEvent: Channel<EnableRegionEvent>) => typedError<null, string>(__TAURI_INVOKE("enable_region", { region, provider, onEvent })),
-	getRegions: (provider: CloudProviderName) => typedError<Region[], string>(__TAURI_INVOKE("get_regions", { provider })),
-	connect: (instanceId: string, region: string, provider: CloudProviderName, publicIpV4: string | null, publicIpV6: string | null) => typedError<string, string>(__TAURI_INVOKE("connect", { instanceId, region, provider, publicIpV4, publicIpV6 })),
-	disconnect: () => typedError<string, string>(__TAURI_INVOKE("disconnect")),
-	getVpnStatus: () => typedError<VpnStatus_Serialize, string>(__TAURI_INVOKE("get_vpn_status")),
-	subscribeToVpnStatus: () => typedError<null, string>(__TAURI_INVOKE("subscribe_to_vpn_status")),
-	getInstancePricing: (provider: CloudProviderName, instanceType: string) => typedError<PricingInfo, string>(__TAURI_INVOKE("get_instance_pricing", { provider, instanceType })),
-	getLedger: () => typedError<LedgerEntry[], string>(__TAURI_INVOKE("get_ledger")),
-	saveFile: (path: string, content: string) => typedError<null, string>(__TAURI_INVOKE("save_file", { path, content })),
-	listActiveSpawnJobs: () => typedError<SpawnJobState[], string>(__TAURI_INVOKE("list_active_spawn_jobs")),
-	dismissSpawnJob: (jobId: string) => typedError<null, string>(__TAURI_INVOKE("dismiss_spawn_job", { jobId })),
+} & AzureCredentials | null, ErrorPayload>(__TAURI_INVOKE("get_credentials", { provider })),
+	saveCredentials: (credentials: ProviderCredentials) => typedError<null, ErrorPayload>(__TAURI_INVOKE("save_credentials", { credentials })),
+	deleteCredentials: (provider: CloudProviderName) => typedError<null, ErrorPayload>(__TAURI_INVOKE("delete_credentials", { provider })),
+	verifyPermissions: (provider: CloudProviderName) => typedError<PermissionStatus[], ErrorPayload>(__TAURI_INVOKE("verify_permissions", { provider })),
+	spawnInstance: (region: string, provider: CloudProviderName, onEvent: Channel<SpawnInstanceEvent>) => typedError<null, ErrorPayload>(__TAURI_INVOKE("spawn_instance", { region, provider, onEvent })),
+	terminateInstance: (instanceId: string, region: string, provider: CloudProviderName) => typedError<string, ErrorPayload>(__TAURI_INVOKE("terminate_instance", { instanceId, region, provider })),
+	listInstances: (region: string | null) => typedError<InstanceInfo[], ErrorPayload>(__TAURI_INVOKE("list_instances", { region })),
+	hasProfile: () => typedError<boolean, ErrorPayload>(__TAURI_INVOKE("has_profile")),
+	provisionAccount: (provider: CloudProviderName, onEvent: Channel<ProvisionAccountEvent>) => typedError<null, ErrorPayload>(__TAURI_INVOKE("provision_account", { provider, onEvent })),
+	enableRegion: (region: string, provider: CloudProviderName, onEvent: Channel<EnableRegionEvent>) => typedError<null, ErrorPayload>(__TAURI_INVOKE("enable_region", { region, provider, onEvent })),
+	getRegions: (provider: CloudProviderName) => typedError<Region[], ErrorPayload>(__TAURI_INVOKE("get_regions", { provider })),
+	connect: (instanceId: string, region: string, provider: CloudProviderName, publicIpV4: string | null, publicIpV6: string | null) => typedError<string, ErrorPayload>(__TAURI_INVOKE("connect", { instanceId, region, provider, publicIpV4, publicIpV6 })),
+	disconnect: () => typedError<string, ErrorPayload>(__TAURI_INVOKE("disconnect")),
+	getVpnStatus: () => typedError<VpnStatus_Serialize, ErrorPayload>(__TAURI_INVOKE("get_vpn_status")),
+	subscribeToVpnStatus: () => typedError<null, ErrorPayload>(__TAURI_INVOKE("subscribe_to_vpn_status")),
+	getInstancePricing: (provider: CloudProviderName, instanceType: string) => typedError<PricingInfo, ErrorPayload>(__TAURI_INVOKE("get_instance_pricing", { provider, instanceType })),
+	getLedger: () => typedError<LedgerEntry[], ErrorPayload>(__TAURI_INVOKE("get_ledger")),
+	saveFile: (path: string, content: string) => typedError<null, ErrorPayload>(__TAURI_INVOKE("save_file", { path, content })),
+	listActiveSpawnJobs: () => typedError<SpawnJobState[], ErrorPayload>(__TAURI_INVOKE("list_active_spawn_jobs")),
+	dismissSpawnJob: (jobId: string) => typedError<null, ErrorPayload>(__TAURI_INVOKE("dismiss_spawn_job", { jobId })),
 	getEnabledRegions: (provider: CloudProviderName) => __TAURI_INVOKE<string[]>("get_enabled_regions", { provider }),
 	getNotificationSettings: () => __TAURI_INVOKE<NotificationSettings>("get_notification_settings"),
 	saveNotificationSettings: (settings: NotificationSettings) => __TAURI_INVOKE<void>("save_notification_settings", { settings }),
@@ -81,7 +81,15 @@ export type ConnectedInstance = {
 
 export type DurationUnit = "minutes" | "hours";
 
-export type EnableRegionEvent = { kind: "STARTED"; jobId: string; steps: JobStep[] } | { kind: "PROGRESS"; stepId: string; status: JobStepStatus; error: string | null } | { kind: "COMPLETE"; region: string } | { kind: "FAILED"; error: string };
+export type EnableRegionEvent = { kind: "STARTED"; jobId: string; steps: JobStep[] } | { kind: "PROGRESS"; stepId: string; status: JobStepStatus; error: ErrorPayload | null } | { kind: "COMPLETE"; region: string } | { kind: "FAILED"; error: ErrorPayload };
+
+export type ErrorKind = "authentication" | "authorization" | "quota" | "transient" | "notFound" | "configuration" | "daemon" | "cloud" | "unknown";
+
+export type ErrorPayload = {
+	kind: ErrorKind,
+	message: string,
+	detail: string | null,
+};
 
 export type GcpCredentials = {
 	projectId: string,
@@ -165,14 +173,14 @@ export type ProviderCredentials = {
 	provider: "AZURE",
 } & AzureCredentials;
 
-export type ProvisionAccountEvent = { kind: "STARTED"; jobId: string; steps: JobStep[] } | { kind: "PROGRESS"; stepId: string; status: JobStepStatus; error: string | null } | { kind: "COMPLETE"; provider: CloudProviderName } | { kind: "FAILED"; error: string };
+export type ProvisionAccountEvent = { kind: "STARTED"; jobId: string; steps: JobStep[] } | { kind: "PROGRESS"; stepId: string; status: JobStepStatus; error: ErrorPayload | null } | { kind: "COMPLETE"; provider: CloudProviderName } | { kind: "FAILED"; error: ErrorPayload };
 
 export type Region = {
 	name: string,
 	country: string,
 };
 
-export type SpawnInstanceEvent = { kind: "STARTED"; job: SpawnJobState } | { kind: "PROGRESS"; stepId: string; status: JobStepStatus; error: string | null } | { kind: "INSTANCE_LAUNCHED"; instance: InstanceInfo } | { kind: "COMPLETE"; instance: InstanceInfo } | { kind: "FAILED"; error: string };
+export type SpawnInstanceEvent = { kind: "STARTED"; job: SpawnJobState } | { kind: "PROGRESS"; stepId: string; status: JobStepStatus; error: ErrorPayload | null } | { kind: "INSTANCE_LAUNCHED"; instance: InstanceInfo } | { kind: "COMPLETE"; instance: InstanceInfo } | { kind: "FAILED"; error: ErrorPayload };
 
 export type SpawnJobState = {
 	jobId: string,
@@ -180,7 +188,7 @@ export type SpawnJobState = {
 	provider: CloudProviderName,
 	instanceId: string | null,
 	status: SpawnJobStatus,
-	error: string | null,
+	error: ErrorPayload | null,
 	steps: SpawnJobStep[],
 };
 
@@ -190,7 +198,7 @@ export type SpawnJobStep = {
 	id: string,
 	label: string,
 	status: JobStepStatus,
-	error: string | null,
+	error: ErrorPayload | null,
 };
 
 export type TunnelMetrics = {

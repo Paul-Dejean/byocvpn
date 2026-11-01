@@ -5,7 +5,10 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::cloud_provider::{CloudProviderName, JobStep, JobStepStatus, SpawnJob};
+use crate::{
+    cloud_provider::{CloudProviderName, JobStep, JobStepStatus, SpawnJob},
+    error::ErrorPayload,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -22,7 +25,7 @@ pub struct SpawnJobStep {
     pub id: String,
     pub label: String,
     pub status: JobStepStatus,
-    pub error: Option<String>,
+    pub error: Option<ErrorPayload>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -34,7 +37,7 @@ pub struct SpawnJobState {
     pub provider: CloudProviderName,
     pub instance_id: Option<String>,
     pub status: SpawnJobStatus,
-    pub error: Option<String>,
+    pub error: Option<ErrorPayload>,
     pub steps: Vec<SpawnJobStep>,
 }
 
@@ -73,7 +76,7 @@ impl SpawnJobRegistry {
         job_id: &str,
         step_id: &str,
         status: JobStepStatus,
-        error: Option<String>,
+        error: Option<ErrorPayload>,
     ) {
         if let Some(job) = self.lock_jobs().get_mut(job_id)
             && let Some(step) = job.steps.iter_mut().find(|step| step.id == step_id)
@@ -89,7 +92,7 @@ impl SpawnJobRegistry {
         }
     }
 
-    pub fn mark_failed(&self, job_id: &str, error: String) {
+    pub fn mark_failed(&self, job_id: &str, error: ErrorPayload) {
         if let Some(job) = self.lock_jobs().get_mut(job_id) {
             job.status = SpawnJobStatus::Failed;
             job.error = Some(error);

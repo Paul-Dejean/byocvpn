@@ -5,7 +5,7 @@ import { EmptyServers } from "../components/servers/EmptyServers";
 import { DeployServerModal } from "../components/deploy/DeployServerModal";
 import { UnprotectedPanel } from "../components/vpn/UnprotectedPanel";
 import { ProtectedPanel } from "../components/vpn/ProtectedPanel";
-import { Banner } from "../components/primitives/Banner";
+import { ErrorBanner } from "../components/common/ErrorBanner";
 import { Button } from "../components/primitives/Button";
 import { Spinner } from "../components/primitives/Spinner";
 
@@ -45,7 +45,7 @@ export function ServersPage() {
           </header>
         )}
 
-        {vpnError && <Banner variant="danger">{vpnError}</Banner>}
+        {vpnError && <ErrorBanner error={vpnError} />}
 
         {isLoading && !hasServers ? (
           <div className="flex flex-1 items-center justify-center">

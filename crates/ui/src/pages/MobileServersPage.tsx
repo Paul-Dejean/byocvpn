@@ -4,7 +4,7 @@ import { ServerList } from "../components/servers/ServerList";
 import { EmptyServers } from "../components/servers/EmptyServers";
 import { DeployServerModal } from "../components/deploy/DeployServerModal";
 import { ProtectedStatusCard, UnprotectedStatusCard } from "../components/vpn/MobileStatusCards";
-import { Banner } from "../components/primitives/Banner";
+import { ErrorBanner } from "../components/common/ErrorBanner";
 import { Button } from "../components/primitives/Button";
 import { Spinner } from "../components/primitives/Spinner";
 
@@ -41,7 +41,7 @@ export function MobileServersPage() {
         <UnprotectedStatusCard hasServers={hasServers} />
       )}
 
-      {vpnError && <Banner variant="danger">{vpnError}</Banner>}
+      {vpnError && <ErrorBanner error={vpnError} />}
 
       {isLoading && !hasServers ? (
         <div className="flex justify-center py-10">

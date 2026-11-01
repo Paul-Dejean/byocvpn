@@ -9,11 +9,11 @@ use log::{debug, error};
 
 use crate::{
     cloud_provider::{CloudProviderName, JobStep, JobStepStatus},
-    error::Result,
+    error::{ErrorPayload, Result},
 };
 
 pub trait JobObserver: Send + Sync {
-    fn on_step_changed(&self, step: &JobStep, status: JobStepStatus, error: Option<String>);
+    fn on_step_changed(&self, step: &JobStep, status: JobStepStatus, error: Option<ErrorPayload>);
 }
 
 #[async_trait]
@@ -34,7 +34,7 @@ pub async fn run_job_steps(
 
         if let Err(step_error) = job_steps.run_step(step).await {
             error!("Job step {} failed: {step_error}", step.id);
-            observer.on_step_changed(step, JobStepStatus::Failed, Some(step_error.to_string()));
+            observer.on_step_changed(step, JobStepStatus::Failed, Some(step_error.to_payload()));
             return Err(step_error);
         }
 

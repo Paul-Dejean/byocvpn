@@ -7,7 +7,7 @@ use byocvpn_core::{
         SpawnInstanceParams, TerminateInstanceParams,
     },
     commands::setup::Region,
-    error::{NetworkProvisioningError, Result},
+    error::Result,
 };
 use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
@@ -220,9 +220,7 @@ impl CloudProvider for GcpProvider {
     async fn spawn_instance(&self, params: &SpawnInstanceParams) -> Result<InstanceInfo> {
         let subnet_self_link = network::ensure_subnet(&self.client, params.region)
             .await
-            .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {
-                reason: error.to_string(),
-            })?;
+            .map_err(|error| error.with_context("subnet creation failed"))?;
         debug!(
             "Resolved GCP subnet {} for spawn in {}",
             subnet_self_link, params.region

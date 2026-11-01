@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use azure_identity::ClientSecretCredential;
+use byocvpn_core::cloud_provider::CloudProviderName;
 use byocvpn_core::error::{ComputeProvisioningError, Error, NetworkProvisioningError, Result};
 use byocvpn_core::retry::{RetryPolicy, retry};
 use log::{debug, warn};
@@ -202,22 +203,15 @@ async fn parse_lro_response(method: &str, url: &str, response: Response) -> Resu
 }
 
 fn build_request_error(method: &str, url: &str, status: StatusCode, error_body: &str) -> Error {
-    if status == StatusCode::FORBIDDEN || status == StatusCode::UNAUTHORIZED {
-        return Error::Authorization {
-            operation: format!("Azure {method} {url}: {error_body}"),
-        };
-    }
-    if let Some(arm_error) = parse_arm_error(error_body) {
-        Error::CloudApiRejected {
-            code: arm_error.code,
-            message: format!("Azure {method} {url}: {}", arm_error.message),
-        }
-    } else {
-        NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!("Azure {method} {url} failed with status {status}: {error_body}"),
-        }
-        .into()
-    }
+    let arm_error = parse_arm_error(error_body);
+    Error::cloud_api_rejected(
+        CloudProviderName::Azure,
+        format!("{method} {url}"),
+        status.as_u16(),
+        arm_error.as_ref().map(|arm_error| arm_error.code.clone()),
+        arm_error.map(|arm_error| arm_error.message),
+        error_body,
+    )
 }
 
 pub fn extract_resource_group_from_id(resource_id: &str) -> Option<&str> {

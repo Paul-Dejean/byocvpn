@@ -4,7 +4,8 @@ import { commands } from "../bindings";
 import { configuredProvidersQueryOptions } from "../queries/configuredProviders";
 import { providerRegionsQueryOptions } from "../queries/providerRegions";
 import { toast } from "react-hot-toast";
-import { CloudProviderName } from "../types";
+import { AppError, CloudProviderName } from "../types";
+import { summarizeError } from "../lib/describeError";
 
 import type { ProviderCredentials } from "../types";
 
@@ -16,7 +17,7 @@ type ProviderCredentialsFor<T extends CloudProviderName> = Extract<
 export function useCredentials() {
   const queryClient = useQueryClient();
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AppError | null>(null);
 
   const invalidateConfiguredProviders = () => {
     void queryClient.invalidateQueries({
@@ -38,7 +39,7 @@ export function useCredentials() {
     setIsSaving(false);
     if (result.status === "error") {
       setError(result.error);
-      toast.error(result.error);
+      toast.error(summarizeError(result.error));
       console.error("Failed to save credentials:", result.error);
       return false;
     }
@@ -50,7 +51,7 @@ export function useCredentials() {
   const deleteCredentials = async (provider: CloudProviderName): Promise<boolean> => {
     const result = await commands.deleteCredentials(provider);
     if (result.status === "error") {
-      toast.error(result.error);
+      toast.error(summarizeError(result.error));
       console.error("Failed to delete credentials:", result.error);
       return false;
     }

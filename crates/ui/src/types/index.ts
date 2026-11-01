@@ -1,5 +1,6 @@
 export * from "./calendar";
 export * from "./credentials";
+export * from "./errors";
 export * from "./regions";
 export * from "./providers";
 export * from "./instances";

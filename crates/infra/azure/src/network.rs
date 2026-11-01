@@ -37,13 +37,10 @@ pub async fn list_regions(client: &AzureClient) -> Result<Vec<(String, String)>>
     let path = client.build_subscription_path("/locations");
     let url = client.build_arm_url(&path, API_VERSION_LOCATIONS);
 
-    let response: LocationListResponse =
-        client
-            .get(&url)
-            .await
-            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: error.to_string(),
-            })?;
+    let response: LocationListResponse = client
+        .get(&url)
+        .await
+        .map_err(|error| error.with_context("network query failed"))?;
 
     let regions = response
         .value
@@ -245,9 +242,7 @@ async fn create_resource_group(client: &AzureClient, location: &str) -> Result<(
         &format!("resource group '{resource_group}'"),
     )
     .await
-    .map_err(|error| NetworkProvisioningError::VpcCreationFailed {
-        reason: format!("Failed to create resource group: {error}"),
-    })?;
+    .map_err(|error| error.with_context("Failed to create resource group"))?;
 
     if let Some(operation_url) = async_op_url {
         debug!("[Azure] Waiting for resource group '{resource_group}' to be ready...");
@@ -333,13 +328,10 @@ async fn patch_nsg_rules(client: &AzureClient, location: &str) -> Result<()> {
     ));
     let url = client.build_arm_url(&path, "2023-05-01");
 
-    let current_nsg: NsgResponse =
-        client
-            .get(&url)
-            .await
-            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Failed to fetch NSG for drift check: {error}"),
-            })?;
+    let current_nsg: NsgResponse = client
+        .get(&url)
+        .await
+        .map_err(|error| error.with_context("Failed to fetch NSG for drift check"))?;
 
     let security_rules = current_nsg
         .properties
@@ -474,9 +466,7 @@ async fn create_vnet(client: &AzureClient, location: &str) -> Result<String> {
     info!("[Azure] Creating VNet '{VPC_NAME}' in {location}...");
     let async_op = put_with_provider_retry(client, &url, &body, &format!("VNet '{VPC_NAME}'"))
         .await
-        .map_err(|error| NetworkProvisioningError::VpcCreationFailed {
-            reason: error.to_string(),
-        })?;
+        .map_err(|error| error.with_context("virtual private cloud creation failed"))?;
 
     if let Some(operation_url) = async_op {
         client.wait_for_async_operation(&operation_url).await?;
@@ -554,9 +544,7 @@ async fn create_subnet(client: &AzureClient, location: &str, nsg_id: &str) -> Re
     info!("[Azure] Creating subnet '{SUBNET_NAME}' ({cidr}, {cidr_ipv6}) in {location}...");
     let async_op = put_with_provider_retry(client, &url, &body, &format!("subnet '{SUBNET_NAME}'"))
         .await
-        .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {
-            reason: error.to_string(),
-        })?;
+        .map_err(|error| error.with_context("subnet creation failed"))?;
 
     if let Some(operation_url) = async_op {
         client.wait_for_async_operation(&operation_url).await?;
@@ -597,9 +585,7 @@ async fn patch_subnet_nsg_association(
         &format!("subnet '{SUBNET_NAME}' NSG patch"),
     )
     .await
-    .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {
-        reason: format!("Failed to patch subnet NSG association: {error}"),
-    })?;
+    .map_err(|error| error.with_context("Failed to patch subnet NSG association"))?;
 
     if let Some(operation_url) = async_op_url {
         client.wait_for_async_operation(&operation_url).await?;
