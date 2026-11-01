@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::str::FromStr;
 
 use async_trait::async_trait;
 use byocvpn_core::{
@@ -12,6 +11,7 @@ use byocvpn_core::{
 };
 use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
+use strum::{Display, EnumString};
 
 use crate::{
     auth::parse_credentials_from_service_account_json, client::GcpClient, instance, network,
@@ -81,6 +81,8 @@ impl GcpProvider {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Display, EnumString)]
+#[strum(serialize_all = "snake_case")]
 pub enum GcpSpawnStepId {
     SetupApi,
     SetupVpc,
@@ -89,37 +91,6 @@ pub enum GcpSpawnStepId {
     SetupNetwork,
     Launch,
     WireguardReady,
-}
-
-impl GcpSpawnStepId {
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::SetupApi => "setup_api",
-            Self::SetupVpc => "setup_vpc",
-            Self::SetupFirewall => "setup_firewall",
-            Self::RegionSubnet => "region_subnet",
-            Self::SetupNetwork => "setup_network",
-            Self::Launch => "launch",
-            Self::WireguardReady => "wireguard_ready",
-        }
-    }
-}
-
-impl FromStr for GcpSpawnStepId {
-    type Err = ();
-
-    fn from_str(s: &str) -> std::result::Result<Self, ()> {
-        match s {
-            "setup_api" => Ok(Self::SetupApi),
-            "setup_vpc" => Ok(Self::SetupVpc),
-            "setup_firewall" => Ok(Self::SetupFirewall),
-            "region_subnet" => Ok(Self::RegionSubnet),
-            "setup_network" => Ok(Self::SetupNetwork),
-            "launch" => Ok(Self::Launch),
-            "wireguard_ready" => Ok(Self::WireguardReady),
-            _ => Err(()),
-        }
-    }
 }
 
 #[async_trait]
@@ -131,15 +102,15 @@ impl CloudProvider for GcpProvider {
     fn get_spawn_steps(&self, _region: &str) -> Vec<JobStep> {
         vec![
             JobStep {
-                id: GcpSpawnStepId::SetupNetwork.as_str().into(),
+                id: GcpSpawnStepId::SetupNetwork.to_string(),
                 label: "Verifying network infrastructure".into(),
             },
             JobStep {
-                id: GcpSpawnStepId::Launch.as_str().into(),
+                id: GcpSpawnStepId::Launch.to_string(),
                 label: "Launching Compute Engine instance".into(),
             },
             JobStep {
-                id: GcpSpawnStepId::WireguardReady.as_str().into(),
+                id: GcpSpawnStepId::WireguardReady.to_string(),
                 label: "Waiting for WireGuard to start".into(),
             },
         ]
@@ -217,15 +188,15 @@ impl CloudProvider for GcpProvider {
     fn get_provision_account_steps(&self) -> Vec<JobStep> {
         vec![
             JobStep {
-                id: GcpSpawnStepId::SetupApi.as_str().into(),
+                id: GcpSpawnStepId::SetupApi.to_string(),
                 label: "Enabling Compute Engine API".into(),
             },
             JobStep {
-                id: GcpSpawnStepId::SetupVpc.as_str().into(),
+                id: GcpSpawnStepId::SetupVpc.to_string(),
                 label: "Creating VPC network".into(),
             },
             JobStep {
-                id: GcpSpawnStepId::SetupFirewall.as_str().into(),
+                id: GcpSpawnStepId::SetupFirewall.to_string(),
                 label: "Creating firewall rules".into(),
             },
         ]
@@ -237,7 +208,7 @@ impl CloudProvider for GcpProvider {
 
     fn get_enable_region_steps(&self, _region: &str) -> Vec<JobStep> {
         vec![JobStep {
-            id: GcpSpawnStepId::RegionSubnet.as_str().into(),
+            id: GcpSpawnStepId::RegionSubnet.to_string(),
             label: "Creating regional subnet".into(),
         }]
     }

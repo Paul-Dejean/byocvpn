@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use byocvpn_core::{
     cloud_provider::{CloudProviderName, InstanceInfo, InstanceState, SpawnInstanceParams},
     error::{ComputeProvisioningError, Result},
-    retry::retry,
+    retry::{RetryPolicy, retry},
 };
 use chrono::{DateTime, Utc};
 use tokio::time::Duration;
@@ -361,8 +361,7 @@ async fn wait_for_zone_operation(
                 .into())
             }
         },
-        60,
-        Duration::from_secs(3),
+        RetryPolicy::fixed(60, Duration::from_secs(3)),
     )
     .await
 }

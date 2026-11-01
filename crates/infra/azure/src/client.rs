@@ -2,13 +2,14 @@ use std::sync::Arc;
 
 use azure_identity::ClientSecretCredential;
 use byocvpn_core::error::{ComputeProvisioningError, Error, NetworkProvisioningError, Result};
-use byocvpn_core::retry::retry;
+use byocvpn_core::retry::{RetryPolicy, retry};
 use log::{debug, warn};
 use reqwest::{Client as HttpClient, Response, StatusCode};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::from_str;
 use tokio::time::Duration;
 
+use crate::arm_error::parse_arm_error;
 use crate::auth::get_access_token;
 use crate::models::AsyncOperationResponse;
 
@@ -144,8 +145,7 @@ impl AzureClient {
                     }
                 }
             },
-            120,
-            Duration::from_secs(5),
+            RetryPolicy::fixed(120, Duration::from_secs(5)),
         )
         .await
     }
@@ -177,17 +177,9 @@ async fn parse_json_response<T: DeserializeOwned>(
             }
             .into()
         })
-    } else if status == StatusCode::FORBIDDEN || status == StatusCode::UNAUTHORIZED {
-        let error_body = response.text().await.unwrap_or_default();
-        Err(Error::Authorization {
-            operation: format!("Azure {method} {url}: {error_body}"),
-        })
     } else {
         let error_body = response.text().await.unwrap_or_default();
-        Err(NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!("Azure {method} {url} failed with status {status}: {error_body}"),
-        }
-        .into())
+        Err(build_request_error(method, url, status, &error_body))
     }
 }
 
@@ -203,17 +195,28 @@ async fn parse_lro_response(method: &str, url: &str, response: Response) -> Resu
 
     if status.is_success() {
         Ok(async_op_url)
-    } else if status == StatusCode::FORBIDDEN || status == StatusCode::UNAUTHORIZED {
-        let error_body = response.text().await.unwrap_or_default();
-        Err(Error::Authorization {
-            operation: format!("Azure {method} {url}: {error_body}"),
-        })
     } else {
         let error_body = response.text().await.unwrap_or_default();
-        Err(NetworkProvisioningError::NetworkQueryFailed {
+        Err(build_request_error(method, url, status, &error_body))
+    }
+}
+
+fn build_request_error(method: &str, url: &str, status: StatusCode, error_body: &str) -> Error {
+    if status == StatusCode::FORBIDDEN || status == StatusCode::UNAUTHORIZED {
+        return Error::Authorization {
+            operation: format!("Azure {method} {url}: {error_body}"),
+        };
+    }
+    if let Some(arm_error) = parse_arm_error(error_body) {
+        Error::CloudApiRejected {
+            code: arm_error.code,
+            message: format!("Azure {method} {url}: {}", arm_error.message),
+        }
+    } else {
+        NetworkProvisioningError::NetworkQueryFailed {
             reason: format!("Azure {method} {url} failed with status {status}: {error_body}"),
         }
-        .into())
+        .into()
     }
 }
 

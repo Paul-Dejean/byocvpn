@@ -48,6 +48,9 @@ pub enum Error {
     #[error("transient error during {operation_name}")]
     Transient { operation_name: String },
 
+    #[error("cloud API rejected the request with code {code}: {message}")]
+    CloudApiRejected { code: String, message: String },
+
     #[error("unexpected error during {operation_name}: {detail}")]
     Unknown {
         operation_name: String,

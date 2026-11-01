@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use byocvpn_core::error::{Error, NetworkProvisioningError, Result};
-use byocvpn_core::retry::retry;
+use byocvpn_core::retry::{RetryPolicy, retry};
 use tokio::time::Duration;
 
 use crate::client::GcpClient;
@@ -55,8 +55,7 @@ async fn wait_for_operation(client: &GcpClient, operation_url: &str) -> Result<(
                 .into()),
             }
         },
-        60,
-        Duration::from_secs(3),
+        RetryPolicy::fixed(60, Duration::from_secs(3)),
     )
     .await
 }
@@ -427,8 +426,7 @@ async fn wait_for_service_usage_operation(client: &GcpClient, operation_name: &s
                 .into())
             }
         },
-        30,
-        Duration::from_secs(5),
+        RetryPolicy::fixed(30, Duration::from_secs(5)),
     )
     .await
 }

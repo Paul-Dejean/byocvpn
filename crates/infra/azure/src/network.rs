@@ -1,10 +1,12 @@
-use byocvpn_core::error::{NetworkProvisioningError, Result};
-use byocvpn_core::retry::retry;
+use byocvpn_core::error::{Error, NetworkProvisioningError, Result};
+use byocvpn_core::retry::{RetryPolicy, retry, retry_if};
 use log::{debug, error, info, warn};
 use serde::Serialize;
-use tokio::time::{Duration, sleep};
+use tokio::time::Duration;
 
+use crate::arm_error::{ArmErrorCode, extract_arm_error_code};
 use crate::client::AzureClient;
+use crate::constants::REGION_CONTINENTS;
 use crate::models::{
     AddressSpace, EmptyRequest, IpConfiguration, IpConfigurationProperties, LocationListResponse,
     NicProperties, NicRequest, NicResponse, NsgProperties, NsgRequest, NsgResponse,
@@ -43,65 +45,6 @@ pub async fn list_regions(client: &AzureClient) -> Result<Vec<(String, String)>>
                 reason: error.to_string(),
             })?;
 
-    let continent_prefixes: &[(&str, &str)] = &[
-        ("eastus", "North America"),
-        ("westus", "North America"),
-        ("centralus", "North America"),
-        ("northcentralus", "North America"),
-        ("southcentralus", "North America"),
-        ("westcentralus", "North America"),
-        ("canadacentral", "North America"),
-        ("canadaeast", "North America"),
-        ("brazilsouth", "South America"),
-        ("brazilsoutheast", "South America"),
-        ("northeurope", "Europe"),
-        ("westeurope", "Europe"),
-        ("uksouth", "Europe"),
-        ("ukwest", "Europe"),
-        ("francecentral", "Europe"),
-        ("francesouth", "Europe"),
-        ("germanywestcentral", "Europe"),
-        ("germanynorth", "Europe"),
-        ("norwayeast", "Europe"),
-        ("norwaywest", "Europe"),
-        ("swedencentral", "Europe"),
-        ("switzerlandnorth", "Europe"),
-        ("switzerlandwest", "Europe"),
-        ("polandcentral", "Europe"),
-        ("italynorth", "Europe"),
-        ("spaincentral", "Europe"),
-        ("eastasia", "Asia Pacific"),
-        ("southeastasia", "Asia Pacific"),
-        ("australiaeast", "Asia Pacific"),
-        ("australiasoutheast", "Asia Pacific"),
-        ("australiacentral", "Asia Pacific"),
-        ("japaneast", "Asia Pacific"),
-        ("japanwest", "Asia Pacific"),
-        ("koreacentral", "Asia Pacific"),
-        ("koreasouth", "Asia Pacific"),
-        ("centralindia", "Asia Pacific"),
-        ("southindia", "Asia Pacific"),
-        ("westindia", "Asia Pacific"),
-        ("jioindiacentral", "Asia Pacific"),
-        ("jioindiawest", "Asia Pacific"),
-        ("newzealandnorth", "Asia Pacific"),
-        ("uaenorth", "Middle East"),
-        ("uaecentral", "Middle East"),
-        ("qatarcentral", "Middle East"),
-        ("israelcentral", "Middle East"),
-        ("southafricanorth", "Africa"),
-        ("southafricawest", "Africa"),
-        ("mexicocentral", "North America"),
-        ("chilecentral", "South America"),
-        ("austriaeast", "Europe"),
-        ("belgiumcentral", "Europe"),
-        ("denmarkeast", "Europe"),
-        ("indonesiacentral", "Asia Pacific"),
-        ("malaysiawest", "Asia Pacific"),
-        ("eastus2euap", "North America"),
-        ("westus2euap", "North America"),
-    ];
-
     let regions = response
         .value
         .unwrap_or_default()
@@ -115,7 +58,7 @@ pub async fn list_regions(client: &AzureClient) -> Result<Vec<(String, String)>>
             if category != "Recommended" {
                 return None;
             }
-            let continent = continent_prefixes
+            let continent = REGION_CONTINENTS
                 .iter()
                 .find(|(prefix, _)| name.starts_with(prefix))
                 .map_or_else(
@@ -151,55 +94,61 @@ pub async fn ensure_region_networking(
     Ok(RegionNetworkIds { subnet_id, nsg_id })
 }
 
+const PROVIDER_REGISTRATION_RETRY_POLICY: RetryPolicy =
+    RetryPolicy::exponential(30, Duration::from_secs(5), Duration::from_secs(60));
+
 async fn put_with_provider_retry<B: Serialize>(
     client: &AzureClient,
     url: &str,
     body: &B,
     resource_label: &str,
 ) -> Result<Option<String>> {
-    let max_attempts = 120u32;
-    for attempt in 1..=max_attempts {
-        match client.put(url, body).await {
-            Ok(operation_url) => return Ok(operation_url),
-            Err(error) => {
-                let error_message = error.to_string();
-                if error_message.contains("MissingSubscriptionRegistration") {
-                    warn!("[Azure] {resource_label} — 409 response: {error_message}");
-                    info!(
-                        "[Azure] {} — re-registering and retrying in 15 s (attempt {}/{}, {}s elapsed)...",
-                        resource_label,
-                        attempt,
-                        max_attempts,
-                        attempt * 15
-                    );
-
-                    let register_path =
-                        client.build_subscription_path("/providers/Microsoft.Network/register");
-                    let register_url =
-                        client.build_arm_url(&register_path, API_VERSION_RESOURCE_GROUPS);
-                    match client
-                        .post::<_, ProviderRegistrationResponse>(&register_url, &EmptyRequest {})
-                        .await
-                    {
-                        Ok(_) => debug!("[Azure] Re-registration POST succeeded"),
-                        Err(reg_error) => {
-                            warn!("[Azure] Re-registration POST failed: {reg_error}");
-                        }
-                    }
-                    sleep(Duration::from_secs(15)).await;
-                } else {
-                    return Err(NetworkProvisioningError::NetworkQueryFailed {
-                        reason: format!("{resource_label} PUT failed: {error_message}"),
-                    }
-                    .into());
-                }
+    retry_if(
+        || async move {
+            let outcome = client.put(url, body).await;
+            if let Err(error) = &outcome
+                && is_missing_subscription_registration(error)
+            {
+                warn!(
+                    "[Azure] {resource_label} rejected because Microsoft.Network is not registered on the subscription; re-registering before retrying."
+                );
+                request_network_provider_registration(client).await;
             }
+            outcome
+        },
+        PROVIDER_REGISTRATION_RETRY_POLICY,
+        is_missing_subscription_registration,
+    )
+    .await
+    .map_err(|error| {
+        if is_missing_subscription_registration(&error) {
+            NetworkProvisioningError::CloudOperationTimedOut {
+                operation: resource_label.to_string(),
+            }
+            .into()
+        } else {
+            NetworkProvisioningError::NetworkQueryFailed {
+                reason: format!("{resource_label} PUT failed: {error}"),
+            }
+            .into()
         }
+    })
+}
+
+fn is_missing_subscription_registration(error: &Error) -> bool {
+    extract_arm_error_code(error) == Some(ArmErrorCode::MissingSubscriptionRegistration)
+}
+
+async fn request_network_provider_registration(client: &AzureClient) {
+    let register_path = client.build_subscription_path("/providers/Microsoft.Network/register");
+    let register_url = client.build_arm_url(&register_path, API_VERSION_RESOURCE_GROUPS);
+    match client
+        .post::<_, ProviderRegistrationResponse>(&register_url, &EmptyRequest {})
+        .await
+    {
+        Ok(_) => debug!("[Azure] Microsoft.Network registration requested"),
+        Err(error) => warn!("[Azure] Microsoft.Network registration request failed: {error}"),
     }
-    Err(NetworkProvisioningError::CloudOperationTimedOut {
-        operation: resource_label.to_string(),
-    }
-    .into())
 }
 
 pub async fn ensure_providers_registered(client: &AzureClient) -> Result<()> {
@@ -257,8 +206,7 @@ pub async fn ensure_providers_registered(client: &AzureClient) -> Result<()> {
                     }
                 }
             },
-            60,
-            Duration::from_secs(5),
+            RetryPolicy::fixed(60, Duration::from_secs(5)),
         )
         .await?;
     }

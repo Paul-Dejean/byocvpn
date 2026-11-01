@@ -5,9 +5,10 @@ use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use byocvpn_core::{
     cloud_provider::{CloudProviderName, InstanceInfo, InstanceState, SpawnInstanceParams},
     error::{ComputeProvisioningError, Error as CoreError, Result},
+    retry::{RetryPolicy, retry_if},
 };
 use chrono::{DateTime, Utc};
-use tokio::time::{Duration, sleep};
+use tokio::time::Duration;
 
 use crate::{
     client::OciClient,
@@ -192,50 +193,69 @@ async fn get_instance_details(client: &OciClient, instance_ocid: &str) -> Result
     client.get(&url).await
 }
 
-const MAX_NOT_FOUND_RETRIES: u32 = 6;
+const INSTANCE_RUNNING_POLL_POLICY: RetryPolicy = RetryPolicy::fixed(36, Duration::from_secs(5));
+const MAX_CONSECUTIVE_LOOKUP_FAILURES: u32 = 6;
+
+enum InstanceWaitError {
+    NotRunningYet,
+    LookupFailed(CoreError),
+    Terminal(CoreError),
+}
 
 async fn wait_until_running(client: &OciClient, instance_ocid: &str, _region: &str) -> Result<()> {
-    sleep(Duration::from_secs(5)).await;
-
-    let mut not_found_count: u32 = 0;
-
-    for _ in 0..36 {
-        match get_instance_details(client, instance_ocid).await {
-            Ok(details) => {
-                not_found_count = 0;
-                match details.lifecycle_state.as_str() {
-                    "RUNNING" => {
-                        debug!("Instance {instance_ocid} reached RUNNING state");
-                        return Ok(());
-                    }
-                    "TERMINATED" | "TERMINATING" => {
-                        return Err(ComputeProvisioningError::InstanceWaitFailed {
-                            reason: format!(
-                                "Instance {} entered terminal state '{}'",
-                                instance_ocid, details.lifecycle_state
-                            ),
-                        }
-                        .into());
-                    }
-                    _ => {}
+    let mut consecutive_lookup_failures: u32 = 0;
+    let outcome = retry_if(
+        || async move {
+            let details = get_instance_details(client, instance_ocid)
+                .await
+                .map_err(InstanceWaitError::LookupFailed)?;
+            match details.lifecycle_state.as_str() {
+                "RUNNING" => {
+                    debug!("Instance {instance_ocid} reached RUNNING state");
+                    Ok(())
                 }
+                "TERMINATED" | "TERMINATING" => Err(InstanceWaitError::Terminal(
+                    ComputeProvisioningError::InstanceWaitFailed {
+                        reason: format!(
+                            "Instance {instance_ocid} entered terminal state '{}'",
+                            details.lifecycle_state
+                        ),
+                    }
+                    .into(),
+                )),
+                _ => Err(InstanceWaitError::NotRunningYet),
             }
-            Err(error) => {
-                not_found_count += 1;
-                if not_found_count > MAX_NOT_FOUND_RETRIES {
-                    return Err(error);
-                }
+        },
+        INSTANCE_RUNNING_POLL_POLICY,
+        |error| match error {
+            InstanceWaitError::NotRunningYet => {
+                consecutive_lookup_failures = 0;
+                true
+            }
+            InstanceWaitError::LookupFailed(lookup_error) => {
+                consecutive_lookup_failures += 1;
                 warn!(
-                    "Instance {instance_ocid} not yet visible (attempt {not_found_count}/{MAX_NOT_FOUND_RETRIES}): {error}"
+                    "Instance {instance_ocid} not yet visible (attempt {consecutive_lookup_failures}/{MAX_CONSECUTIVE_LOOKUP_FAILURES}): {lookup_error}"
                 );
+                consecutive_lookup_failures <= MAX_CONSECUTIVE_LOOKUP_FAILURES
             }
+            InstanceWaitError::Terminal(_) => false,
+        },
+    )
+    .await;
+
+    match outcome {
+        Ok(()) => Ok(()),
+        Err(InstanceWaitError::NotRunningYet) => {
+            Err(ComputeProvisioningError::InstanceWaitFailed {
+                reason: format!("Instance {instance_ocid} did not become RUNNING in time"),
+            }
+            .into())
         }
-        sleep(Duration::from_secs(5)).await;
+        Err(InstanceWaitError::LookupFailed(error) | InstanceWaitError::Terminal(error)) => {
+            Err(error)
+        }
     }
-    Err(ComputeProvisioningError::InstanceWaitFailed {
-        reason: format!("Instance {instance_ocid} did not become RUNNING in time"),
-    }
-    .into())
 }
 
 async fn get_public_ips(

@@ -1,6 +1,6 @@
 use byocvpn_core::{
     error::{NetworkProvisioningError, Result},
-    retry::retry,
+    retry::{RetryPolicy, retry},
 };
 use log::info;
 use serde_json::Value;
@@ -520,8 +520,7 @@ pub async fn ensure_region_subscribed(
                 }
             }
         },
-        40,
-        Duration::from_secs(15),
+        RetryPolicy::fixed(40, Duration::from_secs(15)),
     )
     .await
 }

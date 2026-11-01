@@ -2,15 +2,22 @@ use serde::Deserialize;
 use tokio::{
     io::AsyncReadExt,
     net::TcpStream as AsyncTcpStream,
-    time::{Duration as TokioDuration, sleep, timeout},
+    time::{Duration as TokioDuration, timeout},
 };
 
-use crate::error::{Result, SystemError};
+use crate::{
+    error::{Error, Result, SystemError},
+    retry::{RetryPolicy, retry_if},
+};
 use log::debug;
 
 const PROBE_MAX_ATTEMPTS: u32 = 30;
 const PROBE_RETRY_DELAY_SECS: u64 = 10;
 const PROBE_CONNECT_TIMEOUT_SECS: u64 = 3;
+const PROBE_RETRY_POLICY: RetryPolicy = RetryPolicy::fixed(
+    PROBE_MAX_ATTEMPTS,
+    TokioDuration::from_secs(PROBE_RETRY_DELAY_SECS),
+);
 
 #[derive(Deserialize)]
 struct ServerStatus {
@@ -51,26 +58,24 @@ pub async fn probe_status(ip_address: &str) -> ProbeStatus {
 }
 
 pub async fn wait_until_ready(ip_address: &str) -> Result<()> {
-    for attempt in 1..=PROBE_MAX_ATTEMPTS {
-        debug!("[probe] attempt {attempt}/{PROBE_MAX_ATTEMPTS}");
-
-        match probe_status(ip_address).await {
-            ProbeStatus::Ready => {
-                debug!("[probe] instance ready");
-                return Ok(());
+    retry_if(
+        || async move {
+            match probe_status(ip_address).await {
+                ProbeStatus::Ready => {
+                    debug!("[probe] instance ready");
+                    Ok(())
+                }
+                ProbeStatus::Error(reason) => {
+                    Err(SystemError::ReadinessProbeFailed { reason }.into())
+                }
+                ProbeStatus::Installing => {
+                    debug!("[probe] not ready yet, retrying...");
+                    Err(SystemError::ReadinessProbeTimedOut.into())
+                }
             }
-            ProbeStatus::Error(reason) => {
-                return Err(SystemError::ReadinessProbeFailed { reason }.into());
-            }
-            ProbeStatus::Installing => {
-                debug!("[probe] not ready yet, retrying...");
-            }
-        }
-
-        if attempt < PROBE_MAX_ATTEMPTS {
-            sleep(TokioDuration::from_secs(PROBE_RETRY_DELAY_SECS)).await;
-        }
-    }
-
-    Err(SystemError::ReadinessProbeTimedOut.into())
+        },
+        PROBE_RETRY_POLICY,
+        |error| matches!(error, Error::System(SystemError::ReadinessProbeTimedOut)),
+    )
+    .await
 }
