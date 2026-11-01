@@ -233,19 +233,19 @@ function simulateSpawn(
       window.clearInterval(timer);
       return;
     }
-    const step = currentJob.steps[completedStepCount];
-    step.status = "COMPLETED";
-    sendEvent({ kind: "PROGRESS", stepId: step.id, status: "COMPLETED", error: null });
+    const completedStep = currentJob.steps[completedStepCount];
+    if (!completedStep) {
+      window.clearInterval(timer);
+      return;
+    }
+    completedStep.status = "COMPLETED";
+    sendEvent({ kind: "PROGRESS", stepId: completedStep.id, status: "COMPLETED", error: null });
     completedStepCount += 1;
 
-    if (completedStepCount < currentJob.steps.length) {
-      currentJob.steps[completedStepCount].status = "RUNNING";
-      sendEvent({
-        kind: "PROGRESS",
-        stepId: currentJob.steps[completedStepCount].id,
-        status: "RUNNING",
-        error: null,
-      });
+    const nextStep = currentJob.steps[completedStepCount];
+    if (nextStep) {
+      nextStep.status = "RUNNING";
+      sendEvent({ kind: "PROGRESS", stepId: nextStep.id, status: "RUNNING", error: null });
       return;
     }
 

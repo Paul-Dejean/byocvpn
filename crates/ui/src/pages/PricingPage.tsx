@@ -49,8 +49,8 @@ function monthKeyFromEntry(entry: LedgerEntryWithCost): string {
 }
 
 function parseMonthKey(key: string): CalendarMonth {
-  const [year, month] = key.split("-").map(Number);
-  return { year, month };
+  const [yearText, monthText] = key.split("-");
+  return { year: Number(yearText), month: Number(monthText) };
 }
 
 function formatMonthKey(month: CalendarMonth): string {
@@ -85,6 +85,8 @@ export function PricingPage() {
   const calendarMonthIndex = availableMonths.findIndex(
     (month) => month.year === calendarMonth.year && month.month === calendarMonth.month,
   );
+  const previousMonth = availableMonths[calendarMonthIndex + 1];
+  const nextMonth = calendarMonthIndex > 0 ? availableMonths[calendarMonthIndex - 1] : undefined;
 
   const filteredByMonth = entries.filter(
     (entry) => monthKeyFromEntry(entry) === formatMonthKey(calendarMonth),
@@ -136,8 +138,8 @@ export function PricingPage() {
               <IconButton
                 accent="neutral"
                 size="xs"
-                onClick={() => setCalendarMonth(availableMonths[calendarMonthIndex + 1])}
-                disabled={calendarMonthIndex >= availableMonths.length - 1}
+                onClick={() => previousMonth && setCalendarMonth(previousMonth)}
+                disabled={!previousMonth}
                 aria-label="Previous month"
               >
                 <ChevronLeft size={16} />
@@ -148,8 +150,8 @@ export function PricingPage() {
               <IconButton
                 accent="neutral"
                 size="xs"
-                onClick={() => setCalendarMonth(availableMonths[calendarMonthIndex - 1])}
-                disabled={calendarMonthIndex <= 0}
+                onClick={() => nextMonth && setCalendarMonth(nextMonth)}
+                disabled={!nextMonth}
                 aria-label="Next month"
               >
                 <ChevronRight size={16} />

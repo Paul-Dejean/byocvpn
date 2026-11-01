@@ -160,8 +160,8 @@ interface RegionRowProps {
   isSelected: boolean;
   isFavorite: boolean;
   onToggleFavorite: () => void;
-  onSelect?: () => void;
-  onDeploy?: () => void;
+  onSelect?: (() => void) | undefined;
+  onDeploy?: (() => void) | undefined;
 }
 
 function RegionRow({

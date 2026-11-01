@@ -29,8 +29,7 @@ async function fetchProviderRegions(provider: CloudProviderName): Promise<Provid
 function groupRegionsByCountry(regions: Region[]): RegionGroup[] {
   const groups: Record<string, Region[]> = {};
   for (const region of regions) {
-    if (!groups[region.country]) groups[region.country] = [];
-    groups[region.country].push(region);
+    (groups[region.country] ??= []).push(region);
   }
   return Object.entries(groups)
     .map(([continent, continentRegions]) => ({

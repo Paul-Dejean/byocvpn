@@ -13,7 +13,7 @@ interface KeyFileFieldProps {
   onFileLoaded?: (content: string) => void;
   rows?: number;
   placeholder?: string;
-  alreadySetMessage?: string;
+  alreadySetMessage?: string | undefined;
   emptyHint?: string;
 }
 

@@ -7,9 +7,9 @@ interface BannerProps {
   variant?: BannerVariant;
   title?: ReactNode;
   icon?: ReactNode;
-  onDismiss?: () => void;
+  onDismiss?: (() => void) | undefined;
   children?: ReactNode;
-  className?: string;
+  className?: string | undefined;
 }
 
 const VARIANT_CLASSES: Record<BannerVariant, string> = {
