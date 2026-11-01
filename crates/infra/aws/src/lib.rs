@@ -9,7 +9,6 @@ mod permissions;
 pub mod pricing;
 mod provider;
 mod spawn_step;
-mod startup_script;
 mod state;
 pub use credentials::AwsCredentials;
 pub use provider::{AwsProvider, AwsProviderConfig};

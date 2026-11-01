@@ -1,12 +1,11 @@
 #!/bin/bash
-# Azure cloud-init user-data — runs as root on first boot via cloud-init.
-# Output is logged to /var/log/byocvpn-setup.log and the serial console.
+# Runs as root on first boot. Output goes to the serial console and to
+# /var/log/byocvpn-setup.log.
 exec > >(tee /dev/console /var/log/byocvpn-setup.log) 2>&1
 set -xe
 
-# Write initial status and start the TCP status server on port 51820.
-# Python 3 is available before any package installation, so this covers the
-# full script lifetime including package installation failures.
+# Start the status server first so the client can poll progress for the whole
+# script lifetime, including package installation failures.
 echo '{"status":"pending"}' > /tmp/byocvpn-status
 python3 - <<'PYEOF' &
 {{{status_server_script}}}
@@ -20,24 +19,24 @@ open('/tmp/byocvpn-status', 'w').write(json.dumps({'status': 'error', 'reason': 
 " "$1"
 }
 
-# If the script exits for any reason before reaching the end, write status:error
-# with the last few log lines so the client can show a real error reason.
 trap 'grep -qF "ready" /tmp/byocvpn-status || write_error_status "$(tail -5 /var/log/byocvpn-setup.log 2>/dev/null | tr "\n" " ")"' EXIT
 
-apt-get update -y
-apt-get install -y wireguard iptables
+{{{install_packages_command}}}
 
-# Detect the default network interface (eth0 / ens3 / ens4 depending on image).
 DEFAULT_IFACE=$(ip route show default | awk '/default/ {print $5; exit}')
 echo "[byocvpn] Default interface: $DEFAULT_IFACE"
 
-# Set up packet forwarding before WireGuard starts.
+# Some images ship a default-deny host firewall, so open the WireGuard and
+# status ports explicitly before enabling forwarding and NAT.
+iptables  -I INPUT   -p udp --dport 51820 -j ACCEPT
+iptables  -I INPUT   -p tcp --dport 51820 -j ACCEPT
 iptables  -I FORWARD -j ACCEPT
 iptables  -t nat -A POSTROUTING -o "$DEFAULT_IFACE" -j MASQUERADE
+ip6tables -I INPUT   -p udp --dport 51820 -j ACCEPT
+ip6tables -I INPUT   -p tcp --dport 51820 -j ACCEPT
 ip6tables -I FORWARD -j ACCEPT
 ip6tables -t nat -A POSTROUTING -o "$DEFAULT_IFACE" -j MASQUERADE
 
-# Write the WireGuard config with the real interface name substituted.
 sed "s/__DEFAULT_IFACE__/$DEFAULT_IFACE/g" >/etc/wireguard/wg0.conf <<'EOF'
 {{{wg_config}}}
 EOF
@@ -45,13 +44,12 @@ EOF
 echo "[byocvpn] WireGuard config written:"
 cat /etc/wireguard/wg0.conf
 
-# Save the IPv6 default route before enabling forwarding (enabling forwarding
-# may cause the kernel to ignore RAs, which drops the default route).
+# Enabling forwarding can make the kernel drop the RA-learned IPv6 default
+# route, so remember it and set accept_ra=2 before forwarding goes live.
 IPV6_GW=$(ip -6 route show default 2>/dev/null | awk '/default/ {print $3; exit}')
 IPV6_GW_DEV=$(ip -6 route show default 2>/dev/null | awk '/default/ {print $5; exit}')
 echo "[byocvpn] IPv6 default gateway: $IPV6_GW dev $IPV6_GW_DEV"
 
-# Set accept_ra=2 so forwarding and RA acceptance can coexist.
 sysctl -w net.ipv6.conf.all.accept_ra=2
 sysctl -w net.ipv6.conf.default.accept_ra=2
 
@@ -60,7 +58,6 @@ echo "net.ipv6.conf.all.forwarding=1">>/etc/sysctl.conf
 echo "net.ipv6.conf.all.accept_ra=2">>/etc/sysctl.conf
 sysctl -p
 
-# Restore the IPv6 default route if forwarding transition dropped it.
 if [ -n "$IPV6_GW" ] && ! ip -6 route show default 2>/dev/null | grep -q "default"; then
     ip -6 route add default via "$IPV6_GW" dev "$IPV6_GW_DEV" || true
     echo "[byocvpn] Restored IPv6 default route via $IPV6_GW dev $IPV6_GW_DEV"

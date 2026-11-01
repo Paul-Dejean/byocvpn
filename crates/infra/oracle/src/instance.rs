@@ -1,3 +1,4 @@
+use byocvpn_core::server_startup::{PackageManager, generate_server_startup_script};
 use std::collections::HashMap;
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
@@ -14,7 +15,6 @@ use crate::{
         AvailabilityDomain, CreateVnicDetails, InstanceResponse, LaunchInstanceRequest,
         ShapeConfig, SourceDetails, Vnic, VnicAttachment, byocvpn_tags,
     },
-    startup_script::generate_server_startup_script,
     state::OciLifecycleState,
 };
 use log::{debug, info, warn};
@@ -33,8 +33,11 @@ pub async fn spawn_instance(
     region: &str,
     params: &SpawnInstanceParams<'_>,
 ) -> Result<InstanceInfo> {
-    let user_data =
-        generate_server_startup_script(params.server_private_key, params.client_public_key)?;
+    let user_data = generate_server_startup_script(
+        PackageManager::Apt,
+        params.server_private_key,
+        params.client_public_key,
+    )?;
     let encoded_user_data = BASE64.encode(&user_data);
 
     let body = LaunchInstanceRequest {

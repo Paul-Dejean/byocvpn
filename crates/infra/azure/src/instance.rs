@@ -1,3 +1,5 @@
+use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use byocvpn_core::server_startup::{PackageManager, generate_server_startup_script};
 use byocvpn_core::{
     cloud_provider::{CloudProviderName, InstanceInfo, InstanceState, SpawnInstanceParams},
     error::{ComputeProvisioningError, Error, Result},
@@ -21,7 +23,6 @@ use crate::{
         ensure_providers_registered, ensure_public_ip, ensure_region_networking,
         get_public_ip_address,
     },
-    startup_script::generate_server_startup_script,
     state::AzureProvisioningState,
 };
 
@@ -106,9 +107,13 @@ pub async fn spawn_instance(
         }
     };
 
-    let custom_data =
-        generate_server_startup_script(params.server_private_key, params.client_public_key)
-            .map_err(|error| build_spawn_error(location, "Startup script", error))?;
+    let custom_data = generate_server_startup_script(
+        PackageManager::Apt,
+        params.server_private_key,
+        params.client_public_key,
+    )
+    .map(|script| BASE64.encode(script.as_bytes()))
+    .map_err(|error| build_spawn_error(location, "Startup script", error))?;
     let vm_path = client.build_subscription_path(&format!(
         "/resourceGroups/{resource_group}/providers/Microsoft.Compute/virtualMachines/{vm_name}"
     ));

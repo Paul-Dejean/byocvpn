@@ -1,3 +1,4 @@
+use byocvpn_core::server_startup::{PackageManager, generate_server_startup_script};
 use std::collections::HashMap;
 
 use byocvpn_core::{
@@ -17,7 +18,6 @@ use crate::{
         Operation, ZoneInstanceListResponse, ZoneOperationResponse,
     },
     network::build_primary_zone_for_region,
-    startup_script::generate_server_startup_script,
     state::GcpInstanceStatus,
 };
 use log::debug;
@@ -37,8 +37,11 @@ pub async fn spawn_instance(
 ) -> Result<InstanceInfo> {
     let spawn_id = params.spawn_id;
     let zone = build_primary_zone_for_region(region);
-    let startup_script =
-        generate_server_startup_script(params.server_private_key, params.client_public_key)?;
+    let startup_script = generate_server_startup_script(
+        PackageManager::Apt,
+        params.server_private_key,
+        params.client_public_key,
+    )?;
 
     let instance_name = format!(
         "byocvpn-{}",

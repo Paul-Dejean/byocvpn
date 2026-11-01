@@ -5,6 +5,7 @@ use aws_sdk_ec2::{
 };
 use aws_sdk_ssm::Client as SsmClient;
 use base64::{Engine, engine::general_purpose};
+use byocvpn_core::server_startup::{PackageManager, generate_server_startup_script};
 use byocvpn_core::{
     cloud_provider::{CloudProviderName, InstanceInfo, InstanceState},
     error::{ComputeProvisioningError, Result},
@@ -17,7 +18,7 @@ use crate::{
     ami::get_al2023_ami,
     aws_error::extract_error_message,
     constants::{SECURITY_GROUP_NAME, SUBNET_CIDR_BLOCK, SUBNET_NAME, VPC_CIDR_BLOCK, VPC_NAME},
-    network, startup_script,
+    network,
     state::Ec2InstanceState,
 };
 
@@ -41,7 +42,7 @@ pub async fn spawn_instance(
         network::ensure_subnet(ec2_client, &vpc_id, SUBNET_CIDR_BLOCK, SUBNET_NAME).await?;
 
     let user_data =
-        startup_script::generate_server_startup_script(server_private_key, client_public_key)?;
+        generate_server_startup_script(PackageManager::Dnf, server_private_key, client_public_key)?;
 
     debug!("Generated startup script ({} bytes)", user_data.len());
     let encoded_user_data = general_purpose::STANDARD.encode(user_data);
