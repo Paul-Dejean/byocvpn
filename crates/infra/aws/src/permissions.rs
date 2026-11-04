@@ -33,6 +33,7 @@ pub const REQUIRED_ACTIONS: &[&str] = &[
     "ec2:DescribeRouteTables",
     "ec2:DescribeRegions",
     "ssm:GetParameter",
+    "pricing:GetProducts",
 ];
 
 const GET_CALLER_IDENTITY_OPERATION: &str = "sts:GetCallerIdentity";

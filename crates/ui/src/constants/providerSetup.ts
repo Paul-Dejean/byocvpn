@@ -54,6 +54,7 @@ export const PROVIDER_POLICIES: Record<string, ProviderPolicy> = {
               "ec2:DescribeRouteTables",
               "ec2:DescribeRegions",
               "ssm:GetParameter",
+              "pricing:GetProducts",
             ],
             Resource: "*",
           },

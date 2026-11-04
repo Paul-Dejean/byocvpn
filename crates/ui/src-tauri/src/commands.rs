@@ -12,6 +12,7 @@ use byocvpn_core::{
         spawn::run_spawn_job,
     },
     ledger::LedgerEntry,
+    pricing,
     session::{self, ConnectTarget},
     settings::{AutoTerminateSettings, NotificationSettings, UiPreferences, VpnSettings},
     tunnel::VpnStatus,
@@ -308,11 +309,12 @@ pub async fn subscribe_to_vpn_status(app_handle: AppHandle) -> Result<()> {
 #[specta::specta]
 pub async fn get_instance_pricing(
     provider: CloudProviderName,
+    region: String,
     instance_type: String,
     app_handle: AppHandle,
 ) -> Result<PricingInfo> {
     let context = app_handle.state::<AppContext>();
-    instances::get_instance_pricing(&context, provider, &instance_type).await
+    pricing::resolve_instance_pricing(&context, provider, &region, &instance_type).await
 }
 
 #[tauri::command]
@@ -332,7 +334,8 @@ pub async fn save_file(path: String, content: String) -> Result<()> {
 #[tauri::command]
 #[specta::specta]
 pub async fn get_ledger(app_handle: AppHandle) -> Result<Vec<LedgerEntry>> {
-    Ok(app_handle.state::<AppContext>().ledger.all_entries())
+    let context = app_handle.state::<AppContext>();
+    Ok(pricing::list_ledger_entries_with_pricing(&context).await)
 }
 
 #[tauri::command]

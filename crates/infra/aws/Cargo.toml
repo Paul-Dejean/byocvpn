@@ -23,6 +23,7 @@ strum = { workspace = true }
 specta = { workspace = true, optional = true }
 aws-sdk-sts = "1.119.0"
 aws-sdk-iam = "1.128.0"
+aws-sdk-pricing = "1.123.0"
 
 [features]
 specta = ["dep:specta"]

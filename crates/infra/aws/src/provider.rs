@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 use aws_sdk_ec2::Client as Ec2Client;
 use aws_sdk_iam::Client as IamClient;
+use aws_sdk_pricing::Client as PricingClient;
 use aws_sdk_ssm::Client as SsmClient;
 use aws_sdk_sts::Client as StsClient;
 use byocvpn_core::jobs::build_unknown_step_error;
@@ -19,6 +20,7 @@ use log::{info, warn};
 use crate::constants::{
     SECURITY_GROUP_NAME, SUBNET_CIDR_BLOCK, SUBNET_NAME, VPC_CIDR_BLOCK, VPC_NAME,
 };
+use crate::pricing::PRICING_API_REGION;
 use crate::spawn_step::AwsSpawnStepId;
 use crate::{config, instance, network, permissions, pricing};
 
@@ -53,6 +55,12 @@ impl AwsProvider {
     pub async fn create_iam_client(&self) -> IamClient {
         let sdk_config = config::get_sdk_config(&self.config, None).await;
         IamClient::new(&sdk_config)
+    }
+
+    pub async fn create_pricing_client(&self) -> PricingClient {
+        let sdk_config =
+            config::get_sdk_config(&self.config, Some(PRICING_API_REGION.to_string())).await;
+        PricingClient::new(&sdk_config)
     }
 }
 
@@ -216,8 +224,14 @@ impl CloudProvider for AwsProvider {
             .collect());
     }
 
-    fn get_pricing(&self, instance_type: &str) -> Option<PricingInfo> {
-        pricing::get_pricing(instance_type)
+    async fn fetch_pricing(&self, region: &str, instance_type: &str) -> Result<PricingInfo> {
+        let pricing_client = self.create_pricing_client().await;
+        Box::pin(pricing::fetch_pricing(
+            &pricing_client,
+            region,
+            instance_type,
+        ))
+        .await
     }
 
     async fn get_regions(&self) -> Result<Vec<Region>> {

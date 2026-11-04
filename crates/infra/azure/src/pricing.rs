@@ -1,33 +1,153 @@
 use byocvpn_core::cloud_provider::PricingInfo;
+use byocvpn_core::error::{ComputeProvisioningError, Error, NetworkProvisioningError, Result};
+use reqwest::Client as HttpClient;
+use serde::Deserialize;
+use tokio::time::Duration;
 
-const IP_HOURLY_RATE: f64 = 0.005 * 2.0;
+use crate::instance::OS_DISK_SIZE_GB;
 
-const EGRESS_RATE_PER_GB: f64 = 0.087;
+const RETAIL_PRICES_URL: &str = "https://prices.azure.com/api/retail/prices";
+const RETAIL_PRICES_API_VERSION: &str = "2023-01-01-preview";
+const REQUEST_TIMEOUT_SECS: u64 = 15;
 
-const STORAGE_GB: f64 = 30.0;
+const PUBLIC_IP_COUNT_PER_VM: f64 = 2.0;
+const PUBLIC_IP_METER_NAME: &str = "Standard IPv4 Static Public IP";
+const OS_DISK_PRODUCT_NAME: &str = "Premium SSD Managed Disks";
+const OS_DISK_SKU_NAME: &str = "P4 LRS";
+const OS_DISK_METER_NAME: &str = "P4 LRS Disk";
+const EGRESS_PRODUCT_NAME: &str = "Rtn Preference: MGN";
+const EGRESS_METER_NAME: &str = "Standard Data Transfer Out";
+const HOURLY_UNIT_OF_MEASURE: &str = "1 Hour";
 
-const STORAGE_RATE_PER_GB_MONTH: f64 = 0.04;
+pub async fn fetch_pricing(region: &str, vm_size: &str) -> Result<PricingInfo> {
+    let http = HttpClient::builder()
+        .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+        .build()
+        .map_err(|error| NetworkProvisioningError::CloudOperationFailed {
+            reason: format!("failed to build HTTP client: {error}"),
+        })?;
 
-const INSTANCE_PRICES: &[(&str, f64)] = &[
-    ("Standard_B1s", 0.0104),
-    ("Standard_B1ms", 0.0207),
-    ("Standard_B2s", 0.0416),
-    ("Standard_B2ms", 0.0832),
-    ("Standard_D2s_v3", 0.096),
-    ("Standard_D2s_v4", 0.096),
-    ("Standard_D2s_v5", 0.096),
-    ("Standard_F2s_v2", 0.085),
-];
+    let vm_filter = format!(
+        "serviceName eq 'Virtual Machines' and armRegionName eq '{region}' and armSkuName eq '{vm_size}' and priceType eq 'Consumption'"
+    );
+    let public_ip_filter = format!(
+        "serviceName eq 'Virtual Network' and armRegionName eq '{region}' and meterName eq '{PUBLIC_IP_METER_NAME}' and priceType eq 'Consumption'"
+    );
+    let os_disk_filter = format!(
+        "serviceName eq 'Storage' and armRegionName eq '{region}' and productName eq '{OS_DISK_PRODUCT_NAME}' and skuName eq '{OS_DISK_SKU_NAME}' and meterName eq '{OS_DISK_METER_NAME}' and priceType eq 'Consumption'"
+    );
+    let egress_filter = format!(
+        "serviceName eq 'Bandwidth' and armRegionName eq '{region}' and productName eq '{EGRESS_PRODUCT_NAME}' and meterName eq '{EGRESS_METER_NAME}' and priceType eq 'Consumption'"
+    );
+    let (vm_items, public_ip_items, os_disk_items, egress_items) = tokio::try_join!(
+        query_retail_prices(&http, &vm_filter),
+        query_retail_prices(&http, &public_ip_filter),
+        query_retail_prices(&http, &os_disk_filter),
+        query_retail_prices(&http, &egress_filter),
+    )?;
 
-pub fn get_pricing(instance_type: &str) -> Option<PricingInfo> {
-    INSTANCE_PRICES
+    let hourly_rate = select_linux_hourly_rate(&vm_items).ok_or_else(|| {
+        build_unavailable_error(
+            region,
+            vm_size,
+            "no Linux consumption price for this VM size",
+        )
+    })?;
+    let public_ip_hourly_rate = public_ip_items
+        .first()
+        .map(|item| item.retail_price)
+        .ok_or_else(|| build_unavailable_error(region, vm_size, "no public IP price"))?;
+    let os_disk_monthly_rate = os_disk_items
+        .first()
+        .map(|item| item.retail_price)
+        .ok_or_else(|| build_unavailable_error(region, vm_size, "no OS disk price"))?;
+    let egress_rate_per_gb = select_first_paid_tier(&egress_items)
+        .ok_or_else(|| build_unavailable_error(region, vm_size, "no egress price"))?;
+
+    let storage_gb = f64::from(OS_DISK_SIZE_GB);
+    Ok(PricingInfo {
+        hourly_rate,
+        ip_hourly_rate: public_ip_hourly_rate * PUBLIC_IP_COUNT_PER_VM,
+        egress_rate_per_gb,
+        storage_gb,
+        storage_rate_per_gb_month: os_disk_monthly_rate / storage_gb,
+    })
+}
+
+fn select_linux_hourly_rate(items: &[RetailPriceItem]) -> Option<f64> {
+    items
         .iter()
-        .find(|(name, _)| *name == instance_type)
-        .map(|(_, hourly_rate)| PricingInfo {
-            hourly_rate: *hourly_rate,
-            ip_hourly_rate: IP_HOURLY_RATE,
-            egress_rate_per_gb: EGRESS_RATE_PER_GB,
-            storage_gb: STORAGE_GB,
-            storage_rate_per_gb_month: STORAGE_RATE_PER_GB_MONTH,
+        .filter(|item| {
+            !item.product_name.contains("Windows")
+                && !item.sku_name.contains("Spot")
+                && !item.sku_name.contains("Low Priority")
+                && item.unit_of_measure == HOURLY_UNIT_OF_MEASURE
         })
+        .map(|item| item.retail_price)
+        .reduce(f64::min)
+}
+
+fn select_first_paid_tier(items: &[RetailPriceItem]) -> Option<f64> {
+    items
+        .iter()
+        .filter(|item| item.retail_price > 0.0)
+        .min_by(|left, right| left.tier_minimum_units.total_cmp(&right.tier_minimum_units))
+        .map(|item| item.retail_price)
+}
+
+fn build_unavailable_error(region: &str, vm_size: &str, reason: &str) -> Error {
+    ComputeProvisioningError::PricingUnavailable {
+        region: region.to_string(),
+        instance_type: vm_size.to_string(),
+        reason: reason.to_string(),
+    }
+    .into()
+}
+
+async fn query_retail_prices(http: &HttpClient, filter: &str) -> Result<Vec<RetailPriceItem>> {
+    let response = http
+        .get(RETAIL_PRICES_URL)
+        .query(&[
+            ("api-version", RETAIL_PRICES_API_VERSION),
+            ("$filter", filter),
+        ])
+        .send()
+        .await
+        .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+            reason: format!("Azure retail prices request failed: {error}"),
+        })?;
+
+    let status = response.status();
+    if !status.is_success() {
+        return Err(NetworkProvisioningError::NetworkQueryFailed {
+            reason: format!("Azure retail prices returned HTTP {status}"),
+        }
+        .into());
+    }
+
+    let page: RetailPricesPage =
+        response
+            .json()
+            .await
+            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+                reason: format!("Azure retail prices response is not valid JSON: {error}"),
+            })?;
+    Ok(page.items)
+}
+
+#[derive(Deserialize)]
+struct RetailPricesPage {
+    #[serde(rename = "Items", default)]
+    items: Vec<RetailPriceItem>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RetailPriceItem {
+    retail_price: f64,
+    product_name: String,
+    sku_name: String,
+    unit_of_measure: String,
+    #[serde(default)]
+    tier_minimum_units: f64,
 }

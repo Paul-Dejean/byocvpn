@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    cloud_provider::{CloudProviderName, InstanceInfo},
+    cloud_provider::{CloudProviderName, InstanceInfo, PricingInfo},
     error::Result,
     json_store::JsonFileStore,
 };
@@ -27,10 +27,15 @@ pub struct LedgerEntry {
     pub bytes_sent: u64,
     #[cfg_attr(feature = "specta", specta(type = u32))]
     pub bytes_received: u64,
+    #[serde(default)]
+    pub pricing: Option<PricingInfo>,
 }
 
 impl LedgerEntry {
-    pub fn build_for_launched_instance(instance: &InstanceInfo) -> Self {
+    pub fn build_for_launched_instance(
+        instance: &InstanceInfo,
+        pricing: Option<PricingInfo>,
+    ) -> Self {
         Self {
             instance_id: instance.id.clone(),
             provider: instance.provider.clone(),
@@ -42,6 +47,7 @@ impl LedgerEntry {
             setup_complete: false,
             bytes_sent: 0,
             bytes_received: 0,
+            pricing,
         }
     }
 
@@ -103,6 +109,10 @@ impl Ledger {
 
     pub fn mark_terminated(&self, instance_id: &str) {
         self.modify_entry(instance_id, LedgerEntry::mark_terminated);
+    }
+
+    pub fn set_pricing(&self, instance_id: &str, pricing: PricingInfo) {
+        self.modify_entry(instance_id, |entry| entry.pricing = Some(pricing));
     }
 
     pub fn mark_setup_complete(&self, instance_id: &str) {

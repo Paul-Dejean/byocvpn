@@ -18,6 +18,7 @@ use crate::{
     job_registry::{SpawnJobRegistry, SpawnJobState},
     jobs::{JobObserver, JobSteps, build_job_id, run_job_steps},
     ledger::LedgerEntry,
+    pricing::resolve_instance_pricing,
 };
 
 const LAUNCH_STEP_ID: &str = "launch";
@@ -111,9 +112,23 @@ impl JobSteps for SpawnSteps<'_> {
                 self.context
                     .spawn_jobs
                     .set_instance_id(&self.job.job_id, instance.id.clone());
+                let pricing = match resolve_instance_pricing(
+                    self.context,
+                    instance.provider.clone(),
+                    &instance.region,
+                    &instance.instance_type,
+                )
+                .await
+                {
+                    Ok(pricing) => Some(pricing),
+                    Err(error) => {
+                        warn!("Could not record pricing for {}: {error}", instance.id);
+                        None
+                    }
+                };
                 self.context
                     .ledger
-                    .insert_entry(LedgerEntry::build_for_launched_instance(&instance));
+                    .insert_entry(LedgerEntry::build_for_launched_instance(&instance, pricing));
                 self.launched_instance = Some(instance);
                 Ok(())
             }

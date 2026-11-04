@@ -21,8 +21,8 @@ use crate::{
 use log::{debug, info, warn};
 
 const INSTANCE_SHAPE: &str = "VM.Standard.A1.Flex";
-const INSTANCE_OCPUS: f32 = 1.0;
-const INSTANCE_MEMORY_GB: f32 = 6.0;
+pub const INSTANCE_OCPUS: f32 = 1.0;
+pub const INSTANCE_MEMORY_GB: f32 = 6.0;
 const INSTANCE_DISPLAY_NAME: &str = "byocvpn-server";
 
 pub async fn spawn_instance(

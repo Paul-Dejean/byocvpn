@@ -137,8 +137,8 @@ impl CloudProvider for AzureProvider {
         }
     }
 
-    fn get_pricing(&self, instance_type: &str) -> Option<PricingInfo> {
-        pricing::get_pricing(instance_type)
+    async fn fetch_pricing(&self, region: &str, instance_type: &str) -> Result<PricingInfo> {
+        pricing::fetch_pricing(region, instance_type).await
     }
 
     async fn get_regions(&self) -> Result<Vec<Region>> {

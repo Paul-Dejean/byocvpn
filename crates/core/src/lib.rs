@@ -14,6 +14,7 @@ pub mod jobs;
 pub mod json_store;
 pub mod ledger;
 pub mod metrics_stream;
+pub mod pricing;
 pub mod provider_factory;
 pub mod provider_flags;
 pub mod retry;

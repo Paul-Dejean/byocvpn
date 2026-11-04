@@ -1,11 +1,10 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { toAppError } from "../lib/appError";
 import { summarizeError } from "../lib/describeError";
 import { ledgerQueryOptions } from "../queries/ledger";
 
 export function useLedger() {
-  const queryClient = useQueryClient();
-  const { data, isLoading, error, refetch } = useQuery(ledgerQueryOptions(queryClient));
+  const { data, isLoading, error, refetch } = useQuery(ledgerQueryOptions);
 
   return {
     entries: data ?? [],

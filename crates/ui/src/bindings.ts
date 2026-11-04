@@ -28,7 +28,7 @@ export const commands = {
 	disconnect: () => typedError<string, ErrorPayload>(__TAURI_INVOKE("disconnect")),
 	getVpnStatus: () => typedError<VpnStatus_Serialize, ErrorPayload>(__TAURI_INVOKE("get_vpn_status")),
 	subscribeToVpnStatus: () => typedError<null, ErrorPayload>(__TAURI_INVOKE("subscribe_to_vpn_status")),
-	getInstancePricing: (provider: CloudProviderName, instanceType: string) => typedError<PricingInfo, ErrorPayload>(__TAURI_INVOKE("get_instance_pricing", { provider, instanceType })),
+	getInstancePricing: (provider: CloudProviderName, region: string, instanceType: string) => typedError<PricingInfo, ErrorPayload>(__TAURI_INVOKE("get_instance_pricing", { provider, region, instanceType })),
 	getLedger: () => typedError<LedgerEntry[], ErrorPayload>(__TAURI_INVOKE("get_ledger")),
 	saveFile: (path: string, content: string) => typedError<null, ErrorPayload>(__TAURI_INVOKE("save_file", { path, content })),
 	listActiveSpawnJobs: () => typedError<SpawnJobState[], ErrorPayload>(__TAURI_INVOKE("list_active_spawn_jobs")),
@@ -134,6 +134,7 @@ export type LedgerEntry = {
 	setupComplete?: boolean,
 	bytesSent: number,
 	bytesReceived: number,
+	pricing?: PricingInfo | null,
 };
 
 export type NotificationSettings = {

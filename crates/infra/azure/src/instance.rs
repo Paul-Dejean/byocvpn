@@ -41,7 +41,7 @@ const VM_SIZES: &[&str] = &[
 const IMAGE_PUBLISHER: &str = "Canonical";
 const IMAGE_OFFER: &str = "0001-com-ubuntu-server-jammy";
 const IMAGE_SKU: &str = "22_04-lts-gen2";
-const OS_DISK_SIZE_GB: u32 = 30;
+pub const OS_DISK_SIZE_GB: u32 = 30;
 const ADMIN_USERNAME: &str = "azureuser";
 const SPAWN_ID_TAG: &str = "byocvpn-spawn-id";
 
@@ -96,6 +96,7 @@ async fn provision_virtual_machine(
 
     let public_ip_v4 = read_public_ip_or_warn(client, location, vm_name, IpVersion::V4).await;
     let public_ip_v6 = read_public_ip_or_warn(client, location, vm_name, IpVersion::V6).await;
+    let launched_at = read_creation_time_or_now(client, &vm_url).await;
 
     Ok(InstanceInfo {
         id: format!("{resource_group}/{vm_name}"),
@@ -106,7 +107,7 @@ async fn provision_virtual_machine(
         public_ip_v6,
         provider: CloudProviderName::Azure,
         instance_type: vm_size.to_string(),
-        launched_at: Some(Utc::now()),
+        launched_at: Some(launched_at),
         error_reason: None,
         spawn_id: Some(params.spawn_id.to_string()),
     })
@@ -285,6 +286,25 @@ async fn read_public_ip_or_warn(
     }
 }
 
+async fn read_creation_time_or_now(client: &AzureClient, vm_url: &str) -> DateTime<Utc> {
+    match client.get::<VmResponse>(vm_url).await {
+        Ok(virtual_machine) => parse_creation_time(&virtual_machine).unwrap_or_else(Utc::now),
+        Err(error) => {
+            warn!("[Azure] Could not read VM creation time, using current time: {error}");
+            Utc::now()
+        }
+    }
+}
+
+fn parse_creation_time(virtual_machine: &VmResponse) -> Option<DateTime<Utc>> {
+    virtual_machine
+        .properties
+        .as_ref()
+        .and_then(|properties| properties.time_created.as_deref())
+        .and_then(|timestamp| DateTime::parse_from_rfc3339(timestamp).ok())
+        .map(|datetime| datetime.with_timezone(&Utc))
+}
+
 fn build_vm_name() -> String {
     format!(
         "byocvpn-{}",
@@ -415,6 +435,7 @@ struct ManagedVm {
 
 impl ManagedVm {
     fn from_response(virtual_machine: VmResponse) -> Option<Self> {
+        let launched_at = parse_creation_time(&virtual_machine);
         let name = virtual_machine.name?;
         let location = virtual_machine.location?;
         let resource_group = extract_resource_group_from_id(virtual_machine.id.as_deref()?)
@@ -434,11 +455,6 @@ impl ManagedVm {
             .and_then(|properties| properties.hardware_profile.as_ref())
             .and_then(|hardware_profile| hardware_profile.vm_size.clone())
             .unwrap_or_default();
-        let launched_at = properties
-            .as_ref()
-            .and_then(|properties| properties.time_created.as_deref())
-            .and_then(|timestamp| DateTime::parse_from_rfc3339(timestamp).ok())
-            .map(|datetime| datetime.with_timezone(&Utc));
         let spawn_id = virtual_machine
             .tags
             .as_ref()

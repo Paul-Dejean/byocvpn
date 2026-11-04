@@ -8,9 +8,7 @@ use tokio::{fs, task::JoinSet};
 
 use crate::{
     app_context::AppContext,
-    cloud_provider::{
-        CloudProviderName, InstanceInfo, InstanceState, PricingInfo, TerminateInstanceParams,
-    },
+    cloud_provider::{CloudProviderName, InstanceInfo, InstanceState, TerminateInstanceParams},
     config::get_wireguard_config_file_path,
     connectivity::{self, ProbeStatus},
     error::{ConfigurationError, Error, Result},
@@ -127,20 +125,6 @@ pub async fn terminate_instance(
     context.ledger.mark_terminated(instance_id);
     info!("Terminated instance: {instance_id}");
     Ok(())
-}
-
-pub async fn get_instance_pricing(
-    context: &AppContext,
-    provider_name: CloudProviderName,
-    instance_type: &str,
-) -> Result<PricingInfo> {
-    let provider = context.providers.create(provider_name.clone()).await?;
-    provider.get_pricing(instance_type).ok_or_else(|| {
-        ConfigurationError::MissingField {
-            field: format!("pricing/{provider_name}/{instance_type}"),
-        }
-        .into()
-    })
 }
 
 async fn list_provider_instances(

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    error::Result, job_registry::SpawnJobRegistry, ledger::Ledger,
+    error::Result, job_registry::SpawnJobRegistry, ledger::Ledger, pricing::PricingCache,
     provider_factory::ProviderFactory, provider_flags::ProviderFlags,
     server_monitor::UptimeNoticeTracker, settings::Settings,
 };
@@ -10,6 +10,7 @@ pub struct AppContext {
     pub ledger: Ledger,
     pub settings: Settings,
     pub provider_flags: ProviderFlags,
+    pub pricing_cache: PricingCache,
     pub spawn_jobs: SpawnJobRegistry,
     pub uptime_notices: UptimeNoticeTracker,
     pub providers: Arc<dyn ProviderFactory>,
@@ -21,6 +22,7 @@ impl AppContext {
             ledger: Ledger::open()?,
             settings: Settings::open()?,
             provider_flags: ProviderFlags::open()?,
+            pricing_cache: PricingCache::open()?,
             spawn_jobs: SpawnJobRegistry::default(),
             uptime_notices: UptimeNoticeTracker::default(),
             providers,

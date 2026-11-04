@@ -24,7 +24,7 @@ pub trait CloudProvider: Send + Sync {
     async fn terminate_instance(&self, params: &TerminateInstanceParams) -> Result<()>;
     async fn list_instances(&self, region: Option<&str>) -> Result<Vec<InstanceInfo>>;
     async fn get_regions(&self) -> Result<Vec<Region>>;
-    fn get_pricing(&self, instance_type: &str) -> Option<PricingInfo>;
+    async fn fetch_pricing(&self, region: &str, instance_type: &str) -> Result<PricingInfo>;
     fn get_provider_name(&self) -> CloudProviderName;
 
     fn get_spawn_steps(&self, region: &str) -> Vec<JobStep>;

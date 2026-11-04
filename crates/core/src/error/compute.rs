@@ -31,4 +31,11 @@ pub enum ComputeProvisioningError {
 
     #[error("AMI {name} lookup failed: {reason}")]
     AmiLookupFailed { name: String, reason: String },
+
+    #[error("pricing unavailable for {instance_type} in {region}: {reason}")]
+    PricingUnavailable {
+        region: String,
+        instance_type: String,
+        reason: String,
+    },
 }

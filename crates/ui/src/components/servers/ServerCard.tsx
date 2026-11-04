@@ -28,7 +28,12 @@ export function ServerCard({
 }: ServerCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const uptimeSeconds = useInstanceUptime(instance.launchedAt);
-  const estimatedCost = useInstanceCost(instance.provider, instance.instanceType, uptimeSeconds);
+  const estimatedCost = useInstanceCost(
+    instance.provider,
+    instance.region,
+    instance.instanceType,
+    uptimeSeconds,
+  );
 
   const isInstalling = instance.state === InstanceState.Installing;
   const hasError = instance.state === InstanceState.Error;

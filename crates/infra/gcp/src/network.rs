@@ -407,6 +407,7 @@ pub async fn get_ubuntu_image_self_link(client: &GcpClient) -> Result<String> {
 const SERVICE_USAGE_BASE: &str = "https://serviceusage.googleapis.com/v1";
 const COMPUTE_API_SERVICE: &str = "compute.googleapis.com";
 const CLOUD_RESOURCE_MANAGER_API_SERVICE: &str = "cloudresourcemanager.googleapis.com";
+const CLOUD_BILLING_API_SERVICE: &str = "cloudbilling.googleapis.com";
 
 async fn wait_for_service_usage_operation(client: &GcpClient, operation_name: &str) -> Result<()> {
     let url = format!("{SERVICE_USAGE_BASE}/{operation_name}");
@@ -492,6 +493,10 @@ pub async fn ensure_compute_api_enabled(client: &GcpClient) -> Result<()> {
 
 pub async fn ensure_cloud_resource_manager_api_enabled(client: &GcpClient) -> Result<()> {
     ensure_api_enabled(client, CLOUD_RESOURCE_MANAGER_API_SERVICE).await
+}
+
+pub async fn ensure_cloud_billing_api_enabled(client: &GcpClient) -> Result<()> {
+    ensure_api_enabled(client, CLOUD_BILLING_API_SERVICE).await
 }
 
 pub async fn list_regions(client: &GcpClient) -> Result<Vec<(String, String)>> {
