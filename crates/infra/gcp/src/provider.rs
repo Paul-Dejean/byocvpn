@@ -22,10 +22,10 @@ pub struct GcpProvider {
 }
 
 impl GcpProvider {
-    pub fn new(credentials: GcpCredentials) -> Result<Self> {
+    pub async fn connect(credentials: GcpCredentials) -> Result<Self> {
         let (service_account_credentials, project_id) =
             parse_credentials_from_service_account_json(&credentials.service_account_json)?;
-        let client = GcpClient::new(service_account_credentials, project_id);
+        let client = GcpClient::connect(service_account_credentials, project_id).await?;
         Ok(Self { client })
     }
 }

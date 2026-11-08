@@ -41,7 +41,7 @@ impl ProviderFactory for StoredCredentialsProviderFactory {
                 Box::new(AzureProvider::new(AzureCredentials::from_store(&store)?)?)
             }
             CloudProviderName::Gcp => {
-                Box::new(GcpProvider::new(GcpCredentials::from_store(&store)?)?)
+                Box::new(GcpProvider::connect(GcpCredentials::from_store(&store)?).await?)
             }
             CloudProviderName::Oracle => {
                 Box::new(OracleProvider::new(OracleCredentials::from_store(&store)?))

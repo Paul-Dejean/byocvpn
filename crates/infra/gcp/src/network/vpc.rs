@@ -1,11 +1,8 @@
 use byocvpn_core::error::{NetworkProvisioningError, Result};
+use google_cloud_compute_v1::model::Network;
 use log::info;
 
-use crate::{
-    client::GcpClient,
-    models::{CreateVpcRequest, Operation, VpcResponse},
-    operations::wait_for_compute_operation,
-};
+use crate::{client::GcpClient, error::convert_sdk_error, operations::await_compute_operation};
 
 pub const VPC_NAME: &str = "byocvpn-vpc";
 const VPC_DESCRIPTION: &str = "byocvpn WireGuard VPN network";
@@ -22,8 +19,15 @@ pub fn build_vpc_link(client: &GcpClient) -> String {
 }
 
 async fn get_vpc(client: &GcpClient) -> Result<Option<String>> {
-    let url = client.build_compute_url(&format!("global/networks/{VPC_NAME}"));
-    match client.get::<VpcResponse>(&url).await {
+    let lookup = client
+        .networks
+        .get()
+        .set_project(&client.project_id)
+        .set_network(VPC_NAME)
+        .send()
+        .await
+        .map_err(|error| convert_sdk_error("getting VPC", error));
+    match lookup {
         Ok(vpc) => Ok(Some(extract_self_link(vpc)?)),
         Err(error) if error.is_not_found() => Ok(None),
         Err(error) => Err(error),
@@ -31,27 +35,35 @@ async fn get_vpc(client: &GcpClient) -> Result<Option<String>> {
 }
 
 async fn create_vpc(client: &GcpClient) -> Result<String> {
-    let body = CreateVpcRequest {
-        name: VPC_NAME.to_string(),
-        auto_create_subnetworks: false,
-        description: VPC_DESCRIPTION.to_string(),
-    };
-    let operation: Operation = client
-        .post(&client.build_compute_url("global/networks"), &body)
+    let network = Network::new()
+        .set_name(VPC_NAME)
+        .set_auto_create_subnetworks(false)
+        .set_description(VPC_DESCRIPTION);
+    let insert = client
+        .networks
+        .insert()
+        .set_project(&client.project_id)
+        .set_body(network)
+        .poller();
+    await_compute_operation("creating VPC", insert)
         .await
         .map_err(|error| NetworkProvisioningError::VpcCreationFailed {
             reason: error.to_string(),
         })?;
-    wait_for_compute_operation(client, &operation).await?;
 
-    let vpc: VpcResponse = client
-        .get(&client.build_compute_url(&format!("global/networks/{VPC_NAME}")))
-        .await?;
+    let vpc = client
+        .networks
+        .get()
+        .set_project(&client.project_id)
+        .set_network(VPC_NAME)
+        .send()
+        .await
+        .map_err(|error| convert_sdk_error("getting VPC", error))?;
     info!("[GCP] VPC '{VPC_NAME}' created.");
     extract_self_link(vpc)
 }
 
-fn extract_self_link(vpc: VpcResponse) -> Result<String> {
+fn extract_self_link(vpc: Network) -> Result<String> {
     vpc.self_link.ok_or_else(|| {
         NetworkProvisioningError::MissingResourceField {
             field: "selfLink",

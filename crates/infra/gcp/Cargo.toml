@@ -14,9 +14,17 @@ log = { workspace = true }
 futures = { workspace = true }
 reqwest = { workspace = true }
 uuid = { workspace = true }
-# Official Google Cloud auth library — handles JWT/RSA/OAuth2 for service accounts
 google-cloud-auth = "1.17.0"
-# HTTP types used by google-cloud-auth's CredentialsProvider trait
+google-cloud-compute-v1 = { version = "4.1.0", default-features = false, features = [
+    "instances",
+    "networks",
+    "subnetworks",
+    "firewalls",
+    "regions",
+    "images",
+] }
+google-cloud-gax = "1.15.0"
+google-cloud-lro = "1.11.0"
 http = "1.5.0"
 chrono = { workspace = true }
 strum = { workspace = true }

@@ -1,8 +1,8 @@
 use byocvpn_core::{cloud_provider::Region, error::Result};
+use google_cloud_compute_v1::model::region::Status as RegionStatus;
 
-use crate::{client::GcpClient, models::RegionListResponse};
+use crate::{client::GcpClient, error::convert_sdk_error};
 
-const AVAILABLE_REGION_STATUS: &str = "UP";
 const UNKNOWN_CONTINENT: &str = "Other";
 
 const REGION_CONTINENTS: &[(&str, &str)] = &[
@@ -17,19 +17,20 @@ const REGION_CONTINENTS: &[(&str, &str)] = &[
 ];
 
 pub async fn list_regions(client: &GcpClient) -> Result<Vec<Region>> {
-    let url = client.build_compute_url("regions");
-    let response: RegionListResponse = client
-        .get(&url)
+    let response = client
+        .regions
+        .list()
+        .set_project(&client.project_id)
+        .send()
         .await
-        .map_err(|error| error.with_context("listing regions"))?;
+        .map_err(|error| convert_sdk_error("listing regions", error))?;
 
     Ok(response
         .items
-        .unwrap_or_default()
         .into_iter()
         .filter_map(|region| {
             let name = region.name?;
-            (region.status.as_deref() == Some(AVAILABLE_REGION_STATUS)).then(|| Region {
+            (region.status == Some(RegionStatus::Up)).then(|| Region {
                 country: select_continent(&name),
                 name,
             })

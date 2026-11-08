@@ -3,13 +3,13 @@ use byocvpn_core::{
     retry::RetryPolicy,
 };
 use log::info;
+use serde::{Deserialize, Serialize};
 use tokio::time::Duration;
 
 use crate::{
     client::GcpClient,
-    models::{EmptyRequest, Operation, ServiceResponse},
     network::{ensure_firewall_rules, ensure_vpc},
-    operations::wait_for_operation,
+    operations::wait_for_service_usage_operation,
 };
 
 const COMPUTE_API_SERVICE: &str = "compute.googleapis.com";
@@ -62,7 +62,7 @@ async fn ensure_api_enabled(client: &GcpClient, api_service: &str) -> Result<()>
         step: format!("{api_service} API enablement"),
         reason,
     };
-    let operation: Operation = client
+    let operation: ServiceUsageOperationReference = client
         .post(&format!("{service_url}:enable"), &EmptyRequest {})
         .await
         .map_err(|error| build_enablement_error(error.to_string()))?;
@@ -71,10 +71,24 @@ async fn ensure_api_enabled(client: &GcpClient, api_service: &str) -> Result<()>
     })?;
 
     let operation_url = GcpClient::build_service_usage_url(operation_name);
-    wait_for_operation(client, &operation_url, SERVICE_USAGE_OPERATION_POLL_POLICY).await?;
+    wait_for_service_usage_operation(client, &operation_url, SERVICE_USAGE_OPERATION_POLL_POLICY)
+        .await?;
     info!(
         "[GCP] {api_service} enabled for project '{}'.",
         client.project_id
     );
     Ok(())
 }
+
+#[derive(Deserialize)]
+struct ServiceResponse {
+    state: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ServiceUsageOperationReference {
+    name: Option<String>,
+}
+
+#[derive(Serialize)]
+struct EmptyRequest {}

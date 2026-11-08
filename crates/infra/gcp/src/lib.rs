@@ -5,7 +5,6 @@ mod credentials;
 mod error;
 mod image;
 mod instance;
-mod models;
 mod network;
 mod operations;
 mod permissions;

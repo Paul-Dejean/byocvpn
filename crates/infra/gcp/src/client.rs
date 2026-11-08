@@ -1,5 +1,9 @@
 use byocvpn_core::error::{NetworkProvisioningError, Result};
 use google_cloud_auth::credentials::Credentials;
+use google_cloud_compute_v1::client::{
+    Firewalls, Images, Instances, Networks, Regions, Subnetworks,
+};
+use google_cloud_gax::client_builder::Error as ClientBuilderError;
 use log::{debug, error};
 use reqwest::{Client as HttpClient, Method, Response, StatusCode};
 use serde::{Serialize, de::DeserializeOwned};
@@ -7,7 +11,6 @@ use serde_json::from_str;
 
 use crate::{auth::fetch_bearer_token, error::build_request_error};
 
-const COMPUTE_API_BASE_URL: &str = "https://compute.googleapis.com/compute/v1/projects";
 const RESOURCE_LINK_BASE_URL: &str = "https://www.googleapis.com/compute/v1/projects";
 const SERVICE_USAGE_BASE_URL: &str = "https://serviceusage.googleapis.com/v1";
 const CLOUD_RESOURCE_MANAGER_BASE_URL: &str = "https://cloudresourcemanager.googleapis.com/v1";
@@ -16,19 +19,58 @@ pub struct GcpClient {
     http: HttpClient,
     credentials: Credentials,
     pub project_id: String,
+    pub instances: Instances,
+    pub networks: Networks,
+    pub subnetworks: Subnetworks,
+    pub firewalls: Firewalls,
+    pub regions: Regions,
+    pub images: Images,
 }
 
 impl GcpClient {
-    pub fn new(credentials: Credentials, project_id: String) -> Self {
-        Self {
+    pub async fn connect(credentials: Credentials, project_id: String) -> Result<Self> {
+        let instances = Instances::builder()
+            .with_credentials(credentials.clone())
+            .build()
+            .await
+            .map_err(|error| build_client_error("instances", error))?;
+        let networks = Networks::builder()
+            .with_credentials(credentials.clone())
+            .build()
+            .await
+            .map_err(|error| build_client_error("networks", error))?;
+        let subnetworks = Subnetworks::builder()
+            .with_credentials(credentials.clone())
+            .build()
+            .await
+            .map_err(|error| build_client_error("subnetworks", error))?;
+        let firewalls = Firewalls::builder()
+            .with_credentials(credentials.clone())
+            .build()
+            .await
+            .map_err(|error| build_client_error("firewalls", error))?;
+        let regions = Regions::builder()
+            .with_credentials(credentials.clone())
+            .build()
+            .await
+            .map_err(|error| build_client_error("regions", error))?;
+        let images = Images::builder()
+            .with_credentials(credentials.clone())
+            .build()
+            .await
+            .map_err(|error| build_client_error("images", error))?;
+
+        Ok(Self {
             http: HttpClient::new(),
             credentials,
             project_id,
-        }
-    }
-
-    pub fn build_compute_url(&self, path: &str) -> String {
-        format!("{COMPUTE_API_BASE_URL}/{}/{path}", self.project_id)
+            instances,
+            networks,
+            subnetworks,
+            firewalls,
+            regions,
+            images,
+        })
     }
 
     pub fn build_resource_link(&self, path: &str) -> String {
@@ -56,21 +98,6 @@ impl GcpClient {
         parse_json_response("POST", url, response).await
     }
 
-    pub async fn patch<B: Serialize, T: DeserializeOwned>(&self, url: &str, body: &B) -> Result<T> {
-        let response = self.send_request(Method::PATCH, url, Some(body)).await?;
-        parse_json_response("PATCH", url, response).await
-    }
-
-    pub async fn delete(&self, url: &str) -> Result<()> {
-        let response = self.send_request(Method::DELETE, url, None::<&()>).await?;
-        let status = response.status();
-        if status.is_success() || status == StatusCode::NOT_FOUND {
-            return Ok(());
-        }
-        let body = response.text().await.unwrap_or_default();
-        Err(build_request_error("DELETE", url, status, &body))
-    }
-
     async fn send_request<B: Serialize>(
         &self,
         method: Method,
@@ -90,6 +117,13 @@ impl GcpClient {
             .into()
         })
     }
+}
+
+fn build_client_error(client_name: &str, error: ClientBuilderError) -> byocvpn_core::error::Error {
+    NetworkProvisioningError::NetworkQueryFailed {
+        reason: format!("failed to build GCP {client_name} client: {error}"),
+    }
+    .into()
 }
 
 async fn parse_json_response<T: DeserializeOwned>(

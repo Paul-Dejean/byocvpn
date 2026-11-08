@@ -1,28 +1,25 @@
 use std::collections::HashSet;
 
 use byocvpn_core::error::{NetworkProvisioningError, Result};
+use google_cloud_compute_v1::model::{
+    Subnetwork,
+    subnetwork::{Ipv6AccessType, StackType},
+};
 use log::info;
 
 use crate::{
-    client::GcpClient,
-    models::{
-        AggregatedSubnetListResponse, CreateSubnetRequest, Operation, PatchSubnetRequest,
-        SubnetResponse,
-    },
-    network::vpc::build_vpc_link,
-    operations::wait_for_compute_operation,
+    client::GcpClient, error::convert_sdk_error, network::vpc::build_vpc_link,
+    operations::await_compute_operation,
 };
 
 const SUBNET_NAME: &str = "byocvpn-subnet";
 const SUBNET_DESCRIPTION: &str = "byocvpn WireGuard subnet";
-const DUAL_STACK_TYPE: &str = "IPV4_IPV6";
-const EXTERNAL_IPV6_ACCESS_TYPE: &str = "EXTERNAL";
 
 pub async fn ensure_subnet(client: &GcpClient, region: &str) -> Result<String> {
     match get_subnet(client, region).await? {
         Some(existing) => {
             let self_link = extract_self_link(&existing)?;
-            if existing.stack_type.as_deref() != Some(DUAL_STACK_TYPE) {
+            if existing.stack_type != Some(StackType::Ipv4Ipv6) {
                 upgrade_subnet_to_dual_stack(client, region, &existing).await?;
             }
             Ok(self_link)
@@ -31,9 +28,17 @@ pub async fn ensure_subnet(client: &GcpClient, region: &str) -> Result<String> {
     }
 }
 
-async fn get_subnet(client: &GcpClient, region: &str) -> Result<Option<SubnetResponse>> {
-    let url = build_subnet_url(client, region);
-    match client.get::<SubnetResponse>(&url).await {
+async fn get_subnet(client: &GcpClient, region: &str) -> Result<Option<Subnetwork>> {
+    let lookup = client
+        .subnetworks
+        .get()
+        .set_project(&client.project_id)
+        .set_region(region)
+        .set_subnetwork(SUBNET_NAME)
+        .send()
+        .await
+        .map_err(|error| convert_sdk_error("getting subnet", error));
+    match lookup {
         Ok(subnet) => Ok(Some(subnet)),
         Err(error) if error.is_not_found() => Ok(None),
         Err(error) => Err(error),
@@ -43,63 +48,78 @@ async fn get_subnet(client: &GcpClient, region: &str) -> Result<Option<SubnetRes
 async fn upgrade_subnet_to_dual_stack(
     client: &GcpClient,
     region: &str,
-    existing: &SubnetResponse,
+    existing: &Subnetwork,
 ) -> Result<()> {
-    info!("[GCP] Upgrading subnet '{SUBNET_NAME}' in {region} to {DUAL_STACK_TYPE}...");
-    let body = PatchSubnetRequest {
-        stack_type: DUAL_STACK_TYPE.to_string(),
-        ipv6_access_type: EXTERNAL_IPV6_ACCESS_TYPE.to_string(),
-        fingerprint: existing.fingerprint.clone().unwrap_or_default(),
-    };
-    let operation: Operation = client
-        .patch(&build_subnet_url(client, region), &body)
+    info!("[GCP] Upgrading subnet '{SUBNET_NAME}' in {region} to dual stack...");
+    let patch_body = Subnetwork::new()
+        .set_stack_type(StackType::Ipv4Ipv6)
+        .set_ipv_6_access_type(Ipv6AccessType::External)
+        .set_or_clear_fingerprint(existing.fingerprint.clone());
+    let patch = client
+        .subnetworks
+        .patch()
+        .set_project(&client.project_id)
+        .set_region(region)
+        .set_subnetwork(SUBNET_NAME)
+        .set_body(patch_body)
+        .poller();
+    await_compute_operation("upgrading subnet to dual stack", patch)
         .await
         .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {
-            reason: format!("Failed to upgrade subnet to {DUAL_STACK_TYPE}: {error}"),
+            reason: format!("Failed to upgrade subnet to dual stack: {error}"),
         })?;
-    wait_for_compute_operation(client, &operation)
-        .await
-        .map_err(|error| error.with_context("subnet dual-stack upgrade operation failed"))?;
-    info!("[GCP] Subnet '{SUBNET_NAME}' upgraded to {DUAL_STACK_TYPE} in {region}.");
+    info!("[GCP] Subnet '{SUBNET_NAME}' upgraded to dual stack in {region}.");
     Ok(())
 }
 
 async fn create_subnet(client: &GcpClient, region: &str) -> Result<String> {
-    let body = CreateSubnetRequest {
-        name: SUBNET_NAME.to_string(),
-        network: build_vpc_link(client),
-        region: client.build_resource_link(&format!("regions/{region}")),
-        ip_cidr_range: find_available_subnet_cidr(client).await?,
-        description: SUBNET_DESCRIPTION.to_string(),
-        private_ip_google_access: false,
-        stack_type: DUAL_STACK_TYPE.to_string(),
-        ipv6_access_type: EXTERNAL_IPV6_ACCESS_TYPE.to_string(),
-    };
-    let operation: Operation = client
-        .post(
-            &client.build_compute_url(&format!("regions/{region}/subnetworks")),
-            &body,
-        )
+    let subnetwork = Subnetwork::new()
+        .set_name(SUBNET_NAME)
+        .set_network(build_vpc_link(client))
+        .set_region(client.build_resource_link(&format!("regions/{region}")))
+        .set_ip_cidr_range(find_available_subnet_cidr(client).await?)
+        .set_description(SUBNET_DESCRIPTION)
+        .set_private_ip_google_access(false)
+        .set_stack_type(StackType::Ipv4Ipv6)
+        .set_ipv_6_access_type(Ipv6AccessType::External);
+    let insert = client
+        .subnetworks
+        .insert()
+        .set_project(&client.project_id)
+        .set_region(region)
+        .set_body(subnetwork)
+        .poller();
+    await_compute_operation("creating subnet", insert)
         .await
         .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {
             reason: error.to_string(),
         })?;
-    wait_for_compute_operation(client, &operation).await?;
 
-    let subnet: SubnetResponse = client.get(&build_subnet_url(client, region)).await?;
+    let subnet = client
+        .subnetworks
+        .get()
+        .set_project(&client.project_id)
+        .set_region(region)
+        .set_subnetwork(SUBNET_NAME)
+        .send()
+        .await
+        .map_err(|error| convert_sdk_error("getting subnet", error))?;
     info!("[GCP] Subnet '{SUBNET_NAME}' created in {region}.");
     extract_self_link(&subnet)
 }
 
 async fn find_available_subnet_cidr(client: &GcpClient) -> Result<String> {
-    let response: AggregatedSubnetListResponse = client
-        .get(&client.build_compute_url("aggregated/subnetworks"))
-        .await?;
+    let response = client
+        .subnetworks
+        .aggregated_list()
+        .set_project(&client.project_id)
+        .send()
+        .await
+        .map_err(|error| convert_sdk_error("listing subnets", error))?;
     let used_cidrs: HashSet<String> = response
         .items
-        .unwrap_or_default()
         .into_values()
-        .flat_map(|region_subnets| region_subnets.subnetworks.unwrap_or_default())
+        .flat_map(|region_subnets| region_subnets.subnetworks)
         .filter_map(|subnet| subnet.ip_cidr_range)
         .collect();
 
@@ -115,11 +135,7 @@ async fn find_available_subnet_cidr(client: &GcpClient) -> Result<String> {
         })
 }
 
-fn build_subnet_url(client: &GcpClient, region: &str) -> String {
-    client.build_compute_url(&format!("regions/{region}/subnetworks/{SUBNET_NAME}"))
-}
-
-fn extract_self_link(subnet: &SubnetResponse) -> Result<String> {
+fn extract_self_link(subnet: &Subnetwork) -> Result<String> {
     subnet.self_link.clone().ok_or_else(|| {
         NetworkProvisioningError::MissingResourceField {
             field: "selfLink",

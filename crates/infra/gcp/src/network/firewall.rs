@@ -2,21 +2,19 @@ use byocvpn_core::{
     error::{NetworkProvisioningError, Result},
     managed_resources::{ANY_IPV4_CIDR, ANY_IPV6_CIDR, WIREGUARD_PORT},
 };
+use google_cloud_compute_v1::model::{
+    Firewall,
+    firewall::{Allowed, Direction},
+};
 use log::info;
 
 use crate::{
-    client::GcpClient,
-    models::{
-        CreateFirewallRuleRequest, FirewallAllowed, FirewallRuleResponse, Operation,
-        PatchFirewallRuleRequest,
-    },
-    network::vpc::build_vpc_link,
-    operations::wait_for_compute_operation,
+    client::GcpClient, error::convert_sdk_error, network::vpc::build_vpc_link,
+    operations::await_compute_operation,
 };
 
 pub const FIREWALL_TARGET_TAG: &str = "byocvpn";
-const FIREWALL_DIRECTION: &str = "INGRESS";
-const FIREWALL_PRIORITY: u32 = 1000;
+const FIREWALL_PRIORITY: i32 = 1000;
 
 struct FirewallRuleSpec {
     name: &'static str,
@@ -54,70 +52,87 @@ pub async fn ensure_firewall_rules(client: &GcpClient) -> Result<()> {
     Ok(())
 }
 
-async fn get_firewall_rule(client: &GcpClient, name: &str) -> Result<Option<FirewallRuleResponse>> {
-    let url = client.build_compute_url(&format!("global/firewalls/{name}"));
-    match client.get::<FirewallRuleResponse>(&url).await {
+async fn get_firewall_rule(client: &GcpClient, name: &str) -> Result<Option<Firewall>> {
+    let lookup = client
+        .firewalls
+        .get()
+        .set_project(&client.project_id)
+        .set_firewall(name)
+        .send()
+        .await
+        .map_err(|error| convert_sdk_error("getting firewall rule", error));
+    match lookup {
         Ok(rule) => Ok(Some(rule)),
         Err(error) if error.is_not_found() => Ok(None),
         Err(error) => Err(error),
     }
 }
 
-fn matches_desired_rule(existing_rule: &FirewallRuleResponse, rule: &FirewallRuleSpec) -> bool {
-    existing_rule.allowed.as_deref() == Some(&build_desired_allowed())
-        && existing_rule.source_ranges.as_deref() == Some(&[rule.source_range.to_string()])
-        && existing_rule.target_tags.as_deref() == Some(&[FIREWALL_TARGET_TAG.to_string()])
+fn matches_desired_rule(existing_rule: &Firewall, rule: &FirewallRuleSpec) -> bool {
+    existing_rule.allowed == build_desired_allowed()
+        && existing_rule.source_ranges == [rule.source_range.to_string()]
+        && existing_rule.target_tags == [FIREWALL_TARGET_TAG.to_string()]
 }
 
 async fn patch_firewall_rule(client: &GcpClient, rule: &FirewallRuleSpec) -> Result<()> {
-    let url = client.build_compute_url(&format!("global/firewalls/{}", rule.name));
-    let body = PatchFirewallRuleRequest {
-        allowed: build_desired_allowed(),
-        source_ranges: vec![rule.source_range.to_string()],
-        target_tags: vec![FIREWALL_TARGET_TAG.to_string()],
-        direction: FIREWALL_DIRECTION.to_string(),
-        priority: FIREWALL_PRIORITY,
-    };
-    let operation: Operation = client.patch(&url, &body).await.map_err(|error| {
-        NetworkProvisioningError::SecurityGroupCreationFailed {
-            reason: format!("Failed to patch firewall rule '{}': {error}", rule.name),
-        }
-    })?;
-    wait_for_compute_operation(client, &operation).await?;
+    let patch_body = Firewall::new()
+        .set_allowed(build_desired_allowed())
+        .set_source_ranges([rule.source_range])
+        .set_target_tags([FIREWALL_TARGET_TAG])
+        .set_direction(Direction::Ingress)
+        .set_priority(FIREWALL_PRIORITY);
+    let patch = client
+        .firewalls
+        .patch()
+        .set_project(&client.project_id)
+        .set_firewall(rule.name)
+        .set_body(patch_body)
+        .poller();
+    await_compute_operation("patching firewall rule", patch)
+        .await
+        .map_err(
+            |error| NetworkProvisioningError::SecurityGroupCreationFailed {
+                reason: format!("Failed to patch firewall rule '{}': {error}", rule.name),
+            },
+        )?;
     info!("[GCP] Firewall rule '{}' patched.", rule.name);
     Ok(())
 }
 
 async fn create_firewall_rule(client: &GcpClient, rule: &FirewallRuleSpec) -> Result<()> {
-    let body = CreateFirewallRuleRequest {
-        name: rule.name.to_string(),
-        network: build_vpc_link(client),
-        description: rule.description.to_string(),
-        direction: FIREWALL_DIRECTION.to_string(),
-        priority: FIREWALL_PRIORITY,
-        target_tags: vec![FIREWALL_TARGET_TAG.to_string()],
-        allowed: build_desired_allowed(),
-        source_ranges: vec![rule.source_range.to_string()],
-    };
-    let operation: Operation = client
-        .post(&client.build_compute_url("global/firewalls"), &body)
+    let firewall = Firewall::new()
+        .set_name(rule.name)
+        .set_network(build_vpc_link(client))
+        .set_description(rule.description)
+        .set_direction(Direction::Ingress)
+        .set_priority(FIREWALL_PRIORITY)
+        .set_target_tags([FIREWALL_TARGET_TAG])
+        .set_allowed(build_desired_allowed())
+        .set_source_ranges([rule.source_range]);
+    let insert = client
+        .firewalls
+        .insert()
+        .set_project(&client.project_id)
+        .set_body(firewall)
+        .poller();
+    await_compute_operation("creating firewall rule", insert)
         .await
         .map_err(
             |error| NetworkProvisioningError::SecurityGroupCreationFailed {
                 reason: error.to_string(),
             },
         )?;
-    wait_for_compute_operation(client, &operation).await?;
     info!("[GCP] Firewall rule '{}' created.", rule.name);
     Ok(())
 }
 
-fn build_desired_allowed() -> Vec<FirewallAllowed> {
+fn build_desired_allowed() -> Vec<Allowed> {
     ["udp", "tcp"]
         .into_iter()
-        .map(|protocol| FirewallAllowed {
-            ip_protocol: protocol.to_string(),
-            ports: vec![WIREGUARD_PORT.to_string()],
+        .map(|protocol| {
+            Allowed::new()
+                .set_ip_protocol(protocol)
+                .set_ports([WIREGUARD_PORT.to_string()])
         })
         .collect()
 }
