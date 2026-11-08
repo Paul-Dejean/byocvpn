@@ -62,19 +62,19 @@ impl CloudProvider for AwsProvider {
 
     async fn verify_permissions(&self) -> Result<Vec<PermissionStatus>> {
         let client = self.build_client(None);
-        permissions::verify_permissions(&client).await
+        Ok(permissions::verify_permissions(&client).await?)
     }
 
     async fn get_regions(&self) -> Result<Vec<Region>> {
         let client = self.build_client(None);
-        regions::list_regions(&client).await
+        Ok(regions::list_regions(&client).await?)
     }
 
     async fn list_instances(&self, region: Option<&str>) -> Result<Vec<InstanceInfo>> {
         match region {
             Some(region_name) => {
                 let client = self.build_client(Some(region_name));
-                instance::list_instances(&client, region_name).await
+                Ok(instance::list_instances(&client, region_name).await?)
             }
             None => self.list_instances_in_all_regions().await,
         }
@@ -84,17 +84,17 @@ impl CloudProvider for AwsProvider {
         let client = self.build_client(Some(params.region));
         let region_network = network::ensure_region_network(&client).await?;
         let image_id = image::resolve_boot_image(&client).await?;
-        instance::spawn_instance(&client, &region_network, &image_id, params).await
+        Ok(instance::spawn_instance(&client, &region_network, &image_id, params).await?)
     }
 
     async fn terminate_instance(&self, params: &TerminateInstanceParams) -> Result<()> {
         let client = self.build_client(Some(params.region));
-        instance::terminate_instance(&client, params.instance_id).await
+        Ok(instance::terminate_instance(&client, params.instance_id).await?)
     }
 
     async fn fetch_pricing(&self, region: &str, instance_type: &str) -> Result<PricingInfo> {
         let client = self.build_client(None);
-        Box::pin(pricing::fetch_pricing(&client, region, instance_type)).await
+        Ok(Box::pin(pricing::fetch_pricing(&client, region, instance_type)).await?)
     }
 
     fn get_provision_account_steps(&self) -> Vec<JobStep> {

@@ -18,7 +18,7 @@ export function toAppError(value: unknown): AppError {
     return value;
   }
   const message = value instanceof Error ? value.message : String(value);
-  return { kind: ErrorKind.Unknown, message, detail: null };
+  return { kind: ErrorKind.Unknown, message, detail: null, operation: null, code: null };
 }
 
 function isAppError(value: unknown): value is AppError {

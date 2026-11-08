@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, sync::Arc};
+use std::{collections::VecDeque, io::Error as IoError, sync::Arc};
 
 use boringtun::{
     noise::{Tunn, TunnResult, errors::WireGuardError},
@@ -126,7 +126,7 @@ impl Tunnel {
                         }
                         Err(error) => {
                             error!("[Tunnel] TUN device read failed: {error}");
-                            return Err(SystemError::TunnelIoFailed { reason: error.to_string() }.into());
+                            return Err(build_tunnel_io_error("read from the TUN device")(error).into());
                         }
                     }
                 }
@@ -140,15 +140,15 @@ impl Tunnel {
 
                     match self.wg.decapsulate(Some(src.ip()), &udp_buf[..n], &mut out_buf) {
                         TunnResult::WriteToTunnelV4(packet, _src_ip) => {
-                            self.tun.send(packet).await.map_err(|error| SystemError::TunnelIoFailed { reason: error.to_string() })?;
+                            self.tun.send(packet).await.map_err(build_tunnel_io_error("write to the TUN device"))?;
                         },
                         TunnResult::WriteToTunnelV6(packet, _src_ip) => {
-                            self.tun.send(packet).await.map_err(|error| SystemError::TunnelIoFailed { reason: error.to_string() })?;
+                            self.tun.send(packet).await.map_err(build_tunnel_io_error("write to the TUN device"))?;
                         },
                         TunnResult::WriteToNetwork(packet) => {
-                            self.udp.send(packet).await.map_err(|error| SystemError::TunnelIoFailed { reason: error.to_string() })?;
+                            self.udp.send(packet).await.map_err(build_tunnel_io_error("send over the UDP socket"))?;
                             while let TunnResult::WriteToNetwork(queued_packet) = self.wg.decapsulate(None, &[], &mut out_buf) {
-                                self.udp.send(queued_packet).await.map_err(|error| SystemError::TunnelIoFailed { reason: error.to_string() })?;
+                                self.udp.send(queued_packet).await.map_err(build_tunnel_io_error("send over the UDP socket"))?;
                             }
                         },
                         TunnResult::Done => {},
@@ -199,16 +199,16 @@ pub fn create_wireguard_tunnel(private_key: Vec<u8>, public_key: Vec<u8>) -> Res
             .as_slice()
             .try_into()
             .map_err(|_| ConfigurationError::InvalidValue {
-                field: "private_key".to_string(),
-                reason: "Private key must be exactly 32 bytes".to_string(),
+                field: "private_key",
+                reason: "private key must be exactly 32 bytes",
             })?;
     let public_key_bytes: [u8; 32] =
         public_key
             .as_slice()
             .try_into()
             .map_err(|_| ConfigurationError::InvalidValue {
-                field: "public_key".to_string(),
-                reason: "Public key must be exactly 32 bytes".to_string(),
+                field: "public_key",
+                reason: "public key must be exactly 32 bytes",
             })?;
 
     Ok(Tunn::new(
@@ -219,6 +219,10 @@ pub fn create_wireguard_tunnel(private_key: Vec<u8>, public_key: Vec<u8>) -> Res
         0,
         None,
     ))
+}
+
+pub fn build_tunnel_io_error(operation: &'static str) -> impl Fn(IoError) -> SystemError {
+    move |source| SystemError::TunnelIo { operation, source }
 }
 
 pub struct TunnelRateTracker {

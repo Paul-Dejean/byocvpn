@@ -1,11 +1,9 @@
-use byocvpn_core::{
-    error::{NetworkProvisioningError, Result},
-    managed_resources::{ANY_IPV4_CIDR, ANY_IPV6_CIDR},
-};
+use byocvpn_core::managed_resources::{ANY_IPV4_CIDR, ANY_IPV6_CIDR};
 use log::info;
 
 use crate::{
     client::OciClient,
+    error::Result,
     models::{
         CreateInternetGatewayRequest, InternetGatewayResponse, RouteRule, RouteTableResponse,
         UpdateRouteTableRequest, build_managed_tags,
@@ -45,12 +43,7 @@ async fn create_internet_gateway(client: &OciClient, vcn: &Vcn) -> Result<String
     };
     let gateway: InternetGatewayResponse = client
         .post(&client.build_core_url("/internetGateways"), &body)
-        .await
-        .map_err(
-            |error| NetworkProvisioningError::InternetGatewayOperationFailed {
-                reason: error.to_string(),
-            },
-        )?;
+        .await?;
     info!("[OCI] Created internet gateway {}", gateway.id);
     Ok(gateway.id)
 }
@@ -83,8 +76,7 @@ async fn ensure_default_routes(
 
     client
         .put(&url, &UpdateRouteTableRequest { route_rules })
-        .await
-        .map_err(|error| error.with_context("route table operation failed"))?;
+        .await?;
     info!(
         "[OCI] Default routes ensured on route table {}",
         vcn.default_route_table_id

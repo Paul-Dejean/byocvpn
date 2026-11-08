@@ -8,7 +8,7 @@ use serde_json::Value;
 
 use crate::{
     cloud_provider::CloudProviderName,
-    error::{ConfigurationError, DaemonError, Result},
+    error::{DaemonError, Error, ErrorPayload, Result},
     ipc::{IpcStream, socket_path},
     tunnel::VpnStatus,
 };
@@ -43,7 +43,7 @@ pub enum DaemonCommand {
 #[serde(tag = "status", content = "payload", rename_all = "snake_case")]
 pub enum DaemonResponse {
     Ok(Value),
-    Err(DaemonError),
+    Err(ErrorPayload),
 }
 
 #[async_trait]
@@ -64,13 +64,7 @@ pub async fn fetch_vpn_status(client: &dyn DaemonClient) -> Result<VpnStatus> {
     }
 
     let response = client.send_command(DaemonCommand::Status).await?;
-    serde_json::from_value(response).map_err(|error| {
-        ConfigurationError::ParseError {
-            value: "daemon status response".to_string(),
-            reason: error.to_string(),
-        }
-        .into()
-    })
+    Ok(serde_json::from_value(response)?)
 }
 
 pub struct IpcDaemonClient;
@@ -88,29 +82,17 @@ impl DaemonClient for IpcDaemonClient {
             daemon_socket_path.to_string_lossy()
         );
 
-        let serialized_command =
-            serde_json::to_string(&command).map_err(|error| DaemonError::SocketError {
-                reason: format!("failed to serialize command: {error}"),
-            })?;
+        let serialized_command = serde_json::to_string(&command)?;
         stream.send_message(&serialized_command).await?;
 
-        let raw_response =
-            stream
-                .read_message()
-                .await?
-                .ok_or_else(|| DaemonError::ConnectionFailed {
-                    reason: "daemon closed connection without response".to_string(),
-                })?;
+        let raw_response = stream
+            .read_message()
+            .await?
+            .ok_or(DaemonError::EmptyResponse)?;
 
-        let response = serde_json::from_str::<DaemonResponse>(&raw_response).map_err(|error| {
-            DaemonError::InvalidResponse {
-                reason: format!("failed to parse daemon response: {error}"),
-            }
-        })?;
-
-        match response {
+        match serde_json::from_str::<DaemonResponse>(&raw_response)? {
             DaemonResponse::Ok(value) => Ok(value),
-            DaemonResponse::Err(error) => Err(error.into()),
+            DaemonResponse::Err(payload) => Err(Error::Remote(payload)),
         }
     }
 

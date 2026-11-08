@@ -1,9 +1,9 @@
-use byocvpn_core::error::Result;
 use log::{debug, info};
 
 use crate::{
     arm_resource::ArmResource,
     client::AzureClient,
+    error::Result,
     models::{ResourceReference, SubnetRequest, SubnetRequestProperties, SubnetResponse},
     resource_operations::{get_existing, put_and_wait},
 };
@@ -57,9 +57,7 @@ pub async fn ensure_subnet(
             },
         },
     };
-    put_and_wait(client, &resource, &body)
-        .await
-        .map_err(|error| error.with_context("creating subnet"))?;
+    put_and_wait(client, &resource, &body).await?;
     info!("[Azure] {resource} ready in {location}.");
     Ok(client.build_resource_id(&resource))
 }

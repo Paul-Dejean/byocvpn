@@ -1,10 +1,7 @@
-use byocvpn_core::{
-    cloud_provider::Region,
-    error::{NetworkProvisioningError, Result},
-};
+use byocvpn_core::cloud_provider::Region;
 use log::info;
 
-use crate::{client::AwsClient, error::extract_error_message};
+use crate::{client::AwsClient, error::Result};
 
 const REGION_CONTINENTS: &[(&str, &str)] = &[
     ("us", "North America"),
@@ -21,14 +18,7 @@ const UNKNOWN_CONTINENT: &str = "Unknown";
 
 pub async fn list_regions(client: &AwsClient) -> Result<Vec<Region>> {
     info!("[AWS] Fetching regions...");
-    let response = client
-        .ec2
-        .describe_regions()
-        .send()
-        .await
-        .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-            reason: extract_error_message(&error),
-        })?;
+    let response = client.ec2.describe_regions().send().await?;
 
     let regions: Vec<Region> = response
         .regions()

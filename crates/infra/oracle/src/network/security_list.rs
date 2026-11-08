@@ -1,11 +1,9 @@
-use byocvpn_core::{
-    error::{NetworkProvisioningError, Result},
-    managed_resources::{ANY_IPV4_CIDR, ANY_IPV6_CIDR, WIREGUARD_PORT},
-};
+use byocvpn_core::managed_resources::{ANY_IPV4_CIDR, ANY_IPV6_CIDR, WIREGUARD_PORT};
 use log::info;
 
 use crate::{
     client::OciClient,
+    error::Result,
     models::{
         CreateSecurityListRequest, EgressSecurityRule, IngressSecurityRule, PortRange,
         SecurityListResponse, TcpOptions, UdpOptions, UpdateSecurityListRequest,
@@ -70,12 +68,7 @@ async fn create_security_list(
     };
     let security_list: SecurityListResponse = client
         .post(&client.build_core_url("/securityLists"), &body)
-        .await
-        .map_err(
-            |error| NetworkProvisioningError::SecurityGroupCreationFailed {
-                reason: error.to_string(),
-            },
-        )?;
+        .await?;
     info!("[OCI] Created security list {}", security_list.id);
     Ok(security_list.id)
 }

@@ -1,7 +1,4 @@
-use byocvpn_core::{
-    error::{NetworkProvisioningError, Result},
-    managed_resources::{ANY_IPV4_CIDR, ANY_IPV6_CIDR, WIREGUARD_PORT},
-};
+use byocvpn_core::managed_resources::{ANY_IPV4_CIDR, ANY_IPV6_CIDR, WIREGUARD_PORT};
 use google_cloud_compute_v1::model::{
     Firewall,
     firewall::{Allowed, Direction},
@@ -9,7 +6,9 @@ use google_cloud_compute_v1::model::{
 use log::info;
 
 use crate::{
-    client::GcpClient, error::convert_sdk_error, network::vpc::build_vpc_link,
+    client::GcpClient,
+    error::{LabelOperation, Result},
+    network::vpc::build_vpc_link,
     operations::await_compute_operation,
 };
 
@@ -60,7 +59,7 @@ async fn get_firewall_rule(client: &GcpClient, name: &str) -> Result<Option<Fire
         .set_firewall(name)
         .send()
         .await
-        .map_err(|error| convert_sdk_error("getting firewall rule", error));
+        .label_operation("compute.firewalls.get");
     match lookup {
         Ok(rule) => Ok(Some(rule)),
         Err(error) if error.is_not_found() => Ok(None),
@@ -88,13 +87,7 @@ async fn patch_firewall_rule(client: &GcpClient, rule: &FirewallRuleSpec) -> Res
         .set_firewall(rule.name)
         .set_body(patch_body)
         .poller();
-    await_compute_operation("patching firewall rule", patch)
-        .await
-        .map_err(
-            |error| NetworkProvisioningError::SecurityGroupCreationFailed {
-                reason: format!("Failed to patch firewall rule '{}': {error}", rule.name),
-            },
-        )?;
+    await_compute_operation("compute.firewalls.update", patch).await?;
     info!("[GCP] Firewall rule '{}' patched.", rule.name);
     Ok(())
 }
@@ -115,13 +108,7 @@ async fn create_firewall_rule(client: &GcpClient, rule: &FirewallRuleSpec) -> Re
         .set_project(&client.project_id)
         .set_body(firewall)
         .poller();
-    await_compute_operation("creating firewall rule", insert)
-        .await
-        .map_err(
-            |error| NetworkProvisioningError::SecurityGroupCreationFailed {
-                reason: error.to_string(),
-            },
-        )?;
+    await_compute_operation("compute.firewalls.create", insert).await?;
     info!("[GCP] Firewall rule '{}' created.", rule.name);
     Ok(())
 }

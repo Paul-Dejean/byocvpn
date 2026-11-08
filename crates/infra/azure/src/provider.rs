@@ -39,31 +39,31 @@ impl CloudProvider for AzureProvider {
     }
 
     async fn verify_permissions(&self) -> Result<Vec<PermissionStatus>> {
-        permissions::verify_permissions(&self.client).await
+        Ok(permissions::verify_permissions(&self.client).await?)
     }
 
     async fn get_regions(&self) -> Result<Vec<Region>> {
-        regions::list_regions(&self.client).await
+        Ok(regions::list_regions(&self.client).await?)
     }
 
     async fn list_instances(&self, region: Option<&str>) -> Result<Vec<InstanceInfo>> {
         match region {
-            Some(region_name) => instance::list_instances(&self.client, region_name).await,
-            None => instance::list_all_instances(&self.client).await,
+            Some(region_name) => Ok(instance::list_instances(&self.client, region_name).await?),
+            None => Ok(instance::list_all_instances(&self.client).await?),
         }
     }
 
     async fn spawn_instance(&self, params: &SpawnInstanceParams) -> Result<InstanceInfo> {
         let region_network = network::ensure_region_network(&self.client, params.region).await?;
-        instance::spawn_instance(&self.client, &region_network, params).await
+        Ok(instance::spawn_instance(&self.client, &region_network, params).await?)
     }
 
     async fn terminate_instance(&self, params: &TerminateInstanceParams) -> Result<()> {
-        instance::terminate_instance(&self.client, params.instance_id).await
+        Ok(instance::terminate_instance(&self.client, params.instance_id).await?)
     }
 
     async fn fetch_pricing(&self, region: &str, instance_type: &str) -> Result<PricingInfo> {
-        pricing::fetch_pricing(region, instance_type).await
+        Ok(pricing::fetch_pricing(region, instance_type).await?)
     }
 
     fn get_provision_account_steps(&self) -> Vec<JobStep> {
@@ -81,7 +81,8 @@ impl CloudProvider for AzureProvider {
     async fn run_enable_region_step(&self, step_id: &str, region: &str) -> Result<()> {
         match parse_step_id(step_id)? {
             AzureStepId::RegionResourceGroup => {
-                network::ensure_resource_group(&self.client, region).await
+                network::ensure_resource_group(&self.client, region).await?;
+                Ok(())
             }
             AzureStepId::RegionVnet => {
                 network::ensure_virtual_network_resources(&self.client, region).await?;

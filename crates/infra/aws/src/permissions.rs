@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
 use aws_sdk_iam::types::PolicyEvaluationDecisionType;
-use byocvpn_core::{
-    cloud_provider::PermissionStatus,
-    error::{Error, Result},
-};
+use byocvpn_core::cloud_provider::PermissionStatus;
 use log::{info, warn};
 
-use crate::{client::AwsClient, error::map_aws_error};
+use crate::{
+    client::AwsClient,
+    error::{AwsError, Result},
+};
 
 const REQUIRED_ACTIONS: &[&str] = &[
     "ec2:RunInstances",
@@ -34,8 +34,6 @@ const REQUIRED_ACTIONS: &[&str] = &[
     "pricing:GetProducts",
 ];
 
-const GET_CALLER_IDENTITY_OPERATION: &str = "sts:GetCallerIdentity";
-const SIMULATE_POLICY_OPERATION: &str = "iam:SimulatePrincipalPolicy";
 const ASSUMED_ROLE_MARKER: &str = ":assumed-role/";
 
 pub async fn verify_permissions(client: &AwsClient) -> Result<Vec<PermissionStatus>> {
@@ -61,15 +59,10 @@ pub async fn verify_permissions(client: &AwsClient) -> Result<Vec<PermissionStat
 }
 
 async fn get_principal_arn(client: &AwsClient) -> Result<String> {
-    let identity = client
-        .sts
-        .get_caller_identity()
-        .send()
-        .await
-        .map_err(|error| map_aws_error(GET_CALLER_IDENTITY_OPERATION, error))?;
-    let caller_arn = identity.arn().ok_or_else(|| Error::Unknown {
-        operation_name: GET_CALLER_IDENTITY_OPERATION.to_string(),
-        detail: "response did not include a caller ARN".to_string(),
+    let identity = client.sts.get_caller_identity().send().await?;
+    let caller_arn = identity.arn().ok_or(AwsError::MissingResponseField {
+        operation: "sts:GetCallerIdentity",
+        field: "arn",
     })?;
     Ok(build_policy_source_arn(caller_arn))
 }
@@ -99,8 +92,7 @@ async fn simulate_required_actions(
             .set_action_names(Some(action_names.clone()))
             .set_marker(marker)
             .send()
-            .await
-            .map_err(|error| map_aws_error(SIMULATE_POLICY_OPERATION, error))?;
+            .await?;
 
         for evaluation in response.evaluation_results() {
             let allowed = evaluation.eval_decision() == &PolicyEvaluationDecisionType::Allowed;

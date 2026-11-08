@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use byocvpn_app::ProviderCredentials;
 use byocvpn_core::{
     app_context::AppContext,
@@ -296,8 +298,8 @@ pub async fn subscribe_to_vpn_status(app_handle: AppHandle) -> Result<()> {
     let status = fetch_vpn_status(&app_handle).await?;
     let connected_instance = status.instance.ok_or_else(|| -> Error {
         ConfigurationError::InvalidValue {
-            field: "vpn_status".to_string(),
-            reason: "not connected to VPN".to_string(),
+            field: "vpn_status",
+            reason: "not connected to VPN",
         }
         .into()
     })?;
@@ -324,9 +326,11 @@ pub async fn save_file(path: String, content: String) -> Result<()> {
     debug!("Writing file: {path}");
     tokio::fs::write(&path, content)
         .await
-        .map_err(|error| -> Error {
-            ConfigurationError::InvalidFile {
-                reason: error.to_string(),
+        .map_err(|source| -> Error {
+            ConfigurationError::DataFile {
+                operation: "write",
+                path: PathBuf::from(&path),
+                source,
             }
             .into()
         })

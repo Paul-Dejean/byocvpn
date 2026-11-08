@@ -21,11 +21,10 @@ pub struct JsonFileStore<Data> {
 impl<Data: Serialize + DeserializeOwned + Default> JsonFileStore<Data> {
     pub fn open(file_name: &str) -> Result<Self> {
         let directory = get_data_directory()?;
-        fs::create_dir_all(&directory).map_err(|error| ConfigurationError::InvalidFile {
-            reason: format!(
-                "failed to create data directory {}: {error}",
-                directory.display()
-            ),
+        fs::create_dir_all(&directory).map_err(|source| ConfigurationError::DataFile {
+            operation: "create",
+            path: directory.clone(),
+            source,
         })?;
         let path = directory.join(file_name);
         let data = load_data(&path);

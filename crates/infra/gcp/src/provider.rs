@@ -37,33 +37,36 @@ impl CloudProvider for GcpProvider {
     }
 
     async fn verify_permissions(&self) -> Result<Vec<PermissionStatus>> {
-        permissions::verify_permissions(&self.client).await
+        Ok(permissions::verify_permissions(&self.client).await?)
     }
 
     async fn get_regions(&self) -> Result<Vec<Region>> {
         account::ensure_compute_api_enabled(&self.client).await?;
-        regions::list_regions(&self.client).await
+        Ok(regions::list_regions(&self.client).await?)
     }
 
     async fn list_instances(&self, region: Option<&str>) -> Result<Vec<InstanceInfo>> {
         match region {
-            Some(region_name) => instance::list_instances(&self.client, region_name).await,
-            None => instance::list_all_instances(&self.client).await,
+            Some(region_name) => Ok(instance::list_instances(&self.client, region_name).await?),
+            None => Ok(instance::list_all_instances(&self.client).await?),
         }
     }
 
     async fn spawn_instance(&self, params: &SpawnInstanceParams) -> Result<InstanceInfo> {
         let region_network = network::ensure_region_network(&self.client, params.region).await?;
         let image_self_link = image::resolve_boot_image(&self.client).await?;
-        instance::spawn_instance(&self.client, &region_network, &image_self_link, params).await
+        Ok(
+            instance::spawn_instance(&self.client, &region_network, &image_self_link, params)
+                .await?,
+        )
     }
 
     async fn terminate_instance(&self, params: &TerminateInstanceParams) -> Result<()> {
-        instance::terminate_instance(&self.client, params.instance_id).await
+        Ok(instance::terminate_instance(&self.client, params.instance_id).await?)
     }
 
     async fn fetch_pricing(&self, region: &str, instance_type: &str) -> Result<PricingInfo> {
-        pricing::fetch_pricing(&self.client, region, instance_type).await
+        Ok(pricing::fetch_pricing(&self.client, region, instance_type).await?)
     }
 
     fn get_provision_account_steps(&self) -> Vec<JobStep> {
@@ -74,13 +77,13 @@ impl CloudProvider for GcpProvider {
         match parse_step_id(step_id)? {
             GcpStepId::SetupApi => {
                 account::ensure_compute_api_enabled(&self.client).await?;
-                account::ensure_cloud_billing_api_enabled(&self.client).await
+                Ok(account::ensure_cloud_billing_api_enabled(&self.client).await?)
             }
             GcpStepId::SetupVpc => {
                 network::ensure_vpc(&self.client).await?;
                 Ok(())
             }
-            GcpStepId::SetupFirewall => network::ensure_firewall_rules(&self.client).await,
+            GcpStepId::SetupFirewall => Ok(network::ensure_firewall_rules(&self.client).await?),
             GcpStepId::RegionSubnet
             | GcpStepId::SetupNetwork
             | GcpStepId::Launch

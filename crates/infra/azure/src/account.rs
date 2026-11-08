@@ -1,21 +1,21 @@
-use byocvpn_core::{
-    error::{Error, NetworkProvisioningError, Result},
-    retry::{RetryPolicy, retry},
-};
+use byocvpn_core::retry::{RetryPolicy, retry};
 use log::{debug, info, warn};
 use tokio::time::Duration;
 
 use crate::{
     arm_resource::API_VERSION_RESOURCE_GROUPS,
     client::AzureClient,
+    error::{AzureError, Result},
     models::{EmptyRequest, ProviderRegistrationResponse},
 };
 
+pub const NETWORK_PROVIDER_NAMESPACE: &str = "Microsoft.Network";
 const REQUIRED_NAMESPACES: &[&str] = &[
-    "Microsoft.Network",
+    NETWORK_PROVIDER_NAMESPACE,
     "Microsoft.Compute",
     "Microsoft.Resources",
 ];
+const REGISTERED_STATE: &str = "Registered";
 
 const PROVIDER_REGISTRATION_POLL_POLICY: RetryPolicy =
     RetryPolicy::fixed(60, Duration::from_secs(5));
@@ -29,7 +29,7 @@ pub async fn ensure_providers_registered(client: &AzureClient) -> Result<()> {
             .await?
             .registration_state;
 
-        if registration_state.as_deref() == Some("Registered") {
+        if registration_state.as_deref() == Some(REGISTERED_STATE) {
             continue;
         }
 
@@ -39,32 +39,21 @@ pub async fn ensure_providers_registered(client: &AzureClient) -> Result<()> {
         info!("[Azure] Registering provider '{namespace}'...");
         client
             .post::<_, ProviderRegistrationResponse>(&register_url, &EmptyRequest {})
-            .await
-            .map_err(|error| NetworkProvisioningError::ProviderSetupFailed {
-                step: namespace.to_string(),
-                reason: error.to_string(),
-            })?;
+            .await?;
 
         retry(
             || {
                 let status_url = status_url.clone();
                 async move {
-                    let response: ProviderRegistrationResponse = client
-                        .get(&status_url)
-                        .await
-                        .map_err(|error| NetworkProvisioningError::ProviderSetupFailed {
-                            step: namespace.to_string(),
-                            reason: error.to_string(),
-                        })?;
+                    let response: ProviderRegistrationResponse = client.get(&status_url).await?;
                     let state = response.registration_state.as_deref().unwrap_or("Unknown");
                     debug!("[Azure] Provider '{namespace}' registration state: {state}");
-                    if state == "Registered" {
-                        Ok::<(), Error>(())
+                    if state == REGISTERED_STATE {
+                        Ok(())
                     } else {
-                        Err(NetworkProvisioningError::CloudOperationTimedOut {
-                            operation: format!("{namespace} provider registration"),
-                        }
-                        .into())
+                        Err(AzureError::ProviderRegistrationTimedOut {
+                            namespace: (*namespace).to_string(),
+                        })
                     }
                 }
             },
@@ -76,13 +65,16 @@ pub async fn ensure_providers_registered(client: &AzureClient) -> Result<()> {
 }
 
 pub async fn request_network_provider_registration(client: &AzureClient) {
-    let register_path = client.build_subscription_path("/providers/Microsoft.Network/register");
+    let register_path = client
+        .build_subscription_path(&format!("/providers/{NETWORK_PROVIDER_NAMESPACE}/register"));
     let register_url = AzureClient::build_arm_url(&register_path, API_VERSION_RESOURCE_GROUPS);
     match client
         .post::<_, ProviderRegistrationResponse>(&register_url, &EmptyRequest {})
         .await
     {
-        Ok(_) => debug!("[Azure] Microsoft.Network registration requested"),
-        Err(error) => warn!("[Azure] Microsoft.Network registration request failed: {error}"),
+        Ok(_) => debug!("[Azure] {NETWORK_PROVIDER_NAMESPACE} registration requested"),
+        Err(error) => {
+            warn!("[Azure] {NETWORK_PROVIDER_NAMESPACE} registration request failed: {error}");
+        }
     }
 }

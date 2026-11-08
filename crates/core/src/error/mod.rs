@@ -2,15 +2,16 @@ mod compute;
 mod config;
 mod credentials;
 mod daemon;
-mod network;
 mod system;
 
 pub use compute::ComputeProvisioningError;
 pub use config::ConfigurationError;
 pub use credentials::CredentialsError;
 pub use daemon::DaemonError;
-pub use network::NetworkProvisioningError;
+use std::error::Error as StdError;
+
 use serde::{Deserialize, Serialize};
+use serde_json::Error as JsonError;
 #[cfg(feature = "specta")]
 use specta::{Type, Types, datatype::DataType};
 pub use system::SystemError;
@@ -20,9 +21,6 @@ use crate::cloud_provider::CloudProviderName;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error(transparent)]
-    Network(#[from] NetworkProvisioningError),
-
     #[error(transparent)]
     Compute(#[from] ComputeProvisioningError),
 
@@ -38,17 +36,16 @@ pub enum Error {
     #[error(transparent)]
     Daemon(#[from] DaemonError),
 
-    #[error("authorization denied: {operation}")]
-    Authorization { operation: String },
+    #[error("{}", .0.message)]
+    Remote(ErrorPayload),
 
-    #[error("authentication failed")]
-    Authentication,
-
-    #[error("rate limit or quota exceeded")]
-    Quota,
-
-    #[error("transient error during {operation_name}")]
-    Transient { operation_name: String },
+    #[error("{source}")]
+    Provider {
+        provider: CloudProviderName,
+        kind: ErrorKind,
+        #[source]
+        source: Box<dyn StdError + Send + Sync>,
+    },
 
     #[error("{provider} rejected {operation} with HTTP {status} {code}: {message}")]
     CloudApiRejected {
@@ -57,19 +54,6 @@ pub enum Error {
         status: u16,
         code: String,
         message: String,
-    },
-
-    #[error("{operation}: {source}")]
-    Context {
-        operation: String,
-        #[source]
-        source: Box<Self>,
-    },
-
-    #[error("unexpected error during {operation_name}: {detail}")]
-    Unknown {
-        operation_name: String,
-        detail: String,
     },
 }
 
@@ -95,6 +79,8 @@ pub struct ErrorPayload {
     pub kind: ErrorKind,
     pub message: String,
     pub detail: Option<String>,
+    pub operation: Option<String>,
+    pub code: Option<String>,
 }
 
 const RESPONSE_BODY_SUMMARY_LIMIT: usize = 300;
@@ -119,48 +105,30 @@ impl Error {
         }
     }
 
-    #[must_use]
-    pub fn with_context(self, operation: impl Into<String>) -> Self {
-        Self::Context {
-            operation: operation.into(),
-            source: Box::new(self),
-        }
-    }
-
     pub fn is_not_found(&self) -> bool {
         self.kind() == ErrorKind::NotFound
     }
 
     pub fn kind(&self) -> ErrorKind {
         match self {
-            Self::Authentication => ErrorKind::Authentication,
-            Self::Authorization { .. } => ErrorKind::Authorization,
-            Self::Quota => ErrorKind::Quota,
-            Self::Transient { .. } => ErrorKind::Transient,
-            Self::CloudApiRejected { status, .. } => classify_http_status(*status),
-            Self::Context { source, .. } => source.kind(),
-            Self::Credentials(error) => classify_credentials_error(error),
+            Self::CloudApiRejected { status, code, .. } => {
+                classify_cloud_api_code(code).unwrap_or_else(|| classify_http_status(*status))
+            }
+            Self::Credentials(_) => ErrorKind::Configuration,
             Self::Configuration(_) => ErrorKind::Configuration,
             Self::Daemon(_) => ErrorKind::Daemon,
-            Self::Network(error) => classify_network_error(error),
+            Self::Remote(payload) => payload.kind,
+            Self::Provider { kind, .. } => *kind,
             Self::Compute(ComputeProvisioningError::InstanceNotFound { .. }) => ErrorKind::NotFound,
             Self::Compute(_) => ErrorKind::Cloud,
             Self::System(SystemError::ReadinessProbeTimedOut) => ErrorKind::Transient,
-            Self::System(_) | Self::Unknown { .. } => ErrorKind::Unknown,
+            Self::System(_) => ErrorKind::Unknown,
         }
     }
 
     pub fn to_payload(&self) -> ErrorPayload {
         match self {
-            Self::Context { operation, source } => {
-                let inner = source.to_payload();
-                let inner_detail = inner.detail.unwrap_or_else(|| source.to_string());
-                ErrorPayload {
-                    kind: inner.kind,
-                    message: inner.message,
-                    detail: Some(format!("{operation}: {inner_detail}")),
-                }
-            }
+            Self::Remote(payload) => payload.clone(),
             Self::CloudApiRejected {
                 provider,
                 operation,
@@ -173,13 +141,31 @@ impl Error {
                 detail: Some(format!(
                     "{provider} {operation} returned HTTP {status} {code}"
                 )),
+                operation: Some(operation.clone()),
+                code: Some(code.clone()),
             },
             _ => ErrorPayload {
                 kind: self.kind(),
                 message: self.to_string(),
-                detail: None,
+                detail: describe_source_chain(self),
+                operation: None,
+                code: None,
             },
         }
+    }
+}
+
+fn describe_source_chain(error: &Error) -> Option<String> {
+    let mut descriptions = Vec::new();
+    let mut current = error.source();
+    while let Some(source) = current {
+        descriptions.push(source.to_string());
+        current = source.source();
+    }
+    if descriptions.is_empty() {
+        None
+    } else {
+        Some(descriptions.join(": "))
     }
 }
 
@@ -195,6 +181,40 @@ fn summarize_response_body(raw_body: &str) -> String {
     summary
 }
 
+fn classify_cloud_api_code(code: &str) -> Option<ErrorKind> {
+    let kind = match code {
+        "UnauthorizedOperation"
+        | "AccessDenied"
+        | "AccessDeniedException"
+        | "AuthorizationFailed"
+        | "PERMISSION_DENIED"
+        | "forbidden"
+        | "NotAuthorizedOrNotFound" => ErrorKind::Authorization,
+        "AuthFailure"
+        | "InvalidClientTokenId"
+        | "SignatureDoesNotMatch"
+        | "UnrecognizedClientException"
+        | "ExpiredToken"
+        | "InvalidAuthenticationToken"
+        | "ExpiredAuthenticationToken"
+        | "UNAUTHENTICATED"
+        | "authError"
+        | "NotAuthenticated" => ErrorKind::Authentication,
+        "ThrottlingException"
+        | "RequestLimitExceeded"
+        | "TooManyRequests"
+        | "QuotaExceeded"
+        | "RESOURCE_EXHAUSTED"
+        | "QUOTA_EXCEEDED"
+        | "rateLimitExceeded"
+        | "quotaExceeded" => ErrorKind::Quota,
+        "ResourceNotFound" | "NOT_FOUND" | "notFound" | "NotFound" => ErrorKind::NotFound,
+        _ if code.ends_with(".NotFound") => ErrorKind::NotFound,
+        _ => return None,
+    };
+    Some(kind)
+}
+
 const fn classify_http_status(status: u16) -> ErrorKind {
     match status {
         401 => ErrorKind::Authentication,
@@ -206,26 +226,9 @@ const fn classify_http_status(status: u16) -> ErrorKind {
     }
 }
 
-const fn classify_credentials_error(error: &CredentialsError) -> ErrorKind {
-    match error {
-        CredentialsError::InvalidPrivateKey { .. }
-        | CredentialsError::SigningFailed { .. }
-        | CredentialsError::TokenAcquisitionFailed { .. }
-        | CredentialsError::MissingTokenInResponse { .. } => ErrorKind::Authentication,
-        CredentialsError::FileNotFound
-        | CredentialsError::NoProviderConfigured
-        | CredentialsError::FileReadFailed { .. }
-        | CredentialsError::FileSaveFailed { .. }
-        | CredentialsError::InvalidFormat { .. }
-        | CredentialsError::MissingField { .. } => ErrorKind::Configuration,
-    }
-}
-
-const fn classify_network_error(error: &NetworkProvisioningError) -> ErrorKind {
-    match error {
-        NetworkProvisioningError::ResourceNotFound { .. } => ErrorKind::NotFound,
-        NetworkProvisioningError::CloudOperationTimedOut { .. } => ErrorKind::Transient,
-        _ => ErrorKind::Cloud,
+impl From<JsonError> for Error {
+    fn from(error: JsonError) -> Self {
+        SystemError::Json(error).into()
     }
 }
 

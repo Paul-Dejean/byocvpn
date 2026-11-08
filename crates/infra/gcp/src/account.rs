@@ -1,13 +1,11 @@
-use byocvpn_core::{
-    error::{NetworkProvisioningError, Result},
-    retry::RetryPolicy,
-};
+use byocvpn_core::retry::RetryPolicy;
 use log::info;
 use serde::{Deserialize, Serialize};
 use tokio::time::Duration;
 
 use crate::{
     client::GcpClient,
+    error::{GcpError, Result},
     network::{ensure_firewall_rules, ensure_vpc},
     operations::wait_for_service_usage_operation,
 };
@@ -44,12 +42,7 @@ async fn ensure_api_enabled(client: &GcpClient, api_service: &str) -> Result<()>
         "projects/{}/services/{api_service}",
         client.project_id
     ));
-    let service: ServiceResponse = client.get(&service_url).await.map_err(|error| {
-        NetworkProvisioningError::ProviderSetupFailed {
-            step: format!("{api_service} API check"),
-            reason: error.to_string(),
-        }
-    })?;
+    let service: ServiceResponse = client.get(&service_url).await?;
     if service.state.as_deref() == Some(ENABLED_SERVICE_STATE) {
         return Ok(());
     }
@@ -58,17 +51,16 @@ async fn ensure_api_enabled(client: &GcpClient, api_service: &str) -> Result<()>
         "[GCP] Enabling {api_service} for project '{}'...",
         client.project_id
     );
-    let build_enablement_error = |reason: String| NetworkProvisioningError::ProviderSetupFailed {
-        step: format!("{api_service} API enablement"),
-        reason,
-    };
     let operation: ServiceUsageOperationReference = client
         .post(&format!("{service_url}:enable"), &EmptyRequest {})
-        .await
-        .map_err(|error| build_enablement_error(error.to_string()))?;
-    let operation_name = operation.name.as_deref().ok_or_else(|| {
-        build_enablement_error("operation response missing 'name' field".to_string())
-    })?;
+        .await?;
+    let operation_name =
+        operation
+            .name
+            .as_deref()
+            .ok_or_else(|| GcpError::MissingOperationName {
+                api_service: api_service.to_string(),
+            })?;
 
     let operation_url = GcpClient::build_service_usage_url(operation_name);
     wait_for_service_usage_operation(client, &operation_url, SERVICE_USAGE_OPERATION_POLL_POLICY)

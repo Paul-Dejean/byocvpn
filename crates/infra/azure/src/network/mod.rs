@@ -3,14 +3,13 @@ mod resource_group;
 mod subnet;
 mod virtual_network;
 
-use byocvpn_core::error::Result;
 use log::info;
 pub use network_security_group::ensure_network_security_group;
 pub use resource_group::ensure_resource_group;
 pub use subnet::ensure_subnet;
 pub use virtual_network::ensure_virtual_network;
 
-use crate::{account::ensure_providers_registered, client::AzureClient};
+use crate::{account::ensure_providers_registered, client::AzureClient, error::Result};
 
 pub struct RegionNetwork {
     pub subnet_id: String,

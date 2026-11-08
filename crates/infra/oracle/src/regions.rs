@@ -1,7 +1,8 @@
-use byocvpn_core::{cloud_provider::Region, error::Result};
+use byocvpn_core::cloud_provider::Region;
 
 use crate::{
     client::OciClient,
+    error::Result,
     models::{RegionResponse, RegionSubscriptionResponse},
 };
 
@@ -21,10 +22,7 @@ const REGION_CONTINENTS: &[(&str, &str)] = &[
 ];
 
 pub async fn list_regions(client: &OciClient) -> Result<Vec<Region>> {
-    let regions: Vec<RegionResponse> = client
-        .get(&client.build_identity_url("/regions"))
-        .await
-        .map_err(|error| error.with_context("listing regions"))?;
+    let regions: Vec<RegionResponse> = client.get(&client.build_identity_url("/regions")).await?;
     Ok(regions
         .into_iter()
         .map(|region| build_region(region.name))
@@ -36,10 +34,7 @@ pub async fn list_subscribed_regions(client: &OciClient) -> Result<Vec<Region>> 
         "/tenancies/{}/regionSubscriptions",
         client.get_compartment_ocid()
     ));
-    let subscriptions: Vec<RegionSubscriptionResponse> = client
-        .get(&url)
-        .await
-        .map_err(|error| error.with_context("listing subscribed regions"))?;
+    let subscriptions: Vec<RegionSubscriptionResponse> = client.get(&url).await?;
     Ok(subscriptions
         .into_iter()
         .map(|subscription| build_region(subscription.region_name))

@@ -1,9 +1,10 @@
-use byocvpn_core::{error::Result, managed_resources::WIREGUARD_PORT};
+use byocvpn_core::managed_resources::WIREGUARD_PORT;
 use log::{debug, info};
 
 use crate::{
     arm_resource::ArmResource,
     client::AzureClient,
+    error::Result,
     models::{
         NsgProperties, NsgRequest, NsgResponse, SecurityRule, SecurityRuleProperties,
         build_managed_tags,
@@ -28,9 +29,7 @@ pub async fn ensure_network_security_group(client: &AzureClient, location: &str)
                     security_rules: desired_rules,
                 },
             };
-            put_and_wait(client, &resource, &body)
-                .await
-                .map_err(|error| error.with_context("patching network security group rules"))?;
+            put_and_wait(client, &resource, &body).await?;
             info!("[Azure] {resource} security rules patched.");
         }
         None => {
@@ -42,9 +41,7 @@ pub async fn ensure_network_security_group(client: &AzureClient, location: &str)
                     security_rules: desired_rules,
                 },
             };
-            put_and_wait(client, &resource, &body)
-                .await
-                .map_err(|error| error.with_context("creating network security group"))?;
+            put_and_wait(client, &resource, &body).await?;
             info!("[Azure] {resource} created in {location}.");
         }
     }

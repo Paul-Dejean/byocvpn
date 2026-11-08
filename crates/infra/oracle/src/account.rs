@@ -1,13 +1,11 @@
-use byocvpn_core::{
-    error::{NetworkProvisioningError, Result},
-    retry::{RetryPolicy, retry},
-};
+use byocvpn_core::retry::{RetryPolicy, retry};
 use log::info;
 use serde_json::Value;
 use tokio::time::Duration;
 
 use crate::{
     client::OciClient,
+    error::{OracleError, Result},
     models::{RegionResponse, RegionSubscriptionResponse, SubscribeRegionRequest},
     network::{ensure_internet_gateway, ensure_vcn},
 };
@@ -39,11 +37,7 @@ pub async fn ensure_region_subscribed(home_client: &OciClient, region_name: &str
                 region_key: region_key.clone(),
             },
         )
-        .await
-        .map_err(|error| NetworkProvisioningError::ProviderSetupFailed {
-            step: format!("subscribe to region {region_name}"),
-            reason: error.to_string(),
-        })?;
+        .await?;
     info!("[OCI] Subscribed to region {region_name} (key {region_key}), waiting for READY...");
 
     retry(
@@ -53,10 +47,9 @@ pub async fn ensure_region_subscribed(home_client: &OciClient, region_name: &str
                 return Ok(());
             }
             info!("[OCI] Region {region_name} not yet ready, retrying...");
-            Err(NetworkProvisioningError::CloudOperationTimedOut {
-                operation: format!("region {region_name} subscription"),
-            }
-            .into())
+            Err(OracleError::RegionSubscriptionTimedOut {
+                region: region_name.to_string(),
+            })
         },
         REGION_SUBSCRIPTION_POLL_POLICY,
     )
@@ -66,10 +59,7 @@ pub async fn ensure_region_subscribed(home_client: &OciClient, region_name: &str
 async fn is_region_ready(home_client: &OciClient, region_name: &str) -> Result<bool> {
     let subscriptions: Vec<RegionSubscriptionResponse> = home_client
         .get(&build_subscriptions_url(home_client))
-        .await
-        .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-            reason: error.to_string(),
-        })?;
+        .await?;
     Ok(subscriptions.iter().any(|subscription| {
         subscription.region_name == region_name && subscription.status == READY_SUBSCRIPTION_STATUS
     }))
@@ -78,20 +68,13 @@ async fn is_region_ready(home_client: &OciClient, region_name: &str) -> Result<b
 async fn find_region_key(home_client: &OciClient, region_name: &str) -> Result<String> {
     let regions: Vec<RegionResponse> = home_client
         .get(&home_client.build_identity_url("/regions"))
-        .await
-        .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-            reason: error.to_string(),
-        })?;
+        .await?;
     regions
         .into_iter()
         .find(|region| region.name == region_name)
         .map(|region| region.key)
-        .ok_or_else(|| {
-            NetworkProvisioningError::ProviderSetupFailed {
-                step: "region subscription".to_string(),
-                reason: format!("region '{region_name}' not found"),
-            }
-            .into()
+        .ok_or(OracleError::RegionNotFound {
+            region: region_name.to_string(),
         })
 }
 

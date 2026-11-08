@@ -1,19 +1,15 @@
-use std::result::Result as StdResult;
-
-use aws_sdk_ec2::{
-    error::{ProvideErrorMetadata, SdkError},
-    types::{Filter, RouteTable, Tag},
-};
-use byocvpn_core::{
-    error::{NetworkProvisioningError, Result},
-    managed_resources::{ANY_IPV4_CIDR, ANY_IPV6_CIDR},
-};
+use aws_sdk_ec2::types::{Filter, RouteTable, Tag};
+use byocvpn_core::managed_resources::{ANY_IPV4_CIDR, ANY_IPV6_CIDR};
 use log::info;
 
-use crate::{client::AwsClient, error::extract_error_message};
+use crate::{
+    client::AwsClient,
+    error::{AwsError, Result},
+};
 
 const INTERNET_GATEWAY_NAME: &str = "byocvpn-igw";
 const MAIN_ROUTE_TABLE_NAME: &str = "byocvpn-main-route-table";
+const ROUTE_ALREADY_EXISTS_CODE: &str = "RouteAlreadyExists";
 
 pub async fn ensure_internet_gateway(client: &AwsClient, vpc_id: &str) -> Result<String> {
     let route_table_id = find_main_route_table(client, vpc_id).await?;
@@ -37,12 +33,7 @@ async fn find_main_route_table(client: &AwsClient, vpc_id: &str) -> Result<Strin
         .describe_route_tables()
         .filters(Filter::builder().name("vpc-id").values(vpc_id).build())
         .send()
-        .await
-        .map_err(
-            |error| NetworkProvisioningError::RouteTableOperationFailed {
-                reason: extract_error_message(&error),
-            },
-        )?;
+        .await?;
 
     response
         .route_tables()
@@ -55,11 +46,8 @@ async fn find_main_route_table(client: &AwsClient, vpc_id: &str) -> Result<Strin
         })
         .and_then(|route_table| route_table.route_table_id())
         .map(ToString::to_string)
-        .ok_or_else(|| {
-            NetworkProvisioningError::MissingMainRouteTable {
-                vpc_id: vpc_id.to_string(),
-            }
-            .into()
+        .ok_or_else(|| AwsError::MissingMainRouteTable {
+            vpc_id: vpc_id.to_string(),
         })
 }
 
@@ -74,12 +62,7 @@ async fn get_internet_gateway(client: &AwsClient, vpc_id: &str) -> Result<Option
                 .build(),
         )
         .send()
-        .await
-        .map_err(
-            |error| NetworkProvisioningError::InternetGatewayOperationFailed {
-                reason: extract_error_message(&error),
-            },
-        )?;
+        .await?;
 
     Ok(response
         .internet_gateways()
@@ -89,20 +72,14 @@ async fn get_internet_gateway(client: &AwsClient, vpc_id: &str) -> Result<Option
 }
 
 async fn create_internet_gateway(client: &AwsClient, vpc_id: &str) -> Result<String> {
-    let response = client
-        .ec2
-        .create_internet_gateway()
-        .send()
-        .await
-        .map_err(
-            |error| NetworkProvisioningError::InternetGatewayOperationFailed {
-                reason: extract_error_message(&error),
-            },
-        )?;
+    let response = client.ec2.create_internet_gateway().send().await?;
     let internet_gateway_id = response
         .internet_gateway()
         .and_then(|internet_gateway| internet_gateway.internet_gateway_id())
-        .ok_or(NetworkProvisioningError::MissingInternetGatewayIdentifier)?;
+        .ok_or(AwsError::MissingResponseField {
+            operation: "ec2:CreateInternetGateway",
+            field: "internetGatewayId",
+        })?;
 
     client
         .ec2
@@ -110,12 +87,7 @@ async fn create_internet_gateway(client: &AwsClient, vpc_id: &str) -> Result<Str
         .internet_gateway_id(internet_gateway_id)
         .vpc_id(vpc_id)
         .send()
-        .await
-        .map_err(
-            |error| NetworkProvisioningError::InternetGatewayOperationFailed {
-                reason: extract_error_message(&error),
-            },
-        )?;
+        .await?;
 
     info!("[AWS] Internet gateway {internet_gateway_id} attached to VPC {vpc_id}");
     Ok(internet_gateway_id.to_string())
@@ -136,12 +108,7 @@ async fn has_default_routes(
                 .build(),
         )
         .send()
-        .await
-        .map_err(
-            |error| NetworkProvisioningError::RouteTableOperationFailed {
-                reason: extract_error_message(&error),
-            },
-        )?;
+        .await?;
 
     let routes = response
         .route_tables()
@@ -172,7 +139,9 @@ async fn add_default_routes(
         .gateway_id(internet_gateway_id)
         .send()
         .await;
-    ignore_route_already_exists(ipv4_outcome)?;
+    if let Err(sdk_error) = ipv4_outcome {
+        tolerate_existing_route(AwsError::from(sdk_error))?;
+    }
 
     let ipv6_outcome = client
         .ec2
@@ -182,26 +151,19 @@ async fn add_default_routes(
         .gateway_id(internet_gateway_id)
         .send()
         .await;
-    ignore_route_already_exists(ipv6_outcome)?;
+    if let Err(sdk_error) = ipv6_outcome {
+        tolerate_existing_route(AwsError::from(sdk_error))?;
+    }
 
     info!("[AWS] Added default routes to route table {route_table_id}");
     Ok(())
 }
 
-fn ignore_route_already_exists<T, E: ProvideErrorMetadata>(
-    outcome: StdResult<T, SdkError<E>>,
-) -> Result<()> {
-    match outcome {
-        Ok(_) => Ok(()),
-        Err(SdkError::ServiceError(service_error))
-            if service_error.err().code() == Some("RouteAlreadyExists") =>
-        {
-            Ok(())
-        }
-        Err(error) => Err(NetworkProvisioningError::RouteTableOperationFailed {
-            reason: extract_error_message(&error),
-        }
-        .into()),
+fn tolerate_existing_route(error: AwsError) -> Result<()> {
+    if error.has_code(ROUTE_ALREADY_EXISTS_CODE) {
+        Ok(())
+    } else {
+        Err(error)
     }
 }
 
@@ -212,9 +174,6 @@ async fn tag_resource_with_name(client: &AwsClient, resource_id: &str, name: &st
         .resources(resource_id)
         .tags(Tag::builder().key("Name").value(name).build())
         .send()
-        .await
-        .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-            reason: extract_error_message(&error),
-        })?;
+        .await?;
     Ok(())
 }

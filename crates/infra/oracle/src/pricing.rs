@@ -1,12 +1,12 @@
-use byocvpn_core::{
-    cloud_provider::PricingInfo,
-    error::{ComputeProvisioningError, Error, NetworkProvisioningError, Result},
-};
+use byocvpn_core::cloud_provider::PricingInfo;
 use reqwest::Client as HttpClient;
 use serde::Deserialize;
 use tokio::time::Duration;
 
-use crate::instance::{INSTANCE_MEMORY_GB, INSTANCE_OCPUS};
+use crate::{
+    error::{OracleError, Result},
+    instance::{INSTANCE_MEMORY_GB, INSTANCE_OCPUS},
+};
 
 const PRICE_LIST_URL: &str = "https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/";
 const REQUEST_TIMEOUT_SECS: u64 = 15;
@@ -64,14 +64,13 @@ pub async fn fetch_pricing(region: &str, shape: &str) -> Result<PricingInfo> {
         .iter()
         .find(|(name, _)| *name == shape)
         .map(|(_, parts)| parts)
-        .ok_or_else(|| build_unavailable_error(region, shape, "shape has no known part numbers"))?;
+        .ok_or(OracleError::UnknownShape {
+            shape: shape.to_string(),
+        })?;
 
     let http = HttpClient::builder()
         .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
-        .build()
-        .map_err(|error| NetworkProvisioningError::CloudOperationFailed {
-            reason: format!("failed to build HTTP client: {error}"),
-        })?;
+        .build()?;
 
     let (ocpu_rate, memory_rate, storage_rate, performance_rate, egress_rate) = tokio::try_join!(
         fetch_pay_as_you_go_rate(&http, shape_parts.ocpu),
@@ -109,28 +108,17 @@ async fn fetch_pay_as_you_go_rate(http: &HttpClient, part_number: &str) -> Resul
         .get(PRICE_LIST_URL)
         .query(&[("partNumber", part_number)])
         .send()
-        .await
-        .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!("Oracle price list request for {part_number} failed: {error}"),
-        })?;
+        .await?;
 
     let status = response.status();
     if !status.is_success() {
-        return Err(NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!("Oracle price list returned HTTP {status} for {part_number}"),
-        }
-        .into());
+        return Err(OracleError::PriceListRejected {
+            part_number: part_number.to_string(),
+            status: status.as_u16(),
+        });
     }
 
-    let page: PriceListPage =
-        response
-            .json()
-            .await
-            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!(
-                    "Oracle price list response for {part_number} is not valid JSON: {error}"
-                ),
-            })?;
+    let page: PriceListPage = response.json().await?;
 
     page.items
         .iter()
@@ -140,23 +128,9 @@ async fn fetch_pay_as_you_go_rate(http: &HttpClient, part_number: &str) -> Resul
         .filter(|price| price.model == PAY_AS_YOU_GO_MODEL)
         .map(|price| price.value)
         .reduce(f64::max)
-        .ok_or_else(|| {
-            ComputeProvisioningError::PricingUnavailable {
-                region: String::new(),
-                instance_type: part_number.to_string(),
-                reason: "no pay-as-you-go USD price in the price list".to_string(),
-            }
-            .into()
+        .ok_or(OracleError::PriceUnavailable {
+            part_number: part_number.to_string(),
         })
-}
-
-fn build_unavailable_error(region: &str, shape: &str, reason: &str) -> Error {
-    ComputeProvisioningError::PricingUnavailable {
-        region: region.to_string(),
-        instance_type: shape.to_string(),
-        reason: reason.to_string(),
-    }
-    .into()
 }
 
 #[derive(Deserialize)]

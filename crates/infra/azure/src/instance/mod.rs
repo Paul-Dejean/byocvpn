@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use byocvpn_core::{
     cloud_provider::{CloudProviderName, InstanceInfo, InstanceState, SpawnInstanceParams},
-    error::{ComputeProvisioningError, Result},
     managed_resources::{
         MANAGED_BY_TAG_KEY, MANAGED_BY_TAG_VALUE, RESOURCE_NAME_PREFIX, SPAWN_ID_TAG_KEY,
     },
@@ -22,7 +21,7 @@ use crate::{
         extract_resource_group_from_id,
     },
     client::AzureClient,
-    error::{ArmErrorCode, extract_arm_error_code},
+    error::{ArmErrorCode, AzureError, Result},
     image::build_image_reference,
     instance::vm_network::{
         PublicIpAddresses, cleanup_vm_resources, create_nic, ensure_public_ip,
@@ -70,7 +69,7 @@ pub async fn spawn_instance(
         Err(error) => {
             error!("[Azure] Spawn in {location} failed, cleaning up VM '{vm_name}': {error}");
             cleanup_vm_resources(client, &resource_group, &vm_name).await;
-            Err(error.with_context(format!("spawning instance in {location}")))
+            Err(error)
         }
     }
 }
@@ -80,20 +79,9 @@ pub async fn terminate_instance(client: &AzureClient, instance_id: &str) -> Resu
     let (resource_group, vm_name) = parse_instance_id(instance_id)?;
     let vm_url = client.build_resource_url(&ArmResource::virtual_machine(resource_group, vm_name));
 
-    let build_termination_error =
-        |reason: String| ComputeProvisioningError::InstanceTerminationFailed {
-            instance_identifier: instance_id.to_string(),
-            reason,
-        };
-    let operation_url = client
-        .delete(&vm_url)
-        .await
-        .map_err(|error| build_termination_error(error.to_string()))?;
+    let operation_url = client.delete(&vm_url).await?;
     if let Some(operation_url) = operation_url {
-        client
-            .wait_for_async_operation(&operation_url)
-            .await
-            .map_err(|error| build_termination_error(error.to_string()))?;
+        client.wait_for_async_operation(&operation_url).await?;
     }
 
     info!("[Azure] VM '{vm_name}' deleted.");
@@ -163,10 +151,7 @@ async fn provision_virtual_machine(
     let (operation_url, vm_size) =
         create_vm_with_size_fallback(client, &vm_url, &launch_spec).await?;
     if let Some(operation_url) = operation_url {
-        client
-            .wait_for_async_operation(&operation_url)
-            .await
-            .map_err(|error| error.with_context("waiting for virtual machine creation"))?;
+        client.wait_for_async_operation(&operation_url).await?;
     }
 
     let public_ip_v4 = read_public_ip_or_warn(client, location, vm_name, IpVersion::V4).await;
@@ -232,7 +217,6 @@ async fn create_vm_with_size_fallback(
     launch_spec: &VmLaunchSpec<'_>,
 ) -> Result<(Option<String>, &'static str)> {
     let location = launch_spec.location;
-    let mut last_unavailable_size_error = None;
     for &vm_size in VM_SIZES {
         let body = build_vm_request(launch_spec, vm_size);
         match client.put(vm_url, &body).await {
@@ -243,24 +227,16 @@ async fn create_vm_with_size_fallback(
                 );
                 return Ok((operation_url, vm_size));
             }
-            Err(error) if extract_arm_error_code(&error) == Some(ArmErrorCode::SkuNotAvailable) => {
-                warn!("[Azure] {vm_size} not available in {location}, trying next size...");
-                last_unavailable_size_error = Some(error);
+            Err(error) if error.get_arm_error_code() == Some(ArmErrorCode::SkuNotAvailable) => {
+                warn!("[Azure] {vm_size} not available in {location}: {error}");
             }
-            Err(error) => return Err(error.with_context("creating virtual machine")),
+            Err(error) => return Err(error),
         }
     }
 
-    Err(last_unavailable_size_error.map_or_else(
-        || {
-            ComputeProvisioningError::InstanceSpawnFailed {
-                region_name: location.to_string(),
-                reason: "no VM sizes configured".to_string(),
-            }
-            .into()
-        },
-        |error| error.with_context(format!("no available VM size in {location}")),
-    ))
+    Err(AzureError::NoVmSizeAvailable {
+        location: location.to_string(),
+    })
 }
 
 fn build_vm_request(launch_spec: &VmLaunchSpec<'_>, vm_size: &str) -> VmRequest {
@@ -456,5 +432,5 @@ impl ManagedVm {
 fn parse_instance_id(instance_id: &str) -> Result<(&str, &str)> {
     instance_id
         .split_once('/')
-        .ok_or_else(|| ComputeProvisioningError::MissingInstanceIdentifier.into())
+        .ok_or(AzureError::InvalidInstanceId)
 }

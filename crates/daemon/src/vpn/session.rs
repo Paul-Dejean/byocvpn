@@ -1,10 +1,12 @@
+use std::io::ErrorKind;
+
 use byocvpn_core::{
     cloud_provider::CloudProviderName,
+    config::session_file_path,
     error::{ConfigurationError, Result},
 };
 use log::{debug, warn};
 use serde::{Deserialize, Serialize};
-use std::io::ErrorKind;
 
 const fn default_kill_switch_enabled() -> bool {
     true
@@ -22,38 +24,36 @@ pub struct PersistedSession {
 }
 
 pub fn write_session(session: &PersistedSession) -> Result<()> {
-    let path = byocvpn_core::config::session_file_path()?;
-    let json = serde_json::to_string(session).map_err(|error| {
-        ConfigurationError::TunnelConfiguration {
-            reason: format!("failed to serialize session: {error}"),
-        }
-    })?;
-    std::fs::write(&path, json.as_bytes()).map_err(|error| {
-        ConfigurationError::TunnelConfiguration {
-            reason: format!("failed to write session file: {error}"),
-        }
+    let path = session_file_path()?;
+    let json = serde_json::to_string(session)?;
+    std::fs::write(&path, json.as_bytes()).map_err(|source| ConfigurationError::DataFile {
+        operation: "write",
+        path: path.clone(),
+        source,
     })?;
     debug!("Session persisted to {}", path.display());
     Ok(())
 }
 
 pub fn clear_session() -> Result<()> {
-    let path = byocvpn_core::config::session_file_path()?;
+    let path = session_file_path()?;
     match std::fs::remove_file(&path) {
         Ok(()) => {
             debug!("Session file cleared");
             Ok(())
         }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(ConfigurationError::TunnelConfiguration {
-            reason: format!("failed to remove session file: {error}"),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
+        Err(source) => Err(ConfigurationError::DataFile {
+            operation: "remove",
+            path,
+            source,
         }
         .into()),
     }
 }
 
 pub fn read_session() -> Option<PersistedSession> {
-    let path = byocvpn_core::config::session_file_path().ok()?;
+    let path = session_file_path().ok()?;
     let json = match std::fs::read_to_string(&path) {
         Ok(json) => json,
         Err(error) if error.kind() == ErrorKind::NotFound => return None,

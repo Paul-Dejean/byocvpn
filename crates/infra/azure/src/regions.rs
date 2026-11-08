@@ -1,6 +1,6 @@
-use byocvpn_core::{cloud_provider::Region, error::Result};
+use byocvpn_core::cloud_provider::Region;
 
-use crate::{client::AzureClient, models::LocationListResponse};
+use crate::{client::AzureClient, error::Result, models::LocationListResponse};
 
 const API_VERSION_LOCATIONS: &str = "2022-12-01";
 const RECOMMENDED_REGION_CATEGORY: &str = "Recommended";
@@ -68,10 +68,7 @@ const REGION_CONTINENTS: &[(&str, &str)] = &[
 pub async fn list_regions(client: &AzureClient) -> Result<Vec<Region>> {
     let path = client.build_subscription_path("/locations");
     let url = AzureClient::build_arm_url(&path, API_VERSION_LOCATIONS);
-    let response: LocationListResponse = client
-        .get(&url)
-        .await
-        .map_err(|error| error.with_context("listing regions"))?;
+    let response: LocationListResponse = client.get(&url).await?;
 
     Ok(response
         .value

@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use byocvpn_core::{
     cloud_provider::{CloudProviderName, InstanceInfo, SpawnInstanceParams},
-    error::{ComputeProvisioningError, Error, Result},
     managed_resources::{MANAGED_BY_TAG_KEY, MANAGED_BY_TAG_VALUE, SPAWN_ID_TAG_KEY},
     retry::{RetryPolicy, retry_if},
     server_startup::{PackageManager, generate_server_startup_script},
@@ -15,6 +14,7 @@ use tokio::time::Duration;
 
 use crate::{
     client::OciClient,
+    error::{OracleError, Result},
     models::{
         AvailabilityDomainResponse, CreateVnicDetails, InstanceResponse, LaunchInstanceRequest,
         ShapeConfig, SourceDetails, VnicAttachmentResponse, VnicResponse, build_managed_tags,
@@ -46,11 +46,7 @@ pub async fn spawn_instance(
     );
     let launched: InstanceResponse = client
         .post(&client.build_core_url("/instances"), &body)
-        .await
-        .map_err(|error| ComputeProvisioningError::InstanceSpawnFailed {
-            region_name: region.to_string(),
-            reason: error.to_string(),
-        })?;
+        .await?;
 
     let instance_ocid = launched.id;
     debug!("[OCI] Instance {instance_ocid} created, waiting for RUNNING state");
@@ -75,12 +71,7 @@ pub async fn terminate_instance(client: &OciClient, instance_ocid: &str) -> Resu
     let url = client.build_core_url(&format!(
         "/instances/{instance_ocid}?preserveBootVolume=false"
     ));
-    client.delete(&url).await.map_err(|error| {
-        Error::from(ComputeProvisioningError::InstanceTerminationFailed {
-            instance_identifier: instance_ocid.to_string(),
-            reason: error.to_string(),
-        })
-    })?;
+    client.delete(&url).await?;
     info!("[OCI] Instance {instance_ocid} terminated");
     Ok(())
 }
@@ -90,14 +81,7 @@ pub async fn list_instances(client: &OciClient, region: &str) -> Result<Vec<Inst
         "/instances?compartmentId={}",
         client.get_compartment_ocid()
     ));
-    let response: Vec<InstanceResponse> =
-        client
-            .get(&url)
-            .await
-            .map_err(|error| ComputeProvisioningError::InstanceSpawnFailed {
-                region_name: region.to_string(),
-                reason: error.to_string(),
-            })?;
+    let response: Vec<InstanceResponse> = client.get(&url).await?;
 
     let mut instances: Vec<InstanceInfo> = response
         .iter()
@@ -166,12 +150,8 @@ async fn get_first_availability_domain(client: &OciClient, region: &str) -> Resu
         .into_iter()
         .next()
         .map(|domain| domain.name)
-        .ok_or_else(|| {
-            ComputeProvisioningError::InstanceSpawnFailed {
-                region_name: region.to_string(),
-                reason: "No availability domains found".to_string(),
-            }
-            .into()
+        .ok_or(OracleError::NoAvailabilityDomains {
+            region: region.to_string(),
         })
 }
 
@@ -183,8 +163,8 @@ async fn get_instance(client: &OciClient, instance_ocid: &str) -> Result<Instanc
 
 enum InstanceWaitError {
     NotRunningYet,
-    LookupFailed(Error),
-    Terminal(Error),
+    LookupFailed(OracleError),
+    Terminal(OracleError),
 }
 
 async fn wait_until_running(client: &OciClient, instance_ocid: &str) -> Result<()> {
@@ -200,13 +180,10 @@ async fn wait_until_running(client: &OciClient, instance_ocid: &str) -> Result<(
                     Ok(())
                 }
                 "TERMINATED" | "TERMINATING" => Err(InstanceWaitError::Terminal(
-                    ComputeProvisioningError::InstanceWaitFailed {
-                        reason: format!(
-                            "Instance {instance_ocid} entered terminal state '{}'",
-                            details.lifecycle_state
-                        ),
-                    }
-                    .into(),
+                    OracleError::InstanceTerminated {
+                        instance_ocid: instance_ocid.to_string(),
+                        lifecycle_state: details.lifecycle_state,
+                    },
                 )),
                 _ => Err(InstanceWaitError::NotRunningYet),
             }
@@ -231,12 +208,9 @@ async fn wait_until_running(client: &OciClient, instance_ocid: &str) -> Result<(
 
     match outcome {
         Ok(()) => Ok(()),
-        Err(InstanceWaitError::NotRunningYet) => {
-            Err(ComputeProvisioningError::InstanceWaitFailed {
-                reason: format!("Instance {instance_ocid} did not become RUNNING in time"),
-            }
-            .into())
-        }
+        Err(InstanceWaitError::NotRunningYet) => Err(OracleError::InstanceNotRunning {
+            instance_ocid: instance_ocid.to_string(),
+        }),
         Err(InstanceWaitError::LookupFailed(error) | InstanceWaitError::Terminal(error)) => {
             Err(error)
         }

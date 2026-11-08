@@ -3,14 +3,13 @@ mod security_list;
 mod subnet;
 mod vcn;
 
-use byocvpn_core::error::Result;
 pub use internet_gateway::ensure_internet_gateway;
 use log::info;
 pub use security_list::ensure_security_list;
 pub use subnet::ensure_subnet;
 pub use vcn::ensure_vcn;
 
-use crate::client::OciClient;
+use crate::{client::OciClient, error::Result};
 
 pub struct RegionNetwork {
     pub subnet_id: String,

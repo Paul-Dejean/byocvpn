@@ -131,8 +131,10 @@ pub async fn terminate_instance(
     if fs::metadata(&wireguard_file_path).await.is_ok() {
         fs::remove_file(&wireguard_file_path)
             .await
-            .map_err(|error| ConfigurationError::TunnelConfiguration {
-                reason: format!("failed to remove config file: {error}"),
+            .map_err(|source| ConfigurationError::DataFile {
+                operation: "remove",
+                path: wireguard_file_path.clone(),
+                source,
             })?;
     }
 

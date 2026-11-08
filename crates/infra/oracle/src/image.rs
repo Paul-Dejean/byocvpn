@@ -1,6 +1,8 @@
-use byocvpn_core::error::{NetworkProvisioningError, Result};
-
-use crate::{client::OciClient, models::ImageResponse};
+use crate::{
+    client::OciClient,
+    error::{OracleError, Result},
+    models::ImageResponse,
+};
 
 const IMAGE_OPERATING_SYSTEM: &str = "Canonical+Ubuntu";
 const IMAGE_OPERATING_SYSTEM_VERSION: &str = "22.04";
@@ -17,10 +19,5 @@ pub async fn resolve_boot_image(client: &OciClient) -> Result<String> {
         .into_iter()
         .next()
         .map(|image| image.id)
-        .ok_or_else(|| {
-            NetworkProvisioningError::BaseImageNotFound {
-                image: IMAGE_NAME.to_string(),
-            }
-            .into()
-        })
+        .ok_or(OracleError::BaseImageNotFound { image: IMAGE_NAME })
 }

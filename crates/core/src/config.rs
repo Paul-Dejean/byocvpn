@@ -36,9 +36,7 @@ pub fn generate_client_config(
 
     let config = handlebars_registry
         .render_template(template_text, &context)
-        .map_err(|error| ConfigurationError::TemplateRender {
-            reason: error.to_string(),
-        })?;
+        .map_err(ConfigurationError::TemplateRender)?;
     debug!("WireGuard client config generated for server IP: {server_ip_v4}");
     Ok(config)
 }
@@ -60,16 +58,20 @@ async fn get_configs_path() -> Result<PathBuf> {
 
     if !try_exists(&byocvpn_dir)
         .await
-        .map_err(|error| ConfigurationError::TunnelConfiguration {
-            reason: format!("failed to check configs directory: {error}"),
+        .map_err(|source| ConfigurationError::DataFile {
+            operation: "check",
+            path: byocvpn_dir.clone(),
+            source,
         })?
     {
         debug!("Creating configs directory: {}", byocvpn_dir.display());
-        create_dir_all(&byocvpn_dir).await.map_err(|error| {
-            ConfigurationError::TunnelConfiguration {
-                reason: format!("failed to create configs directory: {error}"),
-            }
-        })?;
+        create_dir_all(&byocvpn_dir)
+            .await
+            .map_err(|source| ConfigurationError::DataFile {
+                operation: "create",
+                path: byocvpn_dir.clone(),
+                source,
+            })?;
     }
 
     Ok(byocvpn_dir)

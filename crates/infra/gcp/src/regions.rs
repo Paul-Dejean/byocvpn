@@ -1,7 +1,10 @@
-use byocvpn_core::{cloud_provider::Region, error::Result};
+use byocvpn_core::cloud_provider::Region;
 use google_cloud_compute_v1::model::region::Status as RegionStatus;
 
-use crate::{client::GcpClient, error::convert_sdk_error};
+use crate::{
+    client::GcpClient,
+    error::{LabelOperation, Result},
+};
 
 const UNKNOWN_CONTINENT: &str = "Other";
 
@@ -23,7 +26,7 @@ pub async fn list_regions(client: &GcpClient) -> Result<Vec<Region>> {
         .set_project(&client.project_id)
         .send()
         .await
-        .map_err(|error| convert_sdk_error("listing regions", error))?;
+        .label_operation("compute.regions.list")?;
 
     Ok(response
         .items

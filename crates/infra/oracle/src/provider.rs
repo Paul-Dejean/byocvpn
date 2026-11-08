@@ -62,14 +62,14 @@ impl CloudProvider for OracleProvider {
 
     async fn get_regions(&self) -> Result<Vec<Region>> {
         let client = self.build_client(None);
-        regions::list_regions(&client).await
+        Ok(regions::list_regions(&client).await?)
     }
 
     async fn list_instances(&self, region: Option<&str>) -> Result<Vec<InstanceInfo>> {
         match region {
             Some(region_name) => {
                 let client = self.build_client(Some(region_name));
-                instance::list_instances(&client, region_name).await
+                Ok(instance::list_instances(&client, region_name).await?)
             }
             None => self.list_instances_in_subscribed_regions().await,
         }
@@ -79,16 +79,16 @@ impl CloudProvider for OracleProvider {
         let client = self.build_client(Some(params.region));
         let region_network = network::ensure_region_network(&client).await?;
         let image_ocid = image::resolve_boot_image(&client).await?;
-        instance::spawn_instance(&client, &region_network, &image_ocid, params).await
+        Ok(instance::spawn_instance(&client, &region_network, &image_ocid, params).await?)
     }
 
     async fn terminate_instance(&self, params: &TerminateInstanceParams) -> Result<()> {
         let client = self.build_client(Some(params.region));
-        instance::terminate_instance(&client, params.instance_id).await
+        Ok(instance::terminate_instance(&client, params.instance_id).await?)
     }
 
     async fn fetch_pricing(&self, region: &str, instance_type: &str) -> Result<PricingInfo> {
-        pricing::fetch_pricing(region, instance_type).await
+        Ok(pricing::fetch_pricing(region, instance_type).await?)
     }
 
     fn get_provision_account_steps(&self) -> Vec<JobStep> {
@@ -129,7 +129,7 @@ impl CloudProvider for OracleProvider {
         match parse_step_id(step_id)? {
             OracleStepId::RegionSubscribe => {
                 let home_client = self.build_client(None);
-                account::ensure_region_subscribed(&home_client, region).await
+                Ok(account::ensure_region_subscribed(&home_client, region).await?)
             }
             OracleStepId::RegionVcn => {
                 network::ensure_vcn(&client).await?;

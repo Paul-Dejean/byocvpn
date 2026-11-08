@@ -1,7 +1,4 @@
-use byocvpn_core::{
-    error::{NetworkProvisioningError, Result},
-    retry::{RetryPolicy, retry},
-};
+use byocvpn_core::retry::{RetryPolicy, retry};
 use google_cloud_compute_v1::model::Operation;
 use google_cloud_lro::Poller;
 use log::debug;
@@ -9,24 +6,19 @@ use serde::Deserialize;
 
 use crate::{
     client::GcpClient,
-    error::{convert_operation_error, convert_sdk_error},
+    error::{GcpError, LabelOperation, Result},
 };
 
 pub async fn await_compute_operation<OperationPoller>(
-    operation_name: &str,
+    operation_name: &'static str,
     poller: OperationPoller,
 ) -> Result<()>
 where
     OperationPoller: Poller<Operation, Operation>,
 {
-    let operation = poller
-        .until_done()
-        .await
-        .map_err(|error| convert_sdk_error(operation_name, error))?;
-    operation
-        .to_result()
-        .map(|_| ())
-        .map_err(|error| convert_operation_error(operation_name, error))
+    let operation = poller.until_done().await.label_operation(operation_name)?;
+    operation.to_result().label_operation(operation_name)?;
+    Ok(())
 }
 
 pub async fn wait_for_service_usage_operation(
@@ -39,16 +31,14 @@ pub async fn wait_for_service_usage_operation(
             let operation: ServiceUsageOperation = client.get(operation_url).await?;
             if operation.done != Some(true) {
                 debug!("[GCP] Operation pending: {operation_url}");
-                return Err(NetworkProvisioningError::CloudOperationTimedOut {
-                    operation: operation_url.to_string(),
-                }
-                .into());
+                return Err(GcpError::ServiceUsageOperationTimedOut {
+                    operation_url: operation_url.to_string(),
+                });
             }
             match operation.error {
-                Some(error) => Err(NetworkProvisioningError::CloudOperationFailed {
-                    reason: error.message.unwrap_or_else(|| "unknown error".to_string()),
-                }
-                .into()),
+                Some(error) => Err(GcpError::ServiceUsageOperationFailed {
+                    message: error.message.unwrap_or_else(|| "unknown error".to_string()),
+                }),
                 None => Ok(()),
             }
         },

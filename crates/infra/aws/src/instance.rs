@@ -8,7 +8,6 @@ use aws_sdk_ec2::{
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use byocvpn_core::{
     cloud_provider::{CloudProviderName, InstanceInfo, InstanceState, SpawnInstanceParams},
-    error::{ComputeProvisioningError, Result},
     managed_resources::{MANAGED_BY_TAG_KEY, MANAGED_BY_TAG_VALUE, SPAWN_ID_TAG_KEY},
     server_startup::{PackageManager, generate_server_startup_script},
 };
@@ -17,7 +16,9 @@ use log::{debug, info};
 use tokio::time::Duration;
 
 use crate::{
-    client::AwsClient, error::extract_error_message, network::RegionNetwork,
+    client::AwsClient,
+    error::{AwsError, Result},
+    network::RegionNetwork,
     state::Ec2InstanceState,
 };
 
@@ -56,17 +57,15 @@ pub async fn spawn_instance(
         .max_count(1)
         .tag_specifications(build_instance_tags(params.spawn_id))
         .send()
-        .await
-        .map_err(|error| ComputeProvisioningError::InstanceSpawnFailed {
-            region_name: region.to_string(),
-            reason: extract_error_message(&error),
-        })?;
+        .await?;
     let instance_id = response
         .instances()
         .first()
-        .ok_or(ComputeProvisioningError::NoInstanceInResponse)?
-        .instance_id()
-        .ok_or(ComputeProvisioningError::MissingInstanceIdentifier)?
+        .and_then(|instance| instance.instance_id())
+        .ok_or(AwsError::MissingResponseField {
+            operation: "ec2:RunInstances",
+            field: "instanceId",
+        })?
         .to_string();
 
     client
@@ -74,12 +73,9 @@ pub async fn spawn_instance(
         .wait_until_instance_running()
         .instance_ids(&instance_id)
         .wait(INSTANCE_RUNNING_TIMEOUT)
-        .await
-        .map_err(|error| ComputeProvisioningError::InstanceWaitFailed {
-            reason: error.to_string(),
-        })?;
+        .await?;
 
-    let (public_ip_v4, public_ip_v6) = get_public_ips(client, &instance_id, region).await?;
+    let (public_ip_v4, public_ip_v6) = get_public_ips(client, &instance_id).await?;
     info!(
         "[AWS] Instance {instance_id} spawned in {region} (IPv4 {public_ip_v4}, IPv6 {public_ip_v6})"
     );
@@ -106,13 +102,7 @@ pub async fn terminate_instance(client: &AwsClient, instance_id: &str) -> Result
         .terminate_instances()
         .instance_ids(instance_id)
         .send()
-        .await
-        .map_err(
-            |error| ComputeProvisioningError::InstanceTerminationFailed {
-                instance_identifier: instance_id.to_string(),
-                reason: extract_error_message(&error),
-            },
-        )?;
+        .await?;
     info!("[AWS] Instance {instance_id} terminated");
     Ok(())
 }
@@ -140,11 +130,7 @@ pub async fn list_instances(client: &AwsClient, region: &str) -> Result<Vec<Inst
                 .build(),
         )
         .send()
-        .await
-        .map_err(|error| ComputeProvisioningError::InstanceSpawnFailed {
-            region_name: region.to_string(),
-            reason: extract_error_message(&error),
-        })?;
+        .await?;
 
     let instances: Vec<InstanceInfo> = response
         .reservations()
@@ -178,21 +164,13 @@ fn build_instance_tags(spawn_id: &str) -> TagSpecification {
         .build()
 }
 
-async fn get_public_ips(
-    client: &AwsClient,
-    instance_id: &str,
-    region: &str,
-) -> Result<(String, String)> {
+async fn get_public_ips(client: &AwsClient, instance_id: &str) -> Result<(String, String)> {
     let response = client
         .ec2
         .describe_instances()
         .instance_ids(instance_id)
         .send()
-        .await
-        .map_err(|error| ComputeProvisioningError::InstanceSpawnFailed {
-            region_name: region.to_string(),
-            reason: extract_error_message(&error),
-        })?;
+        .await?;
     let instances: Vec<&Instance> = response
         .reservations()
         .iter()
@@ -202,12 +180,16 @@ async fn get_public_ips(
     let public_ip_v4 = instances
         .iter()
         .find_map(|instance| instance.public_ip_address())
-        .ok_or(ComputeProvisioningError::MissingPublicIpv4)?
+        .ok_or_else(|| AwsError::MissingPublicIpv4 {
+            instance_id: instance_id.to_string(),
+        })?
         .to_string();
     let public_ip_v6 = instances
         .iter()
         .find_map(|instance| instance.ipv6_address())
-        .ok_or(ComputeProvisioningError::MissingPublicIpv6)?
+        .ok_or_else(|| AwsError::MissingPublicIpv6 {
+            instance_id: instance_id.to_string(),
+        })?
         .to_string();
     Ok((public_ip_v4, public_ip_v6))
 }

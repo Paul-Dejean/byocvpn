@@ -1,10 +1,13 @@
 use std::{net::Ipv6Addr, str::FromStr};
 
 use aws_sdk_ec2::types::{AttributeBooleanValue, Filter, ResourceType, Tag, TagSpecification};
-use byocvpn_core::error::{NetworkProvisioningError, Result};
 use log::info;
 
-use crate::{client::AwsClient, error::extract_error_message, network::vpc::get_vpc_ipv6_block};
+use crate::{
+    client::AwsClient,
+    error::{AwsError, Result},
+    network::vpc::get_vpc_ipv6_block,
+};
 
 const SUBNET_NAME: &str = "byocvpn-subnet";
 const SUBNET_CIDR_BLOCK: &str = "10.0.0.0/24";
@@ -28,10 +31,7 @@ async fn get_first_subnet_in_vpc(client: &AwsClient, vpc_id: &str) -> Result<Opt
         .describe_subnets()
         .filters(Filter::builder().name("vpc-id").values(vpc_id).build())
         .send()
-        .await
-        .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-            reason: extract_error_message(&error),
-        })?;
+        .await?;
 
     Ok(response
         .subnets()
@@ -41,37 +41,25 @@ async fn get_first_subnet_in_vpc(client: &AwsClient, vpc_id: &str) -> Result<Opt
 }
 
 async fn get_first_availability_zone(client: &AwsClient) -> Result<String> {
-    let response = client
-        .ec2
-        .describe_availability_zones()
-        .send()
-        .await
-        .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-            reason: extract_error_message(&error),
-        })?;
+    let response = client.ec2.describe_availability_zones().send().await?;
 
     response
         .availability_zones()
         .iter()
         .find_map(|availability_zone| availability_zone.zone_name())
         .map(ToString::to_string)
-        .ok_or_else(|| {
-            NetworkProvisioningError::NetworkQueryFailed {
-                reason: "no availability zones found in region".to_string(),
-            }
-            .into()
-        })
+        .ok_or(AwsError::NoAvailabilityZones)
 }
 
 fn carve_ipv6_subnet(base_cidr: &str, index: u8) -> Result<String> {
     let (base_ip, _prefix_length) =
         base_cidr
             .split_once('/')
-            .ok_or_else(|| NetworkProvisioningError::InvalidIpv6Cidr {
+            .ok_or_else(|| AwsError::InvalidIpv6Cidr {
                 cidr: base_cidr.to_string(),
             })?;
     let mut octets = Ipv6Addr::from_str(base_ip)
-        .map_err(|_| NetworkProvisioningError::InvalidIpv6Cidr {
+        .map_err(|_| AwsError::InvalidIpv6Cidr {
             cidr: base_ip.to_string(),
         })?
         .octets();
@@ -99,15 +87,15 @@ async fn create_subnet(
         .availability_zone(availability_zone)
         .tag_specifications(tag_specification)
         .send()
-        .await
-        .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {
-            reason: extract_error_message(&error),
-        })?;
+        .await?;
 
     let subnet_id = response
         .subnet()
         .and_then(|subnet| subnet.subnet_id())
-        .ok_or(NetworkProvisioningError::MissingSubnetIdentifier)?;
+        .ok_or(AwsError::MissingResponseField {
+            operation: "ec2:CreateSubnet",
+            field: "subnetId",
+        })?;
     info!("[AWS] Created subnet {subnet_id}");
     Ok(subnet_id.to_string())
 }
@@ -119,12 +107,7 @@ async fn enable_public_ip_assignment(client: &AwsClient, subnet_id: &str) -> Res
         .subnet_id(subnet_id)
         .map_public_ip_on_launch(AttributeBooleanValue::builder().value(true).build())
         .send()
-        .await
-        .map_err(
-            |error| NetworkProvisioningError::SubnetConfigurationFailed {
-                reason: extract_error_message(&error),
-            },
-        )?;
+        .await?;
 
     client
         .ec2
@@ -132,12 +115,7 @@ async fn enable_public_ip_assignment(client: &AwsClient, subnet_id: &str) -> Res
         .subnet_id(subnet_id)
         .assign_ipv6_address_on_creation(AttributeBooleanValue::builder().value(true).build())
         .send()
-        .await
-        .map_err(
-            |error| NetworkProvisioningError::SubnetConfigurationFailed {
-                reason: extract_error_message(&error),
-            },
-        )?;
+        .await?;
 
     Ok(())
 }

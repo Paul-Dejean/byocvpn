@@ -27,15 +27,10 @@ pub struct DnsOverrideGuard {
 impl DnsOverrideGuard {
     pub fn override_system_dns(new_dns_servers: &[&str]) -> Result<Self> {
         if new_dns_servers.is_empty() {
-            return Err(ConfigurationError::DnsConfiguration {
-                reason: "desired DNS servers list is empty".to_string(),
-            }
-            .into());
+            return Err(ConfigurationError::NoDnsServers.into());
         }
 
-        add_nrpt_rule(new_dns_servers).map_err(|error| ConfigurationError::DnsConfiguration {
-            reason: format!("failed to add NRPT rule: {}", error),
-        })?;
+        add_nrpt_rule(new_dns_servers).map_err(ConfigurationError::DnsRegistry)?;
 
         flush_dns_resolver_cache();
         info!("NRPT DNS rule applied for servers: {:?}", new_dns_servers);

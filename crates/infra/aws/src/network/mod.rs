@@ -3,13 +3,12 @@ mod security_group;
 mod subnet;
 mod vpc;
 
-use byocvpn_core::error::Result;
 pub use internet_gateway::ensure_internet_gateway;
 pub use security_group::ensure_security_group;
 pub use subnet::ensure_subnet;
 pub use vpc::ensure_vpc;
 
-use crate::client::AwsClient;
+use crate::{client::AwsClient, error::Result};
 
 pub struct RegionNetwork {
     pub subnet_id: String,

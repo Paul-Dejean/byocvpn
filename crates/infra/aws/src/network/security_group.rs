@@ -1,13 +1,13 @@
 use std::collections::HashSet;
 
 use aws_sdk_ec2::types::{Filter, IpPermission, IpRange, Ipv6Range, SecurityGroup};
-use byocvpn_core::{
-    error::{NetworkProvisioningError, Result},
-    managed_resources::{ANY_IPV4_CIDR, ANY_IPV6_CIDR, WIREGUARD_PORT},
-};
+use byocvpn_core::managed_resources::{ANY_IPV4_CIDR, ANY_IPV6_CIDR, WIREGUARD_PORT};
 use log::info;
 
-use crate::{client::AwsClient, error::extract_error_message};
+use crate::{
+    client::AwsClient,
+    error::{AwsError, Result},
+};
 
 const SECURITY_GROUP_NAME: &str = "byocvpn-security-group";
 const SECURITY_GROUP_DESCRIPTION: &str = "BYOC VPN server";
@@ -31,10 +31,7 @@ async fn get_security_group_by_name(client: &AwsClient) -> Result<Option<String>
                 .build(),
         )
         .send()
-        .await
-        .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-            reason: extract_error_message(&error),
-        })?;
+        .await?;
 
     Ok(response
         .security_groups()
@@ -51,16 +48,14 @@ async fn create_security_group(client: &AwsClient, vpc_id: &str) -> Result<Strin
         .group_name(SECURITY_GROUP_NAME)
         .description(SECURITY_GROUP_DESCRIPTION)
         .send()
-        .await
-        .map_err(
-            |error| NetworkProvisioningError::SecurityGroupCreationFailed {
-                reason: extract_error_message(&error),
-            },
-        )?;
+        .await?;
 
     let security_group_id = response
         .group_id()
-        .ok_or(NetworkProvisioningError::MissingSecurityGroupIdentifier)?
+        .ok_or(AwsError::MissingResponseField {
+            operation: "ec2:CreateSecurityGroup",
+            field: "groupId",
+        })?
         .to_string();
     info!("[AWS] Created security group {security_group_id}");
 
@@ -78,10 +73,7 @@ async fn reconcile_ingress_rules(client: &AwsClient, security_group_id: &str) ->
         .describe_security_groups()
         .group_ids(security_group_id)
         .send()
-        .await
-        .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-            reason: extract_error_message(&error),
-        })?;
+        .await?;
 
     let current_rules: HashSet<IngressRule> = response
         .security_groups()
@@ -122,12 +114,7 @@ async fn authorize_ingress(
         .group_id(security_group_id)
         .set_ip_permissions(Some(permissions))
         .send()
-        .await
-        .map_err(
-            |error| NetworkProvisioningError::SecurityGroupRuleConfigurationFailed {
-                reason: extract_error_message(&error),
-            },
-        )?;
+        .await?;
     Ok(())
 }
 
@@ -142,12 +129,7 @@ async fn revoke_ingress(
         .group_id(security_group_id)
         .set_ip_permissions(Some(permissions))
         .send()
-        .await
-        .map_err(
-            |error| NetworkProvisioningError::SecurityGroupRuleConfigurationFailed {
-                reason: extract_error_message(&error),
-            },
-        )?;
+        .await?;
     Ok(())
 }
 

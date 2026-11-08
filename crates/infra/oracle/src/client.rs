@@ -1,4 +1,3 @@
-use byocvpn_core::error::{NetworkProvisioningError, Result};
 use chrono::Utc;
 use log::{debug, error};
 use reqwest::{Client as HttpClient, Method, Response, StatusCode, Url};
@@ -6,7 +5,9 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::{from_str, to_vec};
 
 use crate::{
-    auth::build_signed_headers, credentials::OracleCredentials, error::build_request_error,
+    auth::build_signed_headers,
+    credentials::OracleCredentials,
+    error::{Result, build_rejected_error},
 };
 
 const API_VERSION: &str = "20160918";
@@ -54,7 +55,7 @@ impl OciClient {
     }
 
     pub async fn post<B: Serialize, T: DeserializeOwned>(&self, url: &str, body: &B) -> Result<T> {
-        let body_bytes = serialize_body(body)?;
+        let body_bytes = to_vec(body)?;
         let response = self
             .send_request(Method::POST, url, Some(body_bytes))
             .await?;
@@ -62,7 +63,7 @@ impl OciClient {
     }
 
     pub async fn put<B: Serialize>(&self, url: &str, body: &B) -> Result<()> {
-        let body_bytes = serialize_body(body)?;
+        let body_bytes = to_vec(body)?;
         let response = self
             .send_request(Method::PUT, url, Some(body_bytes))
             .await?;
@@ -72,7 +73,7 @@ impl OciClient {
         }
         let body_text = response.text().await.unwrap_or_default();
         error!("[OCI] PUT {url} -> {status}: {body_text}");
-        Err(build_request_error("PUT", url, status, &body_text))
+        Err(build_rejected_error("PUT", url, status, &body_text))
     }
 
     pub async fn delete(&self, url: &str) -> Result<()> {
@@ -82,7 +83,7 @@ impl OciClient {
             return Ok(());
         }
         let body_text = response.text().await.unwrap_or_default();
-        Err(build_request_error("DELETE", url, status, &body_text))
+        Err(build_rejected_error("DELETE", url, status, &body_text))
     }
 
     async fn send_request(
@@ -92,10 +93,7 @@ impl OciClient {
         body: Option<Vec<u8>>,
     ) -> Result<Response> {
         debug!("[OCI] {method} {url}");
-        let parsed_url =
-            Url::parse(url).map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Invalid URL {url}: {error}"),
-            })?;
+        let parsed_url = Url::parse(url)?;
         let host = parsed_url.host_str().unwrap_or_default();
         let path = match parsed_url.query() {
             Some(query) => format!("{}?{query}", parsed_url.path()),
@@ -113,7 +111,7 @@ impl OciClient {
 
         let mut request = self
             .http
-            .request(method.clone(), url)
+            .request(method, url)
             .header("date", &date)
             .header("authorization", &signed_headers.authorization);
         if let (Some(body_bytes), Some(content_sha256)) = (body, signed_headers.content_sha256) {
@@ -123,49 +121,24 @@ impl OciClient {
                 .header("content-length", body_bytes.len().to_string())
                 .body(body_bytes);
         }
-        request.send().await.map_err(|error| {
-            NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("OCI {method} {url} failed: {error}"),
-            }
-            .into()
-        })
+        Ok(request.send().await?)
     }
 }
 
-fn serialize_body<B: Serialize>(body: &B) -> Result<Vec<u8>> {
-    to_vec(body).map_err(|error| {
-        NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!("Failed to serialize body: {error}"),
-        }
-        .into()
-    })
-}
-
 async fn parse_json_response<T: DeserializeOwned>(
-    method: &str,
+    method: &'static str,
     url: &str,
     response: Response,
 ) -> Result<T> {
     let status = response.status();
-    let body =
-        response
-            .text()
-            .await
-            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Failed to read OCI response: {error}"),
-            })?;
+    let body = response.text().await?;
 
     if !status.is_success() {
         error!("[OCI] {method} {url} -> {status}: {body}");
-        return Err(build_request_error(method, url, status, &body));
+        return Err(build_rejected_error(method, url, status, &body));
     }
 
     debug!("[OCI] {method} {url} -> {status}");
     let json_text = if body.is_empty() { "null" } else { &body };
-    from_str(json_text).map_err(|error| {
-        NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!("Failed to parse OCI JSON response: {error} (body: {body})"),
-        }
-        .into()
-    })
+    Ok(from_str(json_text)?)
 }

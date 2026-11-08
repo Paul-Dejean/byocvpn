@@ -15,7 +15,7 @@ use byocvpn_core::{
     error::{ConfigurationError, DaemonError, Error, Result, SystemError},
     tunnel::{
         ConnectedInstance, TUNNEL_MTU, Tunnel, TunnelMetrics, TunnelRateTracker, VpnStatus,
-        create_wireguard_tunnel,
+        build_tunnel_io_error, create_wireguard_tunnel,
     },
 };
 use log::*;
@@ -122,10 +122,7 @@ async fn connect_tunnel(
 ) -> Result<()> {
     if is_tunnel_running()? {
         error!("Connect requested but a tunnel is already running.");
-        return Err(ConfigurationError::TunnelConfiguration {
-            reason: "Tunnel already running".to_string(),
-        }
-        .into());
+        return Err(ConfigurationError::TunnelAlreadyRunning.into());
     }
 
     info!(
@@ -306,9 +303,10 @@ async fn start_tunnel(
         ..
     } = connect_params;
 
-    let tun = unsafe { AsyncDevice::from_fd(tunnel_file_descriptor) }.map_err(|error| {
-        ConfigurationError::TunnelConfiguration {
-            reason: format!("Failed to open the VPN interface: {error}"),
+    let tun = unsafe { AsyncDevice::from_fd(tunnel_file_descriptor) }.map_err(|source| {
+        ConfigurationError::TunDevice {
+            operation: "open",
+            source,
         }
     })?;
     let udp = connect_protected_udp_socket(vpn_service, server_endpoint).await?;
@@ -348,10 +346,8 @@ async fn connect_protected_udp_socket(
         SocketAddr::V6(_) => SocketAddr::from((Ipv6Addr::UNSPECIFIED, 0)),
     };
 
-    let standard_socket =
-        StandardUdpSocket::bind(local_address).map_err(|error| SystemError::TunnelIoFailed {
-            reason: format!("Failed to bind UDP socket: {error}"),
-        })?;
+    let standard_socket = StandardUdpSocket::bind(local_address)
+        .map_err(build_tunnel_io_error("bind the UDP socket"))?;
 
     vpn_service
         .protect_socket(standard_socket.as_raw_fd())
@@ -360,21 +356,15 @@ async fn connect_protected_udp_socket(
 
     standard_socket
         .set_nonblocking(true)
-        .map_err(|error| SystemError::TunnelIoFailed {
-            reason: format!("Failed to make the UDP socket non-blocking: {error}"),
-        })?;
+        .map_err(build_tunnel_io_error("make the UDP socket non-blocking"))?;
 
-    let socket =
-        UdpSocket::from_std(standard_socket).map_err(|error| SystemError::TunnelIoFailed {
-            reason: format!("Failed to register the UDP socket: {error}"),
-        })?;
+    let socket = UdpSocket::from_std(standard_socket)
+        .map_err(build_tunnel_io_error("register the UDP socket"))?;
 
     socket
         .connect(server_endpoint)
         .await
-        .map_err(|error| SystemError::TunnelIoFailed {
-            reason: format!("Failed to connect UDP socket to {server_endpoint}: {error}"),
-        })?;
+        .map_err(build_tunnel_io_error("connect the UDP socket"))?;
 
     info!("UDP socket connected to {}", server_endpoint);
     Ok(socket)
@@ -403,9 +393,12 @@ fn read_active_tunnel_snapshot() -> Result<Option<ActiveTunnelSnapshot>> {
 }
 
 fn lock_active_tunnel() -> Result<MutexGuard<'static, Option<ActiveTunnel>>> {
-    ACTIVE_TUNNEL
-        .lock()
-        .map_err(|_| SystemError::MutexPoisoned("ACTIVE_TUNNEL".to_string()).into())
+    ACTIVE_TUNNEL.lock().map_err(|_| {
+        SystemError::MutexPoisoned {
+            lock_name: "ACTIVE_TUNNEL",
+        }
+        .into()
+    })
 }
 
 fn is_current_status_stream(generation: u64) -> bool {
@@ -423,17 +416,9 @@ fn build_disconnected_status() -> VpnStatus {
 }
 
 fn serialize_response<T: Serialize>(response: &T) -> Result<Value> {
-    serde_json::to_value(response).map_err(|error| {
-        DaemonError::InvalidResponse {
-            reason: error.to_string(),
-        }
-        .into()
-    })
+    Ok(serde_json::to_value(response)?)
 }
 
 fn convert_plugin_error(error: PluginInvokeError) -> Error {
-    DaemonError::CommandFailed {
-        command: error.to_string(),
-    }
-    .into()
+    DaemonError::Plugin(Box::new(error)).into()
 }

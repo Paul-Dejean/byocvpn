@@ -8,7 +8,7 @@ use log::{debug, warn};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
 
-use crate::error::{DaemonError, Result};
+use crate::error::DaemonError;
 
 pub struct IpcSocket {
     listener: UnixListener,
@@ -16,41 +16,20 @@ pub struct IpcSocket {
 }
 
 impl IpcSocket {
-    pub async fn bind(path: PathBuf) -> Result<Self> {
+    pub async fn bind(path: PathBuf) -> Result<Self, DaemonError> {
         remove_stale_socket_file(&path).await;
 
-        let listener = UnixListener::bind(&path).map_err(|error| DaemonError::SocketError {
-            reason: format!("failed to bind socket at {}: {}", path.display(), error),
-        })?;
+        let listener = UnixListener::bind(&path)?;
 
-        let mut permissions = tokio::fs::metadata(&path)
-            .await
-            .map_err(|error| DaemonError::SocketError {
-                reason: format!("failed to stat socket at {}: {}", path.display(), error),
-            })?
-            .permissions();
+        let mut permissions = tokio::fs::metadata(&path).await?.permissions();
         permissions.set_mode(0o777);
-        tokio::fs::set_permissions(&path, permissions)
-            .await
-            .map_err(|error| DaemonError::SocketError {
-                reason: format!(
-                    "failed to set permissions on socket at {}: {}",
-                    path.display(),
-                    error
-                ),
-            })?;
+        tokio::fs::set_permissions(&path, permissions).await?;
 
         Ok(Self { listener, path })
     }
 
-    pub async fn accept(&mut self) -> Result<IpcStream> {
-        let (stream, _) =
-            self.listener
-                .accept()
-                .await
-                .map_err(|error| DaemonError::SocketError {
-                    reason: format!("failed to accept connection: {error}"),
-                })?;
+    pub async fn accept(&mut self) -> Result<IpcStream, DaemonError> {
+        let (stream, _) = self.listener.accept().await?;
         Ok(IpcStream { stream })
     }
 
@@ -81,43 +60,21 @@ pub struct IpcStream {
 }
 
 impl IpcStream {
-    pub async fn connect(path: &PathBuf) -> Result<Self> {
-        let stream =
-            UnixStream::connect(path)
-                .await
-                .map_err(|error| DaemonError::ConnectionFailed {
-                    reason: error.to_string(),
-                })?;
+    pub async fn connect(path: &PathBuf) -> Result<Self, DaemonError> {
+        let stream = UnixStream::connect(path).await?;
         Ok(Self { stream })
     }
 
-    pub async fn send_message(&mut self, message: &str) -> Result<()> {
-        self.stream
-            .write_all(message.as_bytes())
-            .await
-            .map_err(|error| DaemonError::SocketError {
-                reason: format!("failed to send message: {error}"),
-            })?;
-        self.stream
-            .write_all(b"\n")
-            .await
-            .map_err(|error| DaemonError::SocketError {
-                reason: format!("failed to send message terminator: {error}"),
-            })?;
+    pub async fn send_message(&mut self, message: &str) -> Result<(), DaemonError> {
+        self.stream.write_all(message.as_bytes()).await?;
+        self.stream.write_all(b"\n").await?;
         Ok(())
     }
 
-    pub async fn read_message(&mut self) -> Result<Option<String>> {
+    pub async fn read_message(&mut self) -> Result<Option<String>, DaemonError> {
         let mut reader = BufReader::new(&mut self.stream);
         let mut line = String::new();
-        if reader
-            .read_line(&mut line)
-            .await
-            .map_err(|error| DaemonError::SocketError {
-                reason: format!("failed to read message: {error}"),
-            })?
-            == 0
-        {
+        if reader.read_line(&mut line).await? == 0 {
             Ok(None)
         } else {
             if line.ends_with('\n') {
@@ -127,13 +84,8 @@ impl IpcStream {
         }
     }
 
-    pub async fn write_all(&mut self, data: &[u8]) -> Result<()> {
-        self.stream
-            .write_all(data)
-            .await
-            .map_err(|error| DaemonError::SocketError {
-                reason: format!("failed to write data: {error}"),
-            })?;
+    pub async fn write_all(&mut self, data: &[u8]) -> Result<(), DaemonError> {
+        self.stream.write_all(data).await?;
         Ok(())
     }
 }

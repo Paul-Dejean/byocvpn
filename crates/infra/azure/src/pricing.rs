@@ -1,12 +1,12 @@
-use byocvpn_core::{
-    cloud_provider::PricingInfo,
-    error::{ComputeProvisioningError, Error, NetworkProvisioningError, Result},
-};
+use byocvpn_core::cloud_provider::PricingInfo;
 use reqwest::Client as HttpClient;
 use serde::Deserialize;
 use tokio::time::Duration;
 
-use crate::instance::OS_DISK_SIZE_GB;
+use crate::{
+    error::{AzureError, Result},
+    instance::OS_DISK_SIZE_GB,
+};
 
 const RETAIL_PRICES_URL: &str = "https://prices.azure.com/api/retail/prices";
 const RETAIL_PRICES_API_VERSION: &str = "2023-01-01-preview";
@@ -24,10 +24,7 @@ const HOURLY_UNIT_OF_MEASURE: &str = "1 Hour";
 pub async fn fetch_pricing(region: &str, vm_size: &str) -> Result<PricingInfo> {
     let http = HttpClient::builder()
         .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
-        .build()
-        .map_err(|error| NetworkProvisioningError::CloudOperationFailed {
-            reason: format!("failed to build HTTP client: {error}"),
-        })?;
+        .build()?;
 
     let vm_filter = format!(
         "serviceName eq 'Virtual Machines' and armRegionName eq '{region}' and armSkuName eq '{vm_size}' and priceType eq 'Consumption'"
@@ -48,23 +45,23 @@ pub async fn fetch_pricing(region: &str, vm_size: &str) -> Result<PricingInfo> {
         query_retail_prices(&http, &egress_filter),
     )?;
 
-    let hourly_rate = select_linux_hourly_rate(&vm_items).ok_or_else(|| {
-        build_unavailable_error(
-            region,
-            vm_size,
-            "no Linux consumption price for this VM size",
-        )
-    })?;
+    let build_unavailable_error = |component: &'static str| AzureError::PriceUnavailable {
+        region: region.to_string(),
+        vm_size: vm_size.to_string(),
+        component,
+    };
+    let hourly_rate = select_linux_hourly_rate(&vm_items)
+        .ok_or_else(|| build_unavailable_error("Linux consumption rate"))?;
     let public_ip_hourly_rate = public_ip_items
         .first()
         .map(|item| item.retail_price)
-        .ok_or_else(|| build_unavailable_error(region, vm_size, "no public IP price"))?;
+        .ok_or_else(|| build_unavailable_error("public IP"))?;
     let os_disk_monthly_rate = os_disk_items
         .first()
         .map(|item| item.retail_price)
-        .ok_or_else(|| build_unavailable_error(region, vm_size, "no OS disk price"))?;
+        .ok_or_else(|| build_unavailable_error("OS disk"))?;
     let egress_rate_per_gb = select_first_paid_tier(&egress_items)
-        .ok_or_else(|| build_unavailable_error(region, vm_size, "no egress price"))?;
+        .ok_or_else(|| build_unavailable_error("internet egress"))?;
 
     let storage_gb = f64::from(OS_DISK_SIZE_GB);
     Ok(PricingInfo {
@@ -97,15 +94,6 @@ fn select_first_paid_tier(items: &[RetailPriceItem]) -> Option<f64> {
         .map(|item| item.retail_price)
 }
 
-fn build_unavailable_error(region: &str, vm_size: &str, reason: &str) -> Error {
-    ComputeProvisioningError::PricingUnavailable {
-        region: region.to_string(),
-        instance_type: vm_size.to_string(),
-        reason: reason.to_string(),
-    }
-    .into()
-}
-
 async fn query_retail_prices(http: &HttpClient, filter: &str) -> Result<Vec<RetailPriceItem>> {
     let response = http
         .get(RETAIL_PRICES_URL)
@@ -114,26 +102,16 @@ async fn query_retail_prices(http: &HttpClient, filter: &str) -> Result<Vec<Reta
             ("$filter", filter),
         ])
         .send()
-        .await
-        .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!("Azure retail prices request failed: {error}"),
-        })?;
+        .await?;
 
     let status = response.status();
     if !status.is_success() {
-        return Err(NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!("Azure retail prices returned HTTP {status}"),
-        }
-        .into());
+        return Err(AzureError::RetailPricesRejected {
+            status: status.as_u16(),
+        });
     }
 
-    let page: RetailPricesPage =
-        response
-            .json()
-            .await
-            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Azure retail prices response is not valid JSON: {error}"),
-            })?;
+    let page: RetailPricesPage = response.json().await?;
     Ok(page.items)
 }
 

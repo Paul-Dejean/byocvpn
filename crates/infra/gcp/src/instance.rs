@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use byocvpn_core::{
     cloud_provider::{CloudProviderName, InstanceInfo, InstanceState, SpawnInstanceParams},
-    error::{ComputeProvisioningError, Result},
     managed_resources::{
         MANAGED_BY_TAG_KEY, MANAGED_BY_TAG_VALUE, RESOURCE_NAME_PREFIX, SPAWN_ID_TAG_KEY,
     },
@@ -20,7 +19,7 @@ use uuid::Uuid;
 
 use crate::{
     client::GcpClient,
-    error::convert_sdk_error,
+    error::{GcpError, LabelOperation, Result},
     network::{RegionNetwork, firewall::FIREWALL_TARGET_TAG},
     operations::await_compute_operation,
     state::map_instance_state,
@@ -45,10 +44,6 @@ pub async fn spawn_instance(
     let region = params.region;
     let zone = build_primary_zone(region);
     let instance_name = build_instance_name();
-    let build_spawn_error = |reason: String| ComputeProvisioningError::InstanceSpawnFailed {
-        region_name: region.to_string(),
-        reason,
-    };
 
     let instance = build_instance_request(
         client,
@@ -65,9 +60,7 @@ pub async fn spawn_instance(
         .set_zone(&zone)
         .set_body(instance)
         .poller();
-    await_compute_operation("creating instance", insert)
-        .await
-        .map_err(|error| build_spawn_error(error.to_string()))?;
+    await_compute_operation("compute.instances.create", insert).await?;
 
     let instance = client
         .instances
@@ -77,7 +70,7 @@ pub async fn spawn_instance(
         .set_instance(&instance_name)
         .send()
         .await
-        .map_err(|error| convert_sdk_error("getting instance", error))?;
+        .label_operation("compute.instances.get")?;
 
     Ok(InstanceInfo {
         id: format!("{zone}/{instance_name}"),
@@ -103,14 +96,10 @@ pub async fn terminate_instance(client: &GcpClient, instance_id: &str) -> Result
         .set_zone(zone)
         .set_instance(instance_name)
         .poller();
-    match await_compute_operation("deleting instance", delete).await {
+    match await_compute_operation("compute.instances.delete", delete).await {
         Ok(()) => Ok(()),
         Err(error) if error.is_not_found() => Ok(()),
-        Err(error) => Err(ComputeProvisioningError::InstanceTerminationFailed {
-            instance_identifier: instance_id.to_string(),
-            reason: error.to_string(),
-        }
-        .into()),
+        Err(error) => Err(error),
     }
 }
 
@@ -193,7 +182,7 @@ async fn list_managed_instances(
         .set_max_results(MAX_LISTED_INSTANCES)
         .send()
         .await
-        .map_err(|error| convert_sdk_error("listing instances", error))?;
+        .label_operation("compute.instances.list")?;
 
     Ok(response
         .items
@@ -283,5 +272,7 @@ fn build_instance_name() -> String {
 fn parse_instance_id(instance_id: &str) -> Result<(&str, &str)> {
     instance_id
         .split_once('/')
-        .ok_or_else(|| ComputeProvisioningError::MissingInstanceIdentifier.into())
+        .ok_or_else(|| GcpError::InvalidInstanceId {
+            instance_id: instance_id.to_string(),
+        })
 }

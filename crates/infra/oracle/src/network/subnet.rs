@@ -1,8 +1,8 @@
-use byocvpn_core::error::{NetworkProvisioningError, Result};
 use log::info;
 
 use crate::{
     client::OciClient,
+    error::Result,
     models::{
         CreateSubnetRequest, SubnetResponse, UpdateSubnetSecurityListRequest, build_managed_tags,
     },
@@ -58,10 +58,7 @@ async fn create_subnet(client: &OciClient, vcn: &Vcn, security_list_id: &str) ->
     };
     let subnet: SubnetResponse = client
         .post(&client.build_core_url("/subnets"), &body)
-        .await
-        .map_err(|error| NetworkProvisioningError::SubnetCreationFailed {
-            reason: error.to_string(),
-        })?;
+        .await?;
     info!("[OCI] Created subnet {}", subnet.id);
     Ok(subnet.id)
 }

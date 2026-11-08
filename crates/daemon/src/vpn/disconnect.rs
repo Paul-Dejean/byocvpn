@@ -10,7 +10,9 @@ pub async fn disconnect_vpn() -> Result<()> {
 
     let Some(mut handle) = TUNNEL_MANAGER
         .lock()
-        .map_err(|_| SystemError::MutexPoisoned("TUNNEL_MANAGER".to_string()))?
+        .map_err(|_| SystemError::MutexPoisoned {
+            lock_name: "TUNNEL_MANAGER",
+        })?
         .take()
     else {
         warn!(

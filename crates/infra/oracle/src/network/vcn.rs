@@ -1,8 +1,8 @@
-use byocvpn_core::error::{NetworkProvisioningError, Result};
 use log::info;
 
 use crate::{
     client::OciClient,
+    error::{OracleError, Result},
     models::{CreateVcnRequest, VcnResponse, build_managed_tags},
 };
 
@@ -21,12 +21,13 @@ impl Vcn {
         !self.ipv6_prefix.is_empty()
     }
 
-    fn from_response(response: VcnResponse, missing_ipv6_reason: &str) -> Result<Self> {
+    fn from_response(response: VcnResponse) -> Result<Self> {
         let ipv6_prefix = response
             .ipv6_cidr_blocks
             .and_then(|blocks| blocks.into_iter().next())
-            .ok_or_else(|| NetworkProvisioningError::VpcCreationFailed {
-                reason: missing_ipv6_reason.to_string(),
+            .ok_or(OracleError::MissingResourceField {
+                resource: "VCN",
+                field: "ipv6CidrBlocks",
             })?;
         Ok(Self {
             id: response.id,
@@ -51,7 +52,7 @@ async fn get_vcn(client: &OciClient) -> Result<Option<Vcn>> {
     let vcns: Vec<VcnResponse> = client.get(&url).await?;
     vcns.into_iter()
         .find(|vcn| vcn.lifecycle_state == AVAILABLE_LIFECYCLE_STATE)
-        .map(|vcn| Vcn::from_response(vcn, "VCN has no IPv6 CIDR block"))
+        .map(Vcn::from_response)
         .transpose()
 }
 
@@ -63,12 +64,7 @@ async fn create_vcn(client: &OciClient) -> Result<Vcn> {
         is_ipv6_enabled: true,
         freeform_tags: build_managed_tags(),
     };
-    let response: VcnResponse = client
-        .post(&client.build_core_url("/vcns"), &body)
-        .await
-        .map_err(|error| NetworkProvisioningError::VpcCreationFailed {
-            reason: error.to_string(),
-        })?;
+    let response: VcnResponse = client.post(&client.build_core_url("/vcns"), &body).await?;
     info!("[OCI] Created VCN {}", response.id);
-    Vcn::from_response(response, "created VCN has no IPv6 CIDR block")
+    Vcn::from_response(response)
 }

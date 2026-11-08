@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-use byocvpn_core::error::Result;
 use log::{debug, info};
 use serde::de::IgnoredAny;
 
 use crate::{
     arm_resource::{API_VERSION_NETWORK, ArmResource, IpVersion, build_resource_group_name},
     client::AzureClient,
+    error::Result,
     models::{
         IpConfiguration, IpConfigurationProperties, NicProperties, NicRequest,
         PublicIpListResponse, PublicIpProperties, PublicIpRequest, PublicIpResponse, PublicIpSku,
@@ -42,9 +42,7 @@ pub async fn ensure_public_ip(
             public_ip_address_version: version.get_address_version().to_string(),
         },
     };
-    put_and_wait(client, &resource, &body)
-        .await
-        .map_err(|error| error.with_context("creating public ip address"))?;
+    put_and_wait(client, &resource, &body).await?;
     info!("[Azure] {resource} created.");
     Ok(client.build_resource_id(&resource))
 }
@@ -85,10 +83,7 @@ pub async fn list_public_ip_addresses(
         "/resourceGroups/{resource_group}/providers/Microsoft.Network/publicIPAddresses"
     ));
     let url = AzureClient::build_arm_url(&path, API_VERSION_NETWORK);
-    let response: PublicIpListResponse = client
-        .get(&url)
-        .await
-        .map_err(|error| error.with_context(format!("listing public ips in {resource_group}")))?;
+    let response: PublicIpListResponse = client.get(&url).await?;
 
     let addresses_by_resource_name = response
         .value
@@ -136,9 +131,7 @@ pub async fn create_nic(
     };
 
     info!("[Azure] Creating {resource} in {location}...");
-    put_and_wait(client, &resource, &body)
-        .await
-        .map_err(|error| error.with_context("creating network interface"))?;
+    put_and_wait(client, &resource, &body).await?;
     info!("[Azure] {resource} created in {location}.");
     Ok(client.build_resource_id(&resource))
 }

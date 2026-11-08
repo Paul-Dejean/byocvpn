@@ -2,13 +2,12 @@ pub mod firewall;
 mod subnet;
 pub mod vpc;
 
-use byocvpn_core::error::Result;
 pub use firewall::ensure_firewall_rules;
 use log::info;
 pub use subnet::ensure_subnet;
 pub use vpc::ensure_vpc;
 
-use crate::client::GcpClient;
+use crate::{client::GcpClient, error::Result};
 
 pub struct RegionNetwork {
     pub subnet_self_link: String,

@@ -1,15 +1,17 @@
-use byocvpn_core::error::{NetworkProvisioningError, Result};
 use google_cloud_auth::credentials::Credentials;
 use google_cloud_compute_v1::client::{
     Firewalls, Images, Instances, Networks, Regions, Subnetworks,
 };
 use google_cloud_gax::client_builder::Error as ClientBuilderError;
 use log::{debug, error};
-use reqwest::{Client as HttpClient, Method, Response, StatusCode};
+use reqwest::{Client as HttpClient, Method, Response};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::from_str;
 
-use crate::{auth::fetch_bearer_token, error::build_request_error};
+use crate::{
+    auth::fetch_bearer_token,
+    error::{GcpError, Result, build_rejected_error},
+};
 
 const RESOURCE_LINK_BASE_URL: &str = "https://www.googleapis.com/compute/v1/projects";
 const SERVICE_USAGE_BASE_URL: &str = "https://serviceusage.googleapis.com/v1";
@@ -33,32 +35,32 @@ impl GcpClient {
             .with_credentials(credentials.clone())
             .build()
             .await
-            .map_err(|error| build_client_error("instances", error))?;
+            .map_err(|source| build_client_error("instances", source))?;
         let networks = Networks::builder()
             .with_credentials(credentials.clone())
             .build()
             .await
-            .map_err(|error| build_client_error("networks", error))?;
+            .map_err(|source| build_client_error("networks", source))?;
         let subnetworks = Subnetworks::builder()
             .with_credentials(credentials.clone())
             .build()
             .await
-            .map_err(|error| build_client_error("subnetworks", error))?;
+            .map_err(|source| build_client_error("subnetworks", source))?;
         let firewalls = Firewalls::builder()
             .with_credentials(credentials.clone())
             .build()
             .await
-            .map_err(|error| build_client_error("firewalls", error))?;
+            .map_err(|source| build_client_error("firewalls", source))?;
         let regions = Regions::builder()
             .with_credentials(credentials.clone())
             .build()
             .await
-            .map_err(|error| build_client_error("regions", error))?;
+            .map_err(|source| build_client_error("regions", source))?;
         let images = Images::builder()
             .with_credentials(credentials.clone())
             .build()
             .await
-            .map_err(|error| build_client_error("images", error))?;
+            .map_err(|source| build_client_error("images", source))?;
 
         Ok(Self {
             http: HttpClient::new(),
@@ -106,57 +108,35 @@ impl GcpClient {
     ) -> Result<Response> {
         debug!("[GCP] {method} {url}");
         let token = fetch_bearer_token(&self.credentials).await?;
-        let mut request = self.http.request(method.clone(), url).bearer_auth(&token);
+        let mut request = self.http.request(method, url).bearer_auth(&token);
         if let Some(body) = body {
             request = request.json(body);
         }
-        request.send().await.map_err(|error| {
-            NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("GCP {method} {url} failed: {error}"),
-            }
-            .into()
-        })
+        Ok(request.send().await?)
     }
 }
 
-fn build_client_error(client_name: &str, error: ClientBuilderError) -> byocvpn_core::error::Error {
-    NetworkProvisioningError::NetworkQueryFailed {
-        reason: format!("failed to build GCP {client_name} client: {error}"),
+const fn build_client_error(client_name: &'static str, source: ClientBuilderError) -> GcpError {
+    GcpError::ClientBuild {
+        client_name,
+        source,
     }
-    .into()
 }
 
 async fn parse_json_response<T: DeserializeOwned>(
-    method: &str,
+    method: &'static str,
     url: &str,
     response: Response,
 ) -> Result<T> {
     let status = response.status();
-    let body =
-        response
-            .text()
-            .await
-            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Failed to read GCP response body: {error}"),
-            })?;
+    let body = response.text().await?;
 
-    if status == StatusCode::NOT_FOUND {
-        return Err(NetworkProvisioningError::ResourceNotFound {
-            url: url.to_string(),
-        }
-        .into());
-    }
     if !status.is_success() {
         error!("[GCP] {method} {url} -> {status}: {body}");
-        return Err(build_request_error(method, url, status, &body));
+        return Err(build_rejected_error(method, url, status.as_u16(), &body));
     }
 
     debug!("[GCP] {method} {url} -> {status}");
     let json_text = if body.is_empty() { "null" } else { &body };
-    from_str(json_text).map_err(|error| {
-        NetworkProvisioningError::NetworkQueryFailed {
-            reason: format!("Failed to parse GCP JSON: {error} (body: {body})"),
-        }
-        .into()
-    })
+    Ok(from_str(json_text)?)
 }

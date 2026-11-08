@@ -1,8 +1,11 @@
-use byocvpn_core::error::{NetworkProvisioningError, Result};
 use google_cloud_compute_v1::model::Network;
 use log::info;
 
-use crate::{client::GcpClient, error::convert_sdk_error, operations::await_compute_operation};
+use crate::{
+    client::GcpClient,
+    error::{GcpError, LabelOperation, Result},
+    operations::await_compute_operation,
+};
 
 pub const VPC_NAME: &str = "byocvpn-vpc";
 const VPC_DESCRIPTION: &str = "byocvpn WireGuard VPN network";
@@ -26,7 +29,7 @@ async fn get_vpc(client: &GcpClient) -> Result<Option<String>> {
         .set_network(VPC_NAME)
         .send()
         .await
-        .map_err(|error| convert_sdk_error("getting VPC", error));
+        .label_operation("compute.networks.get");
     match lookup {
         Ok(vpc) => Ok(Some(extract_self_link(vpc)?)),
         Err(error) if error.is_not_found() => Ok(None),
@@ -45,11 +48,7 @@ async fn create_vpc(client: &GcpClient) -> Result<String> {
         .set_project(&client.project_id)
         .set_body(network)
         .poller();
-    await_compute_operation("creating VPC", insert)
-        .await
-        .map_err(|error| NetworkProvisioningError::VpcCreationFailed {
-            reason: error.to_string(),
-        })?;
+    await_compute_operation("compute.networks.create", insert).await?;
 
     let vpc = client
         .networks
@@ -58,17 +57,14 @@ async fn create_vpc(client: &GcpClient) -> Result<String> {
         .set_network(VPC_NAME)
         .send()
         .await
-        .map_err(|error| convert_sdk_error("getting VPC", error))?;
+        .label_operation("compute.networks.get")?;
     info!("[GCP] VPC '{VPC_NAME}' created.");
     extract_self_link(vpc)
 }
 
 fn extract_self_link(vpc: Network) -> Result<String> {
-    vpc.self_link.ok_or_else(|| {
-        NetworkProvisioningError::MissingResourceField {
-            field: "selfLink",
-            resource: "VPC",
-        }
-        .into()
+    vpc.self_link.ok_or(GcpError::MissingResourceField {
+        resource: "VPC",
+        field: "selfLink",
     })
 }

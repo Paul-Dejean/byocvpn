@@ -1,10 +1,10 @@
-use byocvpn_core::error::Result;
 use log::{debug, info};
 use serde::de::IgnoredAny;
 
 use crate::{
     arm_resource::ArmResource,
     client::AzureClient,
+    error::Result,
     models::{ResourceGroupRequest, build_managed_tags},
     resource_operations::{get_existing, put_and_wait},
 };

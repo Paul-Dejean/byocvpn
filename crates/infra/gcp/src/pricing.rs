@@ -1,10 +1,10 @@
-use byocvpn_core::{
-    cloud_provider::PricingInfo,
-    error::{ComputeProvisioningError, Error, Result},
-};
+use byocvpn_core::cloud_provider::PricingInfo;
 use serde::Deserialize;
 
-use crate::client::GcpClient;
+use crate::{
+    client::GcpClient,
+    error::{GcpError, Result},
+};
 
 const BILLING_CATALOG_BASE_URL: &str = "https://cloudbilling.googleapis.com/v1";
 const COMPUTE_ENGINE_SERVICE_NAME: &str = "services/6F81-5844-456A";
@@ -139,10 +139,7 @@ async fn list_compute_engine_skus(client: &GcpClient) -> Result<Vec<Sku>> {
         let url = format!(
             "{BILLING_CATALOG_BASE_URL}/{COMPUTE_ENGINE_SERVICE_NAME}/skus?pageSize={SKU_PAGE_SIZE}&pageToken={page_token}"
         );
-        let page: SkuListResponse = client
-            .get(&url)
-            .await
-            .map_err(|error| error.with_context("listing Compute Engine SKUs"))?;
+        let page: SkuListResponse = client.get(&url).await?;
         skus.extend(page.skus);
         match page.next_page_token {
             Some(next_page_token) if !next_page_token.is_empty() => page_token = next_page_token,
@@ -151,13 +148,12 @@ async fn list_compute_engine_skus(client: &GcpClient) -> Result<Vec<Sku>> {
     }
 }
 
-fn build_unavailable_error(region: &str, machine_type: &str, reason: &str) -> Error {
-    ComputeProvisioningError::PricingUnavailable {
+fn build_unavailable_error(region: &str, machine_type: &str, reason: &'static str) -> GcpError {
+    GcpError::PricingUnavailable {
         region: region.to_string(),
-        instance_type: machine_type.to_string(),
-        reason: reason.to_string(),
+        machine_type: machine_type.to_string(),
+        reason,
     }
-    .into()
 }
 
 #[derive(Deserialize)]

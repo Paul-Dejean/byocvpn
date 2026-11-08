@@ -1,4 +1,7 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    net::{Ipv4Addr, SocketAddr},
+    sync::Arc,
+};
 
 use byocvpn_core::{
     daemon_client::VpnConnectParams,
@@ -6,7 +9,7 @@ use byocvpn_core::{
     ipc::{IpcSocket, IpcStream, metrics_socket_path},
     tunnel::{
         ConnectedInstance, TUNNEL_MTU, Tunnel, TunnelMetrics, TunnelRateTracker,
-        create_wireguard_tunnel,
+        build_tunnel_io_error, create_wireguard_tunnel,
     },
 };
 use futures::StreamExt;
@@ -50,16 +53,15 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
 
     let tunnel_already_running = TUNNEL_MANAGER
         .lock()
-        .map_err(|_| SystemError::MutexPoisoned("TUNNEL_MANAGER".to_string()))?
+        .map_err(|_| SystemError::MutexPoisoned {
+            lock_name: "TUNNEL_MANAGER",
+        })?
         .as_ref()
         .is_some_and(|handle| !handle.task.is_finished());
 
     if tunnel_already_running {
         error!("Connect requested but a tunnel is already running.");
-        return Err(ConfigurationError::TunnelConfiguration {
-            reason: "Tunnel already running".to_string(),
-        }
-        .into());
+        return Err(ConfigurationError::TunnelAlreadyRunning.into());
     }
 
     let (tun, interface_index) = setup_tun_device(private_ipv4, private_ipv6)?;
@@ -111,7 +113,9 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
 
     let mut manager = TUNNEL_MANAGER
         .lock()
-        .map_err(|_| SystemError::MutexPoisoned("TUNNEL_MANAGER".to_string()))?;
+        .map_err(|_| SystemError::MutexPoisoned {
+            lock_name: "TUNNEL_MANAGER",
+        })?;
     *manager = Some(TunnelHandle {
         shutdown: shutdown_tx,
         task,
@@ -147,15 +151,17 @@ fn setup_tun_device(private_ipv4: IpNet, private_ipv6: IpNet) -> Result<(AsyncDe
         .ipv6(private_ipv6.addr(), private_ipv6.prefix_len())
         .mtu(TUNNEL_MTU)
         .build_async()
-        .map_err(|error| ConfigurationError::TunnelConfiguration {
-            reason: format!("Failed to create TUN device: {error}"),
+        .map_err(|source| ConfigurationError::TunDevice {
+            operation: "create",
+            source,
         })?;
 
-    let interface_index =
-        tun.if_index()
-            .map_err(|error| ConfigurationError::TunnelConfiguration {
-                reason: format!("Failed to get TUN interface index: {error}"),
-            })?;
+    let interface_index = tun
+        .if_index()
+        .map_err(|source| ConfigurationError::TunDevice {
+            operation: "read the interface index of",
+            source,
+        })?;
 
     let interface_name = tun.name().unwrap_or_else(|_| "unknown".to_string());
     info!("Created TUN device: {interface_name} (index: {interface_index})");
@@ -163,33 +169,21 @@ fn setup_tun_device(private_ipv4: IpNet, private_ipv6: IpNet) -> Result<(AsyncDe
 }
 
 async fn connect_udp_socket(server_endpoint: SocketAddr) -> Result<UdpSocket> {
-    let local: SocketAddr =
-        "0.0.0.0:0"
-            .parse()
-            .map_err(|error| ConfigurationError::ParseError {
-                reason: format!("Failed to parse local socket address: {error}"),
-                value: "0.0.0.0".to_string(),
-            })?;
+    let local = SocketAddr::from((Ipv4Addr::UNSPECIFIED, 0));
 
     let udp = UdpSocket::bind(local)
         .await
-        .map_err(|error| SystemError::TunnelIoFailed {
-            reason: format!("Failed to bind UDP socket: {error}"),
-        })?;
+        .map_err(build_tunnel_io_error("bind the UDP socket"))?;
 
     debug!(
         "UDP socket bound to {}",
         udp.local_addr()
-            .map_err(|error| SystemError::TunnelIoFailed {
-                reason: format!("Failed to get UDP local address: {error}"),
-            })?
+            .map_err(build_tunnel_io_error("read the UDP local address"))?
     );
 
     udp.connect(server_endpoint)
         .await
-        .map_err(|error| SystemError::TunnelIoFailed {
-            reason: format!("Failed to connect UDP socket to {server_endpoint}: {error}"),
-        })?;
+        .map_err(build_tunnel_io_error("connect the UDP socket"))?;
 
     info!("UDP socket connected to {server_endpoint}");
     Ok(udp)

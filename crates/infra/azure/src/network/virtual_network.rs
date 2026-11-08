@@ -1,10 +1,10 @@
-use byocvpn_core::error::Result;
 use log::{debug, info};
 use serde::de::IgnoredAny;
 
 use crate::{
     arm_resource::ArmResource,
     client::AzureClient,
+    error::Result,
     models::{AddressSpace, VnetProperties, VnetRequest, build_managed_tags},
     resource_operations::{get_existing, put_and_wait},
 };
@@ -32,9 +32,7 @@ pub async fn ensure_virtual_network(client: &AzureClient, location: &str) -> Res
             },
         },
     };
-    put_and_wait(client, &resource, &body)
-        .await
-        .map_err(|error| error.with_context("creating virtual network"))?;
+    put_and_wait(client, &resource, &body).await?;
     info!("[Azure] {resource} created in {location}.");
     Ok(client.build_resource_id(&resource))
 }

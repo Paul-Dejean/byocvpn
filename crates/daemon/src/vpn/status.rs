@@ -38,7 +38,9 @@ pub async fn get_vpn_status() -> Result<VpnStatus> {
 fn take_tunnel_snapshot() -> Result<Option<TunnelSnapshot>> {
     let manager = TUNNEL_MANAGER
         .lock()
-        .map_err(|_| SystemError::MutexPoisoned("TUNNEL_MANAGER".to_string()))?;
+        .map_err(|_| SystemError::MutexPoisoned {
+            lock_name: "TUNNEL_MANAGER",
+        })?;
 
     Ok(manager.as_ref().map(|handle| TunnelSnapshot {
         is_running: !handle.task.is_finished(),

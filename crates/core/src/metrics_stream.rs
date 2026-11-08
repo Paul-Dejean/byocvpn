@@ -64,7 +64,9 @@ where
     let generation = {
         let mut state = STREAM_STATE.lock().map_err(|error| {
             warn!("Failed to acquire metrics stream state lock: {error}");
-            SystemError::MutexPoisoned(error.to_string())
+            SystemError::MutexPoisoned {
+                lock_name: "STREAM_STATE",
+            }
         })?;
 
         if state.is_some() {
@@ -193,7 +195,9 @@ where
 pub async fn stop() -> Result<()> {
     let mut state = STREAM_STATE.lock().map_err(|error| {
         warn!("Failed to acquire metrics stream state lock: {error}");
-        SystemError::MutexPoisoned(error.to_string())
+        SystemError::MutexPoisoned {
+            lock_name: "STREAM_STATE",
+        }
     })?;
 
     *state = None;

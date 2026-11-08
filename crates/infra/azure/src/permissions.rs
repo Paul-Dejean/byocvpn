@@ -1,8 +1,8 @@
-use byocvpn_core::{cloud_provider::PermissionStatus, error::Result};
+use byocvpn_core::cloud_provider::PermissionStatus;
 use log::{info, warn};
 use serde::Deserialize;
 
-use crate::client::AzureClient;
+use crate::{client::AzureClient, error::Result};
 
 const API_VERSION_AUTHORIZATION: &str = "2018-07-01";
 
