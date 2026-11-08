@@ -1,20 +1,14 @@
 use byocvpn_core::{
     app_context::AppContext,
-    commands,
     error::Result,
     metrics_stream,
     tunnel::{ConnectedInstance, VpnStatus},
 };
-use byocvpn_daemon::{constants::metrics_socket_path, daemon_client::UnixDaemonClient};
 use tauri::{AppHandle, Manager};
 
 use crate::vpn_backend::publish_vpn_status;
 
 const TUNNEL_DROPPED_MESSAGE: &str = "VPN tunnel dropped. Kill switch is blocking all traffic.";
-
-pub const fn create_daemon_client(_app_handle: &AppHandle) -> UnixDaemonClient {
-    UnixDaemonClient
-}
 
 pub async fn start_status_stream(
     app_handle: &AppHandle,
@@ -23,17 +17,12 @@ pub async fn start_status_stream(
 ) -> Result<()> {
     let status_handle = app_handle.clone();
     let last_connected = connected_instance.clone();
-    metrics_stream::start(
-        metrics_socket_path(),
-        connected_instance,
-        connected_at,
-        move |vpn_status| {
-            publish_vpn_status(
-                &status_handle,
-                &mark_dropped_tunnel(vpn_status, &last_connected),
-            );
-        },
-    )
+    metrics_stream::start(connected_instance, connected_at, move |vpn_status| {
+        publish_vpn_status(
+            &status_handle,
+            &mark_dropped_tunnel(vpn_status, &last_connected),
+        );
+    })
     .await
 }
 
@@ -47,8 +36,7 @@ pub async fn start_status_subscription(
     let ledger_handle = app_handle.clone();
     let last_connected = connected_instance.clone();
 
-    commands::subscribe::start_metrics_subscription(
-        metrics_socket_path(),
+    metrics_stream::start_with_persistence(
         connected_instance,
         connected_at,
         move |vpn_status| {

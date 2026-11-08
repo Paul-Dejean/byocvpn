@@ -1,11 +1,19 @@
+mod account;
 mod auth;
 mod client;
-pub mod credentials;
+mod credentials;
+mod error;
+mod image;
 mod instance;
 mod models;
 mod network;
+mod operations;
+mod permissions;
 mod pricing;
 mod provider;
+mod regions;
 mod state;
+mod steps;
 
-pub use provider::{GcpProvider, GcpProviderConfig};
+pub use credentials::GcpCredentials;
+pub use provider::GcpProvider;

@@ -1,6 +1,9 @@
 #[cfg(target_os = "android")]
 use android_logger::Config as AndroidLoggerConfig;
+#[cfg(desktop)]
 use byocvpn_app::open_app_context;
+#[cfg(target_os = "android")]
+use byocvpn_app::open_app_context_with_daemon_client;
 #[cfg(mobile)]
 use byocvpn_core::config::set_data_directory;
 #[cfg(target_os = "android")]
@@ -8,7 +11,7 @@ use log::LevelFilter;
 #[cfg(desktop)]
 use specta_typescript::Typescript;
 #[cfg(target_os = "android")]
-use std::{env, path::Path};
+use std::{env, path::Path, sync::Arc};
 use tauri::Manager;
 use tauri_specta::{Commands, Events, collect_commands, collect_events};
 
@@ -116,7 +119,12 @@ pub fn run() {
         .setup(move |app| {
             #[cfg(mobile)]
             set_data_directory(app.path().app_data_dir()?);
+            #[cfg(desktop)]
             let context = open_app_context()?;
+            #[cfg(target_os = "android")]
+            let context = open_app_context_with_daemon_client(Arc::new(
+                vpn_backend::create_daemon_client(app.handle()),
+            ))?;
             store_migration::import_legacy_stores(app.handle(), &context);
             app.manage(context);
             specta_builder.mount_events(app);

@@ -1,5 +1,7 @@
-use byocvpn_core::cloud_provider::PricingInfo;
-use byocvpn_core::error::{ComputeProvisioningError, Error, Result};
+use byocvpn_core::{
+    cloud_provider::PricingInfo,
+    error::{ComputeProvisioningError, Error, Result},
+};
 use serde::Deserialize;
 
 use crate::client::GcpClient;

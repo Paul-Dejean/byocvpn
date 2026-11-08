@@ -1,13 +1,17 @@
-use byocvpn_core::error::{Error, NetworkProvisioningError, Result};
-use byocvpn_core::retry::{RetryPolicy, retry_if};
+use byocvpn_core::{
+    error::{Error, NetworkProvisioningError, Result},
+    retry::{RetryPolicy, retry_if},
+};
 use log::{debug, error, info, warn};
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::time::Duration;
 
-use crate::arm_error::{ArmErrorCode, extract_arm_error_code};
-use crate::arm_resource::ArmResource;
-use crate::client::AzureClient;
-use crate::provider_registration::request_network_provider_registration;
+use crate::{
+    account::request_network_provider_registration,
+    arm_resource::ArmResource,
+    client::AzureClient,
+    error::{ArmErrorCode, extract_arm_error_code},
+};
 
 const PROVIDER_REGISTRATION_RETRY_POLICY: RetryPolicy =
     RetryPolicy::exponential(30, Duration::from_secs(5), Duration::from_secs(60));

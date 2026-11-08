@@ -254,11 +254,5 @@ pub struct ZoneInstances {
     pub instances: Option<Vec<InstanceResponse>>,
 }
 
-#[derive(Deserialize)]
-pub struct ZoneOperationResponse {
-    pub status: Option<String>,
-    pub error: Option<OperationError>,
-}
-
 #[derive(Serialize)]
 pub struct EmptyRequest {}

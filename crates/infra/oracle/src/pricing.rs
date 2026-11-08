@@ -1,5 +1,7 @@
-use byocvpn_core::cloud_provider::PricingInfo;
-use byocvpn_core::error::{ComputeProvisioningError, Error, NetworkProvisioningError, Result};
+use byocvpn_core::{
+    cloud_provider::PricingInfo,
+    error::{ComputeProvisioningError, Error, NetworkProvisioningError, Result},
+};
 use reqwest::Client as HttpClient;
 use serde::Deserialize;
 use tokio::time::Duration;

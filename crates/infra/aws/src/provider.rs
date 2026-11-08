@@ -1,66 +1,56 @@
-use std::collections::HashMap;
-
 use async_trait::async_trait;
-use aws_sdk_ec2::Client as Ec2Client;
-use aws_sdk_iam::Client as IamClient;
-use aws_sdk_pricing::Client as PricingClient;
-use aws_sdk_ssm::Client as SsmClient;
-use aws_sdk_sts::Client as StsClient;
-use byocvpn_core::jobs::build_unknown_step_error;
 use byocvpn_core::{
     cloud_provider::{
         CloudProvider, CloudProviderName, InstanceInfo, JobStep, PermissionStatus, PricingInfo,
-        SpawnInstanceParams, TerminateInstanceParams,
+        Region, SpawnInstanceParams, TerminateInstanceParams,
     },
-    commands::setup::Region,
-    error::{NetworkProvisioningError, Result},
+    error::Result,
+    jobs::build_unknown_step_error,
 };
+use futures::future::join_all;
 use log::{info, warn};
 
-use crate::constants::{
-    SECURITY_GROUP_NAME, SUBNET_CIDR_BLOCK, SUBNET_NAME, VPC_CIDR_BLOCK, VPC_NAME,
+use crate::{
+    client::AwsClient,
+    credentials::AwsCredentials,
+    image, instance, network, permissions, pricing, regions,
+    steps::{self, AwsStepId, parse_step_id},
 };
-use crate::pricing::PRICING_API_REGION;
-use crate::spawn_step::AwsSpawnStepId;
-use crate::{config, instance, network, permissions, pricing};
-
-const INTERNET_GATEWAY_NAME: &str = "byocvpn-igw";
-const MAIN_ROUTE_TABLE_NAME: &str = "byocvpn-main-route-table";
 
 pub struct AwsProvider {
-    config: AwsProviderConfig,
+    credentials: AwsCredentials,
 }
 
-pub struct AwsProviderConfig {
-    pub access_key_id: Option<String>,
-    pub secret_access_key: Option<String>,
-}
 impl AwsProvider {
-    pub const fn new(config: AwsProviderConfig) -> Self {
-        Self { config }
+    pub const fn new(credentials: AwsCredentials) -> Self {
+        Self { credentials }
     }
 
-    pub async fn create_ec2_client(&self, region: Option<String>) -> Ec2Client {
-        let sdk_config = config::get_sdk_config(&self.config, region).await;
-        Ec2Client::new(&sdk_config)
-    }
-    pub async fn create_ssm_client(&self, region: Option<String>) -> SsmClient {
-        let sdk_config = config::get_sdk_config(&self.config, region).await;
-        SsmClient::new(&sdk_config)
-    }
-    pub async fn create_sts_client(&self) -> StsClient {
-        let sdk_config = config::get_sdk_config(&self.config, None).await;
-        StsClient::new(&sdk_config)
-    }
-    pub async fn create_iam_client(&self) -> IamClient {
-        let sdk_config = config::get_sdk_config(&self.config, None).await;
-        IamClient::new(&sdk_config)
+    async fn build_client(&self, region: Option<&str>) -> AwsClient {
+        AwsClient::connect(&self.credentials, region).await
     }
 
-    pub async fn create_pricing_client(&self) -> PricingClient {
-        let sdk_config =
-            config::get_sdk_config(&self.config, Some(PRICING_API_REGION.to_string())).await;
-        PricingClient::new(&sdk_config)
+    async fn list_instances_in_all_regions(&self) -> Result<Vec<InstanceInfo>> {
+        let regions = self.get_regions().await?;
+        let outcomes = join_all(regions.iter().map(|region| async move {
+            let client = self.build_client(Some(&region.name)).await;
+            match instance::list_instances(&client, &region.name).await {
+                Ok(instances) => {
+                    info!(
+                        "[AWS] Region {}: found {} instances",
+                        region.name,
+                        instances.len()
+                    );
+                    instances
+                }
+                Err(error) => {
+                    warn!("[AWS] Skipping region {}: {error}", region.name);
+                    Vec::new()
+                }
+            }
+        }))
+        .await;
+        Ok(outcomes.into_iter().flatten().collect())
     }
 }
 
@@ -70,31 +60,45 @@ impl CloudProvider for AwsProvider {
         CloudProviderName::Aws
     }
 
-    fn get_spawn_steps(&self, _region: &str) -> Vec<JobStep> {
-        vec![
-            JobStep {
-                id: AwsSpawnStepId::SetupNetwork.to_string(),
-                label: "Verifying network infrastructure".into(),
-            },
-            JobStep {
-                id: AwsSpawnStepId::Launch.to_string(),
-                label: "Launching EC2 instance".into(),
-            },
-            JobStep {
-                id: AwsSpawnStepId::WireguardReady.to_string(),
-                label: "Waiting for WireGuard to start".into(),
-            },
-        ]
+    async fn verify_permissions(&self) -> Result<Vec<PermissionStatus>> {
+        let client = self.build_client(None).await;
+        permissions::verify_permissions(&client).await
     }
 
-    async fn verify_permissions(&self) -> Result<Vec<PermissionStatus>> {
-        let sts_client = self.create_sts_client().await;
-        let iam_client = self.create_iam_client().await;
-        permissions::verify_permissions(&sts_client, &iam_client).await
+    async fn get_regions(&self) -> Result<Vec<Region>> {
+        let client = self.build_client(None).await;
+        regions::list_regions(&client).await
+    }
+
+    async fn list_instances(&self, region: Option<&str>) -> Result<Vec<InstanceInfo>> {
+        match region {
+            Some(region_name) => {
+                let client = self.build_client(Some(region_name)).await;
+                instance::list_instances(&client, region_name).await
+            }
+            None => self.list_instances_in_all_regions().await,
+        }
+    }
+
+    async fn spawn_instance(&self, params: &SpawnInstanceParams) -> Result<InstanceInfo> {
+        let client = self.build_client(Some(params.region)).await;
+        let region_network = network::ensure_region_network(&client).await?;
+        let image_id = image::resolve_boot_image(&client).await?;
+        instance::spawn_instance(&client, &region_network, &image_id, params).await
+    }
+
+    async fn terminate_instance(&self, params: &TerminateInstanceParams) -> Result<()> {
+        let client = self.build_client(Some(params.region)).await;
+        instance::terminate_instance(&client, params.instance_id).await
+    }
+
+    async fn fetch_pricing(&self, region: &str, instance_type: &str) -> Result<PricingInfo> {
+        let client = self.build_client(None).await;
+        Box::pin(pricing::fetch_pricing(&client, region, instance_type)).await
     }
 
     fn get_provision_account_steps(&self) -> Vec<JobStep> {
-        vec![]
+        steps::build_provision_account_steps()
     }
 
     async fn run_provision_account_step(&self, step_id: &str) -> Result<()> {
@@ -102,191 +106,52 @@ impl CloudProvider for AwsProvider {
     }
 
     fn get_enable_region_steps(&self, _region: &str) -> Vec<JobStep> {
-        vec![
-            JobStep {
-                id: AwsSpawnStepId::SetupVpc.to_string(),
-                label: "Creating VPC".into(),
-            },
-            JobStep {
-                id: AwsSpawnStepId::SetupIgw.to_string(),
-                label: "Creating internet gateway".into(),
-            },
-            JobStep {
-                id: AwsSpawnStepId::RegionSubnets.to_string(),
-                label: "Creating subnets".into(),
-            },
-            JobStep {
-                id: AwsSpawnStepId::RegionSecurityGroup.to_string(),
-                label: "Configuring security group".into(),
-            },
-        ]
+        steps::build_enable_region_steps()
     }
 
     async fn run_enable_region_step(&self, step_id: &str, region: &str) -> Result<()> {
-        self.run_spawn_step(step_id, region).await
+        let client = self.build_client(Some(region)).await;
+        match parse_step_id(step_id)? {
+            AwsStepId::SetupVpc => {
+                network::ensure_vpc(&client).await?;
+            }
+            AwsStepId::SetupIgw => {
+                let vpc_id = network::ensure_vpc(&client).await?;
+                network::ensure_internet_gateway(&client, &vpc_id).await?;
+            }
+            AwsStepId::RegionSubnets => {
+                let vpc_id = network::ensure_vpc(&client).await?;
+                network::ensure_subnet(&client, &vpc_id).await?;
+            }
+            AwsStepId::RegionSecurityGroup => {
+                let vpc_id = network::ensure_vpc(&client).await?;
+                network::ensure_security_group(&client, &vpc_id).await?;
+            }
+            AwsStepId::SetupNetwork | AwsStepId::Launch | AwsStepId::WireguardReady => {
+                return Err(build_unknown_step_error(CloudProviderName::Aws, step_id));
+            }
+        }
+        Ok(())
+    }
+
+    fn get_spawn_steps(&self, _region: &str) -> Vec<JobStep> {
+        steps::build_spawn_steps()
     }
 
     async fn run_spawn_step(&self, step_id: &str, region: &str) -> Result<()> {
-        let step = step_id
-            .parse::<AwsSpawnStepId>()
-            .map_err(|_| build_unknown_step_error(CloudProviderName::Aws, step_id))?;
-        match step {
-            AwsSpawnStepId::SetupVpc => {
-                let ec2 = self.create_ec2_client(Some(region.to_string())).await;
-                network::ensure_vpc(&ec2, VPC_CIDR_BLOCK, VPC_NAME).await?;
+        match parse_step_id(step_id)? {
+            AwsStepId::SetupNetwork => {
+                let client = self.build_client(Some(region)).await;
+                network::ensure_region_network(&client).await?;
                 Ok(())
             }
-            AwsSpawnStepId::SetupIgw => {
-                let ec2 = self.create_ec2_client(Some(region.to_string())).await;
-                let vpc_id = network::ensure_vpc(&ec2, VPC_CIDR_BLOCK, VPC_NAME).await?;
-                network::ensure_internet_gateway(
-                    &ec2,
-                    &vpc_id,
-                    INTERNET_GATEWAY_NAME,
-                    MAIN_ROUTE_TABLE_NAME,
-                )
-                .await?;
-                Ok(())
+            AwsStepId::Launch | AwsStepId::WireguardReady => Ok(()),
+            AwsStepId::SetupVpc
+            | AwsStepId::SetupIgw
+            | AwsStepId::RegionSubnets
+            | AwsStepId::RegionSecurityGroup => {
+                Err(build_unknown_step_error(CloudProviderName::Aws, step_id))
             }
-            AwsSpawnStepId::RegionSubnets => {
-                let ec2 = self.create_ec2_client(Some(region.to_string())).await;
-                let vpc_id = network::ensure_vpc(&ec2, VPC_CIDR_BLOCK, VPC_NAME).await?;
-                network::ensure_subnet(&ec2, &vpc_id, SUBNET_CIDR_BLOCK, SUBNET_NAME).await?;
-                Ok(())
-            }
-            AwsSpawnStepId::RegionSecurityGroup => {
-                let ec2 = self.create_ec2_client(Some(region.to_string())).await;
-                let vpc_id = network::ensure_vpc(&ec2, VPC_CIDR_BLOCK, VPC_NAME).await?;
-                network::ensure_security_group(
-                    &ec2,
-                    &vpc_id,
-                    SECURITY_GROUP_NAME,
-                    "BYOC VPN server",
-                )
-                .await?;
-                Ok(())
-            }
-            AwsSpawnStepId::SetupNetwork => self.ensure_region_network(region).await,
-            _ => Ok(()),
         }
-    }
-
-    async fn spawn_instance(&self, params: &SpawnInstanceParams) -> Result<InstanceInfo> {
-        let ec2_client = self
-            .create_ec2_client(Some(params.region.to_string()))
-            .await;
-        let ssm_client = self
-            .create_ssm_client(Some(params.region.to_string()))
-            .await;
-        instance::spawn_instance(
-            &ec2_client,
-            &ssm_client,
-            params.region,
-            params.spawn_id,
-            params.server_private_key,
-            params.client_public_key,
-        )
-        .await
-    }
-
-    async fn terminate_instance(&self, params: &TerminateInstanceParams) -> Result<()> {
-        let ec2_client = self
-            .create_ec2_client(Some(params.region.to_string()))
-            .await;
-        instance::terminate_instance(&ec2_client, params.instance_id).await
-    }
-
-    async fn list_instances(&self, region: Option<&str>) -> Result<Vec<InstanceInfo>> {
-        if let Some(region_name) = region {
-            let ec2_client = self.create_ec2_client(Some(region_name.to_string())).await;
-            return instance::list_instances_in_region(&ec2_client, region_name).await;
-        }
-        let regions = self.get_regions().await?;
-        let results = futures::future::join_all(regions.iter().map(|region| async move {
-            info!("Listing instances in region {}", region.name);
-            let ec2_client = self.create_ec2_client(Some(region.name.clone())).await;
-            let result = instance::list_instances_in_region(&ec2_client, &region.name).await;
-            match &result {
-                Ok(instances) => info!(
-                    "Region {}: found {} instances",
-                    region.name,
-                    instances.len()
-                ),
-                Err(error) => warn!("Skipping region {}: {}", region.name, error),
-            }
-            result
-        }))
-        .await;
-        return Ok(results
-            .into_iter()
-            .filter_map(std::result::Result::ok)
-            .flatten()
-            .collect());
-    }
-
-    async fn fetch_pricing(&self, region: &str, instance_type: &str) -> Result<PricingInfo> {
-        let pricing_client = self.create_pricing_client().await;
-        Box::pin(pricing::fetch_pricing(
-            &pricing_client,
-            region,
-            instance_type,
-        ))
-        .await
-    }
-
-    async fn get_regions(&self) -> Result<Vec<Region>> {
-        let ec2_client = self.create_ec2_client(None).await;
-        let regions_map = HashMap::from([
-            ("us", "North America"),
-            ("eu", "Europe"),
-            ("ap", "Asia Pacific"),
-            ("sa", "South America"),
-            ("ca", "North America"),
-            ("me", "Middle East"),
-            ("af", "Africa"),
-            ("il", "Middle East"),
-            ("mx", "North America"),
-        ]);
-        info!("Fetching regions...");
-
-        let regions = ec2_client
-            .describe_regions()
-            .send()
-            .await
-            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: error.to_string(),
-            })?
-            .regions()
-            .iter()
-            .filter_map(|region| region.region_name())
-            .map(|name| {
-                let region_prefix = name.split('-').next().unwrap_or("unknown");
-                let country = regions_map
-                    .get(region_prefix)
-                    .unwrap_or(&"Unknown")
-                    .to_string();
-                Region {
-                    name: name.to_string(),
-                    country,
-                }
-            })
-            .collect();
-
-        info!("Fetched regions: {regions:?}");
-        Ok(regions)
-    }
-}
-
-impl AwsProvider {
-    async fn ensure_region_network(&self, region: &str) -> Result<()> {
-        self.run_spawn_step(&AwsSpawnStepId::SetupVpc.to_string(), region)
-            .await?;
-        self.run_spawn_step(&AwsSpawnStepId::SetupIgw.to_string(), region)
-            .await?;
-        self.run_spawn_step(&AwsSpawnStepId::RegionSubnets.to_string(), region)
-            .await?;
-        self.run_spawn_step(&AwsSpawnStepId::RegionSecurityGroup.to_string(), region)
-            .await?;
-        Ok(())
     }
 }

@@ -1,223 +1,147 @@
-use byocvpn_core::cloud_provider::CloudProviderName;
-use byocvpn_core::error::{Error, NetworkProvisioningError, Result};
-use reqwest::{Client as HttpClient, Response, StatusCode};
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use byocvpn_core::error::{NetworkProvisioningError, Result};
+use chrono::Utc;
+use log::{debug, error};
+use reqwest::{Client as HttpClient, Method, Response, StatusCode, Url};
+use serde::{Serialize, de::DeserializeOwned};
 use serde_json::{from_str, to_vec};
 
-use crate::auth::{HttpMethod, OciCredentials, build_authorization_header};
-use log::{debug, error};
+use crate::{
+    auth::build_signed_headers, credentials::OracleCredentials, error::build_request_error,
+};
+
+const API_VERSION: &str = "20160918";
 
 pub struct OciClient {
-    http_client: HttpClient,
-    pub credentials: OciCredentials,
+    http: HttpClient,
+    credentials: OracleCredentials,
+    region: String,
 }
 
 impl OciClient {
-    pub fn new(credentials: OciCredentials) -> Self {
+    pub fn new(credentials: OracleCredentials, region: String) -> Self {
         Self {
-            http_client: HttpClient::new(),
+            http: HttpClient::new(),
             credentials,
+            region,
         }
+    }
+
+    pub fn get_region(&self) -> &str {
+        &self.region
+    }
+
+    pub fn get_compartment_ocid(&self) -> &str {
+        &self.credentials.tenancy_ocid
     }
 
     pub fn build_core_url(&self, path: &str) -> String {
         format!(
-            "https://iaas.{}.oraclecloud.com/20160918{}",
-            self.credentials.region, path
+            "https://iaas.{}.oraclecloud.com/{API_VERSION}{path}",
+            self.region
         )
     }
 
     pub fn build_identity_url(&self, path: &str) -> String {
         format!(
-            "https://identity.{}.oraclecloud.com/20160918{}",
-            self.credentials.region, path
+            "https://identity.{}.oraclecloud.com/{API_VERSION}{path}",
+            self.region
         )
     }
 
     pub async fn get<T: DeserializeOwned>(&self, url: &str) -> Result<T> {
-        debug!("[OCI] GET {url}");
-        let parsed = reqwest::Url::parse(url).map_err(|error| {
-            NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Invalid URL {url}: {error}"),
-            }
-        })?;
-        let host = parsed.host_str().unwrap_or_default().to_string();
-        let path = match parsed.query() {
-            Some(query) => format!("{}?{}", parsed.path(), query),
-            None => parsed.path().to_string(),
-        };
-        let date = format_rfc7231_date();
-
-        let (authorization, _) = build_authorization_header(
-            HttpMethod::Get,
-            &host,
-            &path,
-            &date,
-            None,
-            &self.credentials,
-        )?;
-
-        let response = self
-            .http_client
-            .get(url)
-            .header("date", &date)
-            .header("authorization", &authorization)
-            .send()
-            .await
-            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("OCI GET {url} failed: {error}"),
-            })?;
-
-        parse_response("GET", url, response).await
+        let response = self.send_request(Method::GET, url, None).await?;
+        parse_json_response("GET", url, response).await
     }
 
     pub async fn post<B: Serialize, T: DeserializeOwned>(&self, url: &str, body: &B) -> Result<T> {
-        debug!("[OCI] POST {url}");
-        let body_bytes =
-            to_vec(body).map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Failed to serialize body: {error}"),
-            })?;
-        let parsed = reqwest::Url::parse(url).map_err(|error| {
-            NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Invalid URL {url}: {error}"),
-            }
-        })?;
-        let host = parsed.host_str().unwrap_or_default().to_string();
-        let path = match parsed.query() {
-            Some(query) => format!("{}?{}", parsed.path(), query),
-            None => parsed.path().to_string(),
-        };
-        let date = format_rfc7231_date();
-
-        let (authorization, content_sha256) = build_authorization_header(
-            HttpMethod::Post,
-            &host,
-            &path,
-            &date,
-            Some(&body_bytes),
-            &self.credentials,
-        )?;
-
+        let body_bytes = serialize_body(body)?;
         let response = self
-            .http_client
-            .post(url)
-            .header("date", &date)
-            .header("authorization", &authorization)
-            .header("content-type", "application/json")
-            .header("x-content-sha256", &content_sha256)
-            .header("content-length", body_bytes.len().to_string())
-            .body(body_bytes)
-            .send()
-            .await
-            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("OCI POST {url} failed: {error}"),
-            })?;
-
-        parse_response("POST", url, response).await
+            .send_request(Method::POST, url, Some(body_bytes))
+            .await?;
+        parse_json_response("POST", url, response).await
     }
 
     pub async fn put<B: Serialize>(&self, url: &str, body: &B) -> Result<()> {
-        debug!("[OCI] PUT {url}");
-        let body_bytes =
-            to_vec(body).map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Failed to serialize body: {error}"),
-            })?;
-        let parsed = reqwest::Url::parse(url).map_err(|error| {
-            NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Invalid URL {url}: {error}"),
-            }
-        })?;
-        let host = parsed.host_str().unwrap_or_default().to_string();
-        let path = match parsed.query() {
-            Some(query) => format!("{}?{}", parsed.path(), query),
-            None => parsed.path().to_string(),
-        };
-        let date = format_rfc7231_date();
-
-        let (authorization, content_sha256) = build_authorization_header(
-            HttpMethod::Put,
-            &host,
-            &path,
-            &date,
-            Some(&body_bytes),
-            &self.credentials,
-        )?;
-
+        let body_bytes = serialize_body(body)?;
         let response = self
-            .http_client
-            .put(url)
-            .header("date", &date)
-            .header("authorization", &authorization)
-            .header("content-type", "application/json")
-            .header("x-content-sha256", &content_sha256)
-            .header("content-length", body_bytes.len().to_string())
-            .body(body_bytes)
-            .send()
-            .await
-            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("OCI PUT {url} failed: {error}"),
-            })?;
-
+            .send_request(Method::PUT, url, Some(body_bytes))
+            .await?;
         let status = response.status();
         if status.is_success() {
-            debug!("[OCI] PUT {url} → {status}");
             return Ok(());
         }
         let body_text = response.text().await.unwrap_or_default();
-        error!("[OCI] PUT {url} → {status} — {body_text}");
+        error!("[OCI] PUT {url} -> {status}: {body_text}");
         Err(build_request_error("PUT", url, status, &body_text))
     }
 
     pub async fn delete(&self, url: &str) -> Result<()> {
-        debug!("[OCI] DELETE {url}");
-        let parsed = reqwest::Url::parse(url).map_err(|error| {
-            NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Invalid URL {url}: {error}"),
-            }
-        })?;
-        let host = parsed.host_str().unwrap_or_default().to_string();
-        let path = match parsed.query() {
-            Some(query) => format!("{}?{}", parsed.path(), query),
-            None => parsed.path().to_string(),
-        };
-        let date = format_rfc7231_date();
-
-        let (authorization, _) = build_authorization_header(
-            HttpMethod::Delete,
-            &host,
-            &path,
-            &date,
-            None,
-            &self.credentials,
-        )?;
-
-        let response = self
-            .http_client
-            .delete(url)
-            .header("date", &date)
-            .header("authorization", &authorization)
-            .send()
-            .await
-            .map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("OCI DELETE failed: {error}"),
-            })?;
-
+        let response = self.send_request(Method::DELETE, url, None).await?;
         let status = response.status();
         if status.is_success() || status == StatusCode::NOT_FOUND {
             return Ok(());
         }
-        let body = response.text().await.unwrap_or_default();
-        Err(build_request_error("DELETE", url, status, &body))
+        let body_text = response.text().await.unwrap_or_default();
+        Err(build_request_error("DELETE", url, status, &body_text))
+    }
+
+    async fn send_request(
+        &self,
+        method: Method,
+        url: &str,
+        body: Option<Vec<u8>>,
+    ) -> Result<Response> {
+        debug!("[OCI] {method} {url}");
+        let parsed_url =
+            Url::parse(url).map_err(|error| NetworkProvisioningError::NetworkQueryFailed {
+                reason: format!("Invalid URL {url}: {error}"),
+            })?;
+        let host = parsed_url.host_str().unwrap_or_default();
+        let path = match parsed_url.query() {
+            Some(query) => format!("{}?{query}", parsed_url.path()),
+            None => parsed_url.path().to_string(),
+        };
+        let date = Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string();
+        let signed_headers = build_signed_headers(
+            &self.credentials,
+            &method,
+            host,
+            &path,
+            &date,
+            body.as_deref(),
+        )?;
+
+        let mut request = self
+            .http
+            .request(method.clone(), url)
+            .header("date", &date)
+            .header("authorization", &signed_headers.authorization);
+        if let (Some(body_bytes), Some(content_sha256)) = (body, signed_headers.content_sha256) {
+            request = request
+                .header("content-type", "application/json")
+                .header("x-content-sha256", content_sha256)
+                .header("content-length", body_bytes.len().to_string())
+                .body(body_bytes);
+        }
+        request.send().await.map_err(|error| {
+            NetworkProvisioningError::NetworkQueryFailed {
+                reason: format!("OCI {method} {url} failed: {error}"),
+            }
+            .into()
+        })
     }
 }
 
-fn format_rfc7231_date() -> String {
-    chrono::Utc::now()
-        .format("%a, %d %b %Y %H:%M:%S GMT")
-        .to_string()
+fn serialize_body<B: Serialize>(body: &B) -> Result<Vec<u8>> {
+    to_vec(body).map_err(|error| {
+        NetworkProvisioningError::NetworkQueryFailed {
+            reason: format!("Failed to serialize body: {error}"),
+        }
+        .into()
+    })
 }
 
-async fn parse_response<T: DeserializeOwned>(
+async fn parse_json_response<T: DeserializeOwned>(
     method: &str,
     url: &str,
     response: Response,
@@ -231,41 +155,17 @@ async fn parse_response<T: DeserializeOwned>(
                 reason: format!("Failed to read OCI response: {error}"),
             })?;
 
-    if status.is_success() {
-        debug!("[OCI] {method} {url} → {status}");
-        let json_str = if body.is_empty() {
-            "null"
-        } else {
-            body.as_str()
-        };
-        from_str(json_str).map_err(|error| {
-            NetworkProvisioningError::NetworkQueryFailed {
-                reason: format!("Failed to parse OCI JSON response: {error} — body: {body}"),
-            }
-            .into()
-        })
-    } else {
-        error!("[OCI] {method} {url} → {status} — {body}");
-        Err(build_request_error(method, url, status, &body))
+    if !status.is_success() {
+        error!("[OCI] {method} {url} -> {status}: {body}");
+        return Err(build_request_error(method, url, status, &body));
     }
-}
 
-#[derive(Deserialize)]
-struct OciErrorResponse {
-    code: Option<String>,
-    message: Option<String>,
-}
-
-fn build_request_error(method: &str, url: &str, status: StatusCode, body: &str) -> Error {
-    let error_body = from_str::<OciErrorResponse>(body).ok();
-    Error::cloud_api_rejected(
-        CloudProviderName::Oracle,
-        format!("{method} {url}"),
-        status.as_u16(),
-        error_body
-            .as_ref()
-            .and_then(|error_body| error_body.code.clone()),
-        error_body.and_then(|error_body| error_body.message),
-        body,
-    )
+    debug!("[OCI] {method} {url} -> {status}");
+    let json_text = if body.is_empty() { "null" } else { &body };
+    from_str(json_text).map_err(|error| {
+        NetworkProvisioningError::NetworkQueryFailed {
+            reason: format!("Failed to parse OCI JSON response: {error} (body: {body})"),
+        }
+        .into()
+    })
 }

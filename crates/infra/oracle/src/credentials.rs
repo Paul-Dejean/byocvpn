@@ -4,8 +4,6 @@ use byocvpn_core::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::provider::OracleProviderConfig;
-
 const TENANCY_OCID_FIELD: &str = "tenancy_ocid";
 const USER_OCID_FIELD: &str = "user_ocid";
 const FINGERPRINT_FIELD: &str = "fingerprint";
@@ -32,7 +30,7 @@ fn normalize_pem(raw: &str) -> String {
     normalised[begin_pos..end_line_end].trim_end().to_string()
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct OracleCredentials {
@@ -77,17 +75,5 @@ impl StoredCredentials for OracleCredentials {
             &pem_single_line,
         );
         store.set(Self::CREDENTIALS_SECTION, REGION_FIELD, &self.region);
-    }
-}
-
-impl From<OracleCredentials> for OracleProviderConfig {
-    fn from(credentials: OracleCredentials) -> Self {
-        Self {
-            tenancy_ocid: credentials.tenancy_ocid,
-            user_ocid: credentials.user_ocid,
-            fingerprint: credentials.fingerprint,
-            private_key_pem: credentials.private_key_pem,
-            region: credentials.region,
-        }
     }
 }

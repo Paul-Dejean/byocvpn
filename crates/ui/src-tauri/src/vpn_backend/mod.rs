@@ -8,9 +8,7 @@ use crate::{events::VpnStatusEvent, tray};
 #[cfg(desktop)]
 mod desktop;
 #[cfg(desktop)]
-pub use desktop::{
-    create_daemon_client, start_status_stream, start_status_subscription, stop_status_stream,
-};
+pub use desktop::{start_status_stream, start_status_subscription, stop_status_stream};
 
 #[cfg(target_os = "android")]
 mod android;

@@ -33,31 +33,28 @@ pub async fn resolve_provider_name(
         return Ok(provider_name);
     }
 
-    let mut configured_providers = context.providers.list_configured().await?;
-
-    match configured_providers.len() {
-        0 => Err(CliError::NoProviderConfigured),
-        1 => configured_providers
+    let mut configured_providers = context.providers.require_configured().await?;
+    if configured_providers.len() == 1 {
+        return configured_providers
             .pop()
-            .ok_or(CliError::NoProviderConfigured),
-        _ => {
-            let labels: Vec<String> = configured_providers
-                .iter()
-                .map(std::string::ToString::to_string)
-                .collect();
-
-            let selected_index = Select::with_theme(&ColorfulTheme::default())
-                .with_prompt("Select a cloud provider")
-                .items(&labels)
-                .default(0)
-                .interact()?;
-
-            configured_providers
-                .into_iter()
-                .nth(selected_index)
-                .ok_or(CliError::NoProviderConfigured)
-        }
+            .ok_or(CliError::SelectionOutOfRange);
     }
+
+    let labels: Vec<String> = configured_providers
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect();
+
+    let selected_index = Select::with_theme(&ColorfulTheme::default())
+        .with_prompt("Select a cloud provider")
+        .items(&labels)
+        .default(0)
+        .interact()?;
+
+    configured_providers
+        .into_iter()
+        .nth(selected_index)
+        .ok_or(CliError::SelectionOutOfRange)
 }
 
 pub async fn list_instances_across_providers(
@@ -65,8 +62,8 @@ pub async fn list_instances_across_providers(
     requested_provider: Option<CloudProviderName>,
     region: Option<&str>,
 ) -> CliResult<Vec<InstanceInfo>> {
-    if requested_provider.is_none() && context.providers.list_configured().await?.is_empty() {
-        return Err(CliError::NoProviderConfigured);
+    if requested_provider.is_none() {
+        context.providers.require_configured().await?;
     }
 
     let listing = with_spinner(
@@ -85,14 +82,11 @@ pub async fn list_instances_across_providers(
 }
 
 pub async fn find_instance(context: &AppContext, instance_id: &str) -> CliResult<InstanceInfo> {
-    with_spinner(
+    Ok(with_spinner(
         "Fetching servers",
-        instances::find_instance(context, instance_id),
+        instances::require_instance(context, instance_id),
     )
-    .await?
-    .ok_or_else(|| CliError::InstanceNotFound {
-        instance_id: instance_id.to_string(),
-    })
+    .await?)
 }
 
 pub fn describe_instance(instance: &InstanceInfo) -> String {

@@ -143,6 +143,7 @@ impl Error {
             Self::Configuration(_) => ErrorKind::Configuration,
             Self::Daemon(_) => ErrorKind::Daemon,
             Self::Network(error) => classify_network_error(error),
+            Self::Compute(ComputeProvisioningError::InstanceNotFound { .. }) => ErrorKind::NotFound,
             Self::Compute(_) => ErrorKind::Cloud,
             Self::System(SystemError::ReadinessProbeTimedOut) => ErrorKind::Transient,
             Self::System(_) | Self::Unknown { .. } => ErrorKind::Unknown,
@@ -212,6 +213,7 @@ const fn classify_credentials_error(error: &CredentialsError) -> ErrorKind {
         | CredentialsError::TokenAcquisitionFailed { .. }
         | CredentialsError::MissingTokenInResponse { .. } => ErrorKind::Authentication,
         CredentialsError::FileNotFound
+        | CredentialsError::NoProviderConfigured
         | CredentialsError::FileReadFailed { .. }
         | CredentialsError::FileSaveFailed { .. }
         | CredentialsError::InvalidFormat { .. }

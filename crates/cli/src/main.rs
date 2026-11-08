@@ -7,7 +7,6 @@ mod terminate;
 
 use byocvpn_app::open_app_context;
 use byocvpn_core::cloud_provider::CloudProviderName;
-use byocvpn_daemon::daemon_client::UnixDaemonClient;
 use clap::{Parser, Subcommand};
 use env_logger::Env;
 use log::{error, info};
@@ -84,13 +83,13 @@ async fn run(cli: Cli) -> CliResult<()> {
             );
         }
         Commands::Connect { instance_id } => {
-            run_connect(&context, &UnixDaemonClient, instance_id).await?;
+            run_connect(&context, instance_id).await?;
         }
         Commands::Disconnect => {
-            run_disconnect(&context, &UnixDaemonClient, true).await?;
+            run_disconnect(&context, true).await?;
         }
         Commands::Terminate { instance_id } => {
-            run_terminate(&context, &UnixDaemonClient, instance_id).await?;
+            run_terminate(&context, instance_id).await?;
         }
         Commands::List { provider, region } => {
             let active_instances =

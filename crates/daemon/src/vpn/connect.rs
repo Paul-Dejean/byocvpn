@@ -3,7 +3,7 @@ use std::{net::SocketAddr, sync::Arc};
 use byocvpn_core::{
     daemon_client::VpnConnectParams,
     error::{ConfigurationError, Result, SystemError},
-    ipc::{IpcSocket, IpcStream},
+    ipc::{IpcSocket, IpcStream, metrics_socket_path},
     tunnel::{
         ConnectedInstance, TUNNEL_MTU, Tunnel, TunnelMetrics, TunnelRateTracker,
         create_wireguard_tunnel,
@@ -21,7 +21,7 @@ use tokio::{
 use tun_rs::{AsyncDevice, DeviceBuilder};
 
 use crate::{
-    constants, firewall,
+    firewall,
     routing::{
         dns::DnsOverrideGuard,
         routes::{add_vpn_routes, update_server_host_route},
@@ -199,7 +199,7 @@ fn spawn_metrics_task(
     metrics: Arc<RwLock<TunnelMetrics>>,
     mut metrics_shutdown_rx: watch::Receiver<()>,
 ) -> JoinHandle<()> {
-    let metrics_socket_path = constants::metrics_socket_path();
+    let metrics_socket_path = metrics_socket_path();
 
     tokio::spawn(async move {
         let mut listener = match IpcSocket::bind(metrics_socket_path.clone()).await {

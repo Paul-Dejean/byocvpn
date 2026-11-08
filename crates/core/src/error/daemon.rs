@@ -26,4 +26,7 @@ pub enum DaemonError {
 
     #[error("daemon already running")]
     AlreadyRunning,
+
+    #[error("already connected to {instance_id}; disconnect first")]
+    AlreadyConnected { instance_id: String },
 }

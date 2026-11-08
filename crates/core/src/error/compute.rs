@@ -11,6 +11,9 @@ pub enum ComputeProvisioningError {
         reason: String,
     },
 
+    #[error("instance {instance_id} was not found")]
+    InstanceNotFound { instance_id: String },
+
     #[error("no instance returned in response")]
     NoInstanceInResponse,
 

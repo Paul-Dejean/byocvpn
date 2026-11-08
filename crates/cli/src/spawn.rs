@@ -1,7 +1,6 @@
 use byocvpn_core::{
     app_context::AppContext,
     cloud_provider::{CloudProvider, CloudProviderName, InstanceInfo},
-    commands,
     jobs::{region_preparation::ensure_region_ready, spawn::run_spawn_job},
 };
 use dialoguer::{Select, theme::ColorfulTheme};
@@ -31,7 +30,7 @@ pub async fn spawn_new_server(
 }
 
 async fn choose_region(provider: &dyn CloudProvider) -> CliResult<String> {
-    let regions = commands::setup::get_regions(provider).await?;
+    let regions = provider.get_regions().await?;
     let labels: Vec<String> = regions
         .iter()
         .map(|region| format!("{} ({})", region.name, region.country))
@@ -47,5 +46,5 @@ async fn choose_region(provider: &dyn CloudProvider) -> CliResult<String> {
         .into_iter()
         .nth(selected_index)
         .map(|region| region.name)
-        .ok_or(CliError::RegionRequired)
+        .ok_or(CliError::SelectionOutOfRange)
 }

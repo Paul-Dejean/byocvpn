@@ -3,16 +3,15 @@ use std::io::IsTerminal;
 use byocvpn_core::{
     app_context::AppContext,
     cloud_provider::{InstanceInfo, InstanceState},
-    commands,
+    daemon_client::fetch_vpn_status,
     session::{self, ConnectTarget},
     tunnel::ConnectedInstance,
 };
-use byocvpn_daemon::daemon_client::UnixDaemonClient;
 use dialoguer::{Select, theme::ColorfulTheme};
 use log::info;
 
 use crate::{
-    error::{CliError, CliResult},
+    error::CliResult,
     progress::with_step,
     providers::{
         describe_instance, find_instance, list_instances_across_providers, terminate_server,
@@ -20,13 +19,7 @@ use crate::{
     spawn::spawn_new_server,
 };
 
-pub async fn run_connect(
-    context: &AppContext,
-    daemon_client: &UnixDaemonClient,
-    instance_id: Option<String>,
-) -> CliResult<()> {
-    reject_if_already_connected(daemon_client).await?;
-
+pub async fn run_connect(context: &AppContext, instance_id: Option<String>) -> CliResult<()> {
     let instance = match instance_id {
         Some(instance_id) => find_instance(context, &instance_id).await?,
         None => choose_instance_or_spawn(context).await?,
@@ -36,7 +29,7 @@ pub async fn run_connect(
         &format!("Connecting to {} in {}", instance.id, instance.region),
         session::connect(
             context,
-            daemon_client,
+            context.daemon_client.as_ref(),
             ConnectTarget {
                 provider: instance.provider.clone(),
                 region: instance.region.clone(),
@@ -51,12 +44,8 @@ pub async fn run_connect(
     Ok(())
 }
 
-pub async fn run_disconnect(
-    context: &AppContext,
-    daemon_client: &UnixDaemonClient,
-    offer_to_terminate: bool,
-) -> CliResult<()> {
-    let status = commands::status::fetch_vpn_status(daemon_client).await?;
+pub async fn run_disconnect(context: &AppContext, offer_to_terminate: bool) -> CliResult<()> {
+    let status = fetch_vpn_status(context.daemon_client.as_ref()).await?;
 
     let Some(connected_instance) = status.instance.filter(|_| status.connected) else {
         info!("Not connected to any VPN");
@@ -68,7 +57,7 @@ pub async fn run_disconnect(
             "Disconnecting from {} in {}",
             connected_instance.instance_id, connected_instance.region
         ),
-        session::disconnect(daemon_client),
+        session::disconnect(context.daemon_client.as_ref()),
     )
     .await?;
 
@@ -100,17 +89,6 @@ fn confirm_termination(connected_instance: &ConnectedInstance) -> CliResult<bool
         .interact()?;
 
     Ok(selected_index == 1)
-}
-
-async fn reject_if_already_connected(daemon_client: &UnixDaemonClient) -> CliResult<()> {
-    let status = commands::status::fetch_vpn_status(daemon_client).await?;
-
-    match status.instance.filter(|_| status.connected) {
-        Some(connected_instance) => Err(CliError::AlreadyConnected {
-            instance_id: connected_instance.instance_id,
-        }),
-        None => Ok(()),
-    }
 }
 
 async fn choose_instance_or_spawn(context: &AppContext) -> CliResult<InstanceInfo> {

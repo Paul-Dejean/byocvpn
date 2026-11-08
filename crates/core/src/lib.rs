@@ -1,6 +1,5 @@
 pub mod app_context;
 pub mod cloud_provider;
-pub mod commands;
 pub mod config;
 pub mod connectivity;
 pub mod credentials;
@@ -13,6 +12,7 @@ pub mod job_registry;
 pub mod jobs;
 pub mod json_store;
 pub mod ledger;
+pub mod managed_resources;
 pub mod metrics_stream;
 pub mod pricing;
 pub mod provider_factory;

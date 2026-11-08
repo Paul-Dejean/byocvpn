@@ -1,12 +1,12 @@
 use byocvpn_aws::AwsCredentials;
-use byocvpn_azure::credentials::AzureCredentials;
+use byocvpn_azure::AzureCredentials;
 use byocvpn_core::{
     cloud_provider::CloudProviderName,
     credentials::{CredentialStore, StoredCredentials},
     error::Result,
 };
-use byocvpn_gcp::credentials::GcpCredentials;
-use byocvpn_oracle::credentials::OracleCredentials;
+use byocvpn_gcp::GcpCredentials;
+use byocvpn_oracle::OracleCredentials;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]

@@ -12,7 +12,7 @@ use tauri_plugin_notification::NotificationExt;
 use tauri_specta::Event;
 use tokio::time::interval;
 
-use crate::{events::InstanceAutoTerminatedEvent, vpn_backend};
+use crate::events::InstanceAutoTerminatedEvent;
 
 const CHECK_INTERVAL_SECONDS: u64 = 60;
 
@@ -22,22 +22,22 @@ pub fn start_server_monitor(app_handle: AppHandle) {
         loop {
             ticker.tick().await;
             let context = app_handle.state::<AppContext>();
-            let daemon_client = vpn_backend::create_daemon_client(&app_handle);
             let observer = DesktopMonitorObserver {
                 app_handle: app_handle.clone(),
             };
-            server_monitor::run_monitor_tick(&context, &daemon_client, &observer).await;
+            server_monitor::run_monitor_tick(&context, context.daemon_client.as_ref(), &observer)
+                .await;
         }
     });
 }
 
 pub async fn run_auto_terminate_check(app_handle: &AppHandle) {
     let context = app_handle.state::<AppContext>();
-    let daemon_client = vpn_backend::create_daemon_client(app_handle);
     let observer = DesktopMonitorObserver {
         app_handle: app_handle.clone(),
     };
-    server_monitor::run_auto_terminate_check(&context, &daemon_client, &observer).await;
+    server_monitor::run_auto_terminate_check(&context, context.daemon_client.as_ref(), &observer)
+        .await;
 }
 
 struct DesktopMonitorObserver {

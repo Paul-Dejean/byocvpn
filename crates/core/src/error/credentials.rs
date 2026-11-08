@@ -5,6 +5,9 @@ pub enum CredentialsError {
     #[error("credentials file not found")]
     FileNotFound,
 
+    #[error("no cloud provider credentials found; add your credentials in the desktop app first")]
+    NoProviderConfigured,
+
     #[error("failed to read credentials file: {reason}")]
     FileReadFailed { reason: String },
 

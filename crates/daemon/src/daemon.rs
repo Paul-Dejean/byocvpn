@@ -1,22 +1,19 @@
 use byocvpn_core::{
     daemon_client::{DaemonCommand, DaemonResponse},
     error::{DaemonError, Result},
-    ipc::IpcSocket,
+    ipc::{IpcSocket, socket_path},
 };
 use log::{debug, error, info};
 use serde_json::Value;
 
-use crate::{
-    constants,
-    vpn::{
-        connect::connect_vpn, disconnect::disconnect_vpn, metrics::get_current_metrics,
-        restore::try_restore_session, status::get_vpn_status,
-    },
+use crate::vpn::{
+    connect::connect_vpn, disconnect::disconnect_vpn, metrics::get_current_metrics,
+    restore::try_restore_session, status::get_vpn_status,
 };
 
 pub async fn run_daemon() -> Result<()> {
     env_logger::init();
-    let socket_path = constants::socket_path();
+    let socket_path = socket_path();
 
     #[cfg(unix)]
     if let Some(socket_dir) = socket_path.parent() {

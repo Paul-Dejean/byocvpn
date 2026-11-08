@@ -4,8 +4,6 @@ use byocvpn_core::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::provider::GcpProviderConfig;
-
 const PROJECT_ID_FIELD: &str = "project_id";
 const SERVICE_ACCOUNT_JSON_FIELD: &str = "service_account_json";
 
@@ -31,7 +29,6 @@ impl StoredCredentials for GcpCredentials {
     }
 
     fn write_to_store(&self, store: &mut CredentialStore) {
-        // Compact the JSON to strip any literal newlines that would break INI parsing
         let compact = serde_json::from_str::<serde_json::Value>(&self.service_account_json)
             .ok()
             .and_then(|value| serde_json::to_string(&value).ok())
@@ -46,13 +43,5 @@ impl StoredCredentials for GcpCredentials {
             SERVICE_ACCOUNT_JSON_FIELD,
             &compact,
         );
-    }
-}
-
-impl From<GcpCredentials> for GcpProviderConfig {
-    fn from(credentials: GcpCredentials) -> Self {
-        Self {
-            service_account_json: credentials.service_account_json,
-        }
     }
 }

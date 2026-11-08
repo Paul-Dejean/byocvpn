@@ -1,15 +1,16 @@
 use std::collections::HashMap;
 
 use aws_sdk_pricing::{
-    Client as PricingClient,
     error::DisplayErrorContext,
     types::{Filter, FilterType},
 };
-use byocvpn_core::cloud_provider::PricingInfo;
-use byocvpn_core::error::{ComputeProvisioningError, Error, Result};
+use byocvpn_core::{
+    cloud_provider::PricingInfo,
+    error::{ComputeProvisioningError, Error, Result},
+};
 use serde::Deserialize;
 
-pub const PRICING_API_REGION: &str = "us-east-1";
+use crate::client::AwsClient;
 
 const EC2_SERVICE_CODE: &str = "AmazonEC2";
 const VPC_SERVICE_CODE: &str = "AmazonVPC";
@@ -21,7 +22,7 @@ const ROOT_VOLUME_API_NAME: &str = "gp3";
 const PUBLIC_IPV4_USAGE_TYPE_FRAGMENT: &str = "PublicIPv4:InUseAddress";
 
 pub async fn fetch_pricing(
-    pricing_client: &PricingClient,
+    client: &AwsClient,
     region: &str,
     instance_type: &str,
 ) -> Result<PricingInfo> {
@@ -54,26 +55,11 @@ pub async fn fetch_pricing(
 
     let (hourly_rate, ip_hourly_rate, storage_rate_per_gb_month, egress_rate_per_gb) =
         tokio::try_join!(
+            fetch_first_paid_rate(client, EC2_SERVICE_CODE, instance_filters, "instance"),
+            fetch_first_paid_rate(client, VPC_SERVICE_CODE, public_ip_filters, "public IPv4"),
+            fetch_first_paid_rate(client, EC2_SERVICE_CODE, volume_filters, "root volume"),
             fetch_first_paid_rate(
-                pricing_client,
-                EC2_SERVICE_CODE,
-                instance_filters,
-                "instance"
-            ),
-            fetch_first_paid_rate(
-                pricing_client,
-                VPC_SERVICE_CODE,
-                public_ip_filters,
-                "public IPv4"
-            ),
-            fetch_first_paid_rate(
-                pricing_client,
-                EC2_SERVICE_CODE,
-                volume_filters,
-                "root volume"
-            ),
-            fetch_first_paid_rate(
-                pricing_client,
+                client,
                 DATA_TRANSFER_SERVICE_CODE,
                 egress_filters,
                 "internet egress"
@@ -91,12 +77,13 @@ pub async fn fetch_pricing(
 }
 
 async fn fetch_first_paid_rate(
-    pricing_client: &PricingClient,
+    client: &AwsClient,
     service_code: &str,
     filters: Vec<Filter>,
     component: &str,
 ) -> Result<f64> {
-    let response = pricing_client
+    let response = client
+        .pricing
         .get_products()
         .service_code(service_code)
         .set_filters(Some(filters))

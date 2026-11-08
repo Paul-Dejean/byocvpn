@@ -8,8 +8,10 @@ use chrono::{DateTime, Utc};
 use log::{debug, info, warn};
 
 use crate::{
-    app_context::AppContext, commands::status::fetch_vpn_status, daemon_client::DaemonClient,
-    instances::terminate_instance, ledger::LedgerEntry,
+    app_context::AppContext,
+    daemon_client::{DaemonClient, fetch_vpn_status},
+    instances::terminate_instance,
+    ledger::LedgerEntry,
 };
 
 const MIN_AUTO_TERMINATE_MINUTES: u64 = 5;
