@@ -4,8 +4,6 @@ use byocvpn_core::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::provider::AzureProviderConfig;
-
 const SUBSCRIPTION_ID_FIELD: &str = "subscription_id";
 const TENANT_ID_FIELD: &str = "tenant_id";
 const APPLICATION_ID_FIELD: &str = "application_id";
@@ -50,16 +48,5 @@ impl StoredCredentials for AzureCredentials {
             SECRET_VALUE_FIELD,
             &self.secret_value,
         );
-    }
-}
-
-impl From<AzureCredentials> for AzureProviderConfig {
-    fn from(credentials: AzureCredentials) -> Self {
-        Self {
-            subscription_id: credentials.subscription_id,
-            tenant_id: credentials.tenant_id,
-            application_id: credentials.application_id,
-            secret_value: credentials.secret_value,
-        }
     }
 }

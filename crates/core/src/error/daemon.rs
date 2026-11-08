@@ -1,29 +1,21 @@
-use serde::{Deserialize, Serialize};
+use std::{error::Error as StdError, io::Error as IoError};
+
 use thiserror::Error;
 
-#[derive(Debug, Error, Serialize, Deserialize)]
+#[derive(Debug, Error)]
 pub enum DaemonError {
     #[error("daemon is not running")]
     NotRunning,
 
-    #[error("failed to connect to daemon: {reason}")]
-    ConnectionFailed { reason: String },
+    #[error("daemon socket error: {0}")]
+    Socket(#[from] IoError),
 
-    #[error("daemon command failed: {command}")]
-    CommandFailed { command: String },
+    #[error("daemon closed the connection without a response")]
+    EmptyResponse,
 
-    #[error("invalid daemon response: {reason}")]
-    InvalidResponse { reason: String },
+    #[error("VPN service call failed: {0}")]
+    Plugin(#[source] Box<dyn StdError + Send + Sync>),
 
-    #[error("daemon timeout after {seconds} seconds")]
-    Timeout { seconds: u64 },
-
-    #[error("daemon socket error: {reason}")]
-    SocketError { reason: String },
-
-    #[error("failed to start daemon: {reason}")]
-    StartupFailed { reason: String },
-
-    #[error("daemon already running")]
-    AlreadyRunning,
+    #[error("already connected to {instance_id}; disconnect first")]
+    AlreadyConnected { instance_id: String },
 }

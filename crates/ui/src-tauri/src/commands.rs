@@ -1,9 +1,10 @@
+use std::path::PathBuf;
+
 use byocvpn_app::ProviderCredentials;
 use byocvpn_core::{
     app_context::AppContext,
-    cloud_provider::{CloudProviderName, InstanceInfo, PermissionStatus, PricingInfo},
-    commands,
-    commands::setup::Region,
+    cloud_provider::{CloudProviderName, InstanceInfo, PermissionStatus, PricingInfo, Region},
+    daemon_client,
     error::{ConfigurationError, CredentialsError, Error, Result},
     instances,
     job_registry::SpawnJobState,
@@ -20,11 +21,13 @@ use byocvpn_core::{
 use log::{debug, error};
 use tauri::{AppHandle, Manager, ipc::Channel};
 
-use crate::job_observers::{
-    EnableRegionEvent, EnableRegionEventForwarder, ProvisionAccountEvent,
-    ProvisionAccountEventForwarder, SpawnEventForwarder, SpawnInstanceEvent,
+use crate::{
+    job_observers::{
+        EnableRegionEvent, EnableRegionEventForwarder, ProvisionAccountEvent,
+        ProvisionAccountEventForwarder, SpawnEventForwarder, SpawnInstanceEvent,
+    },
+    vpn_backend::{self, publish_vpn_status},
 };
-use crate::vpn_backend::{self, publish_vpn_status};
 
 #[tauri::command]
 #[specta::specta]
@@ -64,7 +67,7 @@ pub async fn verify_permissions(
         .providers
         .create(provider)
         .await?;
-    commands::verify_permissions::verify_permissions(&*cloud_provider).await
+    cloud_provider.verify_permissions().await
 }
 
 #[tauri::command]
@@ -211,11 +214,12 @@ pub async fn get_regions(
         .providers
         .create(provider)
         .await?;
-    commands::setup::get_regions(&*cloud_provider).await
+    cloud_provider.get_regions().await
 }
 
 pub async fn fetch_vpn_status(app_handle: &AppHandle) -> Result<VpnStatus> {
-    commands::status::fetch_vpn_status(&vpn_backend::create_daemon_client(app_handle)).await
+    let context = app_handle.state::<AppContext>();
+    daemon_client::fetch_vpn_status(context.daemon_client.as_ref()).await
 }
 
 #[tauri::command]
@@ -228,11 +232,10 @@ pub async fn connect(
     public_ip_v6: Option<String>,
     app_handle: AppHandle,
 ) -> Result<String> {
-    let daemon_client = vpn_backend::create_daemon_client(&app_handle);
     let context = app_handle.state::<AppContext>();
     session::connect(
         &context,
-        &daemon_client,
+        context.daemon_client.as_ref(),
         ConnectTarget {
             provider,
             region,
@@ -266,8 +269,8 @@ pub async fn connect(
 pub async fn disconnect(app_handle: AppHandle) -> Result<String> {
     vpn_backend::stop_status_stream().await?;
 
-    let daemon_client = vpn_backend::create_daemon_client(&app_handle);
-    session::disconnect(&daemon_client).await?;
+    let context = app_handle.state::<AppContext>();
+    session::disconnect(context.daemon_client.as_ref()).await?;
 
     let disconnected_status = VpnStatus {
         connected: false,
@@ -295,8 +298,8 @@ pub async fn subscribe_to_vpn_status(app_handle: AppHandle) -> Result<()> {
     let status = fetch_vpn_status(&app_handle).await?;
     let connected_instance = status.instance.ok_or_else(|| -> Error {
         ConfigurationError::InvalidValue {
-            field: "vpn_status".to_string(),
-            reason: "not connected to VPN".to_string(),
+            field: "vpn_status",
+            reason: "not connected to VPN",
         }
         .into()
     })?;
@@ -323,9 +326,11 @@ pub async fn save_file(path: String, content: String) -> Result<()> {
     debug!("Writing file: {path}");
     tokio::fs::write(&path, content)
         .await
-        .map_err(|error| -> Error {
-            ConfigurationError::InvalidFile {
-                reason: error.to_string(),
+        .map_err(|source| -> Error {
+            ConfigurationError::DataFile {
+                operation: "write",
+                path: PathBuf::from(&path),
+                source,
             }
             .into()
         })

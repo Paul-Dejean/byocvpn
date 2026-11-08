@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use ini::Ini;
+use ini::{Error as IniError, Ini};
 use log::debug;
 use tokio::fs::{create_dir_all, try_exists};
 
@@ -13,15 +13,19 @@ async fn get_credentials_path() -> Result<PathBuf> {
     let dir = get_data_directory()?;
     if !try_exists(&dir)
         .await
-        .map_err(|error| CredentialsError::FileReadFailed {
-            reason: format!("failed to check credentials directory: {error}"),
+        .map_err(|source| CredentialsError::Directory {
+            operation: "check",
+            path: dir.clone(),
+            source,
         })?
     {
         debug!("Creating credentials directory: {}", dir.display());
         create_dir_all(&dir)
             .await
-            .map_err(|error| CredentialsError::FileSaveFailed {
-                reason: format!("failed to create credentials directory: {error}"),
+            .map_err(|source| CredentialsError::Directory {
+                operation: "create",
+                path: dir.clone(),
+                source,
             })?;
     }
     Ok(dir.join("credentials"))
@@ -38,12 +42,8 @@ impl CredentialStore {
         debug!("Loading credentials from: {}", path.display());
         let ini = if path.exists() {
             let loaded = Ini::load_from_file(&path).map_err(|error| match error {
-                ini::Error::Io(io_error) => CredentialsError::FileReadFailed {
-                    reason: io_error.to_string(),
-                },
-                ini::Error::Parse(parse_error) => CredentialsError::InvalidFormat {
-                    reason: parse_error.to_string(),
-                },
+                IniError::Io(io_error) => CredentialsError::FileRead(io_error),
+                IniError::Parse(parse_error) => CredentialsError::InvalidFormat(parse_error),
             })?;
             debug!("Credentials file loaded successfully");
             loaded
@@ -58,9 +58,7 @@ impl CredentialStore {
         debug!("Saving credentials to: {}", self.path.display());
         self.ini
             .write_to_file(&self.path)
-            .map_err(|error| CredentialsError::FileSaveFailed {
-                reason: error.to_string(),
-            })?;
+            .map_err(CredentialsError::FileSave)?;
         debug!("Credentials saved successfully");
         Ok(())
     }

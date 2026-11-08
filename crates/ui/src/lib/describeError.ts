@@ -65,7 +65,7 @@ const ERROR_KIND_COPY: Record<ErrorKind, ErrorKindCopy> = {
 export function describeError(error: AppError): ErrorDescription {
   const copy = ERROR_KIND_COPY[error.kind];
   const hasFixedDescription = copy.description !== null;
-  const description = copy.description ?? error.message;
+  const description = describeOperation(error) ?? copy.description ?? error.message;
   const detailLines = hasFixedDescription ? [error.message, error.detail] : [error.detail];
   const detail = detailLines.filter((line): line is string => Boolean(line)).join("\n");
   const summary = hasFixedDescription ? copy.title : `${copy.title}: ${error.message}`;
@@ -80,4 +80,11 @@ export function describeError(error: AppError): ErrorDescription {
 
 export function summarizeError(error: AppError): string {
   return describeError(error).summary;
+}
+
+function describeOperation(error: AppError): string | null {
+  if (error.kind !== ErrorKind.Authorization || error.operation === null) {
+    return null;
+  }
+  return `Your credentials are not allowed to call ${error.operation}.`;
 }

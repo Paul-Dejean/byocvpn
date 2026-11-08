@@ -1,14 +1,14 @@
 use async_trait::async_trait;
 use byocvpn_aws::{AwsCredentials, AwsProvider};
-use byocvpn_azure::{AzureProvider, credentials::AzureCredentials};
+use byocvpn_azure::{AzureCredentials, AzureProvider};
 use byocvpn_core::{
     cloud_provider::{CloudProvider, CloudProviderName},
     credentials::{CredentialStore, StoredCredentials},
     error::Result,
     provider_factory::ProviderFactory,
 };
-use byocvpn_gcp::{GcpProvider, credentials::GcpCredentials};
-use byocvpn_oracle::{OracleProvider, credentials::OracleCredentials};
+use byocvpn_gcp::{GcpCredentials, GcpProvider};
+use byocvpn_oracle::{OracleCredentials, OracleProvider};
 use log::debug;
 
 const ALL_PROVIDERS: [CloudProviderName; 4] = [
@@ -35,17 +35,17 @@ impl ProviderFactory for StoredCredentialsProviderFactory {
         let store = CredentialStore::load().await?;
         let cloud_provider: Box<dyn CloudProvider> = match provider {
             CloudProviderName::Aws => {
-                Box::new(AwsProvider::new(AwsCredentials::from_store(&store)?.into()))
+                Box::new(AwsProvider::new(AwsCredentials::from_store(&store)?))
             }
-            CloudProviderName::Azure => Box::new(AzureProvider::new(
-                AzureCredentials::from_store(&store)?.into(),
-            )?),
-            CloudProviderName::Gcp => Box::new(GcpProvider::new(
-                GcpCredentials::from_store(&store)?.into(),
-            )?),
-            CloudProviderName::Oracle => Box::new(OracleProvider::new(
-                OracleCredentials::from_store(&store)?.into(),
-            )),
+            CloudProviderName::Azure => {
+                Box::new(AzureProvider::new(AzureCredentials::from_store(&store)?)?)
+            }
+            CloudProviderName::Gcp => {
+                Box::new(GcpProvider::connect(GcpCredentials::from_store(&store)?).await?)
+            }
+            CloudProviderName::Oracle => {
+                Box::new(OracleProvider::new(OracleCredentials::from_store(&store)?))
+            }
         };
         Ok(cloud_provider)
     }

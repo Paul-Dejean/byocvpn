@@ -60,14 +60,9 @@ fn generate_wireguard_server_config(
 }
 
 fn render_template<Context: Serialize>(template_text: &str, context: &Context) -> Result<String> {
-    Handlebars::new()
+    Ok(Handlebars::new()
         .render_template(template_text, context)
-        .map_err(|error| {
-            ConfigurationError::TemplateRender {
-                reason: error.to_string(),
-            }
-            .into()
-        })
+        .map_err(ConfigurationError::TemplateRender)?)
 }
 
 #[derive(Serialize)]

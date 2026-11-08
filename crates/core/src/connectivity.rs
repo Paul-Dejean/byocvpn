@@ -1,3 +1,4 @@
+use log::debug;
 use serde::Deserialize;
 use tokio::{
     io::AsyncReadExt,
@@ -7,9 +8,9 @@ use tokio::{
 
 use crate::{
     error::{Error, Result, SystemError},
+    managed_resources::WIREGUARD_PORT,
     retry::{RetryPolicy, retry_if},
 };
-use log::debug;
 
 const PROBE_MAX_ATTEMPTS: u32 = 30;
 const PROBE_RETRY_DELAY_SECS: u64 = 10;
@@ -32,7 +33,7 @@ pub enum ProbeStatus {
 }
 
 pub async fn probe_status(ip_address: &str) -> ProbeStatus {
-    let address = format!("{ip_address}:51820");
+    let address = format!("{ip_address}:{WIREGUARD_PORT}");
 
     let connect = timeout(
         TokioDuration::from_secs(PROBE_CONNECT_TIMEOUT_SECS),

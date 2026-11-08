@@ -1,5 +1,5 @@
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use byocvpn_core::error::{CredentialsError, Result};
+use reqwest::Method;
 use rsa::{
     RsaPrivateKey,
     pkcs1v15::SigningKey,
@@ -9,99 +9,74 @@ use rsa::{
 };
 use sha2::{Digest, Sha256 as Sha256Digest};
 
-#[derive(Clone, Debug)]
-pub struct OciCredentials {
-    pub tenancy_ocid: String,
-    pub user_ocid: String,
-    pub fingerprint: String,
-    pub private_key_pem: String,
-    pub region: String,
+use crate::{credentials::OracleCredentials, error::Result};
+
+pub struct SignedRequestHeaders {
+    pub authorization: String,
+    pub content_sha256: Option<String>,
 }
 
-impl OciCredentials {
-    pub fn build_key_id(&self) -> String {
-        format!(
-            "{}/{}/{}",
-            self.tenancy_ocid, self.user_ocid, self.fingerprint
-        )
-    }
-}
-
-#[derive(strum::Display)]
-#[strum(serialize_all = "lowercase")]
-pub enum HttpMethod {
-    Get,
-    Post,
-    Put,
-    Delete,
-}
-
-pub fn compute_body_digest(body: &[u8]) -> String {
-    let mut hasher = Sha256Digest::new();
-    hasher.update(body);
-    BASE64.encode(hasher.finalize())
-}
-
-pub fn build_authorization_header(
-    method: HttpMethod,
+pub fn build_signed_headers(
+    credentials: &OracleCredentials,
+    method: &Method,
     host: &str,
     path: &str,
     date: &str,
     body: Option<&[u8]>,
-    credentials: &OciCredentials,
-) -> Result<(String, String)> {
+) -> Result<SignedRequestHeaders> {
+    let request_target = format!("{} {path}", method.as_str().to_lowercase());
     let mut headers_to_sign = vec![
-        ("(request-target)", format!("{method} {path}")),
+        ("(request-target)", request_target),
         ("host", host.to_string()),
         ("date", date.to_string()),
     ];
 
-    let content_sha256 = if let Some(body_bytes) = body {
+    let content_sha256 = body.map(|body_bytes| {
         let digest = compute_body_digest(body_bytes);
-        let content_length = body_bytes.len().to_string();
         headers_to_sign.push(("x-content-sha256", digest.clone()));
         headers_to_sign.push(("content-type", "application/json".to_string()));
-        headers_to_sign.push(("content-length", content_length));
-        Some(digest)
-    } else {
-        None
-    };
+        headers_to_sign.push(("content-length", body_bytes.len().to_string()));
+        digest
+    });
 
     let signing_string = headers_to_sign
         .iter()
         .map(|(name, value)| format!("{name}: {value}"))
         .collect::<Vec<_>>()
         .join("\n");
-
-    let signed_headers = headers_to_sign
+    let signed_header_names = headers_to_sign
         .iter()
         .map(|(name, _)| *name)
         .collect::<Vec<_>>()
         .join(" ");
 
-    let private_key =
-        RsaPrivateKey::from_pkcs8_pem(&credentials.private_key_pem).map_err(|error| {
-            CredentialsError::InvalidPrivateKey {
-                reason: error.to_string(),
-            }
-        })?;
-
-    let signing_key = SigningKey::<Sha256>::new(private_key);
-    let signature_bytes = signing_key
-        .try_sign(signing_string.as_bytes())
-        .map_err(|error| CredentialsError::SigningFailed {
-            reason: error.to_string(),
-        })?
-        .to_bytes();
-
-    let signature_b64 = BASE64.encode(signature_bytes);
-
+    let signature = sign(credentials, signing_string.as_bytes())?;
     let authorization = format!(
-        r#"Signature version="1",keyId="{}",algorithm="rsa-sha256",headers="{}",signature="{}""#,
-        credentials.build_key_id(),
-        signed_headers,
-        signature_b64,
+        r#"Signature version="1",keyId="{}",algorithm="rsa-sha256",headers="{signed_header_names}",signature="{signature}""#,
+        build_key_id(credentials),
     );
 
-    Ok((authorization, content_sha256.unwrap_or_default()))
+    Ok(SignedRequestHeaders {
+        authorization,
+        content_sha256,
+    })
+}
+
+fn build_key_id(credentials: &OracleCredentials) -> String {
+    format!(
+        "{}/{}/{}",
+        credentials.tenancy_ocid, credentials.user_ocid, credentials.fingerprint
+    )
+}
+
+fn compute_body_digest(body: &[u8]) -> String {
+    let mut hasher = Sha256Digest::new();
+    hasher.update(body);
+    BASE64.encode(hasher.finalize())
+}
+
+fn sign(credentials: &OracleCredentials, message: &[u8]) -> Result<String> {
+    let private_key = RsaPrivateKey::from_pkcs8_pem(&credentials.private_key_pem)?;
+    let signature = SigningKey::<Sha256>::new(private_key).try_sign(message)?;
+    Ok(BASE64.encode(signature.to_bytes()))
 }

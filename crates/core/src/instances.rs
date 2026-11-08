@@ -11,7 +11,10 @@ use crate::{
     cloud_provider::{CloudProviderName, InstanceInfo, InstanceState, TerminateInstanceParams},
     config::get_wireguard_config_file_path,
     connectivity::{self, ProbeStatus},
-    error::{ConfigurationError, Error, Result},
+    daemon_client::fetch_vpn_status,
+    error::{ComputeProvisioningError, ConfigurationError, Error, Result},
+    provider_factory::ProviderFactory,
+    session,
 };
 
 pub struct InstanceListing {
@@ -87,6 +90,15 @@ pub async fn list_instances(
     })
 }
 
+pub async fn require_instance(context: &AppContext, instance_id: &str) -> Result<InstanceInfo> {
+    find_instance(context, instance_id).await?.ok_or_else(|| {
+        ComputeProvisioningError::InstanceNotFound {
+            instance_id: instance_id.to_string(),
+        }
+        .into()
+    })
+}
+
 pub async fn find_instance(
     context: &AppContext,
     instance_id: &str,
@@ -104,6 +116,8 @@ pub async fn terminate_instance(
     region: &str,
     instance_id: &str,
 ) -> Result<()> {
+    disconnect_if_connected_to(context, instance_id).await?;
+
     let provider = context.providers.create(provider_name.clone()).await?;
     provider
         .terminate_instance(&TerminateInstanceParams {
@@ -117,8 +131,10 @@ pub async fn terminate_instance(
     if fs::metadata(&wireguard_file_path).await.is_ok() {
         fs::remove_file(&wireguard_file_path)
             .await
-            .map_err(|error| ConfigurationError::TunnelConfiguration {
-                reason: format!("failed to remove config file: {error}"),
+            .map_err(|source| ConfigurationError::DataFile {
+                operation: "remove",
+                path: wireguard_file_path.clone(),
+                source,
             })?;
     }
 
@@ -127,8 +143,21 @@ pub async fn terminate_instance(
     Ok(())
 }
 
+async fn disconnect_if_connected_to(context: &AppContext, instance_id: &str) -> Result<()> {
+    let status = fetch_vpn_status(context.daemon_client.as_ref()).await?;
+    let is_connected_to_instance = status.connected
+        && status
+            .instance
+            .is_some_and(|connected| connected.instance_id == instance_id);
+    if is_connected_to_instance {
+        info!("Disconnecting from {instance_id} before terminating it");
+        session::disconnect(context.daemon_client.as_ref()).await?;
+    }
+    Ok(())
+}
+
 async fn list_provider_instances(
-    factory: &dyn crate::provider_factory::ProviderFactory,
+    factory: &dyn ProviderFactory,
     provider_name: CloudProviderName,
     region: Option<String>,
 ) -> Result<Vec<InstanceInfo>> {

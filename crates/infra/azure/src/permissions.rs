@@ -1,9 +1,8 @@
 use byocvpn_core::cloud_provider::PermissionStatus;
-use byocvpn_core::error::Result;
 use log::{info, warn};
 use serde::Deserialize;
 
-use crate::client::AzureClient;
+use crate::{client::AzureClient, error::Result};
 
 const API_VERSION_AUTHORIZATION: &str = "2018-07-01";
 
@@ -68,9 +67,9 @@ pub async fn verify_permissions(client: &AzureClient) -> Result<Vec<PermissionSt
         .map(|action| {
             let granted = is_action_granted(action, &response.value);
             if granted {
-                info!("permission check {action}: authorized");
+                info!("[Azure] permission check {action}: authorized");
             } else {
-                warn!("permission check {action}: denied");
+                warn!("[Azure] permission check {action}: denied");
             }
             PermissionStatus {
                 permission: (*action).to_string(),

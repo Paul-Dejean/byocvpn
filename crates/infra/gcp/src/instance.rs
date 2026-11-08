@@ -1,369 +1,278 @@
-use byocvpn_core::server_startup::{PackageManager, generate_server_startup_script};
 use std::collections::HashMap;
 
 use byocvpn_core::{
     cloud_provider::{CloudProviderName, InstanceInfo, InstanceState, SpawnInstanceParams},
-    error::{ComputeProvisioningError, Result},
-    retry::{RetryPolicy, retry},
+    managed_resources::{
+        MANAGED_BY_TAG_KEY, MANAGED_BY_TAG_VALUE, RESOURCE_NAME_PREFIX, SPAWN_ID_TAG_KEY,
+    },
+    server_startup::{PackageManager, generate_server_startup_script},
 };
 use chrono::{DateTime, Utc};
-use tokio::time::Duration;
+use google_cloud_compute_v1::model::{
+    AccessConfig, AttachedDisk, AttachedDiskInitializeParams, Instance, Metadata, NetworkInterface,
+    Tags,
+    access_config::{NetworkTier, Type as AccessConfigType},
+    metadata::Items as MetadataItem,
+    network_interface::StackType,
+};
 use uuid::Uuid;
 
 use crate::{
     client::GcpClient,
-    models::{
-        AccessConfig, AttachedDisk, CreateInstanceRequest, DiskInitializeParams, InstanceMetadata,
-        InstanceResponse, InstanceTags, Ipv6AccessConfig, MetadataItem, NetworkInterface,
-        Operation, ZoneInstanceListResponse, ZoneOperationResponse,
-    },
-    network::build_primary_zone_for_region,
-    state::GcpInstanceStatus,
+    error::{GcpError, LabelOperation, Result},
+    network::{RegionNetwork, firewall::FIREWALL_TARGET_TAG},
+    operations::await_compute_operation,
+    state::map_instance_state,
 };
-use log::debug;
 
 const MACHINE_TYPE: &str = "e2-micro";
-const DISK_TYPE_SUFFIX: &str = "pd-standard";
-const INSTANCE_LABEL_KEY: &str = "created-by";
-const INSTANCE_LABEL_VALUE: &str = "byocvpn";
-const INSTANCE_TAG: &str = "byocvpn";
-
-const ZONE_OPERATION_POLL_POLICY: RetryPolicy = RetryPolicy::fixed(60, Duration::from_secs(3));
+const DISK_TYPE: &str = "pd-standard";
+const DISK_SIZE_GB: i64 = 10;
+const PRIMARY_ZONE_SUFFIX: &str = "a";
+const INSTANCE_NAME_RANDOM_LENGTH: usize = 12;
+const MAX_LISTED_INSTANCES: u32 = 500;
+const STARTUP_SCRIPT_METADATA_KEY: &str = "startup-script";
+const EXTERNAL_IPV4_ACCESS_NAME: &str = "External NAT";
+const EXTERNAL_IPV6_ACCESS_NAME: &str = "External IPv6";
 
 pub async fn spawn_instance(
     client: &GcpClient,
-    subnet_self_link: &str,
+    region_network: &RegionNetwork,
     image_self_link: &str,
-    region: &str,
     params: &SpawnInstanceParams<'_>,
 ) -> Result<InstanceInfo> {
-    let spawn_id = params.spawn_id;
-    let zone = build_primary_zone_for_region(region);
-    let startup_script = generate_server_startup_script(
-        PackageManager::Apt,
-        params.server_private_key,
-        params.client_public_key,
+    let region = params.region;
+    let zone = build_primary_zone(region);
+    let instance_name = build_instance_name();
+
+    let instance = build_instance_request(
+        client,
+        &zone,
+        &instance_name,
+        &region_network.subnet_self_link,
+        image_self_link,
+        params,
     )?;
+    let insert = client
+        .instances
+        .insert()
+        .set_project(&client.project_id)
+        .set_zone(&zone)
+        .set_body(instance)
+        .poller();
+    await_compute_operation("compute.instances.create", insert).await?;
 
-    let instance_name = format!(
-        "byocvpn-{}",
-        Uuid::new_v4().to_string().replace('-', "")[..12].to_lowercase()
-    );
+    let instance = client
+        .instances
+        .get()
+        .set_project(&client.project_id)
+        .set_zone(&zone)
+        .set_instance(&instance_name)
+        .send()
+        .await
+        .label_operation("compute.instances.get")?;
 
-    let machine_type_url = format!(
-        "https://www.googleapis.com/compute/v1/projects/{}/zones/{}/machineTypes/{}",
-        client.project_id, zone, MACHINE_TYPE
-    );
-
-    let disk_type_url = format!(
-        "https://www.googleapis.com/compute/v1/projects/{}/zones/{}/diskTypes/{}",
-        client.project_id, zone, DISK_TYPE_SUFFIX
-    );
-
-    let mut labels = HashMap::new();
-    labels.insert(
-        INSTANCE_LABEL_KEY.to_string(),
-        INSTANCE_LABEL_VALUE.to_string(),
-    );
-    labels.insert("byocvpn-spawn-id".to_string(), spawn_id.to_string());
-
-    let body = CreateInstanceRequest {
-        name: instance_name.clone(),
-        machine_type: machine_type_url,
-        disks: vec![AttachedDisk {
-            boot: true,
-            auto_delete: true,
-            initialize_params: DiskInitializeParams {
-                source_image: image_self_link.to_string(),
-                disk_size_gb: "10".to_string(),
-                disk_type: disk_type_url,
-            },
-        }],
-        network_interfaces: vec![NetworkInterface {
-            subnetwork: subnet_self_link.to_string(),
-            stack_type: "IPV4_IPV6".to_string(),
-            access_configs: vec![AccessConfig {
-                access_type: "ONE_TO_ONE_NAT".to_string(),
-                name: "External NAT".to_string(),
-                network_tier: "PREMIUM".to_string(),
-            }],
-            ipv6_access_configs: Some(vec![Ipv6AccessConfig {
-                access_type: "DIRECT_IPV6".to_string(),
-                name: "External IPv6".to_string(),
-                network_tier: "PREMIUM".to_string(),
-            }]),
-        }],
-        metadata: InstanceMetadata {
-            items: vec![MetadataItem {
-                key: "startup-script".to_string(),
-                value: startup_script,
-            }],
-        },
-        labels,
-        tags: InstanceTags {
-            items: vec![INSTANCE_TAG.to_string()],
-        },
-    };
-
-    let url = format!(
-        "{}/zones/{}/instances",
-        client.build_compute_base_url(),
-        zone
-    );
-    let operation: Operation = client.post(&url, &body).await.map_err(|error| {
-        ComputeProvisioningError::InstanceSpawnFailed {
-            region_name: region.to_string(),
-            reason: error.to_string(),
-        }
-    })?;
-
-    let operation_url = operation
-        .self_link
-        .as_deref()
-        .ok_or_else(|| ComputeProvisioningError::InstanceSpawnFailed {
-            region_name: region.to_string(),
-            reason: "Missing selfLink in operation response".to_string(),
-        })?
-        .to_string();
-    wait_for_zone_operation(client, &operation_url, region).await?;
-
-    let instance = get_instance(client, &zone, &instance_name).await?;
-    let public_ip_v4 = extract_public_ip_v4(&instance);
-    let public_ip_v6 = extract_public_ip_v6(&instance);
-
-    let id = format!("{zone}/{instance_name}");
     Ok(InstanceInfo {
-        id,
+        id: format!("{zone}/{instance_name}"),
         name: Some(instance_name),
         region: region.to_string(),
         state: InstanceState::Running,
-        public_ip_v4,
-        public_ip_v6,
+        error_reason: None,
+        public_ip_v4: extract_public_ip_v4(&instance),
+        public_ip_v6: extract_public_ip_v6(&instance),
         provider: CloudProviderName::Gcp,
         instance_type: MACHINE_TYPE.to_string(),
         launched_at: Some(Utc::now()),
-        error_reason: None,
-        spawn_id: Some(spawn_id.to_string()),
+        spawn_id: Some(params.spawn_id.to_string()),
     })
 }
 
 pub async fn terminate_instance(client: &GcpClient, instance_id: &str) -> Result<()> {
     let (zone, instance_name) = parse_instance_id(instance_id)?;
-    let url = format!(
-        "{}/zones/{}/instances/{}",
-        client.build_compute_base_url(),
-        zone,
-        instance_name
-    );
-    client.delete(&url).await.map_err(|error| {
-        ComputeProvisioningError::InstanceTerminationFailed {
-            instance_identifier: instance_id.to_string(),
-            reason: error.to_string(),
-        }
-        .into()
-    })
+    let delete = client
+        .instances
+        .delete()
+        .set_project(&client.project_id)
+        .set_zone(zone)
+        .set_instance(instance_name)
+        .poller();
+    match await_compute_operation("compute.instances.delete", delete).await {
+        Ok(()) => Ok(()),
+        Err(error) if error.is_not_found() => Ok(()),
+        Err(error) => Err(error),
+    }
 }
 
 pub async fn list_instances(client: &GcpClient, region: &str) -> Result<Vec<InstanceInfo>> {
-    let url = format!(
-        "{}/aggregated/instances?filter=labels.{label_key}%3D{label_value}&maxResults=500",
-        client.build_compute_base_url(),
-        label_key = INSTANCE_LABEL_KEY,
-        label_value = INSTANCE_LABEL_VALUE,
-    );
-    let response: ZoneInstanceListResponse = client.get(&url).await?;
-
-    let mut instances = Vec::new();
-    if let Some(items) = response.items {
-        for (zone_key, zone_data) in items {
-            if !zone_key.starts_with(&format!("zones/{region}")) {
-                continue;
-            }
-            let zone = zone_key.trim_start_matches("zones/").to_string();
-            if let Some(instance_list) = zone_data.instances {
-                for instance in instance_list {
-                    if let Some(info) = parse_instance_info(&instance, &zone, region) {
-                        instances.push(info);
-                    }
-                }
-            }
-        }
-    }
-    Ok(instances)
+    list_managed_instances(client, Some(region)).await
 }
 
 pub async fn list_all_instances(client: &GcpClient) -> Result<Vec<InstanceInfo>> {
-    let url = format!(
-        "{}/aggregated/instances?filter=labels.{label_key}%3D{label_value}&maxResults=500",
-        client.build_compute_base_url(),
-        label_key = INSTANCE_LABEL_KEY,
-        label_value = INSTANCE_LABEL_VALUE,
-    );
-    let response: ZoneInstanceListResponse = client.get(&url).await?;
-
-    let mut instances = Vec::new();
-    if let Some(items) = response.items {
-        for (zone_key, zone_data) in items {
-            let zone = zone_key.trim_start_matches("zones/").to_string();
-            let region = extract_region_from_zone(&zone);
-            if let Some(instance_list) = zone_data.instances {
-                for instance in instance_list {
-                    if let Some(info) = parse_instance_info(&instance, &zone, &region) {
-                        instances.push(info);
-                    }
-                }
-            }
-        }
-    }
-    Ok(instances)
+    list_managed_instances(client, None).await
 }
 
-fn parse_instance_id(instance_id: &str) -> Result<(&str, &str)> {
-    let mut parts = instance_id.splitn(2, '/');
-    let zone = parts
-        .next()
-        .ok_or(ComputeProvisioningError::MissingInstanceIdentifier)?;
-    let name = parts
-        .next()
-        .ok_or(ComputeProvisioningError::MissingInstanceIdentifier)?;
-    Ok((zone, name))
-}
-
-pub async fn get_instance(
+fn build_instance_request(
     client: &GcpClient,
     zone: &str,
     instance_name: &str,
-) -> Result<InstanceResponse> {
-    let url = format!(
-        "{}/zones/{}/instances/{}",
-        client.build_compute_base_url(),
-        zone,
-        instance_name
-    );
-    client.get(&url).await
+    subnet_self_link: &str,
+    image_self_link: &str,
+    params: &SpawnInstanceParams<'_>,
+) -> Result<Instance> {
+    let startup_script = generate_server_startup_script(
+        PackageManager::Apt,
+        params.server_private_key,
+        params.client_public_key,
+    )?;
+    let labels = HashMap::from([
+        (MANAGED_BY_TAG_KEY, MANAGED_BY_TAG_VALUE),
+        (SPAWN_ID_TAG_KEY, params.spawn_id),
+    ]);
+
+    let boot_disk = AttachedDisk::new()
+        .set_boot(true)
+        .set_auto_delete(true)
+        .set_initialize_params(
+            AttachedDiskInitializeParams::new()
+                .set_source_image(image_self_link)
+                .set_disk_size_gb(DISK_SIZE_GB)
+                .set_disk_type(
+                    client.build_resource_link(&format!("zones/{zone}/diskTypes/{DISK_TYPE}")),
+                ),
+        );
+    let network_interface = NetworkInterface::new()
+        .set_subnetwork(subnet_self_link)
+        .set_stack_type(StackType::Ipv4Ipv6)
+        .set_access_configs([AccessConfig::new()
+            .set_type(AccessConfigType::OneToOneNat)
+            .set_name(EXTERNAL_IPV4_ACCESS_NAME)
+            .set_network_tier(NetworkTier::Premium)])
+        .set_ipv_6_access_configs([AccessConfig::new()
+            .set_type(AccessConfigType::DirectIpv6)
+            .set_name(EXTERNAL_IPV6_ACCESS_NAME)
+            .set_network_tier(NetworkTier::Premium)]);
+
+    Ok(Instance::new()
+        .set_name(instance_name)
+        .set_machine_type(
+            client.build_resource_link(&format!("zones/{zone}/machineTypes/{MACHINE_TYPE}")),
+        )
+        .set_disks([boot_disk])
+        .set_network_interfaces([network_interface])
+        .set_metadata(
+            Metadata::new().set_items([MetadataItem::new()
+                .set_key(STARTUP_SCRIPT_METADATA_KEY)
+                .set_value(startup_script)]),
+        )
+        .set_labels(labels)
+        .set_tags(Tags::new().set_items([FIREWALL_TARGET_TAG])))
 }
 
-fn extract_public_ip_v4(instance: &InstanceResponse) -> String {
-    instance
-        .network_interfaces
-        .as_ref()
-        .and_then(|interfaces| interfaces.first())
-        .and_then(|interface| interface.access_configs.as_ref())
-        .and_then(|configs| configs.first())
-        .and_then(|config| config.nat_ip.as_deref())
-        .unwrap_or_default()
-        .to_string()
+async fn list_managed_instances(
+    client: &GcpClient,
+    region_filter: Option<&str>,
+) -> Result<Vec<InstanceInfo>> {
+    let response = client
+        .instances
+        .aggregated_list()
+        .set_project(&client.project_id)
+        .set_filter(format!(
+            "labels.{MANAGED_BY_TAG_KEY}={MANAGED_BY_TAG_VALUE}"
+        ))
+        .set_max_results(MAX_LISTED_INSTANCES)
+        .send()
+        .await
+        .label_operation("compute.instances.list")?;
+
+    Ok(response
+        .items
+        .into_iter()
+        .flat_map(|(zone_key, zone_instances)| {
+            let zone = zone_key.trim_start_matches("zones/").to_string();
+            zone_instances
+                .instances
+                .into_iter()
+                .map(move |instance| (zone.clone(), instance))
+        })
+        .filter_map(|(zone, instance)| {
+            let region = extract_region_from_zone(&zone);
+            if region_filter.is_some_and(|wanted_region| wanted_region != region) {
+                return None;
+            }
+            build_instance_info(&instance, &zone, &region)
+        })
+        .filter(|instance| instance.state.is_listed())
+        .collect())
 }
 
-fn extract_public_ip_v6(instance: &InstanceResponse) -> String {
-    instance
-        .network_interfaces
-        .as_ref()
-        .and_then(|interfaces| interfaces.first())
-        .and_then(|interface| interface.ipv6_access_configs.as_ref())
-        .and_then(|configs| configs.first())
-        .and_then(|config| config.external_ipv6.as_deref())
-        .unwrap_or_default()
-        .to_string()
-}
-
-fn extract_region_from_zone(zone: &str) -> String {
-    let mut parts: Vec<&str> = zone.split('-').collect();
-    if parts.len() > 2 {
-        parts.pop();
-    }
-    parts.join("-")
-}
-
-fn parse_instance_info(
-    instance: &InstanceResponse,
-    zone: &str,
-    region: &str,
-) -> Option<InstanceInfo> {
+fn build_instance_info(instance: &Instance, zone: &str, region: &str) -> Option<InstanceInfo> {
     let name = instance.name.clone()?;
-    let status: InstanceState =
-        GcpInstanceStatus::from_state_name(instance.status.as_deref().unwrap_or_default()).into();
-
-    if !matches!(
-        status,
-        InstanceState::Running
-            | InstanceState::Stopping
-            | InstanceState::Stopped
-            | InstanceState::Error
-    ) {
-        return None;
-    }
-    let public_ip_v4 = extract_public_ip_v4(instance);
-    let public_ip_v6 = extract_public_ip_v6(instance);
-    let id = format!("{zone}/{name}");
-
     let instance_type = instance
         .machine_type
         .as_deref()
-        .and_then(|machine_type_url| machine_type_url.split('/').next_back())
+        .and_then(|machine_type_link| machine_type_link.rsplit('/').next())
         .unwrap_or(MACHINE_TYPE)
         .to_string();
-
     let launched_at = instance
         .creation_timestamp
         .as_deref()
         .and_then(|timestamp| DateTime::parse_from_rfc3339(timestamp).ok())
         .map(|datetime| datetime.with_timezone(&Utc));
 
-    let spawn_id = instance
-        .labels
-        .as_ref()
-        .and_then(|labels| labels.get("byocvpn-spawn-id"))
-        .cloned();
-
     Some(InstanceInfo {
-        id,
+        id: format!("{zone}/{name}"),
         name: Some(name),
         region: region.to_string(),
-        state: status,
-        public_ip_v4,
-        public_ip_v6,
+        state: map_instance_state(instance.status.as_ref()),
+        error_reason: None,
+        public_ip_v4: extract_public_ip_v4(instance),
+        public_ip_v6: extract_public_ip_v6(instance),
         provider: CloudProviderName::Gcp,
         instance_type,
         launched_at,
-        error_reason: None,
-        spawn_id,
+        spawn_id: instance.labels.get(SPAWN_ID_TAG_KEY).cloned(),
     })
 }
 
-async fn wait_for_zone_operation(
-    client: &GcpClient,
-    operation_url: &str,
-    region: &str,
-) -> Result<()> {
-    retry(
-        || async move {
-            let operation: ZoneOperationResponse = client.get(operation_url).await?;
-            if operation.status.as_deref() == Some("DONE") {
-                if let Some(error) = operation.error {
-                    let message = error
-                        .errors
-                        .as_ref()
-                        .and_then(|errors| errors.first())
-                        .and_then(|detail| detail.message.as_deref())
-                        .unwrap_or("unknown error");
-                    return Err(ComputeProvisioningError::InstanceSpawnFailed {
-                        region_name: region.to_string(),
-                        reason: message.to_string(),
-                    }
-                    .into());
-                }
-                Ok(())
-            } else {
-                debug!("[GCP] Waiting for instance creation...");
-                Err(ComputeProvisioningError::InstanceSpawnFailed {
-                    region_name: region.to_string(),
-                    reason: "Timed out waiting for instance creation operation".to_string(),
-                }
-                .into())
-            }
-        },
-        ZONE_OPERATION_POLL_POLICY,
+fn extract_public_ip_v4(instance: &Instance) -> String {
+    instance
+        .network_interfaces
+        .first()
+        .and_then(|interface| interface.access_configs.first())
+        .and_then(|access_config| access_config.nat_ip.clone())
+        .unwrap_or_default()
+}
+
+fn extract_public_ip_v6(instance: &Instance) -> String {
+    instance
+        .network_interfaces
+        .first()
+        .and_then(|interface| interface.ipv_6_access_configs.first())
+        .and_then(|access_config| access_config.external_ipv_6.clone())
+        .unwrap_or_default()
+}
+
+fn build_primary_zone(region: &str) -> String {
+    format!("{region}-{PRIMARY_ZONE_SUFFIX}")
+}
+
+fn extract_region_from_zone(zone: &str) -> String {
+    zone.rsplit_once('-')
+        .map_or(zone, |(region, _zone_suffix)| region)
+        .to_string()
+}
+
+fn build_instance_name() -> String {
+    format!(
+        "{RESOURCE_NAME_PREFIX}-{}",
+        &Uuid::new_v4().simple().to_string()[..INSTANCE_NAME_RANDOM_LENGTH]
     )
-    .await
+}
+
+fn parse_instance_id(instance_id: &str) -> Result<(&str, &str)> {
+    instance_id
+        .split_once('/')
+        .ok_or_else(|| GcpError::InvalidInstanceId {
+            instance_id: instance_id.to_string(),
+        })
 }

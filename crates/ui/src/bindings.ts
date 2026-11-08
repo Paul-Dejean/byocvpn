@@ -89,6 +89,8 @@ export type ErrorPayload = {
 	kind: ErrorKind,
 	message: string,
 	detail: string | null,
+	operation: string | null,
+	code: string | null,
 };
 
 export type GcpCredentials = {

@@ -1,11 +1,18 @@
+mod account;
 mod auth;
 mod client;
-pub mod credentials;
+mod credentials;
+mod error;
+mod image;
 mod instance;
 mod models;
 mod network;
-pub mod pricing;
+mod permissions;
+mod pricing;
 mod provider;
+mod regions;
 mod state;
+mod steps;
 
-pub use provider::{OracleProvider, OracleProviderConfig};
+pub use credentials::OracleCredentials;
+pub use provider::OracleProvider;

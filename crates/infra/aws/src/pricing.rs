@@ -1,15 +1,13 @@
 use std::collections::HashMap;
 
-use aws_sdk_pricing::{
-    Client as PricingClient,
-    error::DisplayErrorContext,
-    types::{Filter, FilterType},
-};
+use aws_sdk_pricing::types::{Filter, FilterType};
 use byocvpn_core::cloud_provider::PricingInfo;
-use byocvpn_core::error::{ComputeProvisioningError, Error, Result};
 use serde::Deserialize;
 
-pub const PRICING_API_REGION: &str = "us-east-1";
+use crate::{
+    client::AwsClient,
+    error::{AwsError, Result},
+};
 
 const EC2_SERVICE_CODE: &str = "AmazonEC2";
 const VPC_SERVICE_CODE: &str = "AmazonVPC";
@@ -21,7 +19,7 @@ const ROOT_VOLUME_API_NAME: &str = "gp3";
 const PUBLIC_IPV4_USAGE_TYPE_FRAGMENT: &str = "PublicIPv4:InUseAddress";
 
 pub async fn fetch_pricing(
-    pricing_client: &PricingClient,
+    client: &AwsClient,
     region: &str,
     instance_type: &str,
 ) -> Result<PricingInfo> {
@@ -52,34 +50,17 @@ pub async fn fetch_pricing(
         ("toLocation", "External"),
     ])?;
 
-    let (hourly_rate, ip_hourly_rate, storage_rate_per_gb_month, egress_rate_per_gb) =
-        tokio::try_join!(
-            fetch_first_paid_rate(
-                pricing_client,
-                EC2_SERVICE_CODE,
-                instance_filters,
-                "instance"
-            ),
-            fetch_first_paid_rate(
-                pricing_client,
-                VPC_SERVICE_CODE,
-                public_ip_filters,
-                "public IPv4"
-            ),
-            fetch_first_paid_rate(
-                pricing_client,
-                EC2_SERVICE_CODE,
-                volume_filters,
-                "root volume"
-            ),
-            fetch_first_paid_rate(
-                pricing_client,
-                DATA_TRANSFER_SERVICE_CODE,
-                egress_filters,
-                "internet egress"
-            ),
-        )
-        .map_err(|error| error.with_context(format!("pricing {instance_type} in {region}")))?;
+    let (hourly_rate, ip_hourly_rate, storage_rate_per_gb_month, egress_rate_per_gb) = tokio::try_join!(
+        fetch_first_paid_rate(client, EC2_SERVICE_CODE, instance_filters, "instance"),
+        fetch_first_paid_rate(client, VPC_SERVICE_CODE, public_ip_filters, "public IPv4"),
+        fetch_first_paid_rate(client, EC2_SERVICE_CODE, volume_filters, "root volume"),
+        fetch_first_paid_rate(
+            client,
+            DATA_TRANSFER_SERVICE_CODE,
+            egress_filters,
+            "internet egress"
+        ),
+    )?;
 
     Ok(PricingInfo {
         hourly_rate,
@@ -91,20 +72,18 @@ pub async fn fetch_pricing(
 }
 
 async fn fetch_first_paid_rate(
-    pricing_client: &PricingClient,
+    client: &AwsClient,
     service_code: &str,
     filters: Vec<Filter>,
     component: &str,
 ) -> Result<f64> {
-    let response = pricing_client
+    let response = client
+        .pricing
         .get_products()
         .service_code(service_code)
         .set_filters(Some(filters))
         .send()
-        .await
-        .map_err(|error| {
-            build_unavailable_error(component, &DisplayErrorContext(&error).to_string())
-        })?;
+        .await?;
 
     response
         .price_list()
@@ -123,7 +102,9 @@ async fn fetch_first_paid_rate(
         })
         .min_by(|left, right| left.0.total_cmp(&right.0))
         .map(|(_, price)| price)
-        .ok_or_else(|| build_unavailable_error(component, "no on-demand USD price returned"))
+        .ok_or_else(|| AwsError::PriceUnavailable {
+            component: component.to_string(),
+        })
 }
 
 fn build_filters(fields: &[(&str, &str)]) -> Result<Vec<Filter>> {
@@ -134,21 +115,11 @@ fn build_filters(fields: &[(&str, &str)]) -> Result<Vec<Filter>> {
 }
 
 fn build_filter(filter_type: FilterType, field: &str, value: &str) -> Result<Filter> {
-    Filter::builder()
+    Ok(Filter::builder()
         .r#type(filter_type)
         .field(field)
         .value(value)
-        .build()
-        .map_err(|error| build_unavailable_error(field, &error.to_string()))
-}
-
-fn build_unavailable_error(component: &str, reason: &str) -> Error {
-    ComputeProvisioningError::PricingUnavailable {
-        region: String::new(),
-        instance_type: component.to_string(),
-        reason: reason.to_string(),
-    }
-    .into()
+        .build()?)
 }
 
 #[derive(Deserialize)]

@@ -150,3 +150,11 @@ impl Display for ArmResource {
         write!(formatter, "{} '{}'", self.resource_type, self.name)
     }
 }
+
+pub fn extract_resource_group_from_id(resource_id: &str) -> Option<&str> {
+    let segments: Vec<&str> = resource_id.split('/').collect();
+    segments
+        .windows(2)
+        .find(|pair| pair[0].eq_ignore_ascii_case("resourceGroups"))
+        .map(|pair| pair[1])
+}

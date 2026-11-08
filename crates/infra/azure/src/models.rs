@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 
+use byocvpn_core::managed_resources::{MANAGED_BY_TAG_KEY, MANAGED_BY_TAG_VALUE};
 use serde::{Deserialize, Serialize};
 
-pub fn byocvpn_tags() -> HashMap<String, String> {
-    HashMap::from([("created-by".to_string(), "byocvpn".to_string())])
+pub fn build_managed_tags() -> HashMap<String, String> {
+    HashMap::from([(
+        MANAGED_BY_TAG_KEY.to_string(),
+        MANAGED_BY_TAG_VALUE.to_string(),
+    )])
 }
-
-// ── Async operation polling ───────────────────────────────────────────────────
 
 #[derive(Deserialize)]
 pub struct AsyncOperationResponse {
@@ -19,8 +21,6 @@ pub struct AsyncOperationError {
     pub message: Option<String>,
 }
 
-// ── Provider registration ─────────────────────────────────────────────────────
-
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderRegistrationResponse {
@@ -30,15 +30,11 @@ pub struct ProviderRegistrationResponse {
 #[derive(Serialize)]
 pub struct EmptyRequest {}
 
-// ── Resource group ────────────────────────────────────────────────────────────
-
 #[derive(Serialize)]
 pub struct ResourceGroupRequest {
     pub location: String,
     pub tags: HashMap<String, String>,
 }
-
-// ── NSG ───────────────────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
 pub struct NsgRequest {
@@ -85,8 +81,6 @@ pub struct NsgResponseProperties {
     pub security_rules: Option<Vec<SecurityRule>>,
 }
 
-// ── VNet ──────────────────────────────────────────────────────────────────────
-
 #[derive(Serialize)]
 pub struct VnetRequest {
     pub location: String,
@@ -105,8 +99,6 @@ pub struct VnetProperties {
 pub struct AddressSpace {
     pub address_prefixes: Vec<String>,
 }
-
-// ── Subnet ────────────────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
 pub struct SubnetRequest {
@@ -137,8 +129,6 @@ pub struct SubnetResponseProperties {
     pub network_security_group: Option<ResourceReference>,
 }
 
-// ── Locations ─────────────────────────────────────────────────────────────────
-
 #[derive(Deserialize)]
 pub struct LocationListResponse {
     pub value: Option<Vec<LocationItem>>,
@@ -155,8 +145,6 @@ pub struct LocationItem {
 pub struct LocationMetadata {
     pub region_category: Option<String>,
 }
-
-// ── Public IP ─────────────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
 pub struct PublicIpRequest {
@@ -201,8 +189,6 @@ pub struct PublicIpResponseProperties {
     pub ip_address: Option<String>,
 }
 
-// ── NIC ───────────────────────────────────────────────────────────────────────
-
 #[derive(Serialize)]
 pub struct NicRequest {
     pub location: String,
@@ -234,8 +220,6 @@ pub struct IpConfigurationProperties {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub primary: Option<bool>,
 }
-
-// ── VM ────────────────────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
 pub struct VmRequest {

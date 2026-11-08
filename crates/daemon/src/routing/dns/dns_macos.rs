@@ -3,6 +3,10 @@ use std::{collections::HashMap, io, process::Command};
 use byocvpn_core::error::{ConfigurationError, Result};
 use log::{debug, info, warn};
 
+const LIST_SERVICES_COMMAND: &str = "networksetup -listallnetworkservices";
+const GET_DNS_COMMAND: &str = "networksetup -getdnsservers";
+const SET_DNS_COMMAND: &str = "networksetup -setdnsservers";
+
 #[derive(Debug)]
 pub struct DnsOverrideGuard {
     original_domain_name_system_by_service: HashMap<String, Option<Vec<String>>>,
@@ -12,10 +16,7 @@ pub struct DnsOverrideGuard {
 impl DnsOverrideGuard {
     pub fn override_system_dns(new_dns_servers: &[&str]) -> Result<Self> {
         if new_dns_servers.is_empty() {
-            return Err(ConfigurationError::DnsConfiguration {
-                reason: "desired DNS servers list is empty".to_string(),
-            }
-            .into());
+            return Err(ConfigurationError::NoDnsServers.into());
         }
 
         let network_service_names = list_all_enabled_network_services()?;
@@ -24,8 +25,9 @@ impl DnsOverrideGuard {
         let mut original_domain_name_system_by_service = HashMap::new();
         for network_service_name in &network_service_names {
             let current_domain_name_system = get_dns_servers_for_service(network_service_name)
-                .map_err(|error| ConfigurationError::DnsConfiguration {
-                    reason: error.to_string(),
+                .map_err(|source| ConfigurationError::DnsCommand {
+                    command: GET_DNS_COMMAND,
+                    source,
                 })?;
             info!("Original DNS for {network_service_name}: {current_domain_name_system:?}");
             original_domain_name_system_by_service
@@ -34,9 +36,10 @@ impl DnsOverrideGuard {
 
         info!("Setting new DNS servers: {new_dns_servers:?}");
         for network_service_name in &network_service_names {
-            set_dns_for_service(network_service_name, Some(new_dns_servers)).map_err(|error| {
-                ConfigurationError::DnsConfiguration {
-                    reason: error.to_string(),
+            set_dns_for_service(network_service_name, Some(new_dns_servers)).map_err(|source| {
+                ConfigurationError::DnsCommand {
+                    command: SET_DNS_COMMAND,
+                    source,
                 }
             })?;
         }
@@ -97,15 +100,15 @@ fn list_all_enabled_network_services() -> Result<Vec<String>> {
     debug!("Executing command: {command:?}");
     let output = command
         .output()
-        .map_err(|error| ConfigurationError::DnsConfiguration {
-            reason: format!("failed to run networksetup: {error}"),
+        .map_err(|source| ConfigurationError::DnsCommand {
+            command: LIST_SERVICES_COMMAND,
+            source,
         })?;
     if !output.status.success() {
-        return Err(ConfigurationError::DnsConfiguration {
-            reason: format!(
-                "networksetup -listallnetworkservices failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            ),
+        return Err(ConfigurationError::DnsCommandRejected {
+            command: LIST_SERVICES_COMMAND,
+            status: output.status,
+            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
         }
         .into());
     }

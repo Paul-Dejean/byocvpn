@@ -1,13 +1,14 @@
-use byocvpn_core::error::{Error, NetworkProvisioningError, Result};
 use byocvpn_core::retry::{RetryPolicy, retry_if};
 use log::{debug, error, info, warn};
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::time::Duration;
 
-use crate::arm_error::{ArmErrorCode, extract_arm_error_code};
-use crate::arm_resource::ArmResource;
-use crate::client::AzureClient;
-use crate::provider_registration::request_network_provider_registration;
+use crate::{
+    account::{NETWORK_PROVIDER_NAMESPACE, request_network_provider_registration},
+    arm_resource::ArmResource,
+    client::AzureClient,
+    error::{ArmErrorCode, AzureError, Result},
+};
 
 const PROVIDER_REGISTRATION_RETRY_POLICY: RetryPolicy =
     RetryPolicy::exponential(30, Duration::from_secs(5), Duration::from_secs(60));
@@ -59,14 +60,14 @@ async fn put_with_provider_retry<B: Serialize>(
 ) -> Result<Option<String>> {
     let url = client.build_resource_url(resource);
     let url = url.as_str();
-    retry_if(
+    let outcome = retry_if(
         || async move {
             let outcome = client.put(url, body).await;
             if let Err(error) = &outcome
                 && is_missing_subscription_registration(error)
             {
                 warn!(
-                    "[Azure] {resource} rejected because Microsoft.Network is not registered on the subscription; re-registering before retrying."
+                    "[Azure] {resource} rejected because {NETWORK_PROVIDER_NAMESPACE} is not registered on the subscription; re-registering before retrying."
                 );
                 request_network_provider_registration(client).await;
             }
@@ -75,19 +76,18 @@ async fn put_with_provider_retry<B: Serialize>(
         PROVIDER_REGISTRATION_RETRY_POLICY,
         is_missing_subscription_registration,
     )
-    .await
-    .map_err(|error| {
-        if is_missing_subscription_registration(&error) {
-            NetworkProvisioningError::CloudOperationTimedOut {
-                operation: resource.to_string(),
-            }
-            .into()
-        } else {
-            error
+    .await;
+
+    match outcome {
+        Err(error) if is_missing_subscription_registration(&error) => {
+            Err(AzureError::ProviderRegistrationTimedOut {
+                namespace: NETWORK_PROVIDER_NAMESPACE.to_string(),
+            })
         }
-    })
+        other => other,
+    }
 }
 
-fn is_missing_subscription_registration(error: &Error) -> bool {
-    extract_arm_error_code(error) == Some(ArmErrorCode::MissingSubscriptionRegistration)
+fn is_missing_subscription_registration(error: &AzureError) -> bool {
+    error.get_arm_error_code() == Some(ArmErrorCode::MissingSubscriptionRegistration)
 }

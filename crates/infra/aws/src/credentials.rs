@@ -4,8 +4,6 @@ use byocvpn_core::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::provider::AwsProviderConfig;
-
 const ACCESS_KEY_ID_FIELD: &str = "access_key_id";
 const SECRET_ACCESS_KEY_FIELD: &str = "secret_access_key";
 
@@ -38,14 +36,5 @@ impl StoredCredentials for AwsCredentials {
             SECRET_ACCESS_KEY_FIELD,
             &self.secret_access_key,
         );
-    }
-}
-
-impl From<AwsCredentials> for AwsProviderConfig {
-    fn from(credentials: AwsCredentials) -> Self {
-        Self {
-            access_key_id: Some(credentials.access_key_id),
-            secret_access_key: Some(credentials.secret_access_key),
-        }
     }
 }

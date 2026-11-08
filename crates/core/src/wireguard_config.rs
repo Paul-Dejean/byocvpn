@@ -1,7 +1,7 @@
-use std::net::SocketAddr;
+use std::{error::Error as StdError, net::SocketAddr, path::Path, str::FromStr};
 
 use base64::{Engine, engine::general_purpose};
-use ini::Ini;
+use ini::{Ini, Properties};
 use ipnet::IpNet;
 use log::debug;
 
@@ -18,58 +18,17 @@ pub struct WireguardConfig {
 }
 
 pub async fn parse_wireguard_config(config_path: &str) -> Result<WireguardConfig> {
-    fn require_section<'a>(config: &'a Ini, name: &str) -> Result<&'a ini::Properties> {
-        config.section(Some(name)).ok_or_else(|| {
-            ConfigurationError::MissingField {
-                field: format!("[{name}] section"),
-            }
-            .into()
-        })
-    }
-
-    fn require_field<'a>(section: &'a ini::Properties, field: &str) -> Result<&'a str> {
-        section.get(field).ok_or_else(|| {
-            ConfigurationError::MissingField {
-                field: field.to_string(),
-            }
-            .into()
-        })
-    }
-
-    fn decode_base64(value: &str, field: &str) -> Result<Vec<u8>> {
-        general_purpose::STANDARD.decode(value).map_err(|error| {
-            ConfigurationError::InvalidFile {
-                reason: format!("Invalid {field}: {error}"),
-            }
-            .into()
-        })
-    }
-
-    fn parse_value<T: std::str::FromStr>(value: &str, field: &str) -> Result<T>
-    where
-        T::Err: std::fmt::Display,
-    {
-        value.parse().map_err(|error| {
-            ConfigurationError::InvalidFile {
-                reason: format!("Invalid {field}: {error}"),
-            }
-            .into()
-        })
-    }
-
-    let instance_id = std::path::Path::new(config_path)
+    let instance_id = Path::new(config_path)
         .file_stem()
-        .and_then(|s| s.to_str())
-        .map(std::string::ToString::to_string)
-        .ok_or_else(|| ConfigurationError::InvalidValue {
-            field: "filename".to_string(),
-            reason: "unable to extract instance ID".to_string(),
+        .and_then(|stem| stem.to_str())
+        .map(ToString::to_string)
+        .ok_or(ConfigurationError::InvalidValue {
+            field: "filename",
+            reason: "unable to extract the instance id",
         })?;
 
     let config =
-        Ini::load_from_file(config_path).map_err(|error| ConfigurationError::InvalidFile {
-            reason: format!("Failed to read config file: {error}"),
-        })?;
+        Ini::load_from_file(config_path).map_err(ConfigurationError::WireguardConfigFile)?;
 
     let interface = require_section(&config, "Interface")?;
     let peer = require_section(&config, "Peer")?;
@@ -113,14 +72,55 @@ pub async fn parse_wireguard_config(config_path: &str) -> Result<WireguardConfig
     })
 }
 
-fn parse_dns_servers_from_interface_section(interface_section: &ini::Properties) -> Vec<String> {
+fn require_section<'a>(config: &'a Ini, name: &str) -> Result<&'a Properties> {
+    config.section(Some(name)).ok_or_else(|| {
+        ConfigurationError::MissingField {
+            field: format!("[{name}] section"),
+        }
+        .into()
+    })
+}
+
+fn require_field<'a>(section: &'a Properties, field: &str) -> Result<&'a str> {
+    section.get(field).ok_or_else(|| {
+        ConfigurationError::MissingField {
+            field: field.to_string(),
+        }
+        .into()
+    })
+}
+
+fn decode_base64(value: &str, field: &'static str) -> Result<Vec<u8>> {
+    general_purpose::STANDARD.decode(value).map_err(|error| {
+        ConfigurationError::InvalidWireguardField {
+            field,
+            source: Box::new(error),
+        }
+        .into()
+    })
+}
+
+fn parse_value<T: FromStr>(value: &str, field: &'static str) -> Result<T>
+where
+    T::Err: StdError + Send + Sync + 'static,
+{
+    value.parse().map_err(|error| {
+        ConfigurationError::InvalidWireguardField {
+            field,
+            source: Box::new(error),
+        }
+        .into()
+    })
+}
+
+fn parse_dns_servers_from_interface_section(interface_section: &Properties) -> Vec<String> {
     let Some(value) = interface_section.get("DNS") else {
         return Vec::new();
     };
     value
-        .split(|c: char| c == ',' || c.is_whitespace())
+        .split(|character: char| character == ',' || character.is_whitespace())
         .map(str::trim)
-        .filter(|p| !p.is_empty())
-        .map(std::string::ToString::to_string)
+        .filter(|part| !part.is_empty())
+        .map(ToString::to_string)
         .collect()
 }

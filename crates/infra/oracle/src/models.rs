@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 
+use byocvpn_core::managed_resources::{MANAGED_BY_TAG_KEY, MANAGED_BY_TAG_VALUE};
 use serde::{Deserialize, Serialize};
 
-pub fn byocvpn_tags() -> HashMap<String, String> {
-    HashMap::from([("created-by".to_string(), "byocvpn".to_string())])
+pub fn build_managed_tags() -> HashMap<String, String> {
+    HashMap::from([(
+        MANAGED_BY_TAG_KEY.to_string(),
+        MANAGED_BY_TAG_VALUE.to_string(),
+    )])
 }
-
-// ── Instance ─────────────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -57,24 +59,22 @@ pub struct InstanceResponse {
 }
 
 #[derive(Deserialize)]
-pub struct AvailabilityDomain {
+pub struct AvailabilityDomainResponse {
     pub name: String,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct VnicAttachment {
+pub struct VnicAttachmentResponse {
     pub vnic_id: String,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Vnic {
+pub struct VnicResponse {
     pub public_ip: Option<String>,
     pub ipv6_addresses: Option<Vec<String>>,
 }
-
-// ── Network ───────────────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -88,7 +88,7 @@ pub struct CreateVcnRequest {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Vcn {
+pub struct VcnResponse {
     pub id: String,
     pub default_route_table_id: String,
     pub ipv6_cidr_blocks: Option<Vec<String>>,
@@ -106,7 +106,7 @@ pub struct CreateInternetGatewayRequest {
 }
 
 #[derive(Deserialize)]
-pub struct InternetGateway {
+pub struct InternetGatewayResponse {
     pub id: String,
 }
 
@@ -202,7 +202,6 @@ pub struct SecurityListResponse {
 pub struct SubnetResponse {
     pub id: String,
     pub lifecycle_state: String,
-    pub ipv6_cidr_blocks: Option<Vec<String>>,
     pub security_list_ids: Option<Vec<String>>,
 }
 
@@ -227,19 +226,19 @@ pub struct UpdateSubnetSecurityListRequest {
 }
 
 #[derive(Deserialize)]
-pub struct Image {
+pub struct ImageResponse {
     pub id: String,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct RegionSubscription {
+pub struct RegionSubscriptionResponse {
     pub region_name: String,
     pub status: String,
 }
 
 #[derive(Deserialize)]
-pub struct Region {
+pub struct RegionResponse {
     pub name: String,
     pub key: String,
 }

@@ -220,28 +220,36 @@ async fn write_wireguard_config(
 
     let mut file = fs::File::create(wireguard_file_path.clone())
         .await
-        .map_err(|error| ConfigurationError::TunnelConfiguration {
-            reason: format!("failed to create config file: {error}"),
+        .map_err(|source| ConfigurationError::DataFile {
+            operation: "create",
+            path: wireguard_file_path.clone(),
+            source,
         })?;
     file.write_all(client_config.as_bytes())
         .await
-        .map_err(|error| ConfigurationError::TunnelConfiguration {
-            reason: format!("failed to write config file: {error}"),
+        .map_err(|source| ConfigurationError::DataFile {
+            operation: "write",
+            path: wireguard_file_path.clone(),
+            source,
         })?;
 
     #[cfg(unix)]
     {
         let metadata = fs::metadata(wireguard_file_path.clone())
             .await
-            .map_err(|error| ConfigurationError::TunnelConfiguration {
-                reason: format!("failed to read config file metadata: {error}"),
+            .map_err(|source| ConfigurationError::DataFile {
+                operation: "read metadata of",
+                path: wireguard_file_path.clone(),
+                source,
             })?;
         let mut perms = metadata.permissions();
         perms.set_mode(0o600);
         fs::set_permissions(wireguard_file_path.clone(), perms)
             .await
-            .map_err(|error| ConfigurationError::TunnelConfiguration {
-                reason: format!("failed to set config file permissions: {error}"),
+            .map_err(|source| ConfigurationError::DataFile {
+                operation: "set permissions on",
+                path: wireguard_file_path.clone(),
+                source,
             })?;
     }
 

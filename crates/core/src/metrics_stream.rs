@@ -1,25 +1,59 @@
 use std::{
-    path::PathBuf,
+    cell::Cell,
     sync::{
         Mutex as StdMutex,
         atomic::{AtomicU64, Ordering},
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
+
+use log::{debug, error, info, warn};
 
 use crate::{
     error::{Result, SystemError},
-    ipc::IpcStream,
+    ipc::{IpcStream, metrics_socket_path},
     tunnel::{ConnectedInstance, TunnelMetrics, VpnStatus},
 };
-use log::{debug, error, info, warn};
 
 static STREAM_STATE: StdMutex<Option<(ConnectedInstance, Option<u64>)>> = StdMutex::new(None);
 static STREAM_GENERATION: AtomicU64 = AtomicU64::new(0);
+const METRICS_PERSIST_INTERVAL: Duration = Duration::from_secs(60);
+
+pub async fn start_with_persistence<F, G>(
+    connected_instance: ConnectedInstance,
+    connected_at: Option<u64>,
+    on_status_update: F,
+    on_metrics_persist: G,
+) -> Result<()>
+where
+    F: Fn(VpnStatus) + Send + 'static,
+    G: Fn(u64, u64) + Send + 'static,
+{
+    info!("Starting metrics subscription");
+    start(connected_instance, connected_at, move |vpn_status| {
+        thread_local! {
+            static LAST_PERSIST: Cell<Option<Instant>> = const { Cell::new(None) };
+        }
+        let should_persist = LAST_PERSIST.with(|last_persist| {
+            let is_due = last_persist
+                .get()
+                .is_none_or(|instant| instant.elapsed() >= METRICS_PERSIST_INTERVAL);
+            if is_due {
+                last_persist.set(Some(Instant::now()));
+            }
+            is_due
+        });
+
+        if should_persist && let Some(ref metrics) = vpn_status.metrics {
+            on_metrics_persist(metrics.bytes_sent, metrics.bytes_received);
+        }
+        on_status_update(vpn_status);
+    })
+    .await
+}
 
 #[allow(clippy::unused_async)]
 pub async fn start<F>(
-    socket_path: PathBuf,
     connected_instance: ConnectedInstance,
     connected_at: Option<u64>,
     on_update: F,
@@ -30,7 +64,9 @@ where
     let generation = {
         let mut state = STREAM_STATE.lock().map_err(|error| {
             warn!("Failed to acquire metrics stream state lock: {error}");
-            SystemError::MutexPoisoned(error.to_string())
+            SystemError::MutexPoisoned {
+                lock_name: "STREAM_STATE",
+            }
         })?;
 
         if state.is_some() {
@@ -41,6 +77,7 @@ where
         STREAM_GENERATION.fetch_add(1, Ordering::SeqCst) + 1
     };
 
+    let socket_path = metrics_socket_path();
     tokio::spawn(async move {
         let mut stream = {
             let mut maybe_stream = None;
@@ -158,7 +195,9 @@ where
 pub async fn stop() -> Result<()> {
     let mut state = STREAM_STATE.lock().map_err(|error| {
         warn!("Failed to acquire metrics stream state lock: {error}");
-        SystemError::MutexPoisoned(error.to_string())
+        SystemError::MutexPoisoned {
+            lock_name: "STREAM_STATE",
+        }
     })?;
 
     *state = None;

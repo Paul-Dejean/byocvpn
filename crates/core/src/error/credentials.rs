@@ -1,31 +1,30 @@
+use std::{io::Error as IoError, path::PathBuf};
+
+use ini::ParseError as IniParseError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum CredentialsError {
-    #[error("credentials file not found")]
-    FileNotFound,
+    #[error("no cloud provider credentials found; add your credentials in the desktop app first")]
+    NoProviderConfigured,
 
-    #[error("failed to read credentials file: {reason}")]
-    FileReadFailed { reason: String },
+    #[error("failed to {operation} the credentials directory {}: {source}", .path.display())]
+    Directory {
+        operation: &'static str,
+        path: PathBuf,
+        #[source]
+        source: IoError,
+    },
 
-    #[error("failed to save credentials file: {reason}")]
-    FileSaveFailed { reason: String },
+    #[error("failed to read the credentials file: {0}")]
+    FileRead(#[source] IoError),
 
-    #[error("invalid credentials file format: {reason}")]
-    InvalidFormat { reason: String },
+    #[error("failed to save the credentials file: {0}")]
+    FileSave(#[source] IoError),
+
+    #[error("invalid credentials file format: {0}")]
+    InvalidFormat(#[source] IniParseError),
 
     #[error("missing required credential: {field}")]
     MissingField { field: String },
-
-    #[error("invalid private key: {reason}")]
-    InvalidPrivateKey { reason: String },
-
-    #[error("request signing failed: {reason}")]
-    SigningFailed { reason: String },
-
-    #[error("failed to acquire access token from {provider}: {reason}")]
-    TokenAcquisitionFailed { provider: String, reason: String },
-
-    #[error("no token returned by {provider}")]
-    MissingTokenInResponse { provider: String },
 }

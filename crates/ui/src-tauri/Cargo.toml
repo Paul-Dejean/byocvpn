@@ -35,9 +35,6 @@ tokio = { workspace = true }
 log = { workspace = true }
 env_logger = { workspace = true }
 
-[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-byocvpn_daemon = { path = "../../daemon" }
-
 [target.'cfg(target_os = "android")'.dependencies]
 tauri-plugin-android-vpn = { path = "../../android" }
 android_logger = "0.15.1"

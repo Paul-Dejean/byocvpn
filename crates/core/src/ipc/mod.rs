@@ -1,3 +1,6 @@
+mod socket_paths;
+pub use socket_paths::{metrics_socket_path, socket_path};
+
 #[cfg(unix)]
 mod unix;
 #[cfg(unix)]

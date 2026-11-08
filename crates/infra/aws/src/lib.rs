@@ -1,14 +1,16 @@
-mod ami;
-mod aws_error;
-mod config;
-mod constants;
-pub mod credentials;
+mod auth;
+mod client;
+mod credentials;
+mod error;
+mod image;
 mod instance;
 mod network;
 mod permissions;
-pub mod pricing;
+mod pricing;
 mod provider;
-mod spawn_step;
+mod regions;
 mod state;
+mod steps;
+
 pub use credentials::AwsCredentials;
-pub use provider::{AwsProvider, AwsProviderConfig};
+pub use provider::AwsProvider;

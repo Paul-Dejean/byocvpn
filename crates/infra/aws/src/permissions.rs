@@ -1,17 +1,15 @@
 use std::collections::HashMap;
 
-use aws_sdk_iam::Client as IamClient;
 use aws_sdk_iam::types::PolicyEvaluationDecisionType;
-use aws_sdk_sts::Client as StsClient;
-use byocvpn_core::{
-    cloud_provider::PermissionStatus,
-    error::{Error, Result},
-};
+use byocvpn_core::cloud_provider::PermissionStatus;
 use log::{info, warn};
 
-use crate::aws_error::map_aws_error;
+use crate::{
+    client::AwsClient,
+    error::{AwsError, Result},
+};
 
-pub const REQUIRED_ACTIONS: &[&str] = &[
+const REQUIRED_ACTIONS: &[&str] = &[
     "ec2:RunInstances",
     "ec2:TerminateInstances",
     "ec2:DescribeInstances",
@@ -36,45 +34,35 @@ pub const REQUIRED_ACTIONS: &[&str] = &[
     "pricing:GetProducts",
 ];
 
-const GET_CALLER_IDENTITY_OPERATION: &str = "sts:GetCallerIdentity";
-pub const SIMULATE_POLICY_OPERATION: &str = "iam:SimulatePrincipalPolicy";
 const ASSUMED_ROLE_MARKER: &str = ":assumed-role/";
 
-pub async fn verify_permissions(
-    sts_client: &StsClient,
-    iam_client: &IamClient,
-) -> Result<Vec<PermissionStatus>> {
-    let principal_arn = get_principal_arn(sts_client).await?;
-    info!("permission check: simulating policies for {principal_arn}");
-    let decisions = simulate_required_actions(iam_client, &principal_arn).await?;
+pub async fn verify_permissions(client: &AwsClient) -> Result<Vec<PermissionStatus>> {
+    let principal_arn = get_principal_arn(client).await?;
+    info!("[AWS] Simulating policies for {principal_arn}");
+    let decisions = simulate_required_actions(client, &principal_arn).await?;
 
-    let statuses = REQUIRED_ACTIONS
+    Ok(REQUIRED_ACTIONS
         .iter()
         .map(|action| {
             let granted = decisions.get(*action).copied().unwrap_or(false);
             if granted {
-                info!("permission check {action}: allowed");
+                info!("[AWS] permission check {action}: allowed");
             } else {
-                warn!("permission check {action}: denied");
+                warn!("[AWS] permission check {action}: denied");
             }
             PermissionStatus {
-                permission: action.to_string(),
+                permission: (*action).to_string(),
                 granted,
             }
         })
-        .collect();
-    Ok(statuses)
+        .collect())
 }
 
-async fn get_principal_arn(sts_client: &StsClient) -> Result<String> {
-    let identity = sts_client
-        .get_caller_identity()
-        .send()
-        .await
-        .map_err(|error| map_aws_error(GET_CALLER_IDENTITY_OPERATION, error))?;
-    let caller_arn = identity.arn().ok_or_else(|| Error::Unknown {
-        operation_name: GET_CALLER_IDENTITY_OPERATION.to_string(),
-        detail: "response did not include a caller ARN".to_string(),
+async fn get_principal_arn(client: &AwsClient) -> Result<String> {
+    let identity = client.sts.get_caller_identity().send().await?;
+    let caller_arn = identity.arn().ok_or(AwsError::MissingResponseField {
+        operation: "sts:GetCallerIdentity",
+        field: "arn",
     })?;
     Ok(build_policy_source_arn(caller_arn))
 }
@@ -89,25 +77,22 @@ fn build_policy_source_arn(caller_arn: &str) -> String {
 }
 
 async fn simulate_required_actions(
-    iam_client: &IamClient,
+    client: &AwsClient,
     principal_arn: &str,
 ) -> Result<HashMap<String, bool>> {
-    let action_names: Vec<String> = REQUIRED_ACTIONS
-        .iter()
-        .map(std::string::ToString::to_string)
-        .collect();
+    let action_names: Vec<String> = REQUIRED_ACTIONS.iter().map(ToString::to_string).collect();
     let mut decisions = HashMap::new();
     let mut marker: Option<String> = None;
 
     loop {
-        let response = iam_client
+        let response = client
+            .iam
             .simulate_principal_policy()
             .policy_source_arn(principal_arn)
             .set_action_names(Some(action_names.clone()))
             .set_marker(marker)
             .send()
-            .await
-            .map_err(|error| map_aws_error(SIMULATE_POLICY_OPERATION, error))?;
+            .await?;
 
         for evaluation in response.evaluation_results() {
             let allowed = evaluation.eval_decision() == &PolicyEvaluationDecisionType::Allowed;

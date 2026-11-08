@@ -1,9 +1,11 @@
+use std::fmt::Display;
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
-use crate::{commands::setup::Region, error::Result};
+use crate::error::Result;
 
 pub struct SpawnInstanceParams<'a> {
     pub region: &'a str,
@@ -71,6 +73,15 @@ pub enum InstanceState {
     Unknown,
 }
 
+impl InstanceState {
+    pub const fn is_listed(&self) -> bool {
+        matches!(
+            self,
+            Self::Running | Self::Stopping | Self::Stopped | Self::Error
+        )
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -86,6 +97,14 @@ pub struct InstanceInfo {
     pub instance_type: String,
     pub launched_at: Option<DateTime<Utc>>,
     pub spawn_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct Region {
+    pub name: String,
+    pub country: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -105,6 +124,15 @@ pub struct PricingInfo {
 pub struct JobStep {
     pub id: String,
     pub label: String,
+}
+
+impl JobStep {
+    pub fn new(id: impl Display, label: &str) -> Self {
+        Self {
+            id: id.to_string(),
+            label: label.to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

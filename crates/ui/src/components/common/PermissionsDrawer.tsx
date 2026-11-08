@@ -40,7 +40,7 @@ export function PermissionsDrawer({
   const isMissingSimulatePermission =
     provider === CloudProviderName.Aws &&
     error !== null &&
-    mentionsAction(error, SIMULATE_POLICY_ACTION);
+    error.operation === SIMULATE_POLICY_ACTION;
 
   return (
     <Drawer
@@ -72,10 +72,6 @@ export function PermissionsDrawer({
       )}
     </Drawer>
   );
-}
-
-function mentionsAction(error: AppError, action: string): boolean {
-  return error.message.includes(action) || (error.detail?.includes(action) ?? false);
 }
 
 function MissingSimulatePermission() {
