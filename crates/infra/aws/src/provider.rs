@@ -26,14 +26,14 @@ impl AwsProvider {
         Self { credentials }
     }
 
-    async fn build_client(&self, region: Option<&str>) -> AwsClient {
-        AwsClient::connect(&self.credentials, region).await
+    fn build_client(&self, region: Option<&str>) -> AwsClient {
+        AwsClient::new(&self.credentials, region)
     }
 
     async fn list_instances_in_all_regions(&self) -> Result<Vec<InstanceInfo>> {
         let regions = self.get_regions().await?;
         let outcomes = join_all(regions.iter().map(|region| async move {
-            let client = self.build_client(Some(&region.name)).await;
+            let client = self.build_client(Some(&region.name));
             match instance::list_instances(&client, &region.name).await {
                 Ok(instances) => {
                     info!(
@@ -61,19 +61,19 @@ impl CloudProvider for AwsProvider {
     }
 
     async fn verify_permissions(&self) -> Result<Vec<PermissionStatus>> {
-        let client = self.build_client(None).await;
+        let client = self.build_client(None);
         permissions::verify_permissions(&client).await
     }
 
     async fn get_regions(&self) -> Result<Vec<Region>> {
-        let client = self.build_client(None).await;
+        let client = self.build_client(None);
         regions::list_regions(&client).await
     }
 
     async fn list_instances(&self, region: Option<&str>) -> Result<Vec<InstanceInfo>> {
         match region {
             Some(region_name) => {
-                let client = self.build_client(Some(region_name)).await;
+                let client = self.build_client(Some(region_name));
                 instance::list_instances(&client, region_name).await
             }
             None => self.list_instances_in_all_regions().await,
@@ -81,19 +81,19 @@ impl CloudProvider for AwsProvider {
     }
 
     async fn spawn_instance(&self, params: &SpawnInstanceParams) -> Result<InstanceInfo> {
-        let client = self.build_client(Some(params.region)).await;
+        let client = self.build_client(Some(params.region));
         let region_network = network::ensure_region_network(&client).await?;
         let image_id = image::resolve_boot_image(&client).await?;
         instance::spawn_instance(&client, &region_network, &image_id, params).await
     }
 
     async fn terminate_instance(&self, params: &TerminateInstanceParams) -> Result<()> {
-        let client = self.build_client(Some(params.region)).await;
+        let client = self.build_client(Some(params.region));
         instance::terminate_instance(&client, params.instance_id).await
     }
 
     async fn fetch_pricing(&self, region: &str, instance_type: &str) -> Result<PricingInfo> {
-        let client = self.build_client(None).await;
+        let client = self.build_client(None);
         Box::pin(pricing::fetch_pricing(&client, region, instance_type)).await
     }
 
@@ -110,7 +110,7 @@ impl CloudProvider for AwsProvider {
     }
 
     async fn run_enable_region_step(&self, step_id: &str, region: &str) -> Result<()> {
-        let client = self.build_client(Some(region)).await;
+        let client = self.build_client(Some(region));
         match parse_step_id(step_id)? {
             AwsStepId::SetupVpc => {
                 network::ensure_vpc(&client).await?;
@@ -141,7 +141,7 @@ impl CloudProvider for AwsProvider {
     async fn run_spawn_step(&self, step_id: &str, region: &str) -> Result<()> {
         match parse_step_id(step_id)? {
             AwsStepId::SetupNetwork => {
-                let client = self.build_client(Some(region)).await;
+                let client = self.build_client(Some(region));
                 network::ensure_region_network(&client).await?;
                 Ok(())
             }
