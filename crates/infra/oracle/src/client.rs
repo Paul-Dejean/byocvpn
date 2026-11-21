@@ -70,7 +70,10 @@ impl OciClient {
         if status.is_success() {
             return Ok(());
         }
-        let body_text = response.text().await.unwrap_or_default();
+        let body_text = response
+            .text()
+            .await
+            .map_err(|source| request.transport(source))?;
         debug!("[OCI] {request} -> {status}: {body_text}");
         Err(request.rejected(status, &body_text))
     }
@@ -82,7 +85,10 @@ impl OciClient {
         if status.is_success() || status == StatusCode::NOT_FOUND {
             return Ok(());
         }
-        let body_text = response.text().await.unwrap_or_default();
+        let body_text = response
+            .text()
+            .await
+            .map_err(|source| request.transport(source))?;
         Err(request.rejected(status, &body_text))
     }
 

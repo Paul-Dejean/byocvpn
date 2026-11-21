@@ -13,6 +13,7 @@ use crate::{
     auth::get_access_token,
     error::{ApiRequest, AzureError, Result},
     models::AsyncOperationResponse,
+    state::AzureOperationStatus,
 };
 
 const ARM_BASE_URL: &str = "https://management.azure.com";
@@ -86,23 +87,26 @@ impl AzureClient {
         retry(
             || async move {
                 let operation: AsyncOperationResponse = self.get(operation_url).await?;
-                match operation.status.as_deref() {
-                    Some("Succeeded") => Ok(()),
-                    Some("Failed" | "Canceled") => Err(AzureError::OperationRejected {
-                        operation_url: operation_url.to_string(),
-                        message: operation
-                            .error
-                            .and_then(|error| error.message)
-                            .unwrap_or_else(|| "unknown error".to_string()),
-                    }),
-                    Some("InProgress" | "Running") | None => {
+                match operation.status {
+                    Some(AzureOperationStatus::Succeeded) => Ok(()),
+                    Some(AzureOperationStatus::Failed | AzureOperationStatus::Canceled) => {
+                        Err(AzureError::OperationRejected {
+                            operation_url: operation_url.to_string(),
+                            message: operation
+                                .error
+                                .and_then(|error| error.message)
+                                .unwrap_or_else(|| "unknown error".to_string()),
+                        })
+                    }
+                    Some(AzureOperationStatus::InProgress | AzureOperationStatus::Running)
+                    | None => {
                         debug!("[Azure] ARM operation in progress...");
                         Err(AzureError::OperationTimedOut {
                             operation_url: operation_url.to_string(),
                         })
                     }
-                    Some(other) => {
-                        warn!("[Azure] Unexpected ARM operation status: {other}");
+                    Some(AzureOperationStatus::Other(status)) => {
+                        warn!("[Azure] Unexpected ARM operation status: {status}");
                         Err(AzureError::OperationTimedOut {
                             operation_url: operation_url.to_string(),
                         })
@@ -141,7 +145,10 @@ async fn parse_json_response<T: DeserializeOwned>(
 ) -> Result<T> {
     let status = response.status();
     if !status.is_success() {
-        let error_body = response.text().await.unwrap_or_default();
+        let error_body = response
+            .text()
+            .await
+            .map_err(|source| request.transport(source))?;
         return Err(request.rejected(status, error_body));
     }
 
@@ -159,7 +166,10 @@ async fn parse_async_operation_response(
 ) -> Result<Option<String>> {
     let status = response.status();
     if !status.is_success() {
-        let error_body = response.text().await.unwrap_or_default();
+        let error_body = response
+            .text()
+            .await
+            .map_err(|source| request.transport(source))?;
         return Err(request.rejected(status, error_body));
     }
 

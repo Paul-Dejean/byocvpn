@@ -176,15 +176,16 @@ async fn wait_until_running(client: &OciClient, instance_ocid: &str) -> Result<(
             let details = get_instance(client, instance_ocid)
                 .await
                 .map_err(InstanceWaitError::LookupFailed)?;
-            match details.lifecycle_state.as_str() {
-                "RUNNING" => {
+            match details.lifecycle_state {
+                OciLifecycleState::Running => {
                     debug!("[OCI] Instance {instance_ocid} reached RUNNING state");
                     Ok(())
                 }
-                "TERMINATED" | "TERMINATING" => Err(InstanceWaitError::Terminal(
+                lifecycle_state @ (OciLifecycleState::Terminated
+                | OciLifecycleState::Terminating) => Err(InstanceWaitError::Terminal(
                     OracleError::InstanceTerminated {
                         instance_ocid: instance_ocid.to_string(),
-                        lifecycle_state: details.lifecycle_state,
+                        lifecycle_state,
                     },
                 )),
                 _ => Err(InstanceWaitError::NotRunningYet),
@@ -269,7 +270,7 @@ fn build_instance_info(instance: &InstanceResponse, region: &str) -> InstanceInf
         id: instance.id.clone(),
         name: instance.display_name.clone(),
         region: region.to_string(),
-        state: OciLifecycleState::from_state_name(&instance.lifecycle_state).into(),
+        state: instance.lifecycle_state.clone().into(),
         error_reason: None,
         public_ip_v4: String::new(),
         public_ip_v6: String::new(),

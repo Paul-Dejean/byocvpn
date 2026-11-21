@@ -6,11 +6,11 @@ use crate::{
     error::Result,
     models::{CreateSubnetRequest, SubnetResponse, UpdateSubnetSecurityListRequest},
     network::vcn::Vcn,
+    state::OciResourceLifecycleState,
 };
 
 const SUBNET_DISPLAY_NAME: &str = "byocvpn-subnet";
 const SUBNET_CIDR: &str = "10.0.0.0/24";
-const TERMINATED_LIFECYCLE_STATES: [&str; 2] = ["TERMINATING", "TERMINATED"];
 
 pub async fn ensure_subnet(
     client: &OciClient,
@@ -37,9 +37,12 @@ async fn get_subnet(client: &OciClient, vcn: &Vcn) -> Result<Option<SubnetRespon
         vcn.id
     ));
     let subnets: Vec<SubnetResponse> = client.get(&url).await?;
-    Ok(subnets
-        .into_iter()
-        .find(|subnet| !TERMINATED_LIFECYCLE_STATES.contains(&subnet.lifecycle_state.as_str())))
+    Ok(subnets.into_iter().find(|subnet| {
+        !matches!(
+            subnet.lifecycle_state,
+            OciResourceLifecycleState::Terminating | OciResourceLifecycleState::Terminated
+        )
+    }))
 }
 
 async fn create_subnet(client: &OciClient, vcn: &Vcn, security_list_id: &str) -> Result<String> {

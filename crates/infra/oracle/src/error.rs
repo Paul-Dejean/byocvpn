@@ -11,6 +11,8 @@ use serde_json::{Error as JsonError, from_str};
 use thiserror::Error;
 use url::ParseError as UrlParseError;
 
+use crate::state::OciLifecycleState;
+
 pub type Result<T> = std::result::Result<T, OracleError>;
 
 #[derive(Debug, Error)]
@@ -73,7 +75,7 @@ pub enum OracleError {
     #[error("instance {instance_ocid} entered terminal state {lifecycle_state}")]
     InstanceTerminated {
         instance_ocid: String,
-        lifecycle_state: String,
+        lifecycle_state: OciLifecycleState,
     },
 
     #[error("instance {instance_ocid} did not reach the running state in time")]

@@ -8,9 +8,9 @@ use crate::{
     error::{OracleError, Result},
     models::{RegionResponse, RegionSubscriptionResponse, SubscribeRegionRequest},
     network::{ensure_internet_gateway, ensure_vcn},
+    state::OciRegionSubscriptionStatus,
 };
 
-const READY_SUBSCRIPTION_STATUS: &str = "READY";
 const REGION_SUBSCRIPTION_POLL_POLICY: RetryPolicy =
     RetryPolicy::fixed(40, Duration::from_secs(15));
 
@@ -61,7 +61,8 @@ async fn is_region_ready(home_client: &OciClient, region_name: &str) -> Result<b
         .get(&build_subscriptions_url(home_client))
         .await?;
     Ok(subscriptions.iter().any(|subscription| {
-        subscription.region_name == region_name && subscription.status == READY_SUBSCRIPTION_STATUS
+        subscription.region_name == region_name
+            && subscription.status == OciRegionSubscriptionStatus::Ready
     }))
 }
 

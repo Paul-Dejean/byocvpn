@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::state::{OciLifecycleState, OciRegionSubscriptionStatus, OciResourceLifecycleState};
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LaunchInstanceRequest {
@@ -44,7 +46,7 @@ pub struct CreateVnicDetails {
 pub struct InstanceResponse {
     pub id: String,
     pub display_name: Option<String>,
-    pub lifecycle_state: String,
+    pub lifecycle_state: OciLifecycleState,
     pub shape: String,
     pub time_created: Option<String>,
     pub freeform_tags: Option<HashMap<String, String>>,
@@ -84,7 +86,7 @@ pub struct VcnResponse {
     pub id: String,
     pub default_route_table_id: String,
     pub ipv6_cidr_blocks: Option<Vec<String>>,
-    pub lifecycle_state: String,
+    pub lifecycle_state: OciResourceLifecycleState,
 }
 
 #[derive(Serialize)]
@@ -193,7 +195,7 @@ pub struct SecurityListResponse {
 #[serde(rename_all = "camelCase")]
 pub struct SubnetResponse {
     pub id: String,
-    pub lifecycle_state: String,
+    pub lifecycle_state: OciResourceLifecycleState,
     pub security_list_ids: Option<Vec<String>>,
 }
 
@@ -226,7 +228,7 @@ pub struct ImageResponse {
 #[serde(rename_all = "camelCase")]
 pub struct RegionSubscriptionResponse {
     pub region_name: String,
-    pub status: String,
+    pub status: OciRegionSubscriptionStatus,
 }
 
 #[derive(Deserialize)]

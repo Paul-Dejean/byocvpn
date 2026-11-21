@@ -1,8 +1,9 @@
 use byocvpn_core::cloud_provider::InstanceState;
-use strum::EnumString;
+use serde::Deserialize;
+use strum::{Display, EnumString};
 
-#[derive(EnumString)]
-#[strum(serialize_all = "PascalCase")]
+#[derive(Debug, Clone, PartialEq, Eq, Display, EnumString, Deserialize)]
+#[serde(from = "String")]
 pub enum AzureProvisioningState {
     Creating,
     Updating,
@@ -11,26 +12,61 @@ pub enum AzureProvisioningState {
     Deleted,
     Failed,
     Canceled,
-    Unknown,
+    #[strum(default)]
+    Other(String),
 }
 
-impl AzureProvisioningState {
-    pub(super) fn from_state_name(state_name: &str) -> Self {
-        state_name.parse().unwrap_or(Self::Unknown)
+#[derive(Debug, Clone, PartialEq, Eq, Display, EnumString, Deserialize)]
+#[serde(from = "String")]
+pub enum AzureOperationStatus {
+    Succeeded,
+    Failed,
+    Canceled,
+    InProgress,
+    Running,
+    #[strum(default)]
+    Other(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Display, EnumString, Deserialize)]
+#[serde(from = "String")]
+pub enum AzureRegistrationState {
+    Registered,
+    Registering,
+    NotRegistered,
+    Unregistering,
+    #[strum(default)]
+    Other(String),
+}
+
+impl From<String> for AzureProvisioningState {
+    fn from(value: String) -> Self {
+        value.parse().unwrap_or(Self::Other(value))
+    }
+}
+
+impl From<String> for AzureOperationStatus {
+    fn from(value: String) -> Self {
+        value.parse().unwrap_or(Self::Other(value))
+    }
+}
+
+impl From<String> for AzureRegistrationState {
+    fn from(value: String) -> Self {
+        value.parse().unwrap_or(Self::Other(value))
     }
 }
 
 impl From<AzureProvisioningState> for InstanceState {
     fn from(state: AzureProvisioningState) -> Self {
         match state {
-            AzureProvisioningState::Creating => Self::Unknown,
-            AzureProvisioningState::Updating => Self::Unknown,
             AzureProvisioningState::Succeeded => Self::Running,
-            AzureProvisioningState::Deleting => Self::Unknown,
-            AzureProvisioningState::Deleted => Self::Unknown,
-            AzureProvisioningState::Failed => Self::Error,
-            AzureProvisioningState::Canceled => Self::Error,
-            AzureProvisioningState::Unknown => Self::Unknown,
+            AzureProvisioningState::Failed | AzureProvisioningState::Canceled => Self::Error,
+            AzureProvisioningState::Creating
+            | AzureProvisioningState::Updating
+            | AzureProvisioningState::Deleting
+            | AzureProvisioningState::Deleted
+            | AzureProvisioningState::Other(_) => Self::Unknown,
         }
     }
 }

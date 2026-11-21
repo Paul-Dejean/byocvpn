@@ -8,12 +8,12 @@ use crate::{
     error::{GcpError, Result},
     network::{ensure_firewall_rules, ensure_vpc},
     operations::wait_for_service_usage_operation,
+    state::GcpServiceState,
 };
 
 const COMPUTE_API_SERVICE: &str = "compute.googleapis.com";
 const CLOUD_RESOURCE_MANAGER_API_SERVICE: &str = "cloudresourcemanager.googleapis.com";
 const CLOUD_BILLING_API_SERVICE: &str = "cloudbilling.googleapis.com";
-const ENABLED_SERVICE_STATE: &str = "ENABLED";
 const SERVICE_USAGE_OPERATION_POLL_POLICY: RetryPolicy =
     RetryPolicy::fixed(30, Duration::from_secs(5));
 
@@ -43,7 +43,7 @@ async fn ensure_api_enabled(client: &GcpClient, api_service: &str) -> Result<()>
         client.project_id
     ));
     let service: ServiceResponse = client.get(&service_url).await?;
-    if service.state.as_deref() == Some(ENABLED_SERVICE_STATE) {
+    if service.state == Some(GcpServiceState::Enabled) {
         return Ok(());
     }
 
@@ -74,7 +74,7 @@ async fn ensure_api_enabled(client: &GcpClient, api_service: &str) -> Result<()>
 
 #[derive(Deserialize)]
 struct ServiceResponse {
-    state: Option<String>,
+    state: Option<GcpServiceState>,
 }
 
 #[derive(Deserialize)]

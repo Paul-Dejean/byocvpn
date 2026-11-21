@@ -33,7 +33,6 @@ use crate::{
         OsProfile, StorageProfile, VmListResponse, VmProperties, VmRequest, VmResponse,
     },
     network::RegionNetwork,
-    state::AzureProvisioningState,
 };
 
 const VM_SIZES: &[&str] = &[
@@ -383,13 +382,10 @@ impl ManagedVm {
             .to_string();
         let properties = virtual_machine.properties;
 
-        let state = AzureProvisioningState::from_state_name(
-            properties
-                .as_ref()
-                .and_then(|properties| properties.provisioning_state.as_deref())
-                .unwrap_or_default(),
-        )
-        .into();
+        let state = properties
+            .as_ref()
+            .and_then(|properties| properties.provisioning_state.clone())
+            .map_or(InstanceState::Unknown, InstanceState::from);
         let instance_type = properties
             .as_ref()
             .and_then(|properties| properties.hardware_profile.as_ref())

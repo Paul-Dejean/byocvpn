@@ -1,7 +1,9 @@
 use byocvpn_core::cloud_provider::InstanceState;
-use strum::EnumString;
+use serde::Deserialize;
+use strum::{Display, EnumString};
 
-#[derive(EnumString)]
+#[derive(Debug, Clone, PartialEq, Eq, Display, EnumString, Deserialize)]
+#[serde(from = "String")]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum OciLifecycleState {
     Moving,
@@ -13,28 +15,64 @@ pub enum OciLifecycleState {
     CreatingImage,
     Terminating,
     Terminated,
-    Unknown,
+    #[strum(default)]
+    Other(String),
 }
 
-impl OciLifecycleState {
-    pub(super) fn from_state_name(state_name: &str) -> Self {
-        state_name.parse().unwrap_or(Self::Unknown)
+#[derive(Debug, Clone, PartialEq, Eq, Display, EnumString, Deserialize)]
+#[serde(from = "String")]
+#[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
+pub enum OciResourceLifecycleState {
+    Provisioning,
+    Available,
+    Updating,
+    Terminating,
+    Terminated,
+    #[strum(default)]
+    Other(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Display, EnumString, Deserialize)]
+#[serde(from = "String")]
+#[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
+pub enum OciRegionSubscriptionStatus {
+    Ready,
+    InProgress,
+    #[strum(default)]
+    Other(String),
+}
+
+impl From<String> for OciLifecycleState {
+    fn from(value: String) -> Self {
+        value.parse().unwrap_or(Self::Other(value))
+    }
+}
+
+impl From<String> for OciResourceLifecycleState {
+    fn from(value: String) -> Self {
+        value.parse().unwrap_or(Self::Other(value))
+    }
+}
+
+impl From<String> for OciRegionSubscriptionStatus {
+    fn from(value: String) -> Self {
+        value.parse().unwrap_or(Self::Other(value))
     }
 }
 
 impl From<OciLifecycleState> for InstanceState {
     fn from(state: OciLifecycleState) -> Self {
         match state {
-            OciLifecycleState::Moving => Self::Unknown,
-            OciLifecycleState::Provisioning => Self::Unknown,
-            OciLifecycleState::Starting => Self::Unknown,
             OciLifecycleState::Running => Self::Running,
             OciLifecycleState::Stopping => Self::Stopping,
             OciLifecycleState::Stopped => Self::Stopped,
-            OciLifecycleState::CreatingImage => Self::Unknown,
-            OciLifecycleState::Terminating => Self::Unknown,
-            OciLifecycleState::Terminated => Self::Unknown,
-            OciLifecycleState::Unknown => Self::Unknown,
+            OciLifecycleState::Moving
+            | OciLifecycleState::Provisioning
+            | OciLifecycleState::Starting
+            | OciLifecycleState::CreatingImage
+            | OciLifecycleState::Terminating
+            | OciLifecycleState::Terminated
+            | OciLifecycleState::Other(_) => Self::Unknown,
         }
     }
 }

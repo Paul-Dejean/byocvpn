@@ -7,6 +7,7 @@ use crate::{
     client::AzureClient,
     error::{AzureError, Result},
     models::{EmptyRequest, ProviderRegistrationResponse},
+    state::AzureRegistrationState,
 };
 
 pub const NETWORK_PROVIDER_NAMESPACE: &str = "Microsoft.Network";
@@ -15,7 +16,6 @@ const REQUIRED_NAMESPACES: &[&str] = &[
     "Microsoft.Compute",
     "Microsoft.Resources",
 ];
-const REGISTERED_STATE: &str = "Registered";
 
 const PROVIDER_REGISTRATION_POLL_POLICY: RetryPolicy =
     RetryPolicy::fixed(60, Duration::from_secs(5));
@@ -29,7 +29,7 @@ pub async fn ensure_providers_registered(client: &AzureClient) -> Result<()> {
             .await?
             .registration_state;
 
-        if registration_state.as_deref() == Some(REGISTERED_STATE) {
+        if registration_state == Some(AzureRegistrationState::Registered) {
             continue;
         }
 
@@ -46,14 +46,16 @@ pub async fn ensure_providers_registered(client: &AzureClient) -> Result<()> {
                 let status_url = status_url.clone();
                 async move {
                     let response: ProviderRegistrationResponse = client.get(&status_url).await?;
-                    let state = response.registration_state.as_deref().unwrap_or("Unknown");
-                    debug!("[Azure] Provider '{namespace}' registration state: {state}");
-                    if state == REGISTERED_STATE {
-                        Ok(())
-                    } else {
-                        Err(AzureError::ProviderRegistrationTimedOut {
-                            namespace: (*namespace).to_string(),
-                        })
+                    match response.registration_state {
+                        Some(AzureRegistrationState::Registered) => Ok(()),
+                        other => {
+                            let state = other
+                                .map_or_else(|| "unknown".to_string(), |state| state.to_string());
+                            debug!("[Azure] Provider '{namespace}' registration state: {state}");
+                            Err(AzureError::ProviderRegistrationTimedOut {
+                                namespace: (*namespace).to_string(),
+                            })
+                        }
                     }
                 }
             },

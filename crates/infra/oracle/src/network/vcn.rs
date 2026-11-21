@@ -5,11 +5,11 @@ use crate::{
     client::OciClient,
     error::{OracleError, Result},
     models::{CreateVcnRequest, VcnResponse},
+    state::OciResourceLifecycleState,
 };
 
 const VCN_DISPLAY_NAME: &str = "byocvpn-vcn";
 const VCN_CIDR: &str = "10.0.0.0/16";
-const AVAILABLE_LIFECYCLE_STATE: &str = "AVAILABLE";
 
 pub struct Vcn {
     pub id: String,
@@ -52,7 +52,7 @@ async fn get_vcn(client: &OciClient) -> Result<Option<Vcn>> {
     ));
     let vcns: Vec<VcnResponse> = client.get(&url).await?;
     vcns.into_iter()
-        .find(|vcn| vcn.lifecycle_state == AVAILABLE_LIFECYCLE_STATE)
+        .find(|vcn| vcn.lifecycle_state == OciResourceLifecycleState::Available)
         .map(Vcn::from_response)
         .transpose()
 }

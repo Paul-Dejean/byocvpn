@@ -2,9 +2,11 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::state::{AzureOperationStatus, AzureProvisioningState, AzureRegistrationState};
+
 #[derive(Deserialize)]
 pub struct AsyncOperationResponse {
-    pub status: Option<String>,
+    pub status: Option<AzureOperationStatus>,
     pub error: Option<AsyncOperationError>,
 }
 
@@ -16,7 +18,7 @@ pub struct AsyncOperationError {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderRegistrationResponse {
-    pub registration_state: Option<String>,
+    pub registration_state: Option<AzureRegistrationState>,
 }
 
 #[derive(Serialize)]
@@ -303,7 +305,7 @@ pub struct VmResponse {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VmResponseProperties {
-    pub provisioning_state: Option<String>,
+    pub provisioning_state: Option<AzureProvisioningState>,
     pub hardware_profile: Option<HardwareProfileResponse>,
     pub time_created: Option<String>,
 }
