@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
@@ -88,7 +88,7 @@ pub struct IpcStream {
 }
 
 impl IpcStream {
-    pub async fn connect(path: &PathBuf) -> Result<Self, DaemonError> {
+    pub async fn connect(path: &Path) -> Result<Self, DaemonError> {
         loop {
             match ClientOptions::new().open(path) {
                 Ok(client) => {

@@ -1,16 +1,17 @@
 use google_cloud_auth::credentials::{CacheableResource, Credentials, service_account};
 use http::Extensions;
+use serde_json::{Value, from_str};
 
 use crate::error::{GcpError, Result};
 
 pub fn parse_credentials_from_service_account_json(
     json_str: &str,
 ) -> Result<(Credentials, String)> {
-    let json: serde_json::Value =
-        serde_json::from_str(json_str).map_err(GcpError::InvalidServiceAccountJson)?;
+    let json: Value = from_str(json_str).map_err(GcpError::InvalidServiceAccountJson)?;
 
-    let project_id = json["project_id"]
-        .as_str()
+    let project_id = json
+        .get("project_id")
+        .and_then(Value::as_str)
         .ok_or(GcpError::MissingProjectId)?
         .to_string();
 

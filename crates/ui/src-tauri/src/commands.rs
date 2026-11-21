@@ -1,3 +1,8 @@
+#![expect(
+    clippy::needless_pass_by_value,
+    reason = "Tauri hands command arguments to the handler by value"
+)]
+
 use std::path::PathBuf;
 
 use byocvpn_app::ProviderCredentials;
@@ -19,13 +24,15 @@ use byocvpn_core::{
     tunnel::VpnStatus,
 };
 use log::{debug, error};
-use tauri::{AppHandle, Manager, ipc::Channel};
+use tauri::{AppHandle, Manager, State, async_runtime::spawn, ipc::Channel};
+use tokio::fs::write;
 
 use crate::{
     job_observers::{
         EnableRegionEvent, EnableRegionEventForwarder, ProvisionAccountEvent,
         ProvisionAccountEventForwarder, SpawnEventForwarder, SpawnInstanceEvent,
     },
+    server_monitor::run_auto_terminate_check,
     vpn_backend::{self, publish_vpn_status},
 };
 
@@ -48,7 +55,7 @@ pub async fn save_credentials(credentials: ProviderCredentials) -> Result<()> {
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_credentials(provider: CloudProviderName, app_handle: AppHandle) -> Result<()> {
-    ProviderCredentials::delete(provider.clone()).await?;
+    ProviderCredentials::delete(provider).await?;
     app_handle
         .state::<AppContext>()
         .provider_flags
@@ -85,7 +92,7 @@ pub async fn spawn_instance(
         .await?;
     let observer = SpawnEventForwarder::new(app_handle.clone(), on_event);
 
-    tauri::async_runtime::spawn(async move {
+    spawn(async move {
         let context = app_handle.state::<AppContext>();
         if let Err(error) = run_spawn_job(&*cloud_provider, &context, &region, &observer).await {
             debug!(
@@ -165,11 +172,11 @@ pub async fn provision_account(
     let cloud_provider = app_handle
         .state::<AppContext>()
         .providers
-        .create(provider.clone())
+        .create(provider)
         .await?;
     let observer = ProvisionAccountEventForwarder::new(on_event);
 
-    tauri::async_runtime::spawn(async move {
+    spawn(async move {
         let context = app_handle.state::<AppContext>();
         if let Err(error) = run_provision_account_job(&*cloud_provider, &context, &observer).await {
             debug!(
@@ -193,11 +200,11 @@ pub async fn enable_region(
     let cloud_provider = app_handle
         .state::<AppContext>()
         .providers
-        .create(provider.clone())
+        .create(provider)
         .await?;
     let observer = EnableRegionEventForwarder::new(on_event);
 
-    tauri::async_runtime::spawn(async move {
+    spawn(async move {
         let context = app_handle.state::<AppContext>();
         if let Err(error) =
             run_enable_region_job(&*cloud_provider, &context, &region, &observer).await
@@ -257,13 +264,12 @@ pub async fn connect(
 
     let vpn_status = fetch_vpn_status(&app_handle).await?;
 
-    if let Some(ref connected_instance) = vpn_status.instance
+    if let Some(connected_instance) = vpn_status.instance.as_ref()
         && let Err(error) = vpn_backend::start_status_stream(
             &app_handle,
             connected_instance.clone(),
             vpn_status.connected_at,
         )
-        .await
     {
         error!("Failed to start metrics stream: {}", error.describe());
     }
@@ -276,7 +282,7 @@ pub async fn connect(
 #[tauri::command]
 #[specta::specta]
 pub async fn disconnect(app_handle: AppHandle) -> Result<String> {
-    vpn_backend::stop_status_stream().await?;
+    vpn_backend::stop_status_stream()?;
 
     let context = app_handle.state::<AppContext>();
     session::disconnect(context.daemon_client.as_ref()).await?;
@@ -290,7 +296,7 @@ pub async fn disconnect(app_handle: AppHandle) -> Result<String> {
     };
     publish_vpn_status(&app_handle, &disconnected_status);
 
-    crate::server_monitor::run_auto_terminate_check(&app_handle).await;
+    run_auto_terminate_check(&app_handle).await;
 
     Ok("Disconnected successfully.".to_string())
 }
@@ -314,7 +320,6 @@ pub async fn subscribe_to_vpn_status(app_handle: AppHandle) -> Result<()> {
     })?;
 
     vpn_backend::start_status_subscription(&app_handle, connected_instance, status.connected_at)
-        .await
 }
 
 #[tauri::command]
@@ -333,16 +338,14 @@ pub async fn get_instance_pricing(
 #[specta::specta]
 pub async fn save_file(path: String, content: String) -> Result<()> {
     debug!("Writing file: {path}");
-    tokio::fs::write(&path, content)
-        .await
-        .map_err(|source| -> Error {
-            ConfigurationError::DataFile {
-                operation: "write",
-                path: PathBuf::from(&path),
-                source,
-            }
-            .into()
-        })
+    write(&path, content).await.map_err(|source| -> Error {
+        ConfigurationError::DataFile {
+            operation: "write",
+            path: PathBuf::from(&path),
+            source,
+        }
+        .into()
+    })
 }
 
 #[tauri::command]
@@ -354,81 +357,60 @@ pub async fn get_ledger(app_handle: AppHandle) -> Result<Vec<LedgerEntry>> {
 
 #[tauri::command]
 #[specta::specta]
-pub fn get_enabled_regions(provider: CloudProviderName, app_handle: AppHandle) -> Vec<String> {
-    app_handle
-        .state::<AppContext>()
-        .provider_flags
-        .list_enabled_regions(&provider)
+pub fn get_enabled_regions(
+    provider: CloudProviderName,
+    context: State<'_, AppContext>,
+) -> Vec<String> {
+    context.provider_flags.list_enabled_regions(&provider)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn get_notification_settings(app_handle: AppHandle) -> NotificationSettings {
-    app_handle
-        .state::<AppContext>()
-        .settings
-        .load_notification_settings()
+pub fn get_notification_settings(context: State<'_, AppContext>) -> NotificationSettings {
+    context.settings.load_notification_settings()
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn save_notification_settings(app_handle: AppHandle, settings: NotificationSettings) {
-    app_handle
-        .state::<AppContext>()
-        .settings
-        .save_notification_settings(settings);
+pub fn save_notification_settings(context: State<'_, AppContext>, settings: NotificationSettings) {
+    context.settings.save_notification_settings(settings);
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn get_auto_terminate_settings(app_handle: AppHandle) -> AutoTerminateSettings {
-    app_handle
-        .state::<AppContext>()
-        .settings
-        .load_auto_terminate_settings()
+pub fn get_auto_terminate_settings(context: State<'_, AppContext>) -> AutoTerminateSettings {
+    context.settings.load_auto_terminate_settings()
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn save_auto_terminate_settings(app_handle: AppHandle, settings: AutoTerminateSettings) {
-    app_handle
-        .state::<AppContext>()
-        .settings
-        .save_auto_terminate_settings(settings);
+pub fn save_auto_terminate_settings(
+    context: State<'_, AppContext>,
+    settings: AutoTerminateSettings,
+) {
+    context.settings.save_auto_terminate_settings(settings);
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn get_vpn_settings(app_handle: AppHandle) -> VpnSettings {
-    app_handle
-        .state::<AppContext>()
-        .settings
-        .load_vpn_settings()
+pub fn get_vpn_settings(context: State<'_, AppContext>) -> VpnSettings {
+    context.settings.load_vpn_settings()
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn save_vpn_settings(app_handle: AppHandle, settings: VpnSettings) {
-    app_handle
-        .state::<AppContext>()
-        .settings
-        .save_vpn_settings(settings);
+pub fn save_vpn_settings(context: State<'_, AppContext>, settings: VpnSettings) {
+    context.settings.save_vpn_settings(settings);
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn get_ui_preferences(app_handle: AppHandle) -> UiPreferences {
-    app_handle
-        .state::<AppContext>()
-        .settings
-        .load_ui_preferences()
+pub fn get_ui_preferences(context: State<'_, AppContext>) -> UiPreferences {
+    context.settings.load_ui_preferences()
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn save_ui_preferences(app_handle: AppHandle, preferences: UiPreferences) {
-    app_handle
-        .state::<AppContext>()
-        .settings
-        .save_ui_preferences(preferences);
+pub fn save_ui_preferences(context: State<'_, AppContext>, preferences: UiPreferences) {
+    context.settings.save_ui_preferences(preferences);
 }

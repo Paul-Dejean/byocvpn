@@ -45,8 +45,8 @@ pub async fn run_job_steps(
 
 pub fn build_job_id(provider: &CloudProviderName, region: Option<&str>) -> String {
     let timestamp = Utc::now().timestamp_millis();
-    match region {
-        Some(region) => format!("{provider}-{region}-{timestamp}"),
-        None => format!("{provider}-{timestamp}"),
-    }
+    region.map_or_else(
+        || format!("{provider}-{timestamp}"),
+        |region| format!("{provider}-{region}-{timestamp}"),
+    )
 }

@@ -184,7 +184,7 @@ impl ProvisionAccountObserver for ProvisionAccountEventForwarder {
         send_channel_event(
             &self.channel,
             ProvisionAccountEvent::Complete {
-                provider: provider.clone(),
+                provider: *provider,
             },
         );
     }

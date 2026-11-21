@@ -1,4 +1,7 @@
-use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::{
+    fmt::{Display, Formatter, Result as FmtResult},
+    result::Result as StdResult,
+};
 
 use azure_core::Error as AzureCoreError;
 use byocvpn_core::{
@@ -11,7 +14,7 @@ use serde_json::Error as JsonError;
 use strum::EnumString;
 use thiserror::Error;
 
-pub type Result<T> = std::result::Result<T, AzureError>;
+pub type Result<T> = StdResult<T, AzureError>;
 
 const NOT_FOUND_STATUS: u16 = 404;
 

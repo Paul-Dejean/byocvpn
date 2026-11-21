@@ -114,7 +114,7 @@ impl JobSteps for SpawnSteps<'_> {
                     .set_instance_id(&self.job.job_id, instance.id.clone());
                 let pricing = match resolve_instance_pricing(
                     self.context,
-                    instance.provider.clone(),
+                    instance.provider,
                     &instance.region,
                     &instance.instance_type,
                 )
@@ -165,7 +165,7 @@ struct RegistryTrackingObserver<'a> {
 impl JobObserver for RegistryTrackingObserver<'_> {
     fn on_step_changed(&self, step: &JobStep, status: JobStepStatus, error: Option<ErrorPayload>) {
         self.registry
-            .update_step_status(self.job_id, &step.id, status.clone(), error.clone());
+            .update_step_status(self.job_id, &step.id, status, error.clone());
         self.observer.on_step_changed(step, status, error);
     }
 }
@@ -177,8 +177,8 @@ async fn launch_instance(
 ) -> Result<InstanceInfo> {
     let params = SpawnInstanceParams {
         region: &job.region,
-        server_private_key: &keys.server_private_key,
-        client_public_key: &keys.client_public_key,
+        server_private_key: &keys.server.private_key,
+        client_public_key: &keys.client.public_key,
         spawn_id: &job.job_id,
     };
 
@@ -189,8 +189,8 @@ async fn launch_instance(
         &job.provider,
         &job.region,
         &instance,
-        &keys.client_private_key,
-        &keys.server_public_key,
+        &keys.client.private_key,
+        &keys.server.public_key,
     )
     .await?;
 
@@ -264,21 +264,30 @@ async fn write_wireguard_config(
 }
 
 struct SpawnKeys {
-    client_private_key: String,
-    client_public_key: String,
-    server_private_key: String,
-    server_public_key: String,
+    client: KeyPair,
+    server: KeyPair,
+}
+
+struct KeyPair {
+    private_key: String,
+    public_key: String,
 }
 
 impl SpawnKeys {
     fn generate() -> Self {
-        let (client_private_key, client_public_key) = generate_keypair();
-        let (server_private_key, server_public_key) = generate_keypair();
         Self {
-            client_private_key,
-            client_public_key,
-            server_private_key,
-            server_public_key,
+            client: KeyPair::generate(),
+            server: KeyPair::generate(),
+        }
+    }
+}
+
+impl KeyPair {
+    fn generate() -> Self {
+        let (private_key, public_key) = generate_keypair();
+        Self {
+            private_key,
+            public_key,
         }
     }
 }

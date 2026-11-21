@@ -5,14 +5,14 @@ mod instance;
 mod internal;
 mod tunnel;
 
+use std::{error::Error as StdError, result::Result as StdResult};
+
 pub use config::ConfigurationError;
 pub use credentials::CredentialsError;
 pub use daemon::DaemonError;
 pub use instance::InstanceError;
 pub use internal::InternalError;
-use std::error::Error as StdError;
-
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use serde_json::Error as JsonError;
 #[cfg(feature = "specta")]
 use specta::{Type, Types, datatype::DataType};
@@ -107,10 +107,8 @@ pub struct ErrorPayload {
 
 impl Error {
     pub fn describe(&self) -> String {
-        match describe_source_chain(self) {
-            Some(chain) => format!("{self}: {chain}"),
-            None => self.to_string(),
-        }
+        describe_source_chain(self)
+            .map_or_else(|| self.to_string(), |chain| format!("{self}: {chain}"))
     }
 
     pub fn is_not_found(&self) -> bool {
@@ -119,8 +117,7 @@ impl Error {
 
     pub fn kind(&self) -> ErrorKind {
         match self {
-            Self::Credentials(_) => ErrorKind::Configuration,
-            Self::Configuration(_) => ErrorKind::Configuration,
+            Self::Credentials(_) | Self::Configuration(_) => ErrorKind::Configuration,
             Self::Daemon(_) => ErrorKind::Daemon,
             Self::Remote(payload) => payload.kind,
             Self::Cloud(error) => error.kind(),
@@ -185,9 +182,9 @@ impl From<strum::ParseError> for Error {
 }
 
 impl Serialize for Error {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> StdResult<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         self.to_payload().serialize(serializer)
     }
@@ -200,4 +197,4 @@ impl Type for Error {
     }
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = StdResult<T, Error>;

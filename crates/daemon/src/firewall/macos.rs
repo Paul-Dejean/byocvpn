@@ -1,6 +1,11 @@
+use std::{
+    fs::{read_to_string, remove_file, write},
+    io::ErrorKind,
+    process::Command,
+};
+
 use byocvpn_core::error::{Result, TunnelError};
 use log::{debug, info};
-use std::process::Command;
 
 const ANCHOR_NAME: &str = "byocvpn";
 const ANCHOR_FILE: &str = "/tmp/byocvpn-killswitch.pf";
@@ -13,7 +18,7 @@ pub fn apply(server_ip: &str, tun_name: &str) -> Result<()> {
         "pass quick on lo0 all no state\nblock out all\nblock in all\npass out proto udp to {server_ip} port 51820\npass on {tun_name}\n"
     );
 
-    std::fs::write(ANCHOR_FILE, &anchor_rules).map_err(|source| TunnelError::KillSwitchFile {
+    write(ANCHOR_FILE, &anchor_rules).map_err(|source| TunnelError::KillSwitchFile {
         operation: "write",
         path: ANCHOR_FILE,
         source,
@@ -30,7 +35,11 @@ pub fn apply(server_ip: &str, tun_name: &str) -> Result<()> {
 pub fn remove() -> Result<()> {
     run_pfctl(&["-a", ANCHOR_NAME, "-F", "all"])?;
     remove_anchor_from_pf_conf()?;
-    let _ = std::fs::remove_file(ANCHOR_FILE);
+    if let Err(error) = remove_file(ANCHOR_FILE)
+        && error.kind() != ErrorKind::NotFound
+    {
+        debug!("[KillSwitch] anchor file {ANCHOR_FILE} was not removed: {error}");
+    }
     info!("[KillSwitch] pf anchor removed");
     Ok(())
 }
@@ -111,7 +120,7 @@ fn run_pfctl(args: &[&str]) -> Result<()> {
 }
 
 fn read_pf_conf() -> Result<String> {
-    std::fs::read_to_string(PF_CONF).map_err(|source| {
+    read_to_string(PF_CONF).map_err(|source| {
         TunnelError::KillSwitchFile {
             operation: "read",
             path: PF_CONF,
@@ -122,7 +131,7 @@ fn read_pf_conf() -> Result<String> {
 }
 
 fn write_pf_conf(content: String) -> Result<()> {
-    std::fs::write(PF_CONF, content).map_err(|source| {
+    write(PF_CONF, content).map_err(|source| {
         TunnelError::KillSwitchFile {
             operation: "write",
             path: PF_CONF,

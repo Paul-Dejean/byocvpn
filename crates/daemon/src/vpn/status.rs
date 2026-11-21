@@ -1,12 +1,12 @@
 use std::{sync::Arc, time::SystemTime};
 
 use byocvpn_core::{
-    error::{InternalError, Result},
+    error::Result,
     tunnel::{ConnectedInstance, TunnelMetrics, VpnStatus},
 };
 use tokio::sync::RwLock;
 
-use crate::tunnel_manager::TUNNEL_MANAGER;
+use crate::tunnel_manager::lock_tunnel_manager;
 
 struct TunnelSnapshot {
     is_running: bool,
@@ -29,18 +29,14 @@ pub async fn get_vpn_status() -> Result<VpnStatus> {
     Ok(VpnStatus {
         connected: snapshot.is_running,
         instance: snapshot.instance,
-        metrics: Some(snapshot.metrics.read().await.clone()),
+        metrics: Some(*snapshot.metrics.read().await),
         connected_at: snapshot.connected_at,
         connection_error: None,
     })
 }
 
 fn take_tunnel_snapshot() -> Result<Option<TunnelSnapshot>> {
-    let manager = TUNNEL_MANAGER
-        .lock()
-        .map_err(|_| InternalError::MutexPoisoned {
-            lock_name: "TUNNEL_MANAGER",
-        })?;
+    let manager = lock_tunnel_manager()?;
 
     Ok(manager.as_ref().map(|handle| TunnelSnapshot {
         is_running: !handle.task.is_finished(),
@@ -50,6 +46,6 @@ fn take_tunnel_snapshot() -> Result<Option<TunnelSnapshot>> {
             .ok()
             .map(|duration| duration.as_secs()),
         instance: handle.instance.clone(),
-        metrics: handle.metrics.clone(),
+        metrics: Arc::clone(&handle.metrics),
     }))
 }

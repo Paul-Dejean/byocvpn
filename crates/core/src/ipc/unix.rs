@@ -1,15 +1,20 @@
 use std::{
+    fs::remove_file as remove_file_blocking,
     io::ErrorKind,
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
 };
 
 use log::{debug, warn};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::{UnixListener, UnixStream};
+use tokio::{
+    fs::{metadata, remove_file, set_permissions},
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    net::{UnixListener, UnixStream},
+};
 
 use crate::error::DaemonError;
 
+#[derive(Debug)]
 pub struct IpcSocket {
     listener: UnixListener,
     path: PathBuf,
@@ -21,9 +26,9 @@ impl IpcSocket {
 
         let listener = UnixListener::bind(&path)?;
 
-        let mut permissions = tokio::fs::metadata(&path).await?.permissions();
+        let mut permissions = metadata(&path).await?.permissions();
         permissions.set_mode(0o777);
-        tokio::fs::set_permissions(&path, permissions).await?;
+        set_permissions(&path, permissions).await?;
 
         Ok(Self { listener, path })
     }
@@ -39,7 +44,7 @@ impl IpcSocket {
 }
 
 async fn remove_stale_socket_file(path: &Path) {
-    match tokio::fs::remove_file(path).await {
+    match remove_file(path).await {
         Ok(()) => debug!("removed stale socket file at {}", path.display()),
         Err(error) if error.kind() == ErrorKind::NotFound => {}
         Err(error) => warn!(
@@ -51,16 +56,24 @@ async fn remove_stale_socket_file(path: &Path) {
 
 impl Drop for IpcSocket {
     fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.path);
+        if let Err(error) = remove_file_blocking(&self.path)
+            && error.kind() != ErrorKind::NotFound
+        {
+            warn!(
+                "failed to remove socket file at {}: {error}",
+                self.path.display()
+            );
+        }
     }
 }
 
+#[derive(Debug)]
 pub struct IpcStream {
     stream: UnixStream,
 }
 
 impl IpcStream {
-    pub async fn connect(path: &PathBuf) -> Result<Self, DaemonError> {
+    pub async fn connect(path: &Path) -> Result<Self, DaemonError> {
         let stream = UnixStream::connect(path).await?;
         Ok(Self { stream })
     }

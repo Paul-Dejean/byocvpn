@@ -30,6 +30,10 @@ impl AzureStepId {
     }
 }
 
+#[expect(
+    clippy::map_err_ignore,
+    reason = "strum's ParseError carries nothing beyond the failed match"
+)]
 pub fn parse_step_id(step_id: &str) -> Result<AzureStepId> {
     step_id
         .parse()

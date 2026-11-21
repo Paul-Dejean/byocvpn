@@ -1,9 +1,10 @@
+use byocvpn_core::error::Error as CoreError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum CliError {
     #[error(transparent)]
-    Core(#[from] byocvpn_core::error::Error),
+    Core(#[from] CoreError),
 
     #[error("No servers found")]
     NoInstancesFound,
@@ -15,4 +16,4 @@ pub enum CliError {
     Prompt(#[from] dialoguer::Error),
 }
 
-pub type CliResult<T> = std::result::Result<T, CliError>;
+pub type CliResult<T> = Result<T, CliError>;

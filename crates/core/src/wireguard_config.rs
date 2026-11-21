@@ -7,6 +7,7 @@ use log::debug;
 
 use crate::error::{ConfigurationError, Result};
 
+#[derive(Debug)]
 pub struct WireguardConfig {
     pub instance_id: String,
     pub private_key: Vec<u8>,

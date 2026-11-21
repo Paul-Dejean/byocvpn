@@ -1,3 +1,5 @@
+use std::fmt::{Debug, Formatter, Result as FmtResult};
+
 use byocvpn_aws::AwsCredentials;
 use byocvpn_azure::AzureCredentials;
 use byocvpn_core::{
@@ -17,6 +19,18 @@ pub enum ProviderCredentials {
     Oracle(OracleCredentials),
     Gcp(GcpCredentials),
     Azure(AzureCredentials),
+}
+
+impl Debug for ProviderCredentials {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+        let provider = match self {
+            Self::Aws(_) => CloudProviderName::Aws,
+            Self::Oracle(_) => CloudProviderName::Oracle,
+            Self::Gcp(_) => CloudProviderName::Gcp,
+            Self::Azure(_) => CloudProviderName::Azure,
+        };
+        write!(formatter, "ProviderCredentials({provider})")
+    }
 }
 
 impl ProviderCredentials {

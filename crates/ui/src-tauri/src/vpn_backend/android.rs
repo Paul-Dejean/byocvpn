@@ -95,7 +95,7 @@ pub async fn start_status_stream(
     connected_instance: ConnectedInstance,
     connected_at: Option<u64>,
 ) -> Result<()> {
-    start_status_subscription(app_handle, connected_instance, connected_at).await
+    start_status_subscription(app_handle, connected_instance, connected_at)
 }
 
 pub async fn start_status_subscription(
@@ -310,11 +310,11 @@ async fn start_tunnel(
         }
     })?;
     let udp = connect_protected_udp_socket(vpn_service, server_endpoint).await?;
-    let wireguard_tunnel = create_wireguard_tunnel(private_key, public_key)?;
+    let wireguard_tunnel = create_wireguard_tunnel(&private_key, &public_key)?;
 
     let (shutdown_sender, shutdown_receiver) = watch::channel(());
     let mut tunnel = Tunnel::new(tun, udp, wireguard_tunnel, shutdown_receiver);
-    let metrics = tunnel.metrics.clone();
+    let metrics = tunnel.get_metrics();
 
     let task = tokio::spawn(async move {
         if let Err(error) = tunnel.run().await {

@@ -20,11 +20,11 @@ const ARM_BASE_URL: &str = "https://management.azure.com";
 const REQUEST_TIMEOUT_SECS: u64 = 90;
 const ASYNC_OPERATION_POLL_POLICY: RetryPolicy = RetryPolicy::fixed(120, Duration::from_secs(5));
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct AzureClient {
     http: HttpClient,
     credential: Arc<ClientSecretCredential>,
-    pub subscription_id: String,
+    subscription_id: String,
 }
 
 impl AzureClient {
@@ -65,13 +65,17 @@ impl AzureClient {
         parse_json_response(&request, response).await
     }
 
-    pub async fn post<B: Serialize, T: DeserializeOwned>(&self, url: &str, body: &B) -> Result<T> {
+    pub async fn post<B: Serialize + Sync, T: DeserializeOwned>(
+        &self,
+        url: &str,
+        body: &B,
+    ) -> Result<T> {
         let request = ApiRequest::new(Method::POST, url);
         let response = self.send_request(&request, Some(body)).await?;
         parse_json_response(&request, response).await
     }
 
-    pub async fn put<B: Serialize>(&self, url: &str, body: &B) -> Result<Option<String>> {
+    pub async fn put<B: Serialize + Sync>(&self, url: &str, body: &B) -> Result<Option<String>> {
         let request = ApiRequest::new(Method::PUT, url);
         let response = self.send_request(&request, Some(body)).await?;
         parse_async_operation_response(&request, response).await
@@ -118,7 +122,7 @@ impl AzureClient {
         .await
     }
 
-    async fn send_request<B: Serialize>(
+    async fn send_request<B: Serialize + Sync>(
         &self,
         request: &ApiRequest,
         body: Option<&B>,

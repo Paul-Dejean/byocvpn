@@ -1,3 +1,5 @@
+use std::process::id as process_id;
+
 use byocvpn_core::{
     daemon_client::{DaemonCommand, DaemonResponse},
     error::{DaemonError, Error, Result},
@@ -5,6 +7,8 @@ use byocvpn_core::{
 };
 use log::{debug, error, info};
 use serde_json::Value;
+#[cfg(unix)]
+use tokio::fs::create_dir_all;
 
 use crate::vpn::{
     connect::connect_vpn, disconnect::disconnect_vpn, metrics::get_current_metrics,
@@ -18,7 +22,7 @@ pub async fn run_daemon() -> Result<()> {
     #[cfg(unix)]
     if let Some(socket_dir) = socket_path.parent() {
         debug!("Creating socket directory: {}", socket_dir.display());
-        tokio::fs::create_dir_all(socket_dir)
+        create_dir_all(socket_dir)
             .await
             .map_err(DaemonError::Socket)?;
     }
@@ -30,7 +34,7 @@ pub async fn run_daemon() -> Result<()> {
     info!(
         "Daemon listening on {} (pid: {})",
         socket_path.to_string_lossy(),
-        std::process::id()
+        process_id()
     );
 
     loop {

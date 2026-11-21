@@ -1,5 +1,6 @@
-use byocvpn_core::error::Result;
 use std::sync::Mutex;
+
+use byocvpn_core::error::Result;
 
 #[cfg(target_os = "linux")]
 mod linux;
@@ -8,6 +9,7 @@ mod macos;
 #[cfg(target_os = "windows")]
 mod windows;
 
+#[derive(Debug)]
 pub struct KillSwitchState {
     pub server_ip: Option<String>,
     pub tun_name: Option<String>,

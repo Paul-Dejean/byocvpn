@@ -13,6 +13,7 @@ use crate::{
     error::{ConfigurationError, Result},
 };
 
+#[derive(Debug)]
 pub struct JsonFileStore<Data> {
     path: PathBuf,
     data: Mutex<Data>,
@@ -46,7 +47,9 @@ impl<Data: Serialize + DeserializeOwned + Default> JsonFileStore<Data> {
     pub fn modify<Output>(&self, modify: impl FnOnce(&mut Data) -> Output) -> Output {
         let mut data = self.data.lock().unwrap_or_else(PoisonError::into_inner);
         let output = modify(&mut data);
-        if let Err(error) = write_data(&self.path, &*data) {
+        let write_result = write_data(&self.path, &*data);
+        drop(data);
+        if let Err(error) = write_result {
             warn!("Failed to save {}: {error}", self.path.display());
         }
         output

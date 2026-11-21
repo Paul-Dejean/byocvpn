@@ -16,6 +16,7 @@ use crate::{
     steps::{self, AwsStepId, parse_step_id},
 };
 
+#[derive(Debug)]
 pub struct AwsProvider {
     credentials: AwsCredentials,
 }
@@ -79,14 +80,14 @@ impl CloudProvider for AwsProvider {
         }
     }
 
-    async fn spawn_instance(&self, params: &SpawnInstanceParams) -> Result<InstanceInfo> {
+    async fn spawn_instance(&self, params: &SpawnInstanceParams<'_>) -> Result<InstanceInfo> {
         let client = self.build_client(Some(params.region));
         let region_network = network::ensure_region_network(&client).await?;
         let image_id = image::resolve_boot_image(&client).await?;
         Ok(instance::spawn_instance(&client, &region_network, &image_id, params).await?)
     }
 
-    async fn terminate_instance(&self, params: &TerminateInstanceParams) -> Result<()> {
+    async fn terminate_instance(&self, params: &TerminateInstanceParams<'_>) -> Result<()> {
         let client = self.build_client(Some(params.region));
         Ok(instance::terminate_instance(&client, params.instance_id).await?)
     }

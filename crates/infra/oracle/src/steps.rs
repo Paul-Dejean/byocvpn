@@ -40,6 +40,10 @@ impl OracleStepId {
     }
 }
 
+#[expect(
+    clippy::map_err_ignore,
+    reason = "strum's ParseError carries nothing beyond the failed match"
+)]
 pub fn parse_step_id(step_id: &str) -> Result<OracleStepId> {
     step_id
         .parse()

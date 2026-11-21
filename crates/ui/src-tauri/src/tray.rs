@@ -1,4 +1,3 @@
-use humantime::format_duration;
 use std::{
     sync::{
         Mutex,
@@ -8,17 +7,22 @@ use std::{
 };
 
 use byocvpn_core::tunnel::VpnStatus;
+use humantime::format_duration;
 use log::warn;
 use tauri::{
-    AppHandle, Manager,
-    menu::{MenuBuilder, MenuEvent, MenuItem, MenuItemBuilder},
-    tray::TrayIconBuilder,
+    AppHandle, Manager, Result as TauriResult, Wry,
+    async_runtime::spawn,
+    include_image,
+    menu::{Menu, MenuBuilder, MenuEvent, MenuItem, MenuItemBuilder},
+    tray::{TrayIcon, TrayIconBuilder},
 };
 
-static LAST_CONNECTED_STATE: AtomicBool = AtomicBool::new(false);
-static STATUS_MENU_ITEM: Mutex<Option<MenuItem<tauri::Wry>>> = Mutex::new(None);
+use crate::commands::disconnect;
 
-pub fn build_tray(app: &AppHandle) -> tauri::Result<tauri::tray::TrayIcon> {
+static LAST_CONNECTED_STATE: AtomicBool = AtomicBool::new(false);
+static STATUS_MENU_ITEM: Mutex<Option<MenuItem<Wry>>> = Mutex::new(None);
+
+pub fn build_tray(app: &AppHandle) -> TauriResult<TrayIcon> {
     let (menu, status_item) = build_tray_menu(app, &disconnected_vpn_status())?;
 
     if let Ok(mut guard) = STATUS_MENU_ITEM.lock() {
@@ -26,23 +30,23 @@ pub fn build_tray(app: &AppHandle) -> tauri::Result<tauri::tray::TrayIcon> {
     }
 
     TrayIconBuilder::with_id("main")
-        .icon(tauri::include_image!("icons/tray-disconnected.png"))
+        .icon(include_image!("icons/tray-disconnected.png"))
         .icon_as_template(true)
         .menu(&menu)
         .show_menu_on_left_click(true)
         .tooltip("ByocVPN — Disconnected")
         .on_menu_event(
-            move |app: &AppHandle, event: MenuEvent| match event.id().as_ref() {
-                "open" => show_main_window(app),
+            move |menu_app: &AppHandle, event: MenuEvent| match event.id().as_ref() {
+                "open" => show_main_window(menu_app),
                 "disconnect" => {
-                    let app = app.clone();
-                    tauri::async_runtime::spawn(async move {
-                        if let Err(error) = crate::commands::disconnect(app).await {
+                    let owned_app = menu_app.clone();
+                    spawn(async move {
+                        if let Err(error) = disconnect(owned_app).await {
                             warn!("Tray disconnect failed: {error}");
                         }
                     });
                 }
-                "quit" => app.exit(0),
+                "quit" => menu_app.exit(0),
                 _ => {}
             },
         )
@@ -56,31 +60,39 @@ pub fn update_tray(app: &AppHandle, vpn_status: &VpnStatus) {
 
     let was_connected = LAST_CONNECTED_STATE.swap(vpn_status.connected, Ordering::Relaxed);
 
-    let _ = tray.set_tooltip(Some(&build_tooltip(vpn_status)));
+    if let Err(error) = tray.set_tooltip(Some(&build_tooltip(vpn_status))) {
+        warn!("Failed to update the tray tooltip: {error}");
+    }
 
     if vpn_status.connected != was_connected {
-        if vpn_status.connected {
-            let _ = tray.set_icon(Some(tauri::include_image!("icons/tray-connected.png")));
+        let icon = if vpn_status.connected {
+            include_image!("icons/tray-connected.png")
         } else {
-            let _ = tray.set_icon(Some(tauri::include_image!("icons/tray-disconnected.png")));
+            include_image!("icons/tray-disconnected.png")
+        };
+        if let Err(error) = tray.set_icon(Some(icon)) {
+            warn!("Failed to update the tray icon: {error}");
         }
 
         if let Ok((menu, status_item)) = build_tray_menu(app, vpn_status) {
             if let Ok(mut guard) = STATUS_MENU_ITEM.lock() {
                 *guard = Some(status_item);
             }
-            let _ = tray.set_menu(Some(menu));
+            if let Err(error) = tray.set_menu(Some(menu)) {
+                warn!("Failed to update the tray menu: {error}");
+            }
         }
     } else if vpn_status.connected
         && let Some(elapsed) = vpn_status
             .connected_at
-            .and_then(|ts| get_elapsed_duration(ts).ok())
+            .and_then(|timestamp| get_elapsed_duration(timestamp).ok())
     {
         let label = format!("Connected · {}", format_duration(elapsed));
         if let Ok(guard) = STATUS_MENU_ITEM.lock()
-            && let Some(ref item) = *guard
+            && let Some(item) = guard.as_ref()
+            && let Err(error) = item.set_text(&label)
         {
-            let _ = item.set_text(&label);
+            warn!("Failed to update the tray status label: {error}");
         }
     }
 }
@@ -88,7 +100,7 @@ pub fn update_tray(app: &AppHandle, vpn_status: &VpnStatus) {
 fn build_tray_menu(
     app: &AppHandle,
     vpn_status: &VpnStatus,
-) -> tauri::Result<(tauri::menu::Menu<tauri::Wry>, MenuItem<tauri::Wry>)> {
+) -> TauriResult<(Menu<Wry>, MenuItem<Wry>)> {
     let status_label = if vpn_status.connected {
         vpn_status
             .connected_at
@@ -109,7 +121,7 @@ fn build_tray_menu(
     let mut builder = MenuBuilder::new(app).item(&status_item);
 
     if vpn_status.connected {
-        if let Some(ref instance) = vpn_status.instance {
+        if let Some(instance) = vpn_status.instance.as_ref() {
             let provider_label = format!("{}", instance.provider).to_uppercase();
             let ip = instance.public_ip_v4.as_deref().unwrap_or("—");
             let info_text = format!("{} · {} · {}", provider_label, instance.region, ip);
@@ -172,7 +184,11 @@ const fn disconnected_vpn_status() -> VpnStatus {
 
 pub fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.set_focus();
+        if let Err(error) = window.show() {
+            warn!("Failed to show the main window: {error}");
+        }
+        if let Err(error) = window.set_focus() {
+            warn!("Failed to focus the main window: {error}");
+        }
     }
 }

@@ -1,6 +1,6 @@
-use byocvpn_core::error::{Result, TunnelError};
 use std::process::Command;
 
+use byocvpn_core::error::{Result, TunnelError};
 use log::info;
 
 const CHAIN: &str = "BYOCVPN_KS";

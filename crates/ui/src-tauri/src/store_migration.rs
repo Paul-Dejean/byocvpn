@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs, path::Path, str::FromStr};
+use std::{collections::BTreeMap, fs, path::Path, str::FromStr};
 
 use byocvpn_core::{
     app_context::AppContext,
@@ -20,7 +20,7 @@ const LEGACY_PROVISIONED_KEY_PREFIX: &str = "provisioned/";
 const LEGACY_ENABLED_REGION_KEY_PREFIX: &str = "enabled_regions/";
 const LEGACY_FAVORITE_REGIONS_KEY_PREFIX: &str = "favorite_regions/";
 
-type LegacyStore = HashMap<String, Value>;
+type LegacyStore = BTreeMap<String, Value>;
 
 pub fn import_legacy_stores(app_handle: &AppHandle, context: &AppContext) {
     let legacy_directory = match app_handle.path().app_data_dir() {

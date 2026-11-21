@@ -31,6 +31,7 @@ async fn get_credentials_path() -> Result<PathBuf> {
     Ok(dir.join("credentials"))
 }
 
+#[derive(Debug)]
 pub struct CredentialStore {
     ini: Ini,
     path: PathBuf,
@@ -73,7 +74,7 @@ impl CredentialStore {
 
     pub fn require(&self, section: &str, key: &str) -> Result<String> {
         self.get(section, key)
-            .map(std::string::ToString::to_string)
+            .map(ToString::to_string)
             .ok_or_else(|| {
                 CredentialsError::MissingField {
                     field: key.to_string(),

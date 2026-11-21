@@ -99,14 +99,7 @@ pub async fn run_auto_terminate_check(
             "[auto-terminate] {} ({}) idle for more than {threshold_minutes}min; terminating",
             entry.instance_id, entry.provider
         );
-        match terminate_instance(
-            context,
-            entry.provider.clone(),
-            &entry.region,
-            &entry.instance_id,
-        )
-        .await
-        {
+        match terminate_instance(context, entry.provider, &entry.region, &entry.instance_id).await {
             Ok(()) => observer.on_auto_terminated(entry, notifications_enabled),
             Err(error) => warn!(
                 "[auto-terminate] failed to terminate {}: {}",
@@ -134,7 +127,7 @@ pub fn select_idle_expired<'a>(
         .collect()
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct UptimeNoticeTracker {
     last_notified_at: Mutex<HashMap<String, DateTime<Utc>>>,
 }

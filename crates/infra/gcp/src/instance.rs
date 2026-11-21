@@ -45,7 +45,7 @@ pub async fn spawn_instance(
     let zone = build_primary_zone(region);
     let instance_name = build_instance_name();
 
-    let instance = build_instance_request(
+    let instance_request = build_instance_request(
         client,
         &zone,
         &instance_name,
@@ -58,7 +58,7 @@ pub async fn spawn_instance(
         .insert()
         .set_project(&client.project_id)
         .set_zone(&zone)
-        .set_body(instance)
+        .set_body(instance_request)
         .poller();
     await_compute_operation("compute.instances.create", insert).await?;
 
@@ -265,7 +265,12 @@ fn extract_region_from_zone(zone: &str) -> String {
 fn build_instance_name() -> String {
     format!(
         "{RESOURCE_NAME_PREFIX}-{}",
-        &Uuid::new_v4().simple().to_string()[..INSTANCE_NAME_RANDOM_LENGTH]
+        Uuid::new_v4()
+            .simple()
+            .to_string()
+            .chars()
+            .take(INSTANCE_NAME_RANDOM_LENGTH)
+            .collect::<String>()
     )
 }
 

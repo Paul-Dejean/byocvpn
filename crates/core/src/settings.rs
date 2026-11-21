@@ -17,7 +17,7 @@ pub enum DurationUnit {
     Hours,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Copy)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct VpnSettings {
@@ -32,7 +32,7 @@ impl Default for VpnSettings {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Copy)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationSettings {
@@ -52,7 +52,7 @@ impl Default for NotificationSettings {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Copy)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct AutoTerminateSettings {
@@ -95,7 +95,7 @@ impl Default for UiPreferences {
     }
 }
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(default)]
 struct SettingsData {
     vpn: VpnSettings,
@@ -104,6 +104,7 @@ struct SettingsData {
     ui_preferences: UiPreferences,
 }
 
+#[derive(Debug)]
 pub struct Settings {
     store: JsonFileStore<SettingsData>,
 }
@@ -122,7 +123,7 @@ impl Settings {
     }
 
     pub fn load_vpn_settings(&self) -> VpnSettings {
-        self.store.read(|data| data.vpn.clone())
+        self.store.read(|data| data.vpn)
     }
 
     pub fn save_vpn_settings(&self, settings: VpnSettings) {
@@ -130,7 +131,7 @@ impl Settings {
     }
 
     pub fn load_notification_settings(&self) -> NotificationSettings {
-        self.store.read(|data| data.notifications.clone())
+        self.store.read(|data| data.notifications)
     }
 
     pub fn save_notification_settings(&self, settings: NotificationSettings) {
@@ -138,7 +139,7 @@ impl Settings {
     }
 
     pub fn load_auto_terminate_settings(&self) -> AutoTerminateSettings {
-        self.store.read(|data| data.auto_terminate.clone())
+        self.store.read(|data| data.auto_terminate)
     }
 
     pub fn save_auto_terminate_settings(&self, settings: AutoTerminateSettings) {

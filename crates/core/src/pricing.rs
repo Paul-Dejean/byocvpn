@@ -26,7 +26,7 @@ pub async fn resolve_instance_pricing(
     {
         return Ok(pricing);
     }
-    let provider = context.providers.create(provider_name.clone()).await?;
+    let provider = context.providers.create(provider_name).await?;
     let pricing = provider.fetch_pricing(region, instance_type).await?;
     context
         .pricing_cache
@@ -41,22 +41,15 @@ pub async fn list_ledger_entries_with_pricing(context: &AppContext) -> Vec<Ledge
         if entry.pricing.is_some() {
             continue;
         }
-        let lookup_key = build_cache_key(&entry.provider, &entry.region, &entry.instance_type);
+        let lookup_key = build_cache_key(entry.provider, &entry.region, &entry.instance_type);
         if failed_lookups.contains(&lookup_key) {
             continue;
         }
-        match resolve_instance_pricing(
-            context,
-            entry.provider.clone(),
-            &entry.region,
-            &entry.instance_type,
-        )
-        .await
+        match resolve_instance_pricing(context, entry.provider, &entry.region, &entry.instance_type)
+            .await
         {
             Ok(pricing) => {
-                context
-                    .ledger
-                    .set_pricing(&entry.instance_id, pricing.clone());
+                context.ledger.set_pricing(&entry.instance_id, pricing);
                 entry.pricing = Some(pricing);
             }
             Err(error) => {
@@ -71,17 +64,18 @@ pub async fn list_ledger_entries_with_pricing(context: &AppContext) -> Vec<Ledge
     entries
 }
 
+#[derive(Debug)]
 pub struct PricingCache {
     store: JsonFileStore<PricingCacheData>,
 }
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 struct PricingCacheData {
     #[serde(default)]
     entries: BTreeMap<String, CachedPricing>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct CachedPricing {
     pricing: PricingInfo,
     fetched_at: DateTime<Utc>,
@@ -102,13 +96,13 @@ impl PricingCache {
         region: &str,
         instance_type: &str,
     ) -> Option<PricingInfo> {
-        let key = build_cache_key(provider, region, instance_type);
+        let key = build_cache_key(*provider, region, instance_type);
         let max_age = TimeDelta::hours(PRICING_CACHE_MAX_AGE_HOURS);
         self.store.read(|data| {
             data.entries
                 .get(&key)
                 .filter(|cached| Utc::now() - cached.fetched_at < max_age)
-                .map(|cached| cached.pricing.clone())
+                .map(|cached| cached.pricing)
         })
     }
 
@@ -119,12 +113,12 @@ impl PricingCache {
         instance_type: &str,
         pricing: &PricingInfo,
     ) {
-        let key = build_cache_key(provider, region, instance_type);
+        let key = build_cache_key(*provider, region, instance_type);
         self.store.modify(|data| {
             data.entries.insert(
                 key,
                 CachedPricing {
-                    pricing: pricing.clone(),
+                    pricing: *pricing,
                     fetched_at: Utc::now(),
                 },
             );
@@ -132,6 +126,6 @@ impl PricingCache {
     }
 }
 
-fn build_cache_key(provider: &CloudProviderName, region: &str, instance_type: &str) -> String {
+fn build_cache_key(provider: CloudProviderName, region: &str, instance_type: &str) -> String {
     format!("{provider}/{region}/{instance_type}")
 }

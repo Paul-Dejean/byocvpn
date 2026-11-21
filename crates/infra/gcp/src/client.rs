@@ -16,9 +16,10 @@ const RESOURCE_LINK_BASE_URL: &str = "https://www.googleapis.com/compute/v1/proj
 const SERVICE_USAGE_BASE_URL: &str = "https://serviceusage.googleapis.com/v1";
 const CLOUD_RESOURCE_MANAGER_BASE_URL: &str = "https://cloudresourcemanager.googleapis.com/v1";
 
+#[derive(Debug)]
 pub struct GcpClient {
-    http: HttpClient,
-    credentials: Credentials,
+    pub http: HttpClient,
+    pub credentials: Credentials,
     pub project_id: String,
     pub instances: Instances,
     pub networks: Networks,
@@ -95,13 +96,17 @@ impl GcpClient {
         parse_json_response(&request, response).await
     }
 
-    pub async fn post<B: Serialize, T: DeserializeOwned>(&self, url: &str, body: &B) -> Result<T> {
+    pub async fn post<B: Serialize + Sync, T: DeserializeOwned>(
+        &self,
+        url: &str,
+        body: &B,
+    ) -> Result<T> {
         let request = ApiRequest::new(Method::POST, url);
         let response = self.send_request(&request, Some(body)).await?;
         parse_json_response(&request, response).await
     }
 
-    async fn send_request<B: Serialize>(
+    async fn send_request<B: Serialize + Sync>(
         &self,
         request: &ApiRequest,
         body: Option<&B>,

@@ -18,16 +18,23 @@ fn normalize_pem(raw: &str) -> String {
     };
 
     let end_prefix = "-----END ";
-    let Some(end_start) = normalised.rfind(end_prefix) else {
-        return normalised[begin_pos..].trim().to_string();
+    let from_begin = normalised.get(begin_pos..).unwrap_or(&normalised);
+    let Some(end_start) = from_begin.rfind(end_prefix) else {
+        return from_begin.trim().to_string();
     };
 
-    let rest = &normalised[end_start..];
-    let end_line_end = rest.find('\n').map_or(normalised.len(), |newline_offset| {
-        end_start + newline_offset + 1
-    });
+    let end_line_end = from_begin
+        .get(end_start..)
+        .and_then(|rest| rest.find('\n'))
+        .map_or(from_begin.len(), |newline_offset| {
+            end_start + newline_offset + 1
+        });
 
-    normalised[begin_pos..end_line_end].trim_end().to_string()
+    from_begin
+        .get(..end_line_end)
+        .unwrap_or(from_begin)
+        .trim_end()
+        .to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

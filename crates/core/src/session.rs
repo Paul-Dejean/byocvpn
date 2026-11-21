@@ -9,6 +9,7 @@ use crate::{
     wireguard_config::parse_wireguard_config,
 };
 
+#[derive(Debug)]
 pub struct ConnectTarget {
     pub provider: CloudProviderName,
     pub region: String,

@@ -331,7 +331,12 @@ fn build_admin_password() -> String {
 }
 
 fn build_random_suffix(length: usize) -> String {
-    Uuid::new_v4().simple().to_string()[..length].to_string()
+    Uuid::new_v4()
+        .simple()
+        .to_string()
+        .chars()
+        .take(length)
+        .collect()
 }
 
 async fn list_addresses_by_resource_group<'a>(
@@ -413,7 +418,7 @@ impl ManagedVm {
             id: format!("{}/{}", self.resource_group, self.name),
             name: Some(self.name.clone()),
             region: self.location.clone(),
-            state: self.state.clone(),
+            state: self.state,
             error_reason: None,
             public_ip_v4: addresses.get_address(&self.resource_group, &self.name, IpVersion::V4),
             public_ip_v6: addresses.get_address(&self.resource_group, &self.name, IpVersion::V6),

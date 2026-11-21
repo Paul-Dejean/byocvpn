@@ -1,0 +1,7 @@
+allow-renamed-params-for = [
+    "core::convert::From",
+    "core::convert::TryFrom",
+    "core::str::FromStr",
+    "core::fmt::Display",
+    "core::fmt::Debug",
+]

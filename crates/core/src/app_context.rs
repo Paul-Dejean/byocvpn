@@ -1,10 +1,19 @@
-use std::sync::Arc;
+use std::{
+    fmt::{Debug, Formatter, Result as FmtResult},
+    sync::Arc,
+};
 
 use crate::{
     daemon_client::DaemonClient, error::Result, job_registry::SpawnJobRegistry, ledger::Ledger,
     pricing::PricingCache, provider_factory::ProviderFactory, provider_flags::ProviderFlags,
     server_monitor::UptimeNoticeTracker, settings::Settings,
 };
+
+impl Debug for AppContext {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+        formatter.debug_struct("AppContext").finish_non_exhaustive()
+    }
+}
 
 pub struct AppContext {
     pub ledger: Ledger,

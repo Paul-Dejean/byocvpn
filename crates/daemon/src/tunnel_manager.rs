@@ -1,7 +1,12 @@
-use std::sync::{Arc, Mutex};
-use std::time::SystemTime;
+use std::{
+    sync::{Arc, Mutex, MutexGuard},
+    time::SystemTime,
+};
 
-use byocvpn_core::tunnel::{ConnectedInstance, TunnelMetrics};
+use byocvpn_core::{
+    error::{InternalError, Result},
+    tunnel::{ConnectedInstance, TunnelMetrics},
+};
 use tokio::{
     sync::{RwLock, watch},
     task::JoinHandle,
@@ -25,3 +30,16 @@ pub struct TunnelHandle {
 }
 
 pub static TUNNEL_MANAGER: Mutex<Option<TunnelHandle>> = Mutex::new(None);
+
+#[expect(
+    clippy::map_err_ignore,
+    reason = "a PoisonError carries the guard, not a cause worth chaining"
+)]
+pub fn lock_tunnel_manager() -> Result<MutexGuard<'static, Option<TunnelHandle>>> {
+    TUNNEL_MANAGER.lock().map_err(|_| {
+        InternalError::MutexPoisoned {
+            lock_name: "TUNNEL_MANAGER",
+        }
+        .into()
+    })
+}

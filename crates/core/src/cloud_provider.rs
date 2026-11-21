@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -14,6 +14,17 @@ pub struct SpawnInstanceParams<'a> {
     pub spawn_id: &'a str,
 }
 
+impl Debug for SpawnInstanceParams<'_> {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+        formatter
+            .debug_struct("SpawnInstanceParams")
+            .field("region", &self.region)
+            .field("spawn_id", &self.spawn_id)
+            .finish_non_exhaustive()
+    }
+}
+
+#[derive(Debug)]
 pub struct TerminateInstanceParams<'a> {
     pub region: &'a str,
     pub instance_id: &'a str,
@@ -22,8 +33,8 @@ pub struct TerminateInstanceParams<'a> {
 #[async_trait]
 pub trait CloudProvider: Send + Sync {
     async fn verify_permissions(&self) -> Result<Vec<PermissionStatus>>;
-    async fn spawn_instance(&self, params: &SpawnInstanceParams) -> Result<InstanceInfo>;
-    async fn terminate_instance(&self, params: &TerminateInstanceParams) -> Result<()>;
+    async fn spawn_instance(&self, params: &SpawnInstanceParams<'_>) -> Result<InstanceInfo>;
+    async fn terminate_instance(&self, params: &TerminateInstanceParams<'_>) -> Result<()>;
     async fn list_instances(&self, region: Option<&str>) -> Result<Vec<InstanceInfo>>;
     async fn get_regions(&self) -> Result<Vec<Region>>;
     async fn fetch_pricing(&self, region: &str, instance_type: &str) -> Result<PricingInfo>;
@@ -52,6 +63,7 @@ pub struct PermissionStatus {
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[strum(serialize_all = "lowercase", ascii_case_insensitive)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
+#[derive(Copy)]
 pub enum CloudProviderName {
     Aws,
     Azure,
@@ -60,7 +72,7 @@ pub enum CloudProviderName {
     Oracle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Copy)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum InstanceState {
@@ -107,7 +119,7 @@ pub struct Region {
     pub country: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Copy)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct PricingInfo {
@@ -145,7 +157,7 @@ pub struct SpawnJob {
     pub provider: CloudProviderName,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Copy)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum JobStepStatus {

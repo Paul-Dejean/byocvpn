@@ -1,4 +1,7 @@
 #[cfg(target_os = "android")]
+use std::{env, path::Path, sync::Arc};
+
+#[cfg(target_os = "android")]
 use android_logger::Config as AndroidLoggerConfig;
 #[cfg(desktop)]
 use byocvpn_app::open_app_context;
@@ -10,8 +13,6 @@ use byocvpn_core::config::set_data_directory;
 use log::LevelFilter;
 #[cfg(desktop)]
 use specta_typescript::Typescript;
-#[cfg(target_os = "android")]
-use std::{env, path::Path, sync::Arc};
 use tauri::Manager;
 use tauri_specta::{Commands, Events, collect_commands, collect_events};
 
@@ -138,7 +139,9 @@ pub fn run() {
             #[cfg(desktop)]
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
-                let _ = window.hide();
+                if let Err(error) = window.hide() {
+                    log::warn!("Failed to hide the main window: {error}");
+                }
             }
         })
         .invoke_handler(invoke_handler);
@@ -196,9 +199,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn export_bindings() {
+    fn export_bindings() -> Result<(), specta_typescript::Error> {
         let specta_builder = build_specta_builder();
         export_typescript_bindings(&specta_builder)
-            .unwrap_or_else(|error| panic!("failed to export TypeScript bindings: {error}"));
     }
 }

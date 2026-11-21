@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io, process::Command};
+use std::{collections::BTreeMap, io, process::Command};
 
 use byocvpn_core::error::{Result, TunnelError};
 use log::{debug, info, warn};
@@ -9,7 +9,7 @@ const SET_DNS_COMMAND: &str = "networksetup -setdnsservers";
 
 #[derive(Debug)]
 pub struct DnsOverrideGuard {
-    original_domain_name_system_by_service: HashMap<String, Option<Vec<String>>>,
+    original_domain_name_system_by_service: BTreeMap<String, Option<Vec<String>>>,
     dns_override_active: bool,
 }
 
@@ -22,7 +22,7 @@ impl DnsOverrideGuard {
         let network_service_names = list_all_enabled_network_services()?;
         info!("Found network services: {network_service_names:?}");
 
-        let mut original_domain_name_system_by_service = HashMap::new();
+        let mut original_domain_name_system_by_service = BTreeMap::new();
         for network_service_name in &network_service_names {
             let current_domain_name_system = get_dns_servers_for_service(network_service_name)
                 .map_err(|source| TunnelError::DnsCommand {
@@ -64,8 +64,7 @@ impl DnsOverrideGuard {
 
             match original_option {
                 Some(list) if !list.is_empty() => {
-                    let as_slices: Vec<&str> =
-                        list.iter().map(std::string::String::as_str).collect();
+                    let as_slices: Vec<&str> = list.iter().map(String::as_str).collect();
                     debug!("Setting DNS servers to: {as_slices:?}");
                     set_dns_for_service(network_service_name, Some(&as_slices))?;
                 }

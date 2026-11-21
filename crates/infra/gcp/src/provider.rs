@@ -16,6 +16,7 @@ use crate::{
     steps::{self, GcpStepId, parse_step_id},
 };
 
+#[derive(Debug)]
 pub struct GcpProvider {
     client: GcpClient,
 }
@@ -51,7 +52,7 @@ impl CloudProvider for GcpProvider {
         }
     }
 
-    async fn spawn_instance(&self, params: &SpawnInstanceParams) -> Result<InstanceInfo> {
+    async fn spawn_instance(&self, params: &SpawnInstanceParams<'_>) -> Result<InstanceInfo> {
         let region_network = network::ensure_region_network(&self.client, params.region).await?;
         let image_self_link = image::resolve_boot_image(&self.client).await?;
         Ok(
@@ -60,7 +61,7 @@ impl CloudProvider for GcpProvider {
         )
     }
 
-    async fn terminate_instance(&self, params: &TerminateInstanceParams) -> Result<()> {
+    async fn terminate_instance(&self, params: &TerminateInstanceParams<'_>) -> Result<()> {
         Ok(instance::terminate_instance(&self.client, params.instance_id).await?)
     }
 

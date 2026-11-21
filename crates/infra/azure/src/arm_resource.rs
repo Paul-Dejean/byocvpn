@@ -153,8 +153,10 @@ impl Display for ArmResource {
 
 pub fn extract_resource_group_from_id(resource_id: &str) -> Option<&str> {
     let segments: Vec<&str> = resource_id.split('/').collect();
-    segments
-        .windows(2)
-        .find(|pair| pair[0].eq_ignore_ascii_case("resourceGroups"))
-        .map(|pair| pair[1])
+    segments.windows(2).find_map(|pair| match pair {
+        [segment_name, resource_group] if segment_name.eq_ignore_ascii_case("resourceGroups") => {
+            Some(*resource_group)
+        }
+        _ => None,
+    })
 }

@@ -10,7 +10,7 @@ use crate::vpn_backend::publish_vpn_status;
 
 const TUNNEL_DROPPED_MESSAGE: &str = "VPN tunnel dropped. Kill switch is blocking all traffic.";
 
-pub async fn start_status_stream(
+pub fn start_status_stream(
     app_handle: &AppHandle,
     connected_instance: ConnectedInstance,
     connected_at: Option<u64>,
@@ -23,10 +23,9 @@ pub async fn start_status_stream(
             &mark_dropped_tunnel(vpn_status, &last_connected),
         );
     })
-    .await
 }
 
-pub async fn start_status_subscription(
+pub fn start_status_subscription(
     app_handle: &AppHandle,
     connected_instance: ConnectedInstance,
     connected_at: Option<u64>,
@@ -53,11 +52,10 @@ pub async fn start_status_subscription(
             );
         },
     )
-    .await
 }
 
-pub async fn stop_status_stream() -> Result<()> {
-    metrics_stream::stop().await
+pub fn stop_status_stream() -> Result<()> {
+    metrics_stream::stop()
 }
 
 fn mark_dropped_tunnel(vpn_status: VpnStatus, last_connected: &ConnectedInstance) -> VpnStatus {

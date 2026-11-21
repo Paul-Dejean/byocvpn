@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 mod account;
 mod auth;
 mod client;

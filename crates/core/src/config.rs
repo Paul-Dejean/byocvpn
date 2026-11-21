@@ -1,6 +1,7 @@
 use std::{path::PathBuf, sync::OnceLock};
 
 use handlebars::Handlebars;
+use log::{debug, warn};
 use serde::Serialize;
 use tokio::fs::{create_dir_all, try_exists};
 
@@ -8,7 +9,6 @@ use crate::{
     cloud_provider::CloudProviderName,
     error::{ConfigurationError, Result},
 };
-use log::{debug, warn};
 
 static DATA_DIRECTORY_OVERRIDE: OnceLock<PathBuf> = OnceLock::new();
 
@@ -24,7 +24,7 @@ pub fn generate_client_config(
     server_public_key: &str,
     server_ip_v4: &str,
 ) -> Result<String> {
-    let template_text: &str = include_str!("templates/client_config.hbs");
+    let template_text = include_str!("templates/client_config.hbs");
 
     let context = ClientConfigContext {
         client_private_key: client_private_key.to_string(),
@@ -46,7 +46,7 @@ pub async fn get_wireguard_config_file_path(
     region: &str,
     instance_id: &str,
 ) -> Result<PathBuf> {
-    let file_name = get_wireguard_config_file_name(provider_name, region, instance_id);
+    let file_name = get_wireguard_config_file_name(*provider_name, region, instance_id);
     let directory = get_configs_path().await?;
     let path = directory.join(file_name);
     debug!("Resolved WireGuard config file path: {}", path.display());
@@ -82,7 +82,7 @@ pub fn session_file_path() -> Result<PathBuf> {
 }
 
 fn get_wireguard_config_file_name(
-    provider_name: &CloudProviderName,
+    provider_name: CloudProviderName,
     region: &str,
     instance_id: &str,
 ) -> String {

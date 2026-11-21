@@ -1,4 +1,8 @@
-use std::{collections::VecDeque, sync::Arc};
+use std::{
+    collections::VecDeque,
+    fmt::{Debug, Formatter, Result as FmtResult},
+    sync::Arc,
+};
 
 use boringtun::{
     noise::{Tunn, TunnResult, errors::WireGuardError},
@@ -21,8 +25,10 @@ use crate::{
 pub const TUNNEL_MTU: u16 = 1280;
 
 const RATE_HISTORY_LENGTH: usize = 10;
+const KEY_LENGTH: usize = 32;
+const MILLISECONDS_PER_SECOND: u128 = 1000;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Copy)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct TunnelMetrics {
@@ -69,7 +75,13 @@ pub struct Tunnel {
     udp: UdpSocket,
     wg: Tunn,
     shutdown_rx: watch::Receiver<()>,
-    pub metrics: Arc<RwLock<TunnelMetrics>>,
+    metrics: Arc<RwLock<TunnelMetrics>>,
+}
+
+impl Debug for Tunnel {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+        formatter.debug_struct("Tunnel").finish_non_exhaustive()
+    }
 }
 
 impl Tunnel {
@@ -88,10 +100,14 @@ impl Tunnel {
         }
     }
 
+    pub fn get_metrics(&self) -> Arc<RwLock<TunnelMetrics>> {
+        Arc::clone(&self.metrics)
+    }
+
     pub async fn run(&mut self) -> Result<()> {
-        let mut tun_buf = [0u8; 1500];
-        let mut udp_buf = [0u8; 1500];
-        let mut out_buf = [0u8; 1500];
+        let mut tun_buf = [0_u8; 1500];
+        let mut udp_buf = [0_u8; 1500];
+        let mut out_buf = [0_u8; 1500];
         let mut timer_interval = interval(Duration::from_millis(250));
         info!("[Tunnel] Starting tunnel...");
 
@@ -104,13 +120,15 @@ impl Tunnel {
 
                 result = self.tun.recv(&mut tun_buf) => {
                     match result {
-                        Ok(n) => {
-                            match self.wg.encapsulate(&tun_buf[..n], &mut out_buf) {
+                        Ok(received_length) => {
+                            #[expect(clippy::indexing_slicing, reason = "recv never returns more than the buffer length")]
+                            let received_packet = &tun_buf[..received_length];
+                            match self.wg.encapsulate(received_packet, &mut out_buf) {
                                 TunnResult::WriteToNetwork(packet) => {
                                     match self.udp.send(packet).await {
                                         Ok(sent) => {
                                             let mut metrics = self.metrics.write().await;
-                                            metrics.bytes_sent += sent as u64;
+                                            metrics.bytes_sent += u64::try_from(sent).unwrap_or(u64::MAX);
                                             metrics.packets_sent += 1;
                                         }
                                         Err(error) => {
@@ -118,7 +136,6 @@ impl Tunnel {
                                         }
                                     }
                                 },
-                                TunnResult::Done => {},
                                 TunnResult::Err(error) => {
                                     error!("encapsulate error: {error:?}");
                                 },
@@ -131,14 +148,16 @@ impl Tunnel {
                     }
                 }
 
-                Ok((n, src)) = self.udp.recv_from(&mut udp_buf) => {
+                Ok((received_length, source_address)) = self.udp.recv_from(&mut udp_buf) => {
                     {
                         let mut metrics = self.metrics.write().await;
-                        metrics.bytes_received += n as u64;
+                        metrics.bytes_received += u64::try_from(received_length).unwrap_or(u64::MAX);
                         metrics.packets_received += 1;
                     }
 
-                    match self.wg.decapsulate(Some(src.ip()), &udp_buf[..n], &mut out_buf) {
+                    #[expect(clippy::indexing_slicing, reason = "recv_from never returns more than the buffer length")]
+                    let received_packet = &udp_buf[..received_length];
+                    match self.wg.decapsulate(Some(source_address.ip()), received_packet, &mut out_buf) {
                         TunnResult::WriteToTunnelV4(packet, _src_ip) => {
                             self.tun.send(packet).await.map_err(TunnelError::io("write to the TUN device"))?;
                         },
@@ -193,23 +212,9 @@ impl Tunnel {
     }
 }
 
-pub fn create_wireguard_tunnel(private_key: Vec<u8>, public_key: Vec<u8>) -> Result<Tunn> {
-    let private_key_bytes: [u8; 32] =
-        private_key
-            .as_slice()
-            .try_into()
-            .map_err(|_| ConfigurationError::InvalidValue {
-                field: "private_key",
-                reason: "private key must be exactly 32 bytes",
-            })?;
-    let public_key_bytes: [u8; 32] =
-        public_key
-            .as_slice()
-            .try_into()
-            .map_err(|_| ConfigurationError::InvalidValue {
-                field: "public_key",
-                reason: "public key must be exactly 32 bytes",
-            })?;
+pub fn create_wireguard_tunnel(private_key: &[u8], public_key: &[u8]) -> Result<Tunn> {
+    let private_key_bytes = parse_key_bytes(private_key, "private_key")?;
+    let public_key_bytes = parse_key_bytes(public_key, "public_key")?;
 
     Ok(Tunn::new(
         StaticSecret::from(private_key_bytes),
@@ -221,6 +226,21 @@ pub fn create_wireguard_tunnel(private_key: Vec<u8>, public_key: Vec<u8>) -> Res
     ))
 }
 
+#[expect(
+    clippy::map_err_ignore,
+    reason = "TryFromSliceError carries nothing beyond the length mismatch"
+)]
+fn parse_key_bytes(key: &[u8], field: &'static str) -> Result<[u8; KEY_LENGTH]> {
+    key.try_into().map_err(|_| {
+        ConfigurationError::InvalidValue {
+            field,
+            reason: "key must be exactly 32 bytes",
+        }
+        .into()
+    })
+}
+
+#[derive(Debug)]
 pub struct TunnelRateTracker {
     last_metrics: TunnelMetrics,
     last_sampled_at: Instant,
@@ -240,17 +260,17 @@ impl TunnelRateTracker {
 
     pub fn sample(&mut self, current_metrics: TunnelMetrics) -> TunnelMetrics {
         let now = Instant::now();
-        let elapsed_seconds = now.duration_since(self.last_sampled_at).as_secs_f64();
+        let elapsed = now.duration_since(self.last_sampled_at);
 
         let upload_rate_instant = calculate_instant_rate(
             current_metrics.bytes_sent,
             self.last_metrics.bytes_sent,
-            elapsed_seconds,
+            elapsed,
         );
         let download_rate_instant = calculate_instant_rate(
             current_metrics.bytes_received,
             self.last_metrics.bytes_received,
-            elapsed_seconds,
+            elapsed,
         );
 
         push_rate_sample(&mut self.upload_history, upload_rate_instant);
@@ -277,17 +297,14 @@ impl Default for TunnelRateTracker {
     }
 }
 
-#[allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss
-)]
-fn calculate_instant_rate(current_bytes: u64, previous_bytes: u64, elapsed_seconds: f64) -> u64 {
-    if elapsed_seconds > 0.0 {
-        (current_bytes.saturating_sub(previous_bytes) as f64 / elapsed_seconds) as u64
-    } else {
-        0
+fn calculate_instant_rate(current_bytes: u64, previous_bytes: u64, elapsed: Duration) -> u64 {
+    let elapsed_milliseconds = elapsed.as_millis();
+    if elapsed_milliseconds == 0 {
+        return 0;
     }
+    let transferred = u128::from(current_bytes.saturating_sub(previous_bytes));
+    let bytes_per_second = transferred * MILLISECONDS_PER_SECOND / elapsed_milliseconds;
+    u64::try_from(bytes_per_second).unwrap_or(u64::MAX)
 }
 
 fn push_rate_sample(history: &mut VecDeque<u64>, rate: u64) {
@@ -301,6 +318,7 @@ fn calculate_average_rate(history: &VecDeque<u64>) -> u64 {
     if history.is_empty() {
         0
     } else {
-        history.iter().sum::<u64>() / history.len() as u64
+        let sample_count = u64::try_from(history.len()).unwrap_or(u64::MAX);
+        history.iter().sum::<u64>() / sample_count
     }
 }

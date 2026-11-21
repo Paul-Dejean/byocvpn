@@ -1,4 +1,7 @@
-use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::{
+    fmt::{Display, Formatter, Result as FmtResult},
+    result::Result as StdResult,
+};
 
 use byocvpn_core::{
     cloud_provider::CloudProviderName,
@@ -18,7 +21,7 @@ use thiserror::Error;
 const INTERNAL_SERVER_ERROR_STATUS: u16 = 500;
 const GCP_PROVIDER: CloudProviderName = CloudProviderName::Gcp;
 
-pub type Result<T, E = GcpError> = std::result::Result<T, E>;
+pub type Result<T, E = GcpError> = StdResult<T, E>;
 
 #[derive(Debug, Error)]
 pub enum GcpError {

@@ -24,7 +24,7 @@ pub async fn get_existing<T: DeserializeOwned>(
     }
 }
 
-pub async fn put_and_wait<B: Serialize>(
+pub async fn put_and_wait<B: Serialize + Sync>(
     client: &AzureClient,
     resource: &ArmResource,
     body: &B,
@@ -53,7 +53,7 @@ pub async fn delete_resource(client: &AzureClient, resource: &ArmResource) {
     }
 }
 
-async fn put_with_provider_retry<B: Serialize>(
+async fn put_with_provider_retry<B: Serialize + Sync>(
     client: &AzureClient,
     resource: &ArmResource,
     body: &B,

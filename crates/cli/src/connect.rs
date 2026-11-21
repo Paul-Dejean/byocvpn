@@ -1,4 +1,4 @@
-use std::io::IsTerminal;
+use std::io::{IsTerminal, stdin};
 
 use byocvpn_core::{
     app_context::AppContext,
@@ -31,7 +31,7 @@ pub async fn run_connect(context: &AppContext, instance_id: Option<String>) -> C
             context,
             context.daemon_client.as_ref(),
             ConnectTarget {
-                provider: instance.provider.clone(),
+                provider: instance.provider,
                 region: instance.region.clone(),
                 instance_id: instance.id.clone(),
                 public_ip_v4: Some(instance.public_ip_v4.clone()),
@@ -75,7 +75,7 @@ pub async fn run_disconnect(context: &AppContext, offer_to_terminate: bool) -> C
 }
 
 fn confirm_termination(connected_instance: &ConnectedInstance) -> CliResult<bool> {
-    if !std::io::stdin().is_terminal() {
+    if !stdin().is_terminal() {
         return Ok(false);
     }
 

@@ -15,6 +15,7 @@ use crate::{
     steps::{self, AzureStepId, parse_step_id},
 };
 
+#[derive(Debug)]
 pub struct AzureProvider {
     client: AzureClient,
 }
@@ -52,12 +53,12 @@ impl CloudProvider for AzureProvider {
         }
     }
 
-    async fn spawn_instance(&self, params: &SpawnInstanceParams) -> Result<InstanceInfo> {
+    async fn spawn_instance(&self, params: &SpawnInstanceParams<'_>) -> Result<InstanceInfo> {
         let region_network = network::ensure_region_network(&self.client, params.region).await?;
         Ok(instance::spawn_instance(&self.client, &region_network, params).await?)
     }
 
-    async fn terminate_instance(&self, params: &TerminateInstanceParams) -> Result<()> {
+    async fn terminate_instance(&self, params: &TerminateInstanceParams<'_>) -> Result<()> {
         Ok(instance::terminate_instance(&self.client, params.instance_id).await?)
     }
 

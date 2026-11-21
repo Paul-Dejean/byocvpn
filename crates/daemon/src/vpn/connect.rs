@@ -1,11 +1,12 @@
 use std::{
     net::{Ipv4Addr, SocketAddr},
     sync::Arc,
+    time::SystemTime,
 };
 
 use byocvpn_core::{
     daemon_client::VpnConnectParams,
-    error::{InternalError, Result, TunnelError},
+    error::{Result, TunnelError},
     ipc::{IpcSocket, IpcStream, metrics_socket_path},
     tunnel::{
         ConnectedInstance, TUNNEL_MTU, Tunnel, TunnelMetrics, TunnelRateTracker,
@@ -20,6 +21,7 @@ use tokio::{
     net::UdpSocket,
     sync::{RwLock, watch},
     task::JoinHandle,
+    time::{Duration, interval},
 };
 use tun_rs::{AsyncDevice, DeviceBuilder};
 
@@ -29,7 +31,7 @@ use crate::{
         dns::DnsOverrideGuard,
         routes::{add_vpn_routes, update_server_host_route},
     },
-    tunnel_manager::{TUNNEL_MANAGER, TunnelHandle},
+    tunnel_manager::{TunnelHandle, lock_tunnel_manager},
     vpn::session::{self, PersistedSession},
 };
 
@@ -51,11 +53,7 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
 
     info!("Connecting VPN: instance={instance_id}, region={region}, provider={provider}");
 
-    let tunnel_already_running = TUNNEL_MANAGER
-        .lock()
-        .map_err(|_| InternalError::MutexPoisoned {
-            lock_name: "TUNNEL_MANAGER",
-        })?
+    let tunnel_already_running = lock_tunnel_manager()?
         .as_ref()
         .is_some_and(|handle| !handle.task.is_finished());
 
@@ -76,12 +74,12 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
         warn!("Session kill switch disabled; traffic can leak if the tunnel drops.");
     }
 
-    let wireguard_tunnel = create_wireguard_tunnel(private_key, public_key)?;
+    let wireguard_tunnel = create_wireguard_tunnel(&private_key, &public_key)?;
     let udp = connect_udp_socket(server_endpoint).await?;
 
     let (shutdown_tx, shutdown_rx) = watch::channel(());
     let mut tunnel = Tunnel::new(tun, udp, wireguard_tunnel, shutdown_rx);
-    let metrics = tunnel.metrics.clone();
+    let metrics = tunnel.get_metrics();
 
     let task = tokio::spawn(async move {
         if let Err(error) = tunnel.run().await {
@@ -90,7 +88,7 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
     });
 
     let (metrics_shutdown_tx, metrics_shutdown_rx) = watch::channel(());
-    let metrics_task = spawn_metrics_task(metrics.clone(), metrics_shutdown_rx);
+    let metrics_task = spawn_metrics_task(Arc::clone(&metrics), metrics_shutdown_rx);
 
     info!("Adding VPN routes...");
     add_vpn_routes(interface_index, &server_endpoint.ip().to_string()).await?;
@@ -99,22 +97,18 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
     let route_monitor_task =
         spawn_route_monitor_task(server_endpoint.ip().to_string(), route_monitor_shutdown_rx);
 
-    let dns_override_guard = apply_dns_servers(dns_servers);
+    let dns_override_guard = apply_dns_servers(&dns_servers);
 
     let persisted_session = PersistedSession {
         instance_id: instance_id.clone(),
-        provider: provider.clone(),
+        provider,
         region: region.clone(),
         public_ip_v4: public_ip_v4.clone(),
         public_ip_v6: public_ip_v6.clone(),
         kill_switch_enabled,
     };
 
-    let mut manager = TUNNEL_MANAGER
-        .lock()
-        .map_err(|_| InternalError::MutexPoisoned {
-            lock_name: "TUNNEL_MANAGER",
-        })?;
+    let mut manager = lock_tunnel_manager()?;
     *manager = Some(TunnelHandle {
         shutdown: shutdown_tx,
         task,
@@ -133,8 +127,9 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
             region,
             provider,
         }),
-        connected_at: std::time::SystemTime::now(),
+        connected_at: SystemTime::now(),
     });
+    drop(manager);
 
     if let Err(error) = session::write_session(&persisted_session) {
         warn!("Failed to persist session: {error}");
@@ -207,7 +202,7 @@ fn spawn_metrics_task(
             }
         };
 
-        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
+        let mut interval = interval(Duration::from_secs(1));
         let mut rate_tracker = TunnelRateTracker::new();
         let mut connected_stream: Option<IpcStream> = None;
 
@@ -220,7 +215,7 @@ fn spawn_metrics_task(
 
                 _ = interval.tick() => {
                     if let Some(stream) = connected_stream.as_mut() {
-                        let current_metrics = metrics.read().await.clone();
+                        let current_metrics = *metrics.read().await;
                         let snapshot = rate_tracker.sample(current_metrics);
 
                         if let Ok(json) = serde_json::to_string(&snapshot)
@@ -279,7 +274,7 @@ fn spawn_route_monitor_task(
     })
 }
 
-fn apply_dns_servers(dns_servers: Vec<String>) -> Option<DnsOverrideGuard> {
+fn apply_dns_servers(dns_servers: &[String]) -> Option<DnsOverrideGuard> {
     debug!("DNS servers from config: {dns_servers:?}");
 
     if dns_servers.is_empty() {
@@ -287,10 +282,7 @@ fn apply_dns_servers(dns_servers: Vec<String>) -> Option<DnsOverrideGuard> {
         return None;
     }
 
-    let as_refs: Vec<&str> = dns_servers
-        .iter()
-        .map(std::string::String::as_str)
-        .collect();
+    let as_refs: Vec<&str> = dns_servers.iter().map(String::as_str).collect();
     match DnsOverrideGuard::override_system_dns(&as_refs) {
         Ok(guard) => {
             info!("DNS servers applied: {dns_servers:?}");

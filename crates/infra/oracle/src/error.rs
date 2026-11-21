@@ -1,4 +1,7 @@
-use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::{
+    fmt::{Display, Formatter, Result as FmtResult},
+    result::Result as StdResult,
+};
 
 use byocvpn_core::{
     cloud_provider::CloudProviderName,
@@ -13,7 +16,7 @@ use url::ParseError as UrlParseError;
 
 use crate::state::OciLifecycleState;
 
-pub type Result<T> = std::result::Result<T, OracleError>;
+pub type Result<T> = StdResult<T, OracleError>;
 
 #[derive(Debug, Error)]
 pub enum OracleError {

@@ -17,6 +17,7 @@ use crate::{
     steps::{self, OracleStepId, parse_step_id},
 };
 
+#[derive(Debug)]
 pub struct OracleProvider {
     credentials: OracleCredentials,
 }
@@ -74,14 +75,14 @@ impl CloudProvider for OracleProvider {
         }
     }
 
-    async fn spawn_instance(&self, params: &SpawnInstanceParams) -> Result<InstanceInfo> {
+    async fn spawn_instance(&self, params: &SpawnInstanceParams<'_>) -> Result<InstanceInfo> {
         let client = self.build_client(Some(params.region));
         let region_network = network::ensure_region_network(&client).await?;
         let image_ocid = image::resolve_boot_image(&client).await?;
         Ok(instance::spawn_instance(&client, &region_network, &image_ocid, params).await?)
     }
 
-    async fn terminate_instance(&self, params: &TerminateInstanceParams) -> Result<()> {
+    async fn terminate_instance(&self, params: &TerminateInstanceParams<'_>) -> Result<()> {
         let client = self.build_client(Some(params.region));
         Ok(instance::terminate_instance(&client, params.instance_id).await?)
     }

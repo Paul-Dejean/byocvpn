@@ -1,3 +1,7 @@
+#![forbid(unsafe_code)]
+
+use std::process::ExitCode;
+
 mod connect;
 mod error;
 mod progress;
@@ -60,15 +64,18 @@ enum Commands {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> ExitCode {
     env_logger::Builder::from_env(Env::default().default_filter_or(default_log_filter()))
         .format_timestamp(None)
         .format_target(false)
         .init();
 
-    if let Err(error) = run(Cli::parse()).await {
-        error!("{}", describe_cli_error(&error));
-        std::process::exit(1);
+    match run(Cli::parse()).await {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            error!("{}", describe_cli_error(&error));
+            ExitCode::FAILURE
+        }
     }
 }
 

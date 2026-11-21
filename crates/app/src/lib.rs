@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 pub mod provider_credentials;
 pub mod stored_credentials_factory;
 
@@ -8,7 +10,6 @@ use byocvpn_core::{
     daemon_client::{DaemonClient, IpcDaemonClient},
     error::Result,
 };
-
 pub use provider_credentials::ProviderCredentials;
 pub use stored_credentials_factory::StoredCredentialsProviderFactory;
 

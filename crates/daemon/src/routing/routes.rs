@@ -1,4 +1,4 @@
-use std::io::ErrorKind;
+use std::{io::ErrorKind, net::IpAddr};
 
 use byocvpn_core::error::{Result, TunnelError};
 use ipnet::IpNet;
@@ -172,10 +172,7 @@ async fn delete_interface_route(destination: &str, interface_index: u32) -> Resu
     }
 }
 
-pub async fn update_server_host_route(
-    server_ip: &str,
-    last_gateway: &mut Option<std::net::IpAddr>,
-) {
+pub async fn update_server_host_route(server_ip: &str, last_gateway: &mut Option<IpAddr>) {
     let handle = match Handle::new() {
         Ok(handle) => handle,
         Err(error) => {
@@ -189,7 +186,7 @@ pub async fn update_server_host_route(
         .await
         .ok()
         .flatten()
-        .and_then(|r| r.gateway);
+        .and_then(|route| route.gateway);
 
     if current_gateway == *last_gateway {
         return;

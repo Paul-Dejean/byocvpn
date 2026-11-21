@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::{Mutex, PoisonError},
+    sync::{Mutex, MutexGuard, PoisonError},
 };
 
 use serde::{Deserialize, Serialize};
@@ -10,7 +10,7 @@ use crate::{
     error::ErrorPayload,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Copy)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SpawnJobStatus {
@@ -41,7 +41,7 @@ pub struct SpawnJobState {
     pub steps: Vec<SpawnJobStep>,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct SpawnJobRegistry {
     jobs: Mutex<HashMap<String, SpawnJobState>>,
 }
@@ -111,7 +111,7 @@ impl SpawnJobRegistry {
         self.lock_jobs().remove(job_id);
     }
 
-    fn lock_jobs(&self) -> std::sync::MutexGuard<'_, HashMap<String, SpawnJobState>> {
+    fn lock_jobs(&self) -> MutexGuard<'_, HashMap<String, SpawnJobState>> {
         self.jobs.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }

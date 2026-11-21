@@ -222,6 +222,10 @@ pub struct VmRequest {
     pub properties: VmProperties,
 }
 
+#[expect(
+    clippy::struct_field_names,
+    reason = "the field names mirror the ARM virtual machine schema"
+)]
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VmProperties {

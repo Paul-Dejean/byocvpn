@@ -67,6 +67,7 @@ pub async fn fetch_vpn_status(client: &dyn DaemonClient) -> Result<VpnStatus> {
     Ok(serde_json::from_value(response)?)
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct IpcDaemonClient;
 
 #[async_trait]

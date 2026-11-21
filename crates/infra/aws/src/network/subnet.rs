@@ -51,6 +51,10 @@ async fn get_first_availability_zone(client: &AwsClient) -> Result<String> {
         .ok_or(AwsError::NoAvailabilityZones)
 }
 
+#[expect(
+    clippy::map_err_ignore,
+    reason = "AddrParseError carries nothing beyond the failed parse"
+)]
 fn carve_ipv6_subnet(base_cidr: &str, index: u8) -> Result<String> {
     let (base_ip, _prefix_length) =
         base_cidr

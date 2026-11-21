@@ -1,20 +1,14 @@
-use byocvpn_core::error::{InternalError, Result};
+use byocvpn_core::error::Result;
 use log::{debug, error, info, warn};
 
 use crate::{
-    firewall, routing::routes::remove_vpn_routes, tunnel_manager::TUNNEL_MANAGER, vpn::session,
+    firewall, routing::routes::remove_vpn_routes, tunnel_manager::lock_tunnel_manager, vpn::session,
 };
 
 pub async fn disconnect_vpn() -> Result<()> {
     info!("[VPN Disconnect] Disconnecting VPN tunnel...");
 
-    let Some(mut handle) = TUNNEL_MANAGER
-        .lock()
-        .map_err(|_| InternalError::MutexPoisoned {
-            lock_name: "TUNNEL_MANAGER",
-        })?
-        .take()
-    else {
+    let Some(mut handle) = lock_tunnel_manager()?.take() else {
         warn!(
             "[VPN Disconnect] No active tunnel in memory (daemon restarted?), clearing firewall rules."
         );

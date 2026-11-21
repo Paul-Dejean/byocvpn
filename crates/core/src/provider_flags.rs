@@ -4,13 +4,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::{cloud_provider::CloudProviderName, error::Result, json_store::JsonFileStore};
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(default)]
 struct ProviderFlagsData {
     provisioned: BTreeSet<CloudProviderName>,
     enabled_regions: BTreeMap<CloudProviderName, BTreeSet<String>>,
 }
 
+#[derive(Debug)]
 pub struct ProviderFlags {
     store: JsonFileStore<ProviderFlagsData>,
 }
@@ -30,7 +31,7 @@ impl ProviderFlags {
 
     pub fn mark_provisioned(&self, provider: &CloudProviderName) {
         self.store.modify(|data| {
-            data.provisioned.insert(provider.clone());
+            data.provisioned.insert(*provider);
         });
     }
 
@@ -47,7 +48,7 @@ impl ProviderFlags {
     pub fn mark_region_enabled(&self, provider: &CloudProviderName, region: &str) {
         self.store.modify(|data| {
             data.enabled_regions
-                .entry(provider.clone())
+                .entry(*provider)
                 .or_default()
                 .insert(region.to_string());
         });

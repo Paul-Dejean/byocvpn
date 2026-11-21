@@ -116,8 +116,8 @@ async fn find_available_subnet_cidr(client: &GcpClient) -> Result<String> {
         .filter_map(|subnet| subnet.ip_cidr_range)
         .collect();
 
-    (0u16..=255)
-        .flat_map(|second_octet| (0u16..16).map(move |block| (second_octet, block * 16)))
+    (0_u16..=255)
+        .flat_map(|second_octet| (0_u16..16).map(move |block| (second_octet, block * 16)))
         .map(|(second_octet, third_octet)| format!("10.{second_octet}.{third_octet}.0/20"))
         .find(|candidate| !used_cidrs.contains(candidate))
         .ok_or(GcpError::NoSubnetCidrAvailable)

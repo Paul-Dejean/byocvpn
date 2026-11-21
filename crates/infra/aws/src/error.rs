@@ -1,4 +1,4 @@
-use std::error::Error as StdError;
+use std::{error::Error as StdError, result::Result as StdResult};
 
 use aws_sdk_ec2::{
     error::{BuildError, DisplayErrorContext, ProvideErrorMetadata, SdkError},
@@ -30,7 +30,7 @@ use byocvpn_core::{
 };
 use thiserror::Error;
 
-pub type Result<T> = std::result::Result<T, AwsError>;
+pub type Result<T> = StdResult<T, AwsError>;
 
 #[derive(Debug, Error)]
 pub enum AwsError {

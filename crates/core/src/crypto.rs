@@ -5,7 +5,7 @@ use rand::{Rng, rng};
 const PRIVATE_KEY_LENGTH: usize = 32;
 
 pub fn generate_keypair() -> (String, String) {
-    let mut private_key_bytes = [0u8; PRIVATE_KEY_LENGTH];
+    let mut private_key_bytes = [0_u8; PRIVATE_KEY_LENGTH];
     rng().fill_bytes(&mut private_key_bytes);
     let private_key = StaticSecret::from(private_key_bytes);
     let public_key = PublicKey::from(&private_key);

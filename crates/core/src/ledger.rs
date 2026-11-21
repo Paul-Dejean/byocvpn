@@ -38,7 +38,7 @@ impl LedgerEntry {
     ) -> Self {
         Self {
             instance_id: instance.id.clone(),
-            provider: instance.provider.clone(),
+            provider: instance.provider,
             region: instance.region.clone(),
             instance_type: instance.instance_type.clone(),
             launched_at: instance.launched_at.unwrap_or_else(Utc::now),
@@ -73,12 +73,13 @@ impl LedgerEntry {
     }
 }
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 struct LedgerData {
     #[serde(default)]
     entries: BTreeMap<String, LedgerEntry>,
 }
 
+#[derive(Debug)]
 pub struct Ledger {
     store: JsonFileStore<LedgerData>,
 }

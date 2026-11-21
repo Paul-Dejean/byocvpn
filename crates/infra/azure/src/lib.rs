@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 mod account;
 mod arm_resource;
 mod auth;

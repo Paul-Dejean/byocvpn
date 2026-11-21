@@ -42,7 +42,7 @@ pub async fn resolve_provider_name(
 
     let labels: Vec<String> = configured_providers
         .iter()
-        .map(std::string::ToString::to_string)
+        .map(ToString::to_string)
         .collect();
 
     let selected_index = Select::with_theme(&ColorfulTheme::default())

@@ -55,14 +55,18 @@ impl OciClient {
         parse_json_response(&request, response).await
     }
 
-    pub async fn post<B: Serialize, T: DeserializeOwned>(&self, url: &str, body: &B) -> Result<T> {
+    pub async fn post<B: Serialize + Sync, T: DeserializeOwned>(
+        &self,
+        url: &str,
+        body: &B,
+    ) -> Result<T> {
         let request = ApiRequest::new(Method::POST, url);
         let body_bytes = to_vec(body).map_err(|source| request.invalid_body(source))?;
         let response = self.send_request(&request, Some(body_bytes)).await?;
         parse_json_response(&request, response).await
     }
 
-    pub async fn put<B: Serialize>(&self, url: &str, body: &B) -> Result<()> {
+    pub async fn put<B: Serialize + Sync>(&self, url: &str, body: &B) -> Result<()> {
         let request = ApiRequest::new(Method::PUT, url);
         let body_bytes = to_vec(body).map_err(|source| request.invalid_body(source))?;
         let response = self.send_request(&request, Some(body_bytes)).await?;
@@ -100,10 +104,10 @@ impl OciClient {
             source,
         })?;
         let host = parsed_url.host_str().unwrap_or_default();
-        let path = match parsed_url.query() {
-            Some(query) => format!("{}?{query}", parsed_url.path()),
-            None => parsed_url.path().to_string(),
-        };
+        let path = parsed_url.query().map_or_else(
+            || parsed_url.path().to_string(),
+            |query| format!("{}?{query}", parsed_url.path()),
+        );
         let date = Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string();
         let signed_headers = build_signed_headers(
             &self.credentials,

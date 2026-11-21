@@ -17,11 +17,13 @@ use crate::{
     session,
 };
 
+#[derive(Debug)]
 pub struct InstanceListing {
     pub instances: Vec<InstanceInfo>,
     pub failures: Vec<ProviderListingFailure>,
 }
 
+#[derive(Debug)]
 pub struct ProviderListingFailure {
     pub provider: CloudProviderName,
     pub error: Error,
@@ -42,7 +44,7 @@ pub async fn list_instances(
         let factory = Arc::clone(&context.providers);
         let region = region.map(str::to_string);
         listing_tasks.spawn(async move {
-            let outcome = list_provider_instances(&*factory, provider_name.clone(), region).await;
+            let outcome = list_provider_instances(&*factory, provider_name, region).await;
             (provider_name, outcome)
         });
     }
@@ -118,7 +120,7 @@ pub async fn terminate_instance(
 ) -> Result<()> {
     disconnect_if_connected_to(context, instance_id).await?;
 
-    let provider = context.providers.create(provider_name.clone()).await?;
+    let provider = context.providers.create(provider_name).await?;
     provider
         .terminate_instance(&TerminateInstanceParams {
             region,
@@ -174,9 +176,9 @@ async fn refresh_instance_states(context: &AppContext, instances: &mut [Instance
             continue;
         }
         let instance_id = instance.id.clone();
-        let instance_ip = instance.public_ip_v4.clone();
+        let public_ip_v4 = instance.public_ip_v4.clone();
         probe_tasks
-            .spawn(async move { (instance_id, connectivity::probe_status(&instance_ip).await) });
+            .spawn(async move { (instance_id, connectivity::probe_status(&public_ip_v4).await) });
     }
 
     let mut probe_results = HashMap::new();

@@ -26,6 +26,7 @@ struct ServerStatus {
     reason: Option<String>,
 }
 
+#[derive(Debug)]
 pub enum ProbeStatus {
     Ready,
     Installing,
@@ -44,7 +45,13 @@ pub async fn probe_status(ip_address: &str) -> ProbeStatus {
     match connect {
         Ok(Ok(mut stream)) => {
             let mut buffer = Vec::new();
-            let _ = timeout(TokioDuration::from_secs(3), stream.read_to_end(&mut buffer)).await;
+            match timeout(TokioDuration::from_secs(3), stream.read_to_end(&mut buffer)).await {
+                Ok(Ok(_)) => {}
+                Ok(Err(error)) => {
+                    debug!("[Probe] Reading the status from {address} failed: {error}");
+                }
+                Err(_) => debug!("[Probe] Reading the status from {address} timed out"),
+            }
             let raw = String::from_utf8_lossy(&buffer).trim().to_string();
             match serde_json::from_str::<ServerStatus>(&raw) {
                 Ok(ServerStatus { status, .. }) if status == "ready" => ProbeStatus::Ready,

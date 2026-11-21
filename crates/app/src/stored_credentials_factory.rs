@@ -18,6 +18,7 @@ const ALL_PROVIDERS: [CloudProviderName; 4] = [
     CloudProviderName::Oracle,
 ];
 
+#[derive(Debug, Clone, Copy)]
 pub struct StoredCredentialsProviderFactory;
 
 #[async_trait]
@@ -26,7 +27,7 @@ impl ProviderFactory for StoredCredentialsProviderFactory {
         let store = CredentialStore::load().await?;
         Ok(ALL_PROVIDERS
             .into_iter()
-            .filter(|provider| has_credentials(provider, &store))
+            .filter(|provider| has_credentials(*provider, &store))
             .collect())
     }
 
@@ -51,7 +52,7 @@ impl ProviderFactory for StoredCredentialsProviderFactory {
     }
 }
 
-fn has_credentials(provider: &CloudProviderName, store: &CredentialStore) -> bool {
+fn has_credentials(provider: CloudProviderName, store: &CredentialStore) -> bool {
     match provider {
         CloudProviderName::Aws => AwsCredentials::from_store(store).is_ok(),
         CloudProviderName::Azure => AzureCredentials::from_store(store).is_ok(),
