@@ -16,12 +16,20 @@ env:
 
 jobs:
   backend:
-    name: Backend (rustfmt + clippy)
-    runs-on: ubuntu-22.04
+    name: Backend (rustfmt + clippy) on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v6
 
       - name: Install Linux dependencies
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
