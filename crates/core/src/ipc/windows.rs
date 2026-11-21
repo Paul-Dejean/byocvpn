@@ -1,8 +1,17 @@
-use std::path::{Path, PathBuf};
+use std::{
+    fs::remove_file as remove_file_blocking,
+    io::ErrorKind,
+    mem::{replace, size_of, zeroed},
+    path::{Path, PathBuf},
+    ptr::null,
+};
 
+use log::warn;
 use tokio::{
+    fs::{remove_file, try_exists},
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::windows::named_pipe::{ClientOptions, NamedPipeClient, NamedPipeServer, ServerOptions},
+    time::{Duration, sleep},
 };
 use windows_sys::Win32::Security::{
     ACL, InitializeSecurityDescriptor, PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES,
@@ -12,21 +21,35 @@ use windows_sys::Win32::Security::{
 use crate::error::DaemonError;
 
 const ERROR_PIPE_BUSY: i32 = 231;
+const SECURITY_DESCRIPTOR_REVISION: u32 = 1;
+const PIPE_BUSY_RETRY_DELAY: Duration = Duration::from_millis(50);
 
+#[derive(Debug)]
 enum NamedPipeStream {
     Server(NamedPipeServer),
     Client(NamedPipeClient),
 }
 
+#[derive(Debug)]
 pub struct IpcSocket {
     pipe_server: NamedPipeServer,
     path: PathBuf,
 }
 
+#[derive(Debug)]
+pub struct IpcStream {
+    stream: NamedPipeStream,
+}
+
 impl IpcSocket {
     pub async fn bind(path: PathBuf) -> Result<Self, DaemonError> {
-        if tokio::fs::try_exists(&path).await.unwrap_or(false) {
-            let _ = tokio::fs::remove_file(&path).await;
+        if try_exists(&path).await.unwrap_or(false)
+            && let Err(error) = remove_file(&path).await
+        {
+            warn!(
+                "failed to remove stale pipe path {}: {error}",
+                path.display()
+            );
         }
 
         let server = create_pipe_server_with_null_dacl(&path, true)?;
@@ -40,51 +63,15 @@ impl IpcSocket {
     pub async fn accept(&mut self) -> Result<IpcStream, DaemonError> {
         self.pipe_server.connect().await?;
         let next_server = create_pipe_server_with_null_dacl(&self.path, false)?;
-        let connected = std::mem::replace(&mut self.pipe_server, next_server);
+        let connected = replace(&mut self.pipe_server, next_server);
         Ok(IpcStream {
             stream: NamedPipeStream::Server(connected),
         })
     }
 
-    pub fn path(&self) -> &PathBuf {
+    pub const fn path(&self) -> &PathBuf {
         &self.path
     }
-}
-
-impl Drop for IpcSocket {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.path);
-    }
-}
-
-fn create_pipe_server_with_null_dacl(
-    path: &PathBuf,
-    first_instance: bool,
-) -> Result<NamedPipeServer, DaemonError> {
-    unsafe {
-        let mut security_descriptor: SECURITY_DESCRIPTOR = std::mem::zeroed();
-        let security_descriptor_ptr: PSECURITY_DESCRIPTOR =
-            std::ptr::addr_of_mut!(security_descriptor).cast();
-        InitializeSecurityDescriptor(security_descriptor_ptr, 1);
-        SetSecurityDescriptorDacl(security_descriptor_ptr, 1i32, std::ptr::null::<ACL>(), 0i32);
-
-        let mut security_attributes = SECURITY_ATTRIBUTES {
-            nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as u32,
-            lpSecurityDescriptor: security_descriptor_ptr,
-            bInheritHandle: 0,
-        };
-
-        Ok(ServerOptions::new()
-            .first_pipe_instance(first_instance)
-            .create_with_security_attributes_raw(
-                path,
-                std::ptr::addr_of_mut!(security_attributes).cast(),
-            )?)
-    }
-}
-
-pub struct IpcStream {
-    stream: NamedPipeStream,
 }
 
 impl IpcStream {
@@ -97,7 +84,7 @@ impl IpcStream {
                     });
                 }
                 Err(error) if error.raw_os_error() == Some(ERROR_PIPE_BUSY) => {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+                    sleep(PIPE_BUSY_RETRY_DELAY).await;
                 }
                 Err(error) => return Err(DaemonError::Socket(error)),
             }
@@ -125,15 +112,13 @@ impl IpcStream {
             NamedPipeStream::Client(client) => BufReader::new(client).read_line(&mut line).await,
         }?;
 
-        match bytes_read {
-            0 => Ok(None),
-            _ => {
-                if line.ends_with('\n') {
-                    line.pop();
-                }
-                Ok(Some(line))
-            }
+        if bytes_read == 0 {
+            return Ok(None);
         }
+        if line.ends_with('\n') {
+            line.pop();
+        }
+        Ok(Some(line))
     }
 
     pub async fn write_all(&mut self, data: &[u8]) -> Result<(), DaemonError> {
@@ -143,4 +128,40 @@ impl IpcStream {
         }?;
         Ok(())
     }
+}
+
+impl Drop for IpcSocket {
+    fn drop(&mut self) {
+        if let Err(error) = remove_file_blocking(&self.path)
+            && error.kind() != ErrorKind::NotFound
+        {
+            warn!(
+                "failed to remove pipe path {}: {error}",
+                self.path.display()
+            );
+        }
+    }
+}
+
+fn create_pipe_server_with_null_dacl(
+    path: &Path,
+    first_instance: bool,
+) -> Result<NamedPipeServer, DaemonError> {
+    let mut security_descriptor: SECURITY_DESCRIPTOR = unsafe { zeroed() };
+    let security_descriptor_ptr: PSECURITY_DESCRIPTOR = (&raw mut security_descriptor).cast();
+    unsafe { InitializeSecurityDescriptor(security_descriptor_ptr, SECURITY_DESCRIPTOR_REVISION) };
+    unsafe { SetSecurityDescriptorDacl(security_descriptor_ptr, 1_i32, null::<ACL>(), 0_i32) };
+
+    let mut security_attributes = SECURITY_ATTRIBUTES {
+        nLength: u32::try_from(size_of::<SECURITY_ATTRIBUTES>()).unwrap_or(u32::MAX),
+        lpSecurityDescriptor: security_descriptor_ptr,
+        bInheritHandle: 0,
+    };
+
+    let server = unsafe {
+        ServerOptions::new()
+            .first_pipe_instance(first_instance)
+            .create_with_security_attributes_raw(path, (&raw mut security_attributes).cast())
+    }?;
+    Ok(server)
 }
