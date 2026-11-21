@@ -14,7 +14,7 @@ use crate::{
     config::{generate_client_config, get_wireguard_config_file_path},
     connectivity,
     crypto::generate_keypair,
-    error::{ComputeProvisioningError, ConfigurationError, Error, ErrorPayload, Result},
+    error::{ConfigurationError, Error, ErrorPayload, InstanceError, Result},
     job_registry::{SpawnJobRegistry, SpawnJobState},
     jobs::{JobObserver, JobSteps, build_job_id, run_job_steps},
     ledger::LedgerEntry,
@@ -64,7 +64,7 @@ pub async fn run_spawn_job(
     let outcome = run_job_steps(&job.steps, &mut spawn_steps, &tracking_observer).await;
     let outcome = outcome.and_then(|()| {
         spawn_steps.launched_instance.ok_or_else(|| {
-            ComputeProvisioningError::LaunchStepMissing {
+            InstanceError::LaunchStepMissing {
                 step: "completion".to_string(),
             }
             .into()
@@ -87,7 +87,7 @@ pub async fn run_spawn_job(
             context
                 .spawn_jobs
                 .mark_failed(&job.job_id, error.to_payload());
-            warn!("Spawn job {} failed: {error}", job.job_id);
+            warn!("Spawn job {} failed: {}", job.job_id, error.describe());
             observer.on_job_failed(&error);
             Err(error)
         }
@@ -122,7 +122,11 @@ impl JobSteps for SpawnSteps<'_> {
                 {
                     Ok(pricing) => Some(pricing),
                     Err(error) => {
-                        warn!("Could not record pricing for {}: {error}", instance.id);
+                        warn!(
+                            "Could not record pricing for {}: {}",
+                            instance.id,
+                            error.describe()
+                        );
                         None
                     }
                 };
@@ -195,10 +199,9 @@ async fn launch_instance(
 }
 
 async fn wait_until_wireguard_ready(launched_instance: Option<&InstanceInfo>) -> Result<()> {
-    let instance =
-        launched_instance.ok_or_else(|| ComputeProvisioningError::LaunchStepMissing {
-            step: WIREGUARD_READY_STEP_ID.to_string(),
-        })?;
+    let instance = launched_instance.ok_or_else(|| InstanceError::LaunchStepMissing {
+        step: WIREGUARD_READY_STEP_ID.to_string(),
+    })?;
     connectivity::wait_until_ready(&instance.public_ip_v4).await
 }
 

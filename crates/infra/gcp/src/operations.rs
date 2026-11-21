@@ -36,7 +36,7 @@ pub async fn wait_for_service_usage_operation(
                 });
             }
             match operation.error {
-                Some(error) => Err(GcpError::ServiceUsageOperationFailed {
+                Some(error) => Err(GcpError::ServiceUsageOperationRejected {
                     message: error.message.unwrap_or_else(|| "unknown error".to_string()),
                 }),
                 None => Ok(()),

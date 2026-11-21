@@ -26,7 +26,7 @@ use aws_sdk_ssm::operation::get_parameter::GetParameterError;
 use aws_sdk_sts::operation::get_caller_identity::GetCallerIdentityError;
 use byocvpn_core::{
     cloud_provider::CloudProviderName,
-    error::{Error as CoreError, ErrorKind},
+    error::{CloudError, Error as CoreError, ErrorKind},
 };
 use thiserror::Error;
 
@@ -34,7 +34,7 @@ pub type Result<T> = std::result::Result<T, AwsError>;
 
 #[derive(Debug, Error)]
 pub enum AwsError {
-    #[error("{operation} rejected with {}: {}", .code.as_deref().unwrap_or("no error code"), .message.as_deref().unwrap_or("no message"))]
+    #[error("{operation} rejected with {}: {}", .code.as_deref().unwrap_or("no error code"), .message.as_deref().unwrap_or(.detail.as_str()))]
     Rejected {
         operation: &'static str,
         status: u16,
@@ -49,9 +49,9 @@ pub enum AwsError {
         detail: String,
     },
 
-    #[error("{operation} response is missing {field}")]
-    MissingResponseField {
-        operation: &'static str,
+    #[error("{resource} is missing {field}")]
+    MissingField {
+        resource: &'static str,
         field: &'static str,
     },
 
@@ -67,7 +67,7 @@ pub enum AwsError {
     #[error("virtual private cloud {vpc_id} has no main route table")]
     MissingMainRouteTable { vpc_id: String },
 
-    #[error("instance did not reach the running state: {0}")]
+    #[error("instance did not reach the running state")]
     InstanceNotRunning(#[source] Box<WaitUntilInstanceRunningError>),
 
     #[error("instance {instance_id} has no public IPv4 address")]
@@ -76,16 +76,13 @@ pub enum AwsError {
     #[error("instance {instance_id} has no public IPv6 address")]
     MissingPublicIpv6 { instance_id: String },
 
-    #[error("AMI {name} lookup failed: {reason}")]
-    AmiLookupFailed {
-        name: &'static str,
-        reason: &'static str,
-    },
+    #[error("AMI {name} not found")]
+    AmiNotFound { name: &'static str },
 
     #[error("no on-demand USD price found for {component}")]
     PriceUnavailable { component: String },
 
-    #[error("invalid pricing filter: {0}")]
+    #[error("invalid pricing filter")]
     InvalidPricingFilter(#[from] BuildError),
 
     #[error(transparent)]
@@ -98,42 +95,53 @@ impl AwsError {
     }
 }
 
+impl CloudError for AwsError {
+    fn provider(&self) -> CloudProviderName {
+        CloudProviderName::Aws
+    }
+
+    fn kind(&self) -> ErrorKind {
+        match self {
+            Self::Rejected { status, code, .. } => code
+                .as_deref()
+                .and_then(classify_aws_code)
+                .unwrap_or_else(|| ErrorKind::from_http_status(*status)),
+            Self::Transport { .. } | Self::InstanceNotRunning(_) => ErrorKind::Transient,
+            Self::AmiNotFound { .. } => ErrorKind::NotFound,
+            Self::InvalidPricingFilter(_) | Self::Core(_) => ErrorKind::Unknown,
+            Self::MissingField { .. }
+            | Self::NoAvailabilityZones
+            | Self::MissingVpcIpv6Cidr { .. }
+            | Self::InvalidIpv6Cidr { .. }
+            | Self::MissingMainRouteTable { .. }
+            | Self::MissingPublicIpv4 { .. }
+            | Self::MissingPublicIpv6 { .. }
+            | Self::PriceUnavailable { .. } => ErrorKind::Cloud,
+        }
+    }
+
+    fn operation(&self) -> Option<String> {
+        match self {
+            Self::Rejected { operation, .. } | Self::Transport { operation, .. } => {
+                Some((*operation).to_string())
+            }
+            _ => None,
+        }
+    }
+
+    fn code(&self) -> Option<String> {
+        match self {
+            Self::Rejected { code, .. } => code.clone(),
+            _ => None,
+        }
+    }
+}
+
 impl From<AwsError> for CoreError {
     fn from(error: AwsError) -> Self {
-        let kind = match error {
-            AwsError::Rejected {
-                operation,
-                status,
-                code,
-                message,
-                detail,
-            } => {
-                return Self::cloud_api_rejected(
-                    CloudProviderName::Aws,
-                    operation,
-                    status,
-                    code,
-                    message,
-                    &detail,
-                );
-            }
-            AwsError::Core(core_error) => return core_error,
-            AwsError::Transport { .. } | AwsError::InstanceNotRunning(_) => ErrorKind::Transient,
-            AwsError::InvalidPricingFilter(_) => ErrorKind::Unknown,
-            AwsError::MissingResponseField { .. }
-            | AwsError::NoAvailabilityZones
-            | AwsError::MissingVpcIpv6Cidr { .. }
-            | AwsError::InvalidIpv6Cidr { .. }
-            | AwsError::MissingMainRouteTable { .. }
-            | AwsError::MissingPublicIpv4 { .. }
-            | AwsError::MissingPublicIpv6 { .. }
-            | AwsError::AmiLookupFailed { .. }
-            | AwsError::PriceUnavailable { .. } => ErrorKind::Cloud,
-        };
-        Self::Provider {
-            provider: CloudProviderName::Aws,
-            kind,
-            source: Box::new(error),
+        match error {
+            AwsError::Core(core_error) => core_error,
+            other => Self::Cloud(Box::new(other)),
         }
     }
 }
@@ -181,6 +189,22 @@ convert_operation_errors! {
     GetCallerIdentityError => "sts:GetCallerIdentity",
     SimulatePrincipalPolicyError => "iam:SimulatePrincipalPolicy",
     GetProductsError => "pricing:GetProducts",
+}
+
+fn classify_aws_code(code: &str) -> Option<ErrorKind> {
+    match code {
+        "UnauthorizedOperation" | "AccessDenied" | "AccessDeniedException" => {
+            Some(ErrorKind::Authorization)
+        }
+        "AuthFailure"
+        | "InvalidClientTokenId"
+        | "SignatureDoesNotMatch"
+        | "UnrecognizedClientException"
+        | "ExpiredToken" => Some(ErrorKind::Authentication),
+        "ThrottlingException" | "RequestLimitExceeded" => Some(ErrorKind::Quota),
+        _ if code.ends_with(".NotFound") => Some(ErrorKind::NotFound),
+        _ => None,
+    }
 }
 
 fn convert_sdk_error<E>(operation: &'static str, sdk_error: SdkError<E>) -> AwsError

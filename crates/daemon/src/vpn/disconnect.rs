@@ -1,4 +1,4 @@
-use byocvpn_core::error::{Result, SystemError};
+use byocvpn_core::error::{InternalError, Result};
 use log::{debug, error, info, warn};
 
 use crate::{
@@ -10,7 +10,7 @@ pub async fn disconnect_vpn() -> Result<()> {
 
     let Some(mut handle) = TUNNEL_MANAGER
         .lock()
-        .map_err(|_| SystemError::MutexPoisoned {
+        .map_err(|_| InternalError::MutexPoisoned {
             lock_name: "TUNNEL_MANAGER",
         })?
         .take()

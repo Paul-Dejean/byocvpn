@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use byocvpn_core::managed_resources::build_managed_tags;
 use log::{debug, info};
 use serde::de::IgnoredAny;
 
@@ -10,7 +11,7 @@ use crate::{
     models::{
         IpConfiguration, IpConfigurationProperties, NicProperties, NicRequest,
         PublicIpListResponse, PublicIpProperties, PublicIpRequest, PublicIpResponse, PublicIpSku,
-        ResourceReference, build_managed_tags,
+        ResourceReference,
     },
     resource_operations::{delete_resource, get_existing, put_and_wait},
 };

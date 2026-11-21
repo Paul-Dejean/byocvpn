@@ -1,8 +1,10 @@
+use std::fmt::{Display, Formatter, Result as FmtResult};
+
 use byocvpn_core::{
     cloud_provider::CloudProviderName,
-    error::{Error as CoreError, ErrorKind},
+    error::{CloudError, Error as CoreError, ErrorKind},
 };
-use reqwest::{Error as ReqwestError, StatusCode};
+use reqwest::{Error as ReqwestError, Method, StatusCode};
 use rsa::{pkcs8::Error as Pkcs8Error, signature::Error as SignatureError};
 use serde::Deserialize;
 use serde_json::{Error as JsonError, from_str};
@@ -13,33 +15,54 @@ pub type Result<T> = std::result::Result<T, OracleError>;
 
 #[derive(Debug, Error)]
 pub enum OracleError {
-    #[error("{method} {url} rejected with HTTP {status}: {}", .message.as_deref().unwrap_or("no message"))]
+    #[error("{request} rejected with HTTP {status}: {}", .message.as_deref().unwrap_or(.body.as_str()))]
     Rejected {
-        method: &'static str,
-        url: String,
+        request: ApiRequest,
         status: u16,
         code: Option<String>,
         message: Option<String>,
         body: String,
     },
 
-    #[error("request to Oracle Cloud failed: {0}")]
-    Transport(#[from] ReqwestError),
+    #[error("{request} could not be completed")]
+    Transport {
+        request: ApiRequest,
+        #[source]
+        source: ReqwestError,
+    },
 
-    #[error("invalid request URL: {0}")]
-    InvalidUrl(#[from] UrlParseError),
+    #[error("failed to build the HTTP client")]
+    HttpClientBuild(#[source] ReqwestError),
 
-    #[error("JSON serialization failed: {0}")]
-    Json(#[from] JsonError),
+    #[error("invalid request URL {url}")]
+    InvalidUrl {
+        url: String,
+        #[source]
+        source: UrlParseError,
+    },
 
-    #[error("invalid private key: {0}")]
+    #[error("{request} returned a body that is not valid JSON")]
+    InvalidJson {
+        request: ApiRequest,
+        #[source]
+        source: JsonError,
+    },
+
+    #[error("{request} request body could not be serialized")]
+    InvalidRequestBody {
+        request: ApiRequest,
+        #[source]
+        source: JsonError,
+    },
+
+    #[error("invalid private key")]
     InvalidPrivateKey(#[from] Pkcs8Error),
 
-    #[error("request signing failed: {0}")]
-    SigningFailed(#[from] SignatureError),
+    #[error("request signing failed")]
+    RequestSigning(#[from] SignatureError),
 
-    #[error("{resource} response is missing {field}")]
-    MissingResourceField {
+    #[error("{resource} is missing {field}")]
+    MissingField {
         resource: &'static str,
         field: &'static str,
     },
@@ -78,73 +101,138 @@ pub enum OracleError {
     Core(#[from] CoreError),
 }
 
-impl From<OracleError> for CoreError {
-    fn from(error: OracleError) -> Self {
-        let kind = match error {
-            OracleError::Rejected {
-                method,
-                url,
-                status,
-                code,
-                message,
-                body,
-            } => {
-                return Self::cloud_api_rejected(
-                    CloudProviderName::Oracle,
-                    format!("{method} {url}"),
-                    status,
-                    code,
-                    message,
-                    &body,
-                );
-            }
-            OracleError::Core(core_error) => return core_error,
-            OracleError::Transport(_)
-            | OracleError::InstanceNotRunning { .. }
-            | OracleError::RegionSubscriptionTimedOut { .. } => ErrorKind::Transient,
-            OracleError::InvalidPrivateKey(_) | OracleError::SigningFailed(_) => {
-                ErrorKind::Authentication
-            }
-            OracleError::BaseImageNotFound { .. } | OracleError::RegionNotFound { .. } => {
-                ErrorKind::NotFound
-            }
-            OracleError::InvalidUrl(_) | OracleError::Json(_) => ErrorKind::Unknown,
-            OracleError::MissingResourceField { .. }
-            | OracleError::NoAvailabilityDomains { .. }
-            | OracleError::InstanceTerminated { .. }
-            | OracleError::UnknownShape { .. }
-            | OracleError::PriceListRejected { .. }
-            | OracleError::PriceUnavailable { .. } => ErrorKind::Cloud,
-        };
-        Self::Provider {
-            provider: CloudProviderName::Oracle,
-            kind,
-            source: Box::new(error),
-        }
-    }
-}
-
-pub fn build_rejected_error(
-    method: &'static str,
-    url: &str,
-    status: StatusCode,
-    body: &str,
-) -> OracleError {
-    let error_body = from_str::<OciErrorResponse>(body).ok();
-    OracleError::Rejected {
-        method,
-        url: url.to_string(),
-        status: status.as_u16(),
-        code: error_body
-            .as_ref()
-            .and_then(|error_body| error_body.code.clone()),
-        message: error_body.and_then(|error_body| error_body.message),
-        body: body.to_string(),
-    }
+#[derive(Debug, Clone)]
+pub struct ApiRequest {
+    method: Method,
+    url: String,
 }
 
 #[derive(Deserialize)]
 struct OciErrorResponse {
     code: Option<String>,
     message: Option<String>,
+}
+
+impl ApiRequest {
+    pub fn new(method: Method, url: &str) -> Self {
+        Self {
+            method,
+            url: url.to_string(),
+        }
+    }
+
+    pub const fn get_method(&self) -> &Method {
+        &self.method
+    }
+
+    pub fn get_url(&self) -> &str {
+        &self.url
+    }
+
+    pub fn rejected(&self, status: StatusCode, body: &str) -> OracleError {
+        let error_body = from_str::<OciErrorResponse>(body).ok();
+        OracleError::Rejected {
+            request: self.clone(),
+            status: status.as_u16(),
+            code: error_body
+                .as_ref()
+                .and_then(|error_body| error_body.code.clone()),
+            message: error_body.and_then(|error_body| error_body.message),
+            body: body.to_string(),
+        }
+    }
+
+    pub fn transport(&self, source: ReqwestError) -> OracleError {
+        OracleError::Transport {
+            request: self.clone(),
+            source,
+        }
+    }
+
+    pub fn invalid_json(&self, source: JsonError) -> OracleError {
+        OracleError::InvalidJson {
+            request: self.clone(),
+            source,
+        }
+    }
+
+    pub fn invalid_body(&self, source: JsonError) -> OracleError {
+        OracleError::InvalidRequestBody {
+            request: self.clone(),
+            source,
+        }
+    }
+}
+
+impl CloudError for OracleError {
+    fn provider(&self) -> CloudProviderName {
+        CloudProviderName::Oracle
+    }
+
+    fn kind(&self) -> ErrorKind {
+        match self {
+            Self::Rejected { status, code, .. } => code
+                .as_deref()
+                .and_then(classify_oci_code)
+                .unwrap_or_else(|| ErrorKind::from_http_status(*status)),
+            Self::Transport { .. }
+            | Self::InstanceNotRunning { .. }
+            | Self::RegionSubscriptionTimedOut { .. } => ErrorKind::Transient,
+            Self::InvalidPrivateKey(_) | Self::RequestSigning(_) => ErrorKind::Authentication,
+            Self::BaseImageNotFound { .. } | Self::RegionNotFound { .. } => ErrorKind::NotFound,
+            Self::HttpClientBuild(_)
+            | Self::InvalidUrl { .. }
+            | Self::InvalidJson { .. }
+            | Self::InvalidRequestBody { .. }
+            | Self::Core(_) => ErrorKind::Unknown,
+            Self::MissingField { .. }
+            | Self::NoAvailabilityDomains { .. }
+            | Self::InstanceTerminated { .. }
+            | Self::UnknownShape { .. }
+            | Self::PriceListRejected { .. }
+            | Self::PriceUnavailable { .. } => ErrorKind::Cloud,
+        }
+    }
+
+    fn operation(&self) -> Option<String> {
+        match self {
+            Self::Rejected { request, .. }
+            | Self::Transport { request, .. }
+            | Self::InvalidJson { request, .. }
+            | Self::InvalidRequestBody { request, .. } => Some(request.to_string()),
+            _ => None,
+        }
+    }
+
+    fn code(&self) -> Option<String> {
+        match self {
+            Self::Rejected { code, .. } => code.clone(),
+            _ => None,
+        }
+    }
+}
+
+impl From<OracleError> for CoreError {
+    fn from(error: OracleError) -> Self {
+        match error {
+            OracleError::Core(core_error) => core_error,
+            other => Self::Cloud(Box::new(other)),
+        }
+    }
+}
+
+impl Display for ApiRequest {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+        write!(formatter, "{} {}", self.method, self.url)
+    }
+}
+
+fn classify_oci_code(code: &str) -> Option<ErrorKind> {
+    match code {
+        "NotAuthorizedOrNotFound" | "NotAllowed" => Some(ErrorKind::Authorization),
+        "NotAuthenticated" => Some(ErrorKind::Authentication),
+        "TooManyRequests" | "LimitExceeded" | "QuotaExceeded" => Some(ErrorKind::Quota),
+        "NotFound" => Some(ErrorKind::NotFound),
+        _ => None,
+    }
 }

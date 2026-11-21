@@ -83,7 +83,7 @@ export type DurationUnit = "minutes" | "hours";
 
 export type EnableRegionEvent = { kind: "STARTED"; jobId: string; steps: JobStep[] } | { kind: "PROGRESS"; stepId: string; status: JobStepStatus; error: ErrorPayload | null } | { kind: "COMPLETE"; region: string } | { kind: "FAILED"; error: ErrorPayload };
 
-export type ErrorKind = "authentication" | "authorization" | "quota" | "transient" | "notFound" | "configuration" | "daemon" | "cloud" | "unknown";
+export type ErrorKind = "authentication" | "authorization" | "quota" | "transient" | "notFound" | "configuration" | "tunnel" | "daemon" | "cloud" | "unknown";
 
 export type ErrorPayload = {
 	kind: ErrorKind,

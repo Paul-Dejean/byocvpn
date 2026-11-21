@@ -13,7 +13,7 @@ use log::{error, info};
 
 use crate::{
     connect::{run_connect, run_disconnect},
-    error::CliResult,
+    error::{CliError, CliResult},
     providers::{describe_instance, list_instances_across_providers},
     spawn::spawn_new_server,
     terminate::run_terminate,
@@ -67,8 +67,15 @@ async fn main() {
         .init();
 
     if let Err(error) = run(Cli::parse()).await {
-        error!("{error}");
+        error!("{}", describe_cli_error(&error));
         std::process::exit(1);
+    }
+}
+
+fn describe_cli_error(error: &CliError) -> String {
+    match error {
+        CliError::Core(core_error) => core_error.describe(),
+        other => other.to_string(),
     }
 }
 

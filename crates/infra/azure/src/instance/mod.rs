@@ -1,3 +1,4 @@
+use byocvpn_core::managed_resources::build_managed_tags;
 mod vm_network;
 
 use std::collections::HashMap;
@@ -12,7 +13,7 @@ use byocvpn_core::{
 };
 use chrono::{DateTime, Utc};
 use futures::future::try_join_all;
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -30,7 +31,6 @@ use crate::{
     models::{
         HardwareProfile, LinuxConfiguration, NetworkInterfaceReference, NetworkProfile, OsDisk,
         OsProfile, StorageProfile, VmListResponse, VmProperties, VmRequest, VmResponse,
-        build_managed_tags,
     },
     network::RegionNetwork,
     state::AzureProvisioningState,
@@ -67,7 +67,7 @@ pub async fn spawn_instance(
             Ok(instance)
         }
         Err(error) => {
-            error!("[Azure] Spawn in {location} failed, cleaning up VM '{vm_name}': {error}");
+            warn!("[Azure] Spawn in {location} failed, cleaning up VM '{vm_name}'");
             cleanup_vm_resources(client, &resource_group, &vm_name).await;
             Err(error)
         }

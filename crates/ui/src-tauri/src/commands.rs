@@ -88,7 +88,10 @@ pub async fn spawn_instance(
     tauri::async_runtime::spawn(async move {
         let context = app_handle.state::<AppContext>();
         if let Err(error) = run_spawn_job(&*cloud_provider, &context, &region, &observer).await {
-            debug!("Spawn job in {region} ended with error: {error}");
+            debug!(
+                "Spawn job in {region} ended with error: {}",
+                error.describe()
+            );
         }
     });
 
@@ -169,7 +172,10 @@ pub async fn provision_account(
     tauri::async_runtime::spawn(async move {
         let context = app_handle.state::<AppContext>();
         if let Err(error) = run_provision_account_job(&*cloud_provider, &context, &observer).await {
-            debug!("Provision account job for {provider} ended with error: {error}");
+            debug!(
+                "Provision account job for {provider} ended with error: {}",
+                error.describe()
+            );
         }
     });
 
@@ -196,7 +202,10 @@ pub async fn enable_region(
         if let Err(error) =
             run_enable_region_job(&*cloud_provider, &context, &region, &observer).await
         {
-            debug!("Enable region job for {provider} {region} ended with error: {error}");
+            debug!(
+                "Enable region job for {provider} {region} ended with error: {}",
+                error.describe()
+            );
         }
     });
 
@@ -256,7 +265,7 @@ pub async fn connect(
         )
         .await
     {
-        error!("Failed to start metrics stream: {error}");
+        error!("Failed to start metrics stream: {}", error.describe());
     }
 
     publish_vpn_status(&app_handle, &vpn_status);

@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::SystemTime};
 
 use byocvpn_core::{
-    error::{Result, SystemError},
+    error::{InternalError, Result},
     tunnel::{ConnectedInstance, TunnelMetrics, VpnStatus},
 };
 use tokio::sync::RwLock;
@@ -38,7 +38,7 @@ pub async fn get_vpn_status() -> Result<VpnStatus> {
 fn take_tunnel_snapshot() -> Result<Option<TunnelSnapshot>> {
     let manager = TUNNEL_MANAGER
         .lock()
-        .map_err(|_| SystemError::MutexPoisoned {
+        .map_err(|_| InternalError::MutexPoisoned {
             lock_name: "TUNNEL_MANAGER",
         })?;
 

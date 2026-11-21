@@ -109,8 +109,9 @@ pub async fn run_auto_terminate_check(
         {
             Ok(()) => observer.on_auto_terminated(entry, notifications_enabled),
             Err(error) => warn!(
-                "[auto-terminate] failed to terminate {}: {error}",
-                entry.instance_id
+                "[auto-terminate] failed to terminate {}: {}",
+                entry.instance_id,
+                error.describe()
             ),
         }
     }

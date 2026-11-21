@@ -1,3 +1,4 @@
+use byocvpn_core::managed_resources::build_managed_tags;
 use log::{debug, info};
 use serde::de::IgnoredAny;
 
@@ -5,7 +6,7 @@ use crate::{
     arm_resource::ArmResource,
     client::AzureClient,
     error::Result,
-    models::{AddressSpace, VnetProperties, VnetRequest, build_managed_tags},
+    models::{AddressSpace, VnetProperties, VnetRequest},
     resource_operations::{get_existing, put_and_wait},
 };
 

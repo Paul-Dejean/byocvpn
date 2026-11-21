@@ -1,4 +1,4 @@
-use byocvpn_core::managed_resources::{ANY_IPV4_CIDR, ANY_IPV6_CIDR};
+use byocvpn_core::managed_resources::{ANY_IPV4_CIDR, ANY_IPV6_CIDR, build_managed_tags};
 use log::info;
 
 use crate::{
@@ -6,7 +6,7 @@ use crate::{
     error::Result,
     models::{
         CreateInternetGatewayRequest, InternetGatewayResponse, RouteRule, RouteTableResponse,
-        UpdateRouteTableRequest, build_managed_tags,
+        UpdateRouteTableRequest,
     },
     network::vcn::Vcn,
 };

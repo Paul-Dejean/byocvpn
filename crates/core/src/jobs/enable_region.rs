@@ -40,7 +40,7 @@ pub async fn run_enable_region_job(
             Ok(())
         }
         Err(error) => {
-            warn!("Enable region job {job_id} failed: {error}");
+            warn!("Enable region job {job_id} failed: {}", error.describe());
             observer.on_job_failed(&error);
             Err(error)
         }

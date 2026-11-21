@@ -10,7 +10,7 @@ use std::{
 use log::{debug, error, info, warn};
 
 use crate::{
-    error::{Result, SystemError},
+    error::{InternalError, Result},
     ipc::{IpcStream, metrics_socket_path},
     tunnel::{ConnectedInstance, TunnelMetrics, VpnStatus},
 };
@@ -64,7 +64,7 @@ where
     let generation = {
         let mut state = STREAM_STATE.lock().map_err(|error| {
             warn!("Failed to acquire metrics stream state lock: {error}");
-            SystemError::MutexPoisoned {
+            InternalError::MutexPoisoned {
                 lock_name: "STREAM_STATE",
             }
         })?;
@@ -195,7 +195,7 @@ where
 pub async fn stop() -> Result<()> {
     let mut state = STREAM_STATE.lock().map_err(|error| {
         warn!("Failed to acquire metrics stream state lock: {error}");
-        SystemError::MutexPoisoned {
+        InternalError::MutexPoisoned {
             lock_name: "STREAM_STATE",
         }
     })?;

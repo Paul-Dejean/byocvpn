@@ -1,11 +1,10 @@
+use byocvpn_core::managed_resources::build_managed_tags;
 use log::info;
 
 use crate::{
     client::OciClient,
     error::Result,
-    models::{
-        CreateSubnetRequest, SubnetResponse, UpdateSubnetSecurityListRequest, build_managed_tags,
-    },
+    models::{CreateSubnetRequest, SubnetResponse, UpdateSubnetSecurityListRequest},
     network::vcn::Vcn,
 };
 

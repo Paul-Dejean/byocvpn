@@ -25,7 +25,7 @@ pub async fn resolve_boot_image(client: &GcpClient) -> Result<String> {
         }
         Err(error) => return Err(error),
     };
-    image.self_link.ok_or(GcpError::MissingResourceField {
+    image.self_link.ok_or(GcpError::MissingField {
         resource: "image",
         field: "selfLink",
     })

@@ -7,7 +7,7 @@ use tokio::{
 };
 
 use crate::{
-    error::{Error, Result, SystemError},
+    error::{Error, InstanceError, Result},
     managed_resources::WIREGUARD_PORT,
     retry::{RetryPolicy, retry_if},
 };
@@ -67,16 +67,21 @@ pub async fn wait_until_ready(ip_address: &str) -> Result<()> {
                     Ok(())
                 }
                 ProbeStatus::Error(reason) => {
-                    Err(SystemError::ReadinessProbeFailed { reason }.into())
+                    Err(InstanceError::ReadinessProbeFailed { reason }.into())
                 }
                 ProbeStatus::Installing => {
                     debug!("[probe] not ready yet, retrying...");
-                    Err(SystemError::ReadinessProbeTimedOut.into())
+                    Err(InstanceError::ReadinessProbeTimedOut.into())
                 }
             }
         },
         PROBE_RETRY_POLICY,
-        |error| matches!(error, Error::System(SystemError::ReadinessProbeTimedOut)),
+        |error| {
+            matches!(
+                error,
+                Error::Instance(InstanceError::ReadinessProbeTimedOut)
+            )
+        },
     )
     .await
 }

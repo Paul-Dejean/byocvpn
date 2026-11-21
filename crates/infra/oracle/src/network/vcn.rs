@@ -1,9 +1,10 @@
+use byocvpn_core::managed_resources::build_managed_tags;
 use log::info;
 
 use crate::{
     client::OciClient,
     error::{OracleError, Result},
-    models::{CreateVcnRequest, VcnResponse, build_managed_tags},
+    models::{CreateVcnRequest, VcnResponse},
 };
 
 const VCN_DISPLAY_NAME: &str = "byocvpn-vcn";
@@ -25,7 +26,7 @@ impl Vcn {
         let ipv6_prefix = response
             .ipv6_cidr_blocks
             .and_then(|blocks| blocks.into_iter().next())
-            .ok_or(OracleError::MissingResourceField {
+            .ok_or(OracleError::MissingField {
                 resource: "VCN",
                 field: "ipv6CidrBlocks",
             })?;

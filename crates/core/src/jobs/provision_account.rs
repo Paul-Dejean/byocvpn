@@ -37,7 +37,10 @@ pub async fn run_provision_account_job(
             Ok(())
         }
         Err(error) => {
-            warn!("Provision account job {job_id} failed: {error}");
+            warn!(
+                "Provision account job {job_id} failed: {}",
+                error.describe()
+            );
             observer.on_job_failed(&error);
             Err(error)
         }

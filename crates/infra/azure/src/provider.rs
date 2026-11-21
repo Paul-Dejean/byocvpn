@@ -4,8 +4,7 @@ use byocvpn_core::{
         CloudProvider, CloudProviderName, InstanceInfo, JobStep, PermissionStatus, PricingInfo,
         Region, SpawnInstanceParams, TerminateInstanceParams,
     },
-    error::Result,
-    jobs::build_unknown_step_error,
+    error::{InternalError, Result},
 };
 
 use crate::{
@@ -71,7 +70,7 @@ impl CloudProvider for AzureProvider {
     }
 
     async fn run_provision_account_step(&self, step_id: &str) -> Result<()> {
-        Err(build_unknown_step_error(CloudProviderName::Azure, step_id))
+        Err(InternalError::unknown_step(CloudProviderName::Azure, step_id).into())
     }
 
     fn get_enable_region_steps(&self, _region: &str) -> Vec<JobStep> {
@@ -89,7 +88,7 @@ impl CloudProvider for AzureProvider {
                 Ok(())
             }
             AzureStepId::SetupNetwork | AzureStepId::Launch | AzureStepId::WireguardReady => {
-                Err(build_unknown_step_error(CloudProviderName::Azure, step_id))
+                Err(InternalError::unknown_step(CloudProviderName::Azure, step_id).into())
             }
         }
     }
@@ -106,7 +105,7 @@ impl CloudProvider for AzureProvider {
             }
             AzureStepId::Launch | AzureStepId::WireguardReady => Ok(()),
             AzureStepId::RegionResourceGroup | AzureStepId::RegionVnet => {
-                Err(build_unknown_step_error(CloudProviderName::Azure, step_id))
+                Err(InternalError::unknown_step(CloudProviderName::Azure, step_id).into())
             }
         }
     }

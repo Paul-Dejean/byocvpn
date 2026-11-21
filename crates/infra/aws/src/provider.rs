@@ -4,8 +4,7 @@ use byocvpn_core::{
         CloudProvider, CloudProviderName, InstanceInfo, JobStep, PermissionStatus, PricingInfo,
         Region, SpawnInstanceParams, TerminateInstanceParams,
     },
-    error::Result,
-    jobs::build_unknown_step_error,
+    error::{InternalError, Result},
 };
 use futures::future::join_all;
 use log::{info, warn};
@@ -102,7 +101,7 @@ impl CloudProvider for AwsProvider {
     }
 
     async fn run_provision_account_step(&self, step_id: &str) -> Result<()> {
-        Err(build_unknown_step_error(CloudProviderName::Aws, step_id))
+        Err(InternalError::unknown_step(CloudProviderName::Aws, step_id).into())
     }
 
     fn get_enable_region_steps(&self, _region: &str) -> Vec<JobStep> {
@@ -128,7 +127,7 @@ impl CloudProvider for AwsProvider {
                 network::ensure_security_group(&client, &vpc_id).await?;
             }
             AwsStepId::SetupNetwork | AwsStepId::Launch | AwsStepId::WireguardReady => {
-                return Err(build_unknown_step_error(CloudProviderName::Aws, step_id));
+                return Err(InternalError::unknown_step(CloudProviderName::Aws, step_id).into());
             }
         }
         Ok(())
@@ -150,7 +149,7 @@ impl CloudProvider for AwsProvider {
             | AwsStepId::SetupIgw
             | AwsStepId::RegionSubnets
             | AwsStepId::RegionSecurityGroup => {
-                Err(build_unknown_step_error(CloudProviderName::Aws, step_id))
+                Err(InternalError::unknown_step(CloudProviderName::Aws, step_id).into())
             }
         }
     }

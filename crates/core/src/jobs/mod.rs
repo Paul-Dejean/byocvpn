@@ -5,11 +5,11 @@ pub mod spawn;
 
 use async_trait::async_trait;
 use chrono::Utc;
-use log::{debug, error};
+use log::debug;
 
 use crate::{
     cloud_provider::{CloudProviderName, JobStep, JobStepStatus},
-    error::{Error, ErrorPayload, Result, SystemError},
+    error::{ErrorPayload, Result},
 };
 
 pub trait JobObserver: Send + Sync {
@@ -33,7 +33,6 @@ pub async fn run_job_steps(
         observer.on_step_changed(step, JobStepStatus::Running, None);
 
         if let Err(step_error) = job_steps.run_step(step).await {
-            error!("Job step {} failed: {step_error}", step.id);
             observer.on_step_changed(step, JobStepStatus::Failed, Some(step_error.to_payload()));
             return Err(step_error);
         }
@@ -50,12 +49,4 @@ pub fn build_job_id(provider: &CloudProviderName, region: Option<&str>) -> Strin
         Some(region) => format!("{provider}-{region}-{timestamp}"),
         None => format!("{provider}-{timestamp}"),
     }
-}
-
-pub fn build_unknown_step_error(provider: CloudProviderName, step_id: &str) -> Error {
-    SystemError::UnknownJobStep {
-        provider,
-        step_id: step_id.to_string(),
-    }
-    .into()
 }

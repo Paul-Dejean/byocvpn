@@ -1,10 +1,11 @@
 use byocvpn_core::cloud_provider::PricingInfo;
-use reqwest::Client as HttpClient;
+use reqwest::{Client as HttpClient, Method};
 use serde::Deserialize;
+use serde_json::from_str;
 use tokio::time::Duration;
 
 use crate::{
-    error::{AzureError, Result},
+    error::{ApiRequest, AzureError, Result},
     instance::OS_DISK_SIZE_GB,
 };
 
@@ -24,7 +25,8 @@ const HOURLY_UNIT_OF_MEASURE: &str = "1 Hour";
 pub async fn fetch_pricing(region: &str, vm_size: &str) -> Result<PricingInfo> {
     let http = HttpClient::builder()
         .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
-        .build()?;
+        .build()
+        .map_err(AzureError::HttpClientBuild)?;
 
     let vm_filter = format!(
         "serviceName eq 'Virtual Machines' and armRegionName eq '{region}' and armSkuName eq '{vm_size}' and priceType eq 'Consumption'"
@@ -95,6 +97,7 @@ fn select_first_paid_tier(items: &[RetailPriceItem]) -> Option<f64> {
 }
 
 async fn query_retail_prices(http: &HttpClient, filter: &str) -> Result<Vec<RetailPriceItem>> {
+    let request = ApiRequest::new(Method::GET, RETAIL_PRICES_URL);
     let response = http
         .get(RETAIL_PRICES_URL)
         .query(&[
@@ -102,7 +105,8 @@ async fn query_retail_prices(http: &HttpClient, filter: &str) -> Result<Vec<Reta
             ("$filter", filter),
         ])
         .send()
-        .await?;
+        .await
+        .map_err(|source| request.transport(source))?;
 
     let status = response.status();
     if !status.is_success() {
@@ -111,7 +115,11 @@ async fn query_retail_prices(http: &HttpClient, filter: &str) -> Result<Vec<Reta
         });
     }
 
-    let page: RetailPricesPage = response.json().await?;
+    let body = response
+        .text()
+        .await
+        .map_err(|source| request.transport(source))?;
+    let page: RetailPricesPage = from_str(&body).map_err(|source| request.invalid_json(source))?;
     Ok(page.items)
 }
 

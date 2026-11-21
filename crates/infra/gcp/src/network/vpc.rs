@@ -63,7 +63,7 @@ async fn create_vpc(client: &GcpClient) -> Result<String> {
 }
 
 fn extract_self_link(vpc: Network) -> Result<String> {
-    vpc.self_link.ok_or(GcpError::MissingResourceField {
+    vpc.self_link.ok_or(GcpError::MissingField {
         resource: "VPC",
         field: "selfLink",
     })

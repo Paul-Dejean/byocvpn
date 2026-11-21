@@ -1,14 +1,11 @@
-use byocvpn_core::managed_resources::WIREGUARD_PORT;
+use byocvpn_core::managed_resources::{WIREGUARD_PORT, build_managed_tags};
 use log::{debug, info};
 
 use crate::{
     arm_resource::ArmResource,
     client::AzureClient,
     error::Result,
-    models::{
-        NsgProperties, NsgRequest, NsgResponse, SecurityRule, SecurityRuleProperties,
-        build_managed_tags,
-    },
+    models::{NsgProperties, NsgRequest, NsgResponse, SecurityRule, SecurityRuleProperties},
     resource_operations::{get_existing, put_and_wait},
 };
 

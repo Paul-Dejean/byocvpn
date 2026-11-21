@@ -1,6 +1,6 @@
 use std::{collections::HashMap, io, process::Command};
 
-use byocvpn_core::error::{ConfigurationError, Result};
+use byocvpn_core::error::{Result, TunnelError};
 use log::{debug, info, warn};
 
 const LIST_SERVICES_COMMAND: &str = "networksetup -listallnetworkservices";
@@ -16,7 +16,7 @@ pub struct DnsOverrideGuard {
 impl DnsOverrideGuard {
     pub fn override_system_dns(new_dns_servers: &[&str]) -> Result<Self> {
         if new_dns_servers.is_empty() {
-            return Err(ConfigurationError::NoDnsServers.into());
+            return Err(TunnelError::NoDnsServers.into());
         }
 
         let network_service_names = list_all_enabled_network_services()?;
@@ -25,7 +25,7 @@ impl DnsOverrideGuard {
         let mut original_domain_name_system_by_service = HashMap::new();
         for network_service_name in &network_service_names {
             let current_domain_name_system = get_dns_servers_for_service(network_service_name)
-                .map_err(|source| ConfigurationError::DnsCommand {
+                .map_err(|source| TunnelError::DnsCommand {
                     command: GET_DNS_COMMAND,
                     source,
                 })?;
@@ -37,7 +37,7 @@ impl DnsOverrideGuard {
         info!("Setting new DNS servers: {new_dns_servers:?}");
         for network_service_name in &network_service_names {
             set_dns_for_service(network_service_name, Some(new_dns_servers)).map_err(|source| {
-                ConfigurationError::DnsCommand {
+                TunnelError::DnsCommand {
                     command: SET_DNS_COMMAND,
                     source,
                 }
@@ -98,14 +98,12 @@ fn list_all_enabled_network_services() -> Result<Vec<String>> {
     let mut command = Command::new("networksetup");
     command.arg("-listallnetworkservices");
     debug!("Executing command: {command:?}");
-    let output = command
-        .output()
-        .map_err(|source| ConfigurationError::DnsCommand {
-            command: LIST_SERVICES_COMMAND,
-            source,
-        })?;
+    let output = command.output().map_err(|source| TunnelError::DnsCommand {
+        command: LIST_SERVICES_COMMAND,
+        source,
+    })?;
     if !output.status.success() {
-        return Err(ConfigurationError::DnsCommandRejected {
+        return Err(TunnelError::DnsCommandRejected {
             command: LIST_SERVICES_COMMAND,
             status: output.status,
             stderr: String::from_utf8_lossy(&output.stderr).to_string(),

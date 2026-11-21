@@ -12,7 +12,7 @@ use crate::{
     config::get_wireguard_config_file_path,
     connectivity::{self, ProbeStatus},
     daemon_client::fetch_vpn_status,
-    error::{ComputeProvisioningError, ConfigurationError, Error, Result},
+    error::{ConfigurationError, Error, InstanceError, Result},
     provider_factory::ProviderFactory,
     session,
 };
@@ -92,7 +92,7 @@ pub async fn list_instances(
 
 pub async fn require_instance(context: &AppContext, instance_id: &str) -> Result<InstanceInfo> {
     find_instance(context, instance_id).await?.ok_or_else(|| {
-        ComputeProvisioningError::InstanceNotFound {
+        InstanceError::NotFound {
             instance_id: instance_id.to_string(),
         }
         .into()

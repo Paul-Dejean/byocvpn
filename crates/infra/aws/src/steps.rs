@@ -1,7 +1,6 @@
 use byocvpn_core::{
     cloud_provider::{CloudProviderName, JobStep},
-    error::Result,
-    jobs::build_unknown_step_error,
+    error::{InternalError, Result},
 };
 use strum::{Display, EnumString};
 
@@ -38,7 +37,7 @@ impl AwsStepId {
 pub fn parse_step_id(step_id: &str) -> Result<AwsStepId> {
     step_id
         .parse()
-        .map_err(|_| build_unknown_step_error(CloudProviderName::Aws, step_id))
+        .map_err(|_| InternalError::unknown_step(CloudProviderName::Aws, step_id).into())
 }
 
 pub const fn build_provision_account_steps() -> Vec<JobStep> {

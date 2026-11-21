@@ -1,6 +1,6 @@
 use std::{io, process::Command};
 
-use byocvpn_core::error::{ConfigurationError, Result};
+use byocvpn_core::error::{Result, TunnelError};
 use log::{debug, info, warn};
 
 const TUN_INTERFACE_NAME: &str = "tun0";
@@ -15,7 +15,7 @@ pub struct DnsOverrideGuard {
 impl DnsOverrideGuard {
     pub fn override_system_dns(new_dns_servers: &[&str]) -> Result<Self> {
         if new_dns_servers.is_empty() {
-            return Err(ConfigurationError::NoDnsServers.into());
+            return Err(TunnelError::NoDnsServers.into());
         }
 
         info!("Setting DNS servers on {TUN_INTERFACE_NAME} via resolvectl: {new_dns_servers:?}");
@@ -30,13 +30,13 @@ impl DnsOverrideGuard {
         let set_dns_output =
             set_dns_command
                 .output()
-                .map_err(|source| ConfigurationError::DnsCommand {
+                .map_err(|source| TunnelError::DnsCommand {
                     command: SET_DNS_COMMAND,
                     source,
                 })?;
 
         if !set_dns_output.status.success() {
-            return Err(ConfigurationError::DnsCommandRejected {
+            return Err(TunnelError::DnsCommandRejected {
                 command: SET_DNS_COMMAND,
                 status: set_dns_output.status,
                 stderr: String::from_utf8_lossy(&set_dns_output.stderr).to_string(),
@@ -54,13 +54,13 @@ impl DnsOverrideGuard {
         let set_domain_output =
             set_domain_command
                 .output()
-                .map_err(|source| ConfigurationError::DnsCommand {
+                .map_err(|source| TunnelError::DnsCommand {
                     command: SET_DOMAIN_COMMAND,
                     source,
                 })?;
 
         if !set_domain_output.status.success() {
-            return Err(ConfigurationError::DnsCommandRejected {
+            return Err(TunnelError::DnsCommandRejected {
                 command: SET_DOMAIN_COMMAND,
                 status: set_domain_output.status,
                 stderr: String::from_utf8_lossy(&set_domain_output.stderr).to_string(),

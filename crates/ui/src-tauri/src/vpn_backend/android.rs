@@ -12,10 +12,10 @@ use async_trait::async_trait;
 use byocvpn_core::{
     app_context::AppContext,
     daemon_client::{DaemonClient, DaemonCommand, VpnConnectParams},
-    error::{ConfigurationError, DaemonError, Error, Result, SystemError},
+    error::{DaemonError, Error, InternalError, Result, TunnelError},
     tunnel::{
         ConnectedInstance, TUNNEL_MTU, Tunnel, TunnelMetrics, TunnelRateTracker, VpnStatus,
-        build_tunnel_io_error, create_wireguard_tunnel,
+        create_wireguard_tunnel,
     },
 };
 use log::*;
@@ -122,7 +122,7 @@ async fn connect_tunnel(
 ) -> Result<()> {
     if is_tunnel_running()? {
         error!("Connect requested but a tunnel is already running.");
-        return Err(ConfigurationError::TunnelAlreadyRunning.into());
+        return Err(TunnelError::AlreadyRunning.into());
     }
 
     info!(
@@ -304,7 +304,7 @@ async fn start_tunnel(
     } = connect_params;
 
     let tun = unsafe { AsyncDevice::from_fd(tunnel_file_descriptor) }.map_err(|source| {
-        ConfigurationError::TunDevice {
+        TunnelError::TunDevice {
             operation: "open",
             source,
         }
@@ -346,8 +346,8 @@ async fn connect_protected_udp_socket(
         SocketAddr::V6(_) => SocketAddr::from((Ipv6Addr::UNSPECIFIED, 0)),
     };
 
-    let standard_socket = StandardUdpSocket::bind(local_address)
-        .map_err(build_tunnel_io_error("bind the UDP socket"))?;
+    let standard_socket =
+        StandardUdpSocket::bind(local_address).map_err(TunnelError::io("bind the UDP socket"))?;
 
     vpn_service
         .protect_socket(standard_socket.as_raw_fd())
@@ -356,15 +356,15 @@ async fn connect_protected_udp_socket(
 
     standard_socket
         .set_nonblocking(true)
-        .map_err(build_tunnel_io_error("make the UDP socket non-blocking"))?;
+        .map_err(TunnelError::io("make the UDP socket non-blocking"))?;
 
-    let socket = UdpSocket::from_std(standard_socket)
-        .map_err(build_tunnel_io_error("register the UDP socket"))?;
+    let socket =
+        UdpSocket::from_std(standard_socket).map_err(TunnelError::io("register the UDP socket"))?;
 
     socket
         .connect(server_endpoint)
         .await
-        .map_err(build_tunnel_io_error("connect the UDP socket"))?;
+        .map_err(TunnelError::io("connect the UDP socket"))?;
 
     info!("UDP socket connected to {}", server_endpoint);
     Ok(socket)
@@ -394,7 +394,7 @@ fn read_active_tunnel_snapshot() -> Result<Option<ActiveTunnelSnapshot>> {
 
 fn lock_active_tunnel() -> Result<MutexGuard<'static, Option<ActiveTunnel>>> {
     ACTIVE_TUNNEL.lock().map_err(|_| {
-        SystemError::MutexPoisoned {
+        InternalError::MutexPoisoned {
             lock_name: "ACTIVE_TUNNEL",
         }
         .into()

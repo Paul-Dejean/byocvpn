@@ -1,4 +1,6 @@
-use byocvpn_core::managed_resources::{ANY_IPV4_CIDR, ANY_IPV6_CIDR, WIREGUARD_PORT};
+use byocvpn_core::managed_resources::{
+    ANY_IPV4_CIDR, ANY_IPV6_CIDR, WIREGUARD_PORT, build_managed_tags,
+};
 use log::info;
 
 use crate::{
@@ -7,7 +9,6 @@ use crate::{
     models::{
         CreateSecurityListRequest, EgressSecurityRule, IngressSecurityRule, PortRange,
         SecurityListResponse, TcpOptions, UdpOptions, UpdateSecurityListRequest,
-        build_managed_tags,
     },
     network::vcn::Vcn,
 };

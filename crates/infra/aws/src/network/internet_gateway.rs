@@ -76,8 +76,8 @@ async fn create_internet_gateway(client: &AwsClient, vpc_id: &str) -> Result<Str
     let internet_gateway_id = response
         .internet_gateway()
         .and_then(|internet_gateway| internet_gateway.internet_gateway_id())
-        .ok_or(AwsError::MissingResponseField {
-            operation: "ec2:CreateInternetGateway",
+        .ok_or(AwsError::MissingField {
+            resource: "internet gateway",
             field: "internetGatewayId",
         })?;
 

@@ -149,7 +149,7 @@ async fn list_compute_engine_skus(client: &GcpClient) -> Result<Vec<Sku>> {
 }
 
 fn build_unavailable_error(region: &str, machine_type: &str, reason: &'static str) -> GcpError {
-    GcpError::PricingUnavailable {
+    GcpError::PriceUnavailable {
         region: region.to_string(),
         machine_type: machine_type.to_string(),
         reason,

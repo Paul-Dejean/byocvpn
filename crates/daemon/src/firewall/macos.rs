@@ -1,4 +1,4 @@
-use byocvpn_core::error::{Result, SystemError};
+use byocvpn_core::error::{Result, TunnelError};
 use log::{debug, info};
 use std::process::Command;
 
@@ -13,7 +13,7 @@ pub fn apply(server_ip: &str, tun_name: &str) -> Result<()> {
         "pass quick on lo0 all no state\nblock out all\nblock in all\npass out proto udp to {server_ip} port 51820\npass on {tun_name}\n"
     );
 
-    std::fs::write(ANCHOR_FILE, &anchor_rules).map_err(|source| SystemError::KillSwitchFile {
+    std::fs::write(ANCHOR_FILE, &anchor_rules).map_err(|source| TunnelError::KillSwitchFile {
         operation: "write",
         path: ANCHOR_FILE,
         source,
@@ -77,7 +77,7 @@ fn enable_pf() -> Result<()> {
     let output = Command::new(PFCTL_COMMAND)
         .args(["-e"])
         .output()
-        .map_err(|source| SystemError::KillSwitchCommand {
+        .map_err(|source| TunnelError::KillSwitchCommand {
             command: PFCTL_COMMAND,
             source,
         })?;
@@ -94,13 +94,13 @@ fn run_pfctl(args: &[&str]) -> Result<()> {
     let output = Command::new(PFCTL_COMMAND)
         .args(args)
         .output()
-        .map_err(|source| SystemError::KillSwitchCommand {
+        .map_err(|source| TunnelError::KillSwitchCommand {
             command: PFCTL_COMMAND,
             source,
         })?;
 
     if !output.status.success() {
-        return Err(SystemError::KillSwitchCommandRejected {
+        return Err(TunnelError::KillSwitchCommandRejected {
             command: PFCTL_COMMAND,
             status: output.status,
             stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
@@ -112,7 +112,7 @@ fn run_pfctl(args: &[&str]) -> Result<()> {
 
 fn read_pf_conf() -> Result<String> {
     std::fs::read_to_string(PF_CONF).map_err(|source| {
-        SystemError::KillSwitchFile {
+        TunnelError::KillSwitchFile {
             operation: "read",
             path: PF_CONF,
             source,
@@ -123,7 +123,7 @@ fn read_pf_conf() -> Result<String> {
 
 fn write_pf_conf(content: String) -> Result<()> {
     std::fs::write(PF_CONF, content).map_err(|source| {
-        SystemError::KillSwitchFile {
+        TunnelError::KillSwitchFile {
             operation: "write",
             path: PF_CONF,
             source,

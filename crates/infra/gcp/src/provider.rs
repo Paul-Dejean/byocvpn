@@ -4,8 +4,7 @@ use byocvpn_core::{
         CloudProvider, CloudProviderName, InstanceInfo, JobStep, PermissionStatus, PricingInfo,
         Region, SpawnInstanceParams, TerminateInstanceParams,
     },
-    error::Result,
-    jobs::build_unknown_step_error,
+    error::{InternalError, Result},
 };
 
 use crate::{
@@ -88,7 +87,7 @@ impl CloudProvider for GcpProvider {
             | GcpStepId::SetupNetwork
             | GcpStepId::Launch
             | GcpStepId::WireguardReady => {
-                Err(build_unknown_step_error(CloudProviderName::Gcp, step_id))
+                Err(InternalError::unknown_step(CloudProviderName::Gcp, step_id).into())
             }
         }
     }
@@ -109,7 +108,7 @@ impl CloudProvider for GcpProvider {
             | GcpStepId::SetupNetwork
             | GcpStepId::Launch
             | GcpStepId::WireguardReady => {
-                Err(build_unknown_step_error(CloudProviderName::Gcp, step_id))
+                Err(InternalError::unknown_step(CloudProviderName::Gcp, step_id).into())
             }
         }
     }
@@ -130,7 +129,7 @@ impl CloudProvider for GcpProvider {
             | GcpStepId::SetupVpc
             | GcpStepId::SetupFirewall
             | GcpStepId::RegionSubnet => {
-                Err(build_unknown_step_error(CloudProviderName::Gcp, step_id))
+                Err(InternalError::unknown_step(CloudProviderName::Gcp, step_id).into())
             }
         }
     }

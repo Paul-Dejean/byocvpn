@@ -1,7 +1,6 @@
 use byocvpn_core::{
     cloud_provider::{CloudProviderName, JobStep},
-    error::Result,
-    jobs::build_unknown_step_error,
+    error::{InternalError, Result},
 };
 use strum::{Display, EnumString};
 
@@ -44,7 +43,7 @@ impl OracleStepId {
 pub fn parse_step_id(step_id: &str) -> Result<OracleStepId> {
     step_id
         .parse()
-        .map_err(|_| build_unknown_step_error(CloudProviderName::Oracle, step_id))
+        .map_err(|_| InternalError::unknown_step(CloudProviderName::Oracle, step_id).into())
 }
 
 pub fn build_provision_account_steps() -> Vec<JobStep> {

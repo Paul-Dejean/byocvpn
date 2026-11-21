@@ -24,17 +24,16 @@ pub async fn resolve_boot_image(client: &AwsClient) -> Result<String> {
         .parameter()
         .and_then(|parameter| parameter.value())
         .map(ToString::to_string)
-        .ok_or(AwsError::AmiLookupFailed {
-            name: AL2023_AMI_NAME,
-            reason: "parameter has no value",
+        .ok_or(AwsError::MissingField {
+            resource: "AMI parameter",
+            field: "value",
         })
 }
 
 fn describe_lookup_failure(error: AwsError) -> AwsError {
     if error.has_code(PARAMETER_NOT_FOUND_CODE) {
-        AwsError::AmiLookupFailed {
+        AwsError::AmiNotFound {
             name: AL2023_AMI_NAME,
-            reason: "parameter not found",
         }
     } else {
         error

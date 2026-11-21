@@ -1,7 +1,9 @@
+use std::fmt::{Display, Formatter, Result as FmtResult};
+
 use azure_core::Error as AzureCoreError;
 use byocvpn_core::{
     cloud_provider::CloudProviderName,
-    error::{Error as CoreError, ErrorKind},
+    error::{CloudError, Error as CoreError, ErrorKind},
 };
 use reqwest::{Error as ReqwestError, Method, StatusCode};
 use serde::Deserialize;
@@ -25,32 +27,37 @@ pub enum ArmErrorCode {
 
 #[derive(Debug, Error)]
 pub enum AzureError {
-    #[error("{method} {url} rejected with HTTP {status} {}: {}", .code.as_deref().unwrap_or("no error code"), .message.as_deref().unwrap_or("no message"))]
+    #[error("{request} rejected with HTTP {status} {}: {}", .code.as_deref().unwrap_or("no error code"), .message.as_deref().unwrap_or(.body.as_str()))]
     Rejected {
-        method: String,
-        url: String,
+        request: ApiRequest,
         status: u16,
         code: Option<String>,
         message: Option<String>,
         body: String,
     },
 
-    #[error("Azure request failed: {0}")]
-    Transport(#[from] ReqwestError),
+    #[error("{request} could not be completed")]
+    Transport {
+        request: ApiRequest,
+        #[source]
+        source: ReqwestError,
+    },
 
-    #[error("{method} {url} returned a body that is not valid JSON: {source}")]
+    #[error("failed to build the HTTP client")]
+    HttpClientBuild(#[source] ReqwestError),
+
+    #[error("{request} returned a body that is not valid JSON")]
     InvalidJson {
-        method: String,
-        url: String,
+        request: ApiRequest,
         #[source]
         source: JsonError,
     },
 
-    #[error("Azure credential error: {0}")]
-    Credential(#[from] AzureCoreError),
+    #[error("Azure authentication failed")]
+    Authentication(#[from] AzureCoreError),
 
-    #[error("ARM operation failed: {message} ({operation_url})")]
-    OperationFailed {
+    #[error("ARM operation rejected: {message} ({operation_url})")]
+    OperationRejected {
         operation_url: String,
         message: String,
     },
@@ -81,80 +88,10 @@ pub enum AzureError {
     Core(#[from] CoreError),
 }
 
-impl AzureError {
-    pub fn get_arm_error_code(&self) -> Option<ArmErrorCode> {
-        match self {
-            Self::Rejected {
-                code: Some(code), ..
-            } => code.parse().ok(),
-            _ => None,
-        }
-    }
-
-    pub fn is_not_found(&self) -> bool {
-        matches!(self, Self::Rejected { status, .. } if *status == NOT_FOUND_STATUS)
-            || matches!(
-                self.get_arm_error_code(),
-                Some(ArmErrorCode::ResourceNotFound | ArmErrorCode::ResourceGroupNotFound)
-            )
-    }
-}
-
-impl From<AzureError> for CoreError {
-    fn from(error: AzureError) -> Self {
-        let kind = match error {
-            AzureError::Rejected {
-                method,
-                url,
-                status,
-                code,
-                message,
-                body,
-            } => {
-                return Self::cloud_api_rejected(
-                    CloudProviderName::Azure,
-                    format!("{method} {url}"),
-                    status,
-                    code,
-                    message,
-                    &body,
-                );
-            }
-            AzureError::Core(core_error) => return core_error,
-            AzureError::Transport(_)
-            | AzureError::OperationTimedOut { .. }
-            | AzureError::ProviderRegistrationTimedOut { .. } => ErrorKind::Transient,
-            AzureError::InvalidJson { .. } => ErrorKind::Unknown,
-            AzureError::Credential(_) => ErrorKind::Authentication,
-            AzureError::InvalidInstanceId => ErrorKind::Configuration,
-            AzureError::OperationFailed { .. }
-            | AzureError::NoVmSizeAvailable { .. }
-            | AzureError::PriceUnavailable { .. }
-            | AzureError::RetailPricesRejected { .. } => ErrorKind::Cloud,
-        };
-        Self::Provider {
-            provider: CloudProviderName::Azure,
-            kind,
-            source: Box::new(error),
-        }
-    }
-}
-
-pub fn build_rejected_error(
-    method: &Method,
-    url: &str,
-    status: StatusCode,
-    body: String,
-) -> AzureError {
-    let arm_error = parse_arm_error(&body);
-    AzureError::Rejected {
-        method: method.to_string(),
-        url: url.to_string(),
-        status: status.as_u16(),
-        code: arm_error.as_ref().map(|arm_error| arm_error.code.clone()),
-        message: arm_error.map(|arm_error| arm_error.message),
-        body,
-    }
+#[derive(Debug, Clone)]
+pub struct ApiRequest {
+    method: Method,
+    url: String,
 }
 
 struct ArmError {
@@ -175,6 +112,125 @@ struct ArmErrorBody {
     details: Vec<Self>,
 }
 
+impl AzureError {
+    pub fn get_arm_error_code(&self) -> Option<ArmErrorCode> {
+        match self {
+            Self::Rejected {
+                code: Some(code), ..
+            } => code.parse().ok(),
+            _ => None,
+        }
+    }
+
+    pub fn is_not_found(&self) -> bool {
+        matches!(self, Self::Rejected { status, .. } if *status == NOT_FOUND_STATUS)
+            || matches!(
+                self.get_arm_error_code(),
+                Some(ArmErrorCode::ResourceNotFound | ArmErrorCode::ResourceGroupNotFound)
+            )
+    }
+}
+
+impl ApiRequest {
+    pub fn new(method: Method, url: &str) -> Self {
+        Self {
+            method,
+            url: url.to_string(),
+        }
+    }
+
+    pub const fn get_method(&self) -> &Method {
+        &self.method
+    }
+
+    pub fn get_url(&self) -> &str {
+        &self.url
+    }
+
+    pub fn rejected(&self, status: StatusCode, body: String) -> AzureError {
+        let arm_error = parse_arm_error(&body);
+        AzureError::Rejected {
+            request: self.clone(),
+            status: status.as_u16(),
+            code: arm_error.as_ref().map(|arm_error| arm_error.code.clone()),
+            message: arm_error.map(|arm_error| arm_error.message),
+            body,
+        }
+    }
+
+    pub fn transport(&self, source: ReqwestError) -> AzureError {
+        AzureError::Transport {
+            request: self.clone(),
+            source,
+        }
+    }
+
+    pub fn invalid_json(&self, source: JsonError) -> AzureError {
+        AzureError::InvalidJson {
+            request: self.clone(),
+            source,
+        }
+    }
+}
+
+impl CloudError for AzureError {
+    fn provider(&self) -> CloudProviderName {
+        CloudProviderName::Azure
+    }
+
+    fn kind(&self) -> ErrorKind {
+        match self {
+            Self::Rejected { status, code, .. } => code
+                .as_deref()
+                .and_then(classify_arm_code)
+                .unwrap_or_else(|| ErrorKind::from_http_status(*status)),
+            Self::Transport { .. }
+            | Self::OperationTimedOut { .. }
+            | Self::ProviderRegistrationTimedOut { .. } => ErrorKind::Transient,
+            Self::Authentication(_) => ErrorKind::Authentication,
+            Self::InvalidInstanceId => ErrorKind::Configuration,
+            Self::HttpClientBuild(_) | Self::InvalidJson { .. } | Self::Core(_) => {
+                ErrorKind::Unknown
+            }
+            Self::OperationRejected { .. }
+            | Self::NoVmSizeAvailable { .. }
+            | Self::PriceUnavailable { .. }
+            | Self::RetailPricesRejected { .. } => ErrorKind::Cloud,
+        }
+    }
+
+    fn operation(&self) -> Option<String> {
+        match self {
+            Self::Rejected { request, .. }
+            | Self::Transport { request, .. }
+            | Self::InvalidJson { request, .. } => Some(request.to_string()),
+            _ => None,
+        }
+    }
+
+    fn code(&self) -> Option<String> {
+        match self {
+            Self::Rejected { code, .. } => code.clone(),
+            _ => None,
+        }
+    }
+}
+
+impl From<AzureError> for CoreError {
+    fn from(error: AzureError) -> Self {
+        match error {
+            AzureError::Core(core_error) => core_error,
+            other => Self::Cloud(Box::new(other)),
+        }
+    }
+}
+
+impl Display for ApiRequest {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+        write!(formatter, "{} {}", self.method, self.url)
+    }
+}
+
 fn parse_arm_error(body: &str) -> Option<ArmError> {
     let response: ArmErrorResponse = serde_json::from_str(body).ok()?;
     let error_body = response.error?;
@@ -188,4 +244,16 @@ fn parse_arm_error(body: &str) -> Option<ArmError> {
         code,
         message: error_body.message.unwrap_or_default(),
     })
+}
+
+fn classify_arm_code(code: &str) -> Option<ErrorKind> {
+    match code {
+        "AuthorizationFailed" | "LinkedAuthorizationFailed" => Some(ErrorKind::Authorization),
+        "InvalidAuthenticationToken" | "ExpiredAuthenticationToken" | "AuthenticationFailed" => {
+            Some(ErrorKind::Authentication)
+        }
+        "TooManyRequests" | "QuotaExceeded" => Some(ErrorKind::Quota),
+        "ResourceNotFound" | "ResourceGroupNotFound" | "NotFound" => Some(ErrorKind::NotFound),
+        _ => None,
+    }
 }

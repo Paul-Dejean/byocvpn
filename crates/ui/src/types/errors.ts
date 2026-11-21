@@ -7,6 +7,7 @@ export const ErrorKind = {
   Transient: "transient",
   NotFound: "notFound",
   Configuration: "configuration",
+  Tunnel: "tunnel",
   Daemon: "daemon",
   Cloud: "cloud",
   Unknown: "unknown",

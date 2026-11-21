@@ -11,7 +11,7 @@ use tokio::time::Duration;
 use crate::{
     arm_resource::ArmResource,
     auth::get_access_token,
-    error::{AzureError, Result, build_rejected_error},
+    error::{ApiRequest, AzureError, Result},
     models::AsyncOperationResponse,
 };
 
@@ -30,7 +30,8 @@ impl AzureClient {
     pub fn new(credential: Arc<ClientSecretCredential>, subscription_id: String) -> Result<Self> {
         let http = HttpClient::builder()
             .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
-            .build()?;
+            .build()
+            .map_err(AzureError::HttpClientBuild)?;
         Ok(Self {
             http,
             credential,
@@ -58,23 +59,27 @@ impl AzureClient {
     }
 
     pub async fn get<T: DeserializeOwned>(&self, url: &str) -> Result<T> {
-        let response = self.send_request(Method::GET, url, None::<&()>).await?;
-        parse_json_response(&Method::GET, url, response).await
+        let request = ApiRequest::new(Method::GET, url);
+        let response = self.send_request(&request, None::<&()>).await?;
+        parse_json_response(&request, response).await
     }
 
     pub async fn post<B: Serialize, T: DeserializeOwned>(&self, url: &str, body: &B) -> Result<T> {
-        let response = self.send_request(Method::POST, url, Some(body)).await?;
-        parse_json_response(&Method::POST, url, response).await
+        let request = ApiRequest::new(Method::POST, url);
+        let response = self.send_request(&request, Some(body)).await?;
+        parse_json_response(&request, response).await
     }
 
     pub async fn put<B: Serialize>(&self, url: &str, body: &B) -> Result<Option<String>> {
-        let response = self.send_request(Method::PUT, url, Some(body)).await?;
-        parse_async_operation_response(&Method::PUT, url, response).await
+        let request = ApiRequest::new(Method::PUT, url);
+        let response = self.send_request(&request, Some(body)).await?;
+        parse_async_operation_response(&request, response).await
     }
 
     pub async fn delete(&self, url: &str) -> Result<Option<String>> {
-        let response = self.send_request(Method::DELETE, url, None::<&()>).await?;
-        parse_async_operation_response(&Method::DELETE, url, response).await
+        let request = ApiRequest::new(Method::DELETE, url);
+        let response = self.send_request(&request, None::<&()>).await?;
+        parse_async_operation_response(&request, response).await
     }
 
     pub async fn wait_for_async_operation(&self, operation_url: &str) -> Result<()> {
@@ -83,7 +88,7 @@ impl AzureClient {
                 let operation: AsyncOperationResponse = self.get(operation_url).await?;
                 match operation.status.as_deref() {
                     Some("Succeeded") => Ok(()),
-                    Some("Failed" | "Canceled") => Err(AzureError::OperationFailed {
+                    Some("Failed" | "Canceled") => Err(AzureError::OperationRejected {
                         operation_url: operation_url.to_string(),
                         message: operation
                             .error
@@ -111,49 +116,51 @@ impl AzureClient {
 
     async fn send_request<B: Serialize>(
         &self,
-        method: Method,
-        url: &str,
+        request: &ApiRequest,
         body: Option<&B>,
     ) -> Result<Response> {
-        debug!("[Azure] {method} {url}");
+        debug!("[Azure] {request}");
         let token = get_access_token(&self.credential).await?;
-        let mut request = self.http.request(method, url).bearer_auth(&token);
+        let mut http_request = self
+            .http
+            .request(request.get_method().clone(), request.get_url())
+            .bearer_auth(&token);
         if let Some(body) = body {
-            request = request.json(body);
+            http_request = http_request.json(body);
         }
-        Ok(request.send().await?)
+        http_request
+            .send()
+            .await
+            .map_err(|source| request.transport(source))
     }
 }
 
 async fn parse_json_response<T: DeserializeOwned>(
-    method: &Method,
-    url: &str,
+    request: &ApiRequest,
     response: Response,
 ) -> Result<T> {
     let status = response.status();
     if !status.is_success() {
         let error_body = response.text().await.unwrap_or_default();
-        return Err(build_rejected_error(method, url, status, error_body));
+        return Err(request.rejected(status, error_body));
     }
 
-    let body = response.text().await?;
+    let body = response
+        .text()
+        .await
+        .map_err(|source| request.transport(source))?;
     let json_text = if body.is_empty() { "null" } else { &body };
-    from_str(json_text).map_err(|source| AzureError::InvalidJson {
-        method: method.to_string(),
-        url: url.to_string(),
-        source,
-    })
+    from_str(json_text).map_err(|source| request.invalid_json(source))
 }
 
 async fn parse_async_operation_response(
-    method: &Method,
-    url: &str,
+    request: &ApiRequest,
     response: Response,
 ) -> Result<Option<String>> {
     let status = response.status();
     if !status.is_success() {
         let error_body = response.text().await.unwrap_or_default();
-        return Err(build_rejected_error(method, url, status, error_body));
+        return Err(request.rejected(status, error_body));
     }
 
     Ok(response

@@ -60,14 +60,13 @@ async fn create_vpc(client: &AwsClient) -> Result<String> {
         .send()
         .await?;
 
-    let vpc_id =
-        response
-            .vpc()
-            .and_then(|vpc| vpc.vpc_id())
-            .ok_or(AwsError::MissingResponseField {
-                operation: "ec2:CreateVpc",
-                field: "vpcId",
-            })?;
+    let vpc_id = response
+        .vpc()
+        .and_then(|vpc| vpc.vpc_id())
+        .ok_or(AwsError::MissingField {
+            resource: "VPC",
+            field: "vpcId",
+        })?;
     info!("[AWS] Created VPC {vpc_id}");
     Ok(vpc_id.to_string())
 }

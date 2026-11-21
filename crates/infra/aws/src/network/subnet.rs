@@ -92,8 +92,8 @@ async fn create_subnet(
     let subnet_id = response
         .subnet()
         .and_then(|subnet| subnet.subnet_id())
-        .ok_or(AwsError::MissingResponseField {
-            operation: "ec2:CreateSubnet",
+        .ok_or(AwsError::MissingField {
+            resource: "subnet",
             field: "subnetId",
         })?;
     info!("[AWS] Created subnet {subnet_id}");

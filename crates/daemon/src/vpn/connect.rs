@@ -5,11 +5,11 @@ use std::{
 
 use byocvpn_core::{
     daemon_client::VpnConnectParams,
-    error::{ConfigurationError, Result, SystemError},
+    error::{InternalError, Result, TunnelError},
     ipc::{IpcSocket, IpcStream, metrics_socket_path},
     tunnel::{
         ConnectedInstance, TUNNEL_MTU, Tunnel, TunnelMetrics, TunnelRateTracker,
-        build_tunnel_io_error, create_wireguard_tunnel,
+        create_wireguard_tunnel,
     },
 };
 use futures::StreamExt;
@@ -53,15 +53,14 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
 
     let tunnel_already_running = TUNNEL_MANAGER
         .lock()
-        .map_err(|_| SystemError::MutexPoisoned {
+        .map_err(|_| InternalError::MutexPoisoned {
             lock_name: "TUNNEL_MANAGER",
         })?
         .as_ref()
         .is_some_and(|handle| !handle.task.is_finished());
 
     if tunnel_already_running {
-        error!("Connect requested but a tunnel is already running.");
-        return Err(ConfigurationError::TunnelAlreadyRunning.into());
+        return Err(TunnelError::AlreadyRunning.into());
     }
 
     let (tun, interface_index) = setup_tun_device(private_ipv4, private_ipv6)?;
@@ -113,7 +112,7 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
 
     let mut manager = TUNNEL_MANAGER
         .lock()
-        .map_err(|_| SystemError::MutexPoisoned {
+        .map_err(|_| InternalError::MutexPoisoned {
             lock_name: "TUNNEL_MANAGER",
         })?;
     *manager = Some(TunnelHandle {
@@ -151,17 +150,15 @@ fn setup_tun_device(private_ipv4: IpNet, private_ipv6: IpNet) -> Result<(AsyncDe
         .ipv6(private_ipv6.addr(), private_ipv6.prefix_len())
         .mtu(TUNNEL_MTU)
         .build_async()
-        .map_err(|source| ConfigurationError::TunDevice {
+        .map_err(|source| TunnelError::TunDevice {
             operation: "create",
             source,
         })?;
 
-    let interface_index = tun
-        .if_index()
-        .map_err(|source| ConfigurationError::TunDevice {
-            operation: "read the interface index of",
-            source,
-        })?;
+    let interface_index = tun.if_index().map_err(|source| TunnelError::TunDevice {
+        operation: "read the interface index of",
+        source,
+    })?;
 
     let interface_name = tun.name().unwrap_or_else(|_| "unknown".to_string());
     info!("Created TUN device: {interface_name} (index: {interface_index})");
@@ -173,17 +170,17 @@ async fn connect_udp_socket(server_endpoint: SocketAddr) -> Result<UdpSocket> {
 
     let udp = UdpSocket::bind(local)
         .await
-        .map_err(build_tunnel_io_error("bind the UDP socket"))?;
+        .map_err(TunnelError::io("bind the UDP socket"))?;
 
     debug!(
         "UDP socket bound to {}",
         udp.local_addr()
-            .map_err(build_tunnel_io_error("read the UDP local address"))?
+            .map_err(TunnelError::io("read the UDP local address"))?
     );
 
     udp.connect(server_endpoint)
         .await
-        .map_err(build_tunnel_io_error("connect the UDP socket"))?;
+        .map_err(TunnelError::io("connect the UDP socket"))?;
 
     info!("UDP socket connected to {server_endpoint}");
     Ok(udp)

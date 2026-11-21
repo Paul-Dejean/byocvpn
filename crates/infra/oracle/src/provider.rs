@@ -4,8 +4,7 @@ use byocvpn_core::{
         CloudProvider, CloudProviderName, InstanceInfo, JobStep, PermissionStatus, PricingInfo,
         Region, SpawnInstanceParams, TerminateInstanceParams,
     },
-    error::Result,
-    jobs::build_unknown_step_error,
+    error::{InternalError, Result},
 };
 use futures::future::join_all;
 use log::warn;
@@ -115,7 +114,7 @@ impl CloudProvider for OracleProvider {
             | OracleStepId::SetupNetwork
             | OracleStepId::Launch
             | OracleStepId::WireguardReady => {
-                Err(build_unknown_step_error(CloudProviderName::Oracle, step_id))
+                Err(InternalError::unknown_step(CloudProviderName::Oracle, step_id).into())
             }
         }
     }
@@ -156,7 +155,7 @@ impl CloudProvider for OracleProvider {
             | OracleStepId::SetupNetwork
             | OracleStepId::Launch
             | OracleStepId::WireguardReady => {
-                Err(build_unknown_step_error(CloudProviderName::Oracle, step_id))
+                Err(InternalError::unknown_step(CloudProviderName::Oracle, step_id).into())
             }
         }
     }
@@ -183,7 +182,7 @@ impl CloudProvider for OracleProvider {
             | OracleStepId::RegionIgw
             | OracleStepId::RegionSecurityList
             | OracleStepId::RegionSubnet => {
-                Err(build_unknown_step_error(CloudProviderName::Oracle, step_id))
+                Err(InternalError::unknown_step(CloudProviderName::Oracle, step_id).into())
             }
         }
     }

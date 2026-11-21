@@ -43,7 +43,7 @@ pub async fn run_daemon() -> Result<()> {
                 Ok(command) => match handle_command(command).await {
                     Ok(value) => DaemonResponse::Ok(value),
                     Err(error) => {
-                        error!("Command failed: {error}");
+                        error!("Command failed: {}", error.describe());
                         DaemonResponse::Err(error.to_payload())
                     }
                 },

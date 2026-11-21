@@ -62,8 +62,8 @@ pub async fn spawn_instance(
         .instances()
         .first()
         .and_then(|instance| instance.instance_id())
-        .ok_or(AwsError::MissingResponseField {
-            operation: "ec2:RunInstances",
+        .ok_or(AwsError::MissingField {
+            resource: "instance",
             field: "instanceId",
         })?
         .to_string();

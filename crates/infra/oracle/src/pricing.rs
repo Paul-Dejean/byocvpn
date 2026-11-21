@@ -1,10 +1,11 @@
 use byocvpn_core::cloud_provider::PricingInfo;
-use reqwest::Client as HttpClient;
+use reqwest::{Client as HttpClient, Method};
 use serde::Deserialize;
+use serde_json::from_str;
 use tokio::time::Duration;
 
 use crate::{
-    error::{OracleError, Result},
+    error::{ApiRequest, OracleError, Result},
     instance::{INSTANCE_MEMORY_GB, INSTANCE_OCPUS},
 };
 
@@ -70,7 +71,8 @@ pub async fn fetch_pricing(region: &str, shape: &str) -> Result<PricingInfo> {
 
     let http = HttpClient::builder()
         .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
-        .build()?;
+        .build()
+        .map_err(OracleError::HttpClientBuild)?;
 
     let (ocpu_rate, memory_rate, storage_rate, performance_rate, egress_rate) = tokio::try_join!(
         fetch_pay_as_you_go_rate(&http, shape_parts.ocpu),
@@ -104,11 +106,13 @@ fn select_egress_part(region: &str) -> &'static str {
 }
 
 async fn fetch_pay_as_you_go_rate(http: &HttpClient, part_number: &str) -> Result<f64> {
+    let request = ApiRequest::new(Method::GET, PRICE_LIST_URL);
     let response = http
         .get(PRICE_LIST_URL)
         .query(&[("partNumber", part_number)])
         .send()
-        .await?;
+        .await
+        .map_err(|source| request.transport(source))?;
 
     let status = response.status();
     if !status.is_success() {
@@ -118,7 +122,11 @@ async fn fetch_pay_as_you_go_rate(http: &HttpClient, part_number: &str) -> Resul
         });
     }
 
-    let page: PriceListPage = response.json().await?;
+    let body = response
+        .text()
+        .await
+        .map_err(|source| request.transport(source))?;
+    let page: PriceListPage = from_str(&body).map_err(|source| request.invalid_json(source))?;
 
     page.items
         .iter()

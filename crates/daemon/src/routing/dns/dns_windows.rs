@@ -2,7 +2,7 @@ use std::io;
 use std::os::windows::ffi::OsStrExt;
 use std::ptr;
 
-use byocvpn_core::error::{ConfigurationError, Result};
+use byocvpn_core::error::{Result, TunnelError};
 use log::*;
 
 use windows_sys::Win32::Foundation::FreeLibrary;
@@ -27,10 +27,10 @@ pub struct DnsOverrideGuard {
 impl DnsOverrideGuard {
     pub fn override_system_dns(new_dns_servers: &[&str]) -> Result<Self> {
         if new_dns_servers.is_empty() {
-            return Err(ConfigurationError::NoDnsServers.into());
+            return Err(TunnelError::NoDnsServers.into());
         }
 
-        add_nrpt_rule(new_dns_servers).map_err(ConfigurationError::DnsRegistry)?;
+        add_nrpt_rule(new_dns_servers).map_err(TunnelError::DnsRegistry)?;
 
         flush_dns_resolver_cache();
         info!("NRPT DNS rule applied for servers: {:?}", new_dns_servers);

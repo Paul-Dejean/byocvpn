@@ -2,15 +2,14 @@ use google_cloud_auth::credentials::Credentials;
 use google_cloud_compute_v1::client::{
     Firewalls, Images, Instances, Networks, Regions, Subnetworks,
 };
-use google_cloud_gax::client_builder::Error as ClientBuilderError;
-use log::{debug, error};
+use log::debug;
 use reqwest::{Client as HttpClient, Method, Response};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::from_str;
 
 use crate::{
     auth::fetch_bearer_token,
-    error::{GcpError, Result, build_rejected_error},
+    error::{ApiRequest, GcpError, Result},
 };
 
 const RESOURCE_LINK_BASE_URL: &str = "https://www.googleapis.com/compute/v1/projects";
@@ -35,32 +34,32 @@ impl GcpClient {
             .with_credentials(credentials.clone())
             .build()
             .await
-            .map_err(|source| build_client_error("instances", source))?;
+            .map_err(GcpError::client_build("instances"))?;
         let networks = Networks::builder()
             .with_credentials(credentials.clone())
             .build()
             .await
-            .map_err(|source| build_client_error("networks", source))?;
+            .map_err(GcpError::client_build("networks"))?;
         let subnetworks = Subnetworks::builder()
             .with_credentials(credentials.clone())
             .build()
             .await
-            .map_err(|source| build_client_error("subnetworks", source))?;
+            .map_err(GcpError::client_build("subnetworks"))?;
         let firewalls = Firewalls::builder()
             .with_credentials(credentials.clone())
             .build()
             .await
-            .map_err(|source| build_client_error("firewalls", source))?;
+            .map_err(GcpError::client_build("firewalls"))?;
         let regions = Regions::builder()
             .with_credentials(credentials.clone())
             .build()
             .await
-            .map_err(|source| build_client_error("regions", source))?;
+            .map_err(GcpError::client_build("regions"))?;
         let images = Images::builder()
             .with_credentials(credentials.clone())
             .build()
             .await
-            .map_err(|source| build_client_error("images", source))?;
+            .map_err(GcpError::client_build("images"))?;
 
         Ok(Self {
             http: HttpClient::new(),
@@ -91,52 +90,54 @@ impl GcpClient {
     }
 
     pub async fn get<T: DeserializeOwned>(&self, url: &str) -> Result<T> {
-        let response = self.send_request(Method::GET, url, None::<&()>).await?;
-        parse_json_response("GET", url, response).await
+        let request = ApiRequest::new(Method::GET, url);
+        let response = self.send_request(&request, None::<&()>).await?;
+        parse_json_response(&request, response).await
     }
 
     pub async fn post<B: Serialize, T: DeserializeOwned>(&self, url: &str, body: &B) -> Result<T> {
-        let response = self.send_request(Method::POST, url, Some(body)).await?;
-        parse_json_response("POST", url, response).await
+        let request = ApiRequest::new(Method::POST, url);
+        let response = self.send_request(&request, Some(body)).await?;
+        parse_json_response(&request, response).await
     }
 
     async fn send_request<B: Serialize>(
         &self,
-        method: Method,
-        url: &str,
+        request: &ApiRequest,
         body: Option<&B>,
     ) -> Result<Response> {
-        debug!("[GCP] {method} {url}");
+        debug!("[GCP] {request}");
         let token = fetch_bearer_token(&self.credentials).await?;
-        let mut request = self.http.request(method, url).bearer_auth(&token);
+        let mut http_request = self
+            .http
+            .request(request.get_method().clone(), request.get_url())
+            .bearer_auth(&token);
         if let Some(body) = body {
-            request = request.json(body);
+            http_request = http_request.json(body);
         }
-        Ok(request.send().await?)
-    }
-}
-
-const fn build_client_error(client_name: &'static str, source: ClientBuilderError) -> GcpError {
-    GcpError::ClientBuild {
-        client_name,
-        source,
+        http_request
+            .send()
+            .await
+            .map_err(|source| request.transport(source))
     }
 }
 
 async fn parse_json_response<T: DeserializeOwned>(
-    method: &'static str,
-    url: &str,
+    request: &ApiRequest,
     response: Response,
 ) -> Result<T> {
     let status = response.status();
-    let body = response.text().await?;
+    let body = response
+        .text()
+        .await
+        .map_err(|source| request.transport(source))?;
 
     if !status.is_success() {
-        error!("[GCP] {method} {url} -> {status}: {body}");
-        return Err(build_rejected_error(method, url, status.as_u16(), &body));
+        debug!("[GCP] {request} -> {status}: {body}");
+        return Err(request.rejected(status, &body));
     }
 
-    debug!("[GCP] {method} {url} -> {status}");
+    debug!("[GCP] {request} -> {status}");
     let json_text = if body.is_empty() { "null" } else { &body };
-    Ok(from_str(json_text)?)
+    from_str(json_text).map_err(|source| request.invalid_json(source))
 }

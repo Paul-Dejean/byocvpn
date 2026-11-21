@@ -75,7 +75,8 @@ pub async fn list_instances_across_providers(
     for failure in &listing.failures {
         warn!(
             "Could not list {} servers: {}",
-            failure.provider, failure.error
+            failure.provider,
+            failure.error.describe()
         );
     }
     Ok(listing.instances)

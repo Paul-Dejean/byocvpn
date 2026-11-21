@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use byocvpn_core::{
     cloud_provider::{CloudProviderName, InstanceInfo, SpawnInstanceParams},
-    managed_resources::{MANAGED_BY_TAG_KEY, MANAGED_BY_TAG_VALUE, SPAWN_ID_TAG_KEY},
+    managed_resources::{
+        MANAGED_BY_TAG_KEY, MANAGED_BY_TAG_VALUE, SPAWN_ID_TAG_KEY, build_managed_tags,
+    },
     retry::{RetryPolicy, retry_if},
     server_startup::{PackageManager, generate_server_startup_script},
 };
@@ -17,7 +19,7 @@ use crate::{
     error::{OracleError, Result},
     models::{
         AvailabilityDomainResponse, CreateVnicDetails, InstanceResponse, LaunchInstanceRequest,
-        ShapeConfig, SourceDetails, VnicAttachmentResponse, VnicResponse, build_managed_tags,
+        ShapeConfig, SourceDetails, VnicAttachmentResponse, VnicResponse,
     },
     network::RegionNetwork,
     state::OciLifecycleState,

@@ -1,14 +1,6 @@
 use std::collections::HashMap;
 
-use byocvpn_core::managed_resources::{MANAGED_BY_TAG_KEY, MANAGED_BY_TAG_VALUE};
 use serde::{Deserialize, Serialize};
-
-pub fn build_managed_tags() -> HashMap<String, String> {
-    HashMap::from([(
-        MANAGED_BY_TAG_KEY.to_string(),
-        MANAGED_BY_TAG_VALUE.to_string(),
-    )])
-}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]

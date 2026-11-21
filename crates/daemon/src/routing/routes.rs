@@ -1,6 +1,6 @@
-use std::io::{Error as IoError, ErrorKind};
+use std::io::ErrorKind;
 
-use byocvpn_core::error::{ConfigurationError, Result};
+use byocvpn_core::error::{Result, TunnelError};
 use ipnet::IpNet;
 use log::{debug, error, info, warn};
 use net_route::{Handle, Route};
@@ -51,17 +51,17 @@ async fn add_default_gateway_route(destination: &str) -> Result<()> {
 
     let subnet = parse_destination(destination)?;
 
-    let handle = Handle::new().map_err(build_route_error("handle creation"))?;
+    let handle = Handle::new().map_err(TunnelError::route("handle creation"))?;
 
     let default_route = handle
         .default_route()
         .await
-        .map_err(build_route_error("default route lookup"))?
-        .ok_or(ConfigurationError::NoDefaultRoute)?;
+        .map_err(TunnelError::route("default route lookup"))?
+        .ok_or(TunnelError::NoDefaultRoute)?;
 
     let gateway = default_route
         .gateway
-        .ok_or(ConfigurationError::DefaultRouteWithoutGateway)?;
+        .ok_or(TunnelError::DefaultRouteWithoutGateway)?;
 
     let route = Route::new(subnet.addr(), subnet.prefix_len()).with_gateway(gateway);
 
@@ -76,10 +76,7 @@ async fn add_default_gateway_route(destination: &str) -> Result<()> {
             debug!("Gateway route already exists: {destination} (skipping)");
             Ok(())
         }
-        Err(error) => {
-            error!("Failed to add gateway route {destination}: {error}");
-            Err(build_route_error("addition")(error).into())
-        }
+        Err(error) => Err(TunnelError::route("addition")(error).into()),
     }
 }
 
@@ -88,7 +85,7 @@ async fn add_interface_route(destination: &str, interface_index: u32) -> Result<
 
     let subnet = parse_destination(destination)?;
 
-    let handle = Handle::new().map_err(build_route_error("handle creation"))?;
+    let handle = Handle::new().map_err(TunnelError::route("handle creation"))?;
 
     let route = Route::new(subnet.addr(), subnet.prefix_len()).with_ifindex(interface_index);
 
@@ -109,7 +106,7 @@ async fn add_interface_route(destination: &str, interface_index: u32) -> Result<
             error!(
                 "Failed to add interface route {destination} via index {interface_index}: {error}"
             );
-            Err(build_route_error("addition")(error).into())
+            Err(TunnelError::route("addition")(error).into())
         }
     }
 }
@@ -119,17 +116,17 @@ async fn delete_default_gateway_route(destination: &str) -> Result<()> {
 
     let subnet = parse_destination(destination)?;
 
-    let handle = Handle::new().map_err(build_route_error("handle creation"))?;
+    let handle = Handle::new().map_err(TunnelError::route("handle creation"))?;
 
     let default_route = handle
         .default_route()
         .await
-        .map_err(build_route_error("default route lookup"))?
-        .ok_or(ConfigurationError::NoDefaultRoute)?;
+        .map_err(TunnelError::route("default route lookup"))?
+        .ok_or(TunnelError::NoDefaultRoute)?;
 
     let gateway = default_route
         .gateway
-        .ok_or(ConfigurationError::DefaultRouteWithoutGateway)?;
+        .ok_or(TunnelError::DefaultRouteWithoutGateway)?;
 
     let route = Route::new(subnet.addr(), subnet.prefix_len()).with_gateway(gateway);
 
@@ -142,10 +139,7 @@ async fn delete_default_gateway_route(destination: &str) -> Result<()> {
             debug!("Gateway route not found: {destination} (already removed)");
             Ok(())
         }
-        Err(error) => {
-            error!("Failed to delete gateway route {destination}: {error}");
-            Err(build_route_error("deletion")(error).into())
-        }
+        Err(error) => Err(TunnelError::route("deletion")(error).into()),
     }
 }
 
@@ -154,7 +148,7 @@ async fn delete_interface_route(destination: &str, interface_index: u32) -> Resu
 
     let subnet = parse_destination(destination)?;
 
-    let handle = Handle::new().map_err(build_route_error("handle creation"))?;
+    let handle = Handle::new().map_err(TunnelError::route("handle creation"))?;
 
     let route = Route::new(subnet.addr(), subnet.prefix_len()).with_ifindex(interface_index);
 
@@ -173,7 +167,7 @@ async fn delete_interface_route(destination: &str, interface_index: u32) -> Resu
             error!(
                 "Failed to delete interface route {destination} via index {interface_index}: {error}"
             );
-            Err(build_route_error("deletion")(error).into())
+            Err(TunnelError::route("deletion")(error).into())
         }
     }
 }
@@ -219,14 +213,10 @@ pub async fn update_server_host_route(
 
 fn parse_destination(destination: &str) -> Result<IpNet> {
     destination.parse().map_err(|source| {
-        ConfigurationError::InvalidRouteDestination {
+        TunnelError::InvalidRouteDestination {
             destination: destination.to_string(),
             source,
         }
         .into()
     })
-}
-
-fn build_route_error(operation: &'static str) -> impl Fn(IoError) -> ConfigurationError {
-    move |source| ConfigurationError::Route { operation, source }
 }

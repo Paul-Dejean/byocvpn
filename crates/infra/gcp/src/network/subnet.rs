@@ -124,11 +124,8 @@ async fn find_available_subnet_cidr(client: &GcpClient) -> Result<String> {
 }
 
 fn extract_self_link(subnet: &Subnetwork) -> Result<String> {
-    subnet
-        .self_link
-        .clone()
-        .ok_or(GcpError::MissingResourceField {
-            resource: "subnet",
-            field: "selfLink",
-        })
+    subnet.self_link.clone().ok_or(GcpError::MissingField {
+        resource: "subnet",
+        field: "selfLink",
+    })
 }

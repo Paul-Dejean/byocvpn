@@ -8,7 +8,7 @@ pub enum CredentialsError {
     #[error("no cloud provider credentials found; add your credentials in the desktop app first")]
     NoProviderConfigured,
 
-    #[error("failed to {operation} the credentials directory {}: {source}", .path.display())]
+    #[error("failed to {operation} the credentials directory {}", .path.display())]
     Directory {
         operation: &'static str,
         path: PathBuf,
@@ -16,13 +16,13 @@ pub enum CredentialsError {
         source: IoError,
     },
 
-    #[error("failed to read the credentials file: {0}")]
+    #[error("failed to read the credentials file")]
     FileRead(#[source] IoError),
 
-    #[error("failed to save the credentials file: {0}")]
+    #[error("failed to save the credentials file")]
     FileSave(#[source] IoError),
 
-    #[error("invalid credentials file format: {0}")]
+    #[error("invalid credentials file format")]
     InvalidFormat(#[source] IniParseError),
 
     #[error("missing required credential: {field}")]

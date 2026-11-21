@@ -45,6 +45,11 @@ const ERROR_KIND_COPY: Record<ErrorKind, ErrorKindCopy> = {
     description: null,
     hint: null,
   },
+  [ErrorKind.Tunnel]: {
+    title: "VPN tunnel setup failed",
+    description: "ByocVPN could not configure the tunnel on this machine.",
+    hint: "Disconnect, then try again. If it keeps failing, check the daemon log.",
+  },
   [ErrorKind.Daemon]: {
     title: "VPN service unavailable",
     description: "ByocVPN could not talk to its background service.",

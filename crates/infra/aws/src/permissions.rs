@@ -60,8 +60,8 @@ pub async fn verify_permissions(client: &AwsClient) -> Result<Vec<PermissionStat
 
 async fn get_principal_arn(client: &AwsClient) -> Result<String> {
     let identity = client.sts.get_caller_identity().send().await?;
-    let caller_arn = identity.arn().ok_or(AwsError::MissingResponseField {
-        operation: "sts:GetCallerIdentity",
+    let caller_arn = identity.arn().ok_or(AwsError::MissingField {
+        resource: "caller identity",
         field: "arn",
     })?;
     Ok(build_policy_source_arn(caller_arn))

@@ -52,8 +52,8 @@ async fn create_security_group(client: &AwsClient, vpc_id: &str) -> Result<Strin
 
     let security_group_id = response
         .group_id()
-        .ok_or(AwsError::MissingResponseField {
-            operation: "ec2:CreateSecurityGroup",
+        .ok_or(AwsError::MissingField {
+            resource: "security group",
             field: "groupId",
         })?
         .to_string();
