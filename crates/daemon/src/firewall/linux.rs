@@ -1,7 +1,7 @@
 use std::process::Command;
 
 use byocvpn_core::error::{Result, TunnelError};
-use log::info;
+use log::{debug, info};
 
 const CHAIN: &str = "BYOCVPN_KS";
 const IPTABLES_COMMAND: &str = "iptables";
@@ -35,7 +35,10 @@ pub fn apply(server_ip: &str, tun_name: &str) -> Result<()> {
     Ok(())
 }
 
-#[allow(clippy::unnecessary_wraps)]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "the signature matches the other platforms' remove"
+)]
 pub fn remove() -> Result<()> {
     remove_if_exists();
     info!("[KillSwitch] iptables chain removed");
@@ -43,10 +46,20 @@ pub fn remove() -> Result<()> {
 }
 
 fn remove_if_exists() {
-    let _ = run_iptables(&["-D", "OUTPUT", "-j", CHAIN]);
-    let _ = run_iptables(&["-D", "INPUT", "-j", CHAIN]);
-    let _ = run_iptables(&["-F", CHAIN]);
-    let _ = run_iptables(&["-X", CHAIN]);
+    let teardown_steps: [&[&str]; 4] = [
+        &["-D", "OUTPUT", "-j", CHAIN],
+        &["-D", "INPUT", "-j", CHAIN],
+        &["-F", CHAIN],
+        &["-X", CHAIN],
+    ];
+    for arguments in teardown_steps {
+        if let Err(error) = run_iptables(arguments) {
+            debug!(
+                "[KillSwitch] iptables {} skipped: {error}",
+                arguments.join(" ")
+            );
+        }
+    }
 }
 
 fn run_iptables(args: &[&str]) -> Result<()> {
