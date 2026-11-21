@@ -78,8 +78,7 @@ async fn reconcile_ingress_rules(client: &AwsClient, security_group_id: &str) ->
     let current_rules: HashSet<IngressRule> = response
         .security_groups()
         .first()
-        .map(SecurityGroup::ip_permissions)
-        .unwrap_or_default()
+        .map_or_else(Default::default, SecurityGroup::ip_permissions)
         .iter()
         .flat_map(IngressRule::from_ip_permission)
         .collect();

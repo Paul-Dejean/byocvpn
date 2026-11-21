@@ -216,8 +216,9 @@ fn build_instance_info(instance: &Instance, region: &str) -> Option<InstanceInfo
         provider: CloudProviderName::Aws,
         instance_type: instance
             .instance_type()
-            .map(|instance_type| instance_type.as_str().to_string())
-            .unwrap_or_default(),
+            .map_or_else(String::new, |instance_type| {
+                instance_type.as_str().to_string()
+            }),
         launched_at,
         spawn_id: find_tag_value(instance, SPAWN_ID_TAG_KEY),
     })

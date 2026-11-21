@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 #![cfg(target_os = "android")]
 
 use std::os::fd::RawFd;

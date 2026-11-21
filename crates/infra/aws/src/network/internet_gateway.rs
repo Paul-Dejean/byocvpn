@@ -113,8 +113,7 @@ async fn has_default_routes(
     let routes = response
         .route_tables()
         .first()
-        .map(RouteTable::routes)
-        .unwrap_or_default();
+        .map_or_else(Default::default, RouteTable::routes);
     let has_ipv4_route = routes.iter().any(|route| {
         route.gateway_id() == Some(internet_gateway_id)
             && route.destination_cidr_block() == Some(ANY_IPV4_CIDR)

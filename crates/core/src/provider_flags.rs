@@ -66,8 +66,7 @@ impl ProviderFlags {
         self.store.read(|data| {
             data.enabled_regions
                 .get(provider)
-                .map(|regions| regions.iter().cloned().collect())
-                .unwrap_or_default()
+                .map_or_else(Vec::new, |regions| regions.iter().cloned().collect())
         })
     }
 }
