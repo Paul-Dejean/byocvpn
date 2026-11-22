@@ -6,8 +6,7 @@ use std::{
     time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH},
 };
 
-use byocvpn_core::tunnel::VpnStatus;
-use humantime::format_duration;
+use byocvpn_core::{duration_format::format_duration_compact, tunnel::VpnStatus};
 use log::warn;
 use tauri::{
     AppHandle, Manager, Result as TauriResult, Wry,
@@ -87,7 +86,7 @@ pub fn update_tray(app: &AppHandle, vpn_status: &VpnStatus) {
             .connected_at
             .and_then(|timestamp| get_elapsed_duration(timestamp).ok())
     {
-        let label = format!("Connected · {}", format_duration(elapsed));
+        let label = format!("Connected · {}", format_duration_compact(elapsed));
         if let Ok(guard) = STATUS_MENU_ITEM.lock()
             && let Some(item) = guard.as_ref()
             && let Err(error) = item.set_text(&label)
@@ -107,7 +106,7 @@ fn build_tray_menu(
             .and_then(|timestamp| get_elapsed_duration(timestamp).ok())
             .map_or_else(
                 || "Connected".to_string(),
-                |elapsed| format!("Connected · {}", format_duration(elapsed)),
+                |elapsed| format!("Connected · {}", format_duration_compact(elapsed)),
             )
     } else {
         "ByocVPN — Disconnected".to_string()
@@ -161,7 +160,7 @@ fn build_tooltip(vpn_status: &VpnStatus) -> String {
             .and_then(|timestamp| get_elapsed_duration(timestamp).ok())
             .map_or_else(
                 || "ByocVPN — Connected".to_string(),
-                |elapsed| format!("ByocVPN — Connected · {}", format_duration(elapsed)),
+                |elapsed| format!("ByocVPN — Connected · {}", format_duration_compact(elapsed)),
             )
     } else {
         "ByocVPN — Disconnected".to_string()

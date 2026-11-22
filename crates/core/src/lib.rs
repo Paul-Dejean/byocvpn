@@ -5,6 +5,7 @@ pub mod connectivity;
 pub mod credentials;
 pub mod crypto;
 pub mod daemon_client;
+pub mod duration_format;
 pub mod error;
 pub mod instances;
 pub mod ipc;

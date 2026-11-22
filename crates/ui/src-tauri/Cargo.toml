@@ -2,6 +2,8 @@
 name = "ui"
 version.workspace = true
 rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
 description = "A Tauri App"
 authors = ["you"]
 edition = "2024"
@@ -24,7 +26,6 @@ tauri-plugin-dialog = "2.8.3"
 tauri-plugin-opener = "2.7.2"
 tauri-plugin-notification = "2.7.0"
 chrono = { workspace = true }
-humantime = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 specta = { workspace = true }

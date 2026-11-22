@@ -10,11 +10,14 @@ members = [
     "crates/infra/oracle",
     "crates/infra/gcp",
     "crates/infra/azure",
+    "crates/android",
 ]
 
 [workspace.package]
 version = "0.1.31"
 rust-version = "1.100"
+license = "GPL-3.0-only"
+publish = false
 
 [workspace.dependencies]
 tokio = { version = "1.53.3", features = ["full"] }
@@ -44,7 +47,6 @@ ipnet = "2.12.2"
 tun-rs = { version = "2.8.12", features = ["async_tokio"] }
 windows-sys = "0.61.2"
 tauri = "2.12.4"
-humantime = "2.4.0"
 strum = { version = "0.28.0", features = ["derive"] }
 
 

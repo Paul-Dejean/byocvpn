@@ -1,6 +1,6 @@
-use aws_config::{BehaviorVersion, SdkConfig};
 use aws_credential_types::Credentials;
-use aws_sdk_ec2::config::{Region, SharedCredentialsProvider};
+use aws_sdk_ec2::config::{BehaviorVersion, Region, SharedCredentialsProvider};
+use aws_types::SdkConfig;
 
 use crate::credentials::AwsCredentials;
 

@@ -56,6 +56,17 @@ jobs:
       - name: Run clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
+  dependencies:
+    name: Dependencies (cargo-deny)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          arguments: --locked
+
   frontend:
     name: Frontend (oxlint + eslint + oxfmt + tsc)
     runs-on: ubuntu-latest

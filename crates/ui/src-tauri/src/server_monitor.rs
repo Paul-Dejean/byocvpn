@@ -2,10 +2,10 @@ use std::time::Duration;
 
 use byocvpn_core::{
     app_context::AppContext,
+    duration_format::format_duration_compact,
     ledger::LedgerEntry,
     server_monitor::{self, ServerMonitorObserver},
 };
-use humantime::format_duration;
 use log::warn;
 use tauri::{AppHandle, Manager, async_runtime};
 use tauri_plugin_notification::NotificationExt;
@@ -50,7 +50,7 @@ impl ServerMonitorObserver for DesktopMonitorObserver {
             "Your {} server in {} has been running for {}. Consider terminating it to avoid unnecessary costs.",
             entry.provider.to_string().to_uppercase(),
             entry.region,
-            format_duration(running_for)
+            format_duration_compact(running_for)
         );
         self.show_notification("ByocVPN — Server Running", &body);
     }
