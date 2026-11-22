@@ -1,5 +1,5 @@
 use byocvpn_core::managed_resources::{WIREGUARD_PORT, build_managed_tags};
-use log::{debug, info};
+use tracing::{debug, info};
 
 use crate::{
     arm_resource::ArmResource,
@@ -15,10 +15,10 @@ pub async fn ensure_network_security_group(client: &AzureClient, location: &str)
 
     match get_existing::<NsgResponse>(client, &resource).await? {
         Some(existing) if has_desired_rules(&existing, &desired_rules) => {
-            debug!("[Azure] {resource} already exists in {location} with current rules.");
+            debug!(%resource, %location, "already exists with current rules");
         }
         Some(existing) => {
-            info!("[Azure] {resource} security rules have drifted, patching...");
+            info!(%resource, "security rules drifted, patching");
             let body = NsgRequest {
                 location: existing.location.unwrap_or_else(|| location.to_string()),
                 tags: existing.tags.unwrap_or_else(build_managed_tags),
@@ -27,10 +27,10 @@ pub async fn ensure_network_security_group(client: &AzureClient, location: &str)
                 },
             };
             put_and_wait(client, &resource, &body).await?;
-            info!("[Azure] {resource} security rules patched.");
+            info!(%resource, "security rules patched");
         }
         None => {
-            debug!("[Azure] Creating {resource} in {location}...");
+            debug!(%resource, %location, "creating");
             let body = NsgRequest {
                 location: location.to_string(),
                 tags: build_managed_tags(),
@@ -39,7 +39,7 @@ pub async fn ensure_network_security_group(client: &AzureClient, location: &str)
                 },
             };
             put_and_wait(client, &resource, &body).await?;
-            info!("[Azure] {resource} created in {location}.");
+            info!(%resource, %location, "created");
         }
     }
 

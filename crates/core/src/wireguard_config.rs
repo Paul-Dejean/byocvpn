@@ -3,7 +3,7 @@ use std::{error::Error as StdError, net::SocketAddr, path::Path, str::FromStr};
 use base64::{Engine, engine::general_purpose};
 use ini::{Ini, Properties};
 use ipnet::IpNet;
-use log::debug;
+use tracing::debug;
 
 use crate::error::{ConfigurationError, Result};
 
@@ -59,7 +59,7 @@ pub async fn parse_wireguard_config(config_path: &str) -> Result<WireguardConfig
     let dns_servers = parse_dns_servers_from_interface_section(interface);
 
     debug!(
-        "Parsed WireGuard config: server_endpoint={server_endpoint}, private_ipv4={private_ipv4}, private_ipv6={private_ipv6}, dns_servers={dns_servers:?}"
+        "parsed WireGuard config: server_endpoint={server_endpoint}, private_ipv4={private_ipv4}, private_ipv6={private_ipv6}, dns_servers={dns_servers:?}"
     );
 
     Ok(WireguardConfig {

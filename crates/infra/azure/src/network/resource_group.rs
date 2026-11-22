@@ -1,6 +1,6 @@
 use byocvpn_core::managed_resources::build_managed_tags;
-use log::{debug, info};
 use serde::de::IgnoredAny;
+use tracing::{debug, info};
 
 use crate::{
     arm_resource::ArmResource,
@@ -16,16 +16,16 @@ pub async fn ensure_resource_group(client: &AzureClient, location: &str) -> Resu
         .await?
         .is_some()
     {
-        debug!("[Azure] {resource} already exists, skipping creation.");
+        debug!(%resource, "already exists");
         return Ok(());
     }
 
-    debug!("[Azure] Creating {resource}...");
+    debug!(%resource, "creating");
     let body = ResourceGroupRequest {
         location: location.to_string(),
         tags: build_managed_tags(),
     };
     put_and_wait(client, &resource, &body).await?;
-    info!("[Azure] {resource} created.");
+    info!(%resource, "created");
     Ok(())
 }

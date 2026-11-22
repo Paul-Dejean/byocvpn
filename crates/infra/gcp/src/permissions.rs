@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
 use byocvpn_core::cloud_provider::PermissionStatus;
-use log::{debug, warn};
 use serde::{Deserialize, Serialize};
+use tracing::{debug, warn};
 
 use crate::{account::ensure_cloud_resource_manager_api_enabled, client::GcpClient, error::Result};
 
@@ -71,9 +71,9 @@ pub async fn verify_permissions(client: &GcpClient) -> Result<Vec<PermissionStat
         .map(|permission| {
             let granted = granted_permissions.contains(permission);
             if granted {
-                debug!("[GCP] permission check {permission}: authorized");
+                debug!(%permission, "permission authorized");
             } else {
-                warn!("[GCP] permission check {permission}: denied");
+                warn!(%permission, "permission denied");
             }
             PermissionStatus {
                 permission: (*permission).to_string(),

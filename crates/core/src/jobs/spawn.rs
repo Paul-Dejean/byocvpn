@@ -2,8 +2,8 @@
 use std::os::unix::fs::PermissionsExt;
 
 use async_trait::async_trait;
-use log::{debug, info, warn};
 use tokio::{fs, io::AsyncWriteExt};
+use tracing::{Instrument, debug, info, info_span, warn};
 
 use crate::{
     app_context::AppContext,
@@ -44,54 +44,57 @@ pub async fn run_spawn_job(
         region: region.to_string(),
         provider: provider_name,
     };
-    let job_state = context.spawn_jobs.register(job.clone());
-    observer.on_job_started(&job_state);
+    let span = info_span!("spawn_job", job_id = %job.job_id, provider = %provider_name, %region);
+    async move {
+        let job_state = context.spawn_jobs.register(job.clone());
+        observer.on_job_started(&job_state);
+        info!(steps = job.steps.len(), "spawn job started");
 
-    let mut spawn_steps = SpawnSteps {
-        provider,
-        context,
-        job: &job,
-        keys: SpawnKeys::generate(),
-        launched_instance: None,
-        observer,
-    };
-    let tracking_observer = RegistryTrackingObserver {
-        registry: &context.spawn_jobs,
-        job_id: &job.job_id,
-        observer,
-    };
+        let mut spawn_steps = SpawnSteps {
+            provider,
+            context,
+            job: &job,
+            keys: SpawnKeys::generate(),
+            launched_instance: None,
+            observer,
+        };
+        let tracking_observer = RegistryTrackingObserver {
+            registry: &context.spawn_jobs,
+            job_id: &job.job_id,
+            observer,
+        };
 
-    let outcome = run_job_steps(&job.steps, &mut spawn_steps, &tracking_observer).await;
-    let outcome = outcome.and_then(|()| {
-        spawn_steps.launched_instance.ok_or_else(|| {
-            InstanceError::LaunchStepMissing {
-                step: "completion".to_string(),
+        let outcome = run_job_steps(&job.steps, &mut spawn_steps, &tracking_observer).await;
+        let outcome = outcome.and_then(|()| {
+            spawn_steps.launched_instance.ok_or_else(|| {
+                InstanceError::LaunchStepMissing {
+                    step: "completion".to_string(),
+                }
+                .into()
+            })
+        });
+
+        match outcome {
+            Ok(mut instance) => {
+                context.spawn_jobs.deregister(&job.job_id);
+                context.ledger.mark_setup_complete(&instance.id);
+                instance.state = InstanceState::Running;
+                info!(instance_id = %instance.id, "spawn job completed");
+                observer.on_job_completed(&instance);
+                Ok(instance)
             }
-            .into()
-        })
-    });
-
-    match outcome {
-        Ok(mut instance) => {
-            context.spawn_jobs.deregister(&job.job_id);
-            context.ledger.mark_setup_complete(&instance.id);
-            instance.state = InstanceState::Running;
-            info!(
-                "Spawn job {} completed: instance {}",
-                job.job_id, instance.id
-            );
-            observer.on_job_completed(&instance);
-            Ok(instance)
-        }
-        Err(error) => {
-            context
-                .spawn_jobs
-                .mark_failed(&job.job_id, error.to_payload());
-            warn!("Spawn job {} failed: {}", job.job_id, error.describe());
-            observer.on_job_failed(&error);
-            Err(error)
+            Err(error) => {
+                context
+                    .spawn_jobs
+                    .mark_failed(&job.job_id, error.to_payload());
+                warn!(error = %error.describe(), "spawn job failed");
+                observer.on_job_failed(&error);
+                Err(error)
+            }
         }
     }
+    .instrument(span)
+    .await
 }
 
 struct SpawnSteps<'a> {
@@ -122,11 +125,7 @@ impl JobSteps for SpawnSteps<'_> {
                 {
                     Ok(pricing) => Some(pricing),
                     Err(error) => {
-                        warn!(
-                            "Could not record pricing for {}: {}",
-                            instance.id,
-                            error.describe()
-                        );
+                        warn!(instance_id = %instance.id, error = %error.describe(), "pricing not recorded");
                         None
                     }
                 };
@@ -183,7 +182,7 @@ async fn launch_instance(
     };
 
     let mut instance = provider.spawn_instance(&params).await?;
-    debug!("Spawned instance: {}", instance.id);
+    debug!(instance_id = %instance.id, "instance launched");
 
     write_wireguard_config(
         &job.provider,
@@ -257,7 +256,7 @@ async fn write_wireguard_config(
     }
 
     if let Some(path_str) = wireguard_file_path.to_str() {
-        debug!("Client config written to {path_str}");
+        debug!(path = %path_str, "client config written");
     }
 
     Ok(())

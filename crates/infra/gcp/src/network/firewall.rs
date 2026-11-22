@@ -3,7 +3,7 @@ use google_cloud_compute_v1::model::{
     Firewall,
     firewall::{Allowed, Direction},
 };
-use log::info;
+use tracing::info;
 
 use crate::{
     client::GcpClient,
@@ -39,10 +39,7 @@ pub async fn ensure_firewall_rules(client: &GcpClient) -> Result<()> {
         match get_firewall_rule(client, rule.name).await? {
             Some(existing_rule) if matches_desired_rule(&existing_rule, rule) => {}
             Some(_) => {
-                info!(
-                    "[GCP] Firewall rule '{}' has drifted, patching...",
-                    rule.name
-                );
+                info!(rule = %rule.name, "firewall rule drifted, patching");
                 patch_firewall_rule(client, rule).await?;
             }
             None => create_firewall_rule(client, rule).await?,
@@ -88,7 +85,7 @@ async fn patch_firewall_rule(client: &GcpClient, rule: &FirewallRuleSpec) -> Res
         .set_body(patch_body)
         .poller();
     await_compute_operation("compute.firewalls.update", patch).await?;
-    info!("[GCP] Firewall rule '{}' patched.", rule.name);
+    info!(rule = %rule.name, "firewall rule patched");
     Ok(())
 }
 
@@ -109,7 +106,7 @@ async fn create_firewall_rule(client: &GcpClient, rule: &FirewallRuleSpec) -> Re
         .set_body(firewall)
         .poller();
     await_compute_operation("compute.firewalls.create", insert).await?;
-    info!("[GCP] Firewall rule '{}' created.", rule.name);
+    info!(rule = %rule.name, "firewall rule created");
     Ok(())
 }
 

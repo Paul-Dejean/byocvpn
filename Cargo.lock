@@ -74,7 +74,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dbb4e440d04be07da1f1bf44fb4495ebd58669372fe0cffa6e48595ac5bd88a3"
 dependencies = [
  "android_log-sys",
- "env_filter 0.1.4",
+ "env_filter",
  "log",
 ]
 
@@ -1009,9 +1009,9 @@ dependencies = [
  "byocvpn_core",
  "byocvpn_gcp",
  "byocvpn_oracle",
- "log",
  "serde",
  "specta",
+ "tracing",
 ]
 
 [[package]]
@@ -1030,13 +1030,13 @@ dependencies = [
  "byocvpn_core",
  "futures",
  "jiff 1.0.2",
- "log",
  "serde",
  "serde_json",
  "specta",
  "strum",
  "thiserror 2.0.21",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -1050,7 +1050,6 @@ dependencies = [
  "byocvpn_core",
  "futures",
  "jiff 1.0.2",
- "log",
  "reqwest",
  "serde",
  "serde_json",
@@ -1058,6 +1057,7 @@ dependencies = [
  "strum",
  "thiserror 2.0.21",
  "tokio",
+ "tracing",
  "uuid",
 ]
 
@@ -1069,11 +1069,10 @@ dependencies = [
  "byocvpn_core",
  "clap",
  "dialoguer",
- "env_logger",
  "indicatif",
- "log",
  "thiserror 2.0.21",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -1087,7 +1086,6 @@ dependencies = [
  "handlebars",
  "ipnet",
  "jiff 1.0.2",
- "log",
  "rand 0.10.4",
  "rust-ini",
  "serde",
@@ -1096,6 +1094,8 @@ dependencies = [
  "strum",
  "thiserror 2.0.21",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
  "tun-rs",
  "windows-sys 0.61.2",
 ]
@@ -1107,15 +1107,14 @@ dependencies = [
  "async-trait",
  "base64 0.23.1",
  "byocvpn_core",
- "env_logger",
  "futures",
  "ipnet",
- "log",
  "net-route",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
  "tokio",
+ "tracing",
  "tun-rs",
  "windows-service",
  "windows-sys 0.61.2",
@@ -1134,7 +1133,6 @@ dependencies = [
  "google-cloud-lro",
  "http",
  "jiff 1.0.2",
- "log",
  "reqwest",
  "serde",
  "serde_json",
@@ -1142,6 +1140,7 @@ dependencies = [
  "strum",
  "thiserror 2.0.21",
  "tokio",
+ "tracing",
  "uuid",
 ]
 
@@ -1155,7 +1154,6 @@ dependencies = [
  "futures",
  "hex",
  "jiff 1.0.2",
- "log",
  "rand 0.10.4",
  "reqwest",
  "rsa",
@@ -1166,6 +1164,7 @@ dependencies = [
  "strum",
  "thiserror 2.0.21",
  "tokio",
+ "tracing",
  "url",
 ]
 
@@ -2195,29 +2194,6 @@ checksum = "1bf3c259d255ca70051b30e2e95b5446cdb8949ac4cd22c0d7fd634d89f568e2"
 dependencies = [
  "log",
  "regex",
-]
-
-[[package]]
-name = "env_filter"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "900d271a03799a1ee8d1ca9b19893b48ca674a9284fefcfb85f05e74ed314217"
-dependencies = [
- "log",
- "regex",
-]
-
-[[package]]
-name = "env_logger"
-version = "0.11.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82bdfc6e01c305a3ea46ed815b06ac0b379d7c5eac588fa4464048d731c4dcdf"
-dependencies = [
- "anstream",
- "anstyle",
- "env_filter 2.0.0",
- "jiff 1.0.2",
- "log",
 ]
 
 [[package]]
@@ -3852,6 +3828,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "matchers"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1525a2a28c7f4fa0fc98bb91ae755d1e2d1505079e05539e35bc876b5d65ae9"
+dependencies = [
+ "regex-automata",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4173,6 +4158,15 @@ dependencies = [
  "serde",
  "tauri-winrt-notification",
  "zbus",
+]
+
+[[package]]
+name = "nu-ansi-term"
+version = "0.50.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
+dependencies = [
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -6979,6 +6973,7 @@ version = "0.1.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63e71662fa4b2a2c3a26f570f037eb95bb1f85397f3cd8076caed2f026a6d100"
 dependencies = [
+ "log",
  "pin-project-lite",
  "tracing-attributes",
  "tracing-core",
@@ -7006,6 +7001,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-log"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee855f1f400bd0e5c02d150ae5de3840039a3f54b025156404e34c23c03f47c3"
+dependencies = [
+ "log",
+ "once_cell",
+ "tracing-core",
+]
+
+[[package]]
 name = "tracing-opentelemetry"
 version = "0.34.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7025,9 +7031,15 @@ version = "0.3.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb7f578e5945fb242538965c2d0b04418d38ec25c79d160cd279bf0731c8d319"
 dependencies = [
+ "matchers",
+ "nu-ansi-term",
+ "once_cell",
+ "regex-automata",
  "sharded-slab",
  "thread_local",
+ "tracing",
  "tracing-core",
+ "tracing-log",
 ]
 
 [[package]]
@@ -7170,7 +7182,6 @@ dependencies = [
  "async-trait",
  "byocvpn_app",
  "byocvpn_core",
- "env_logger",
  "log",
  "serde",
  "serde_json",
@@ -7184,6 +7195,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-specta",
  "tokio",
+ "tracing",
  "tun-rs",
 ]
 

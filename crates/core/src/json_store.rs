@@ -5,8 +5,8 @@ use std::{
     sync::{Mutex, PoisonError},
 };
 
-use log::warn;
 use serde::{Serialize, de::DeserializeOwned};
+use tracing::warn;
 
 use crate::{
     config::get_data_directory,
@@ -50,7 +50,7 @@ impl<Data: Serialize + DeserializeOwned + Default> JsonFileStore<Data> {
         let write_result = write_data(&self.path, &*data);
         drop(data);
         if let Err(error) = write_result {
-            warn!("Failed to save {}: {error}", self.path.display());
+            warn!(%error, "failed to save {}", self.path.display());
         }
         output
     }
@@ -59,12 +59,12 @@ impl<Data: Serialize + DeserializeOwned + Default> JsonFileStore<Data> {
 fn load_data<Data: DeserializeOwned + Default>(path: &Path) -> Data {
     match fs::read(path) {
         Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_else(|error| {
-            warn!("Ignoring unreadable store {}: {error}", path.display());
+            warn!(%error, "ignoring unreadable store {}", path.display());
             Data::default()
         }),
         Err(error) if error.kind() == ErrorKind::NotFound => Data::default(),
         Err(error) => {
-            warn!("Failed to read store {}: {error}", path.display());
+            warn!(%error, "failed to read store {}", path.display());
             Data::default()
         }
     }

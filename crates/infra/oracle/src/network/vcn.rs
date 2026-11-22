@@ -1,5 +1,5 @@
 use byocvpn_core::managed_resources::build_managed_tags;
-use log::info;
+use tracing::info;
 
 use crate::{
     client::OciClient,
@@ -66,6 +66,6 @@ async fn create_vcn(client: &OciClient) -> Result<Vcn> {
         freeform_tags: build_managed_tags(),
     };
     let response: VcnResponse = client.post(&client.build_core_url("/vcns"), &body).await?;
-    info!("[OCI] Created VCN {}", response.id);
+    info!(vcn_id = %response.id, "vcn created");
     Vcn::from_response(response)
 }

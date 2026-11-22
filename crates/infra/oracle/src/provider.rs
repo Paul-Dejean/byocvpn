@@ -7,7 +7,7 @@ use byocvpn_core::{
     error::{InternalError, Result},
 };
 use futures::future::join_all;
-use log::warn;
+use tracing::{instrument, warn};
 
 use crate::{
     account,
@@ -40,7 +40,7 @@ impl OracleProvider {
             match instance::list_instances(&client, &region.name).await {
                 Ok(instances) => instances,
                 Err(error) => {
-                    warn!("[OCI] Skipping region {}: {error}", region.name);
+                    warn!(region = %region.name, %error, "region skipped");
                     Vec::new()
                 }
             }
@@ -56,15 +56,18 @@ impl CloudProvider for OracleProvider {
         CloudProviderName::Oracle
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn verify_permissions(&self) -> Result<Vec<PermissionStatus>> {
         Ok(permissions::verify_permissions())
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn get_regions(&self) -> Result<Vec<Region>> {
         let client = self.build_client(None);
         Ok(regions::list_regions(&client).await?)
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn list_instances(&self, region: Option<&str>) -> Result<Vec<InstanceInfo>> {
         match region {
             Some(region_name) => {
@@ -75,6 +78,7 @@ impl CloudProvider for OracleProvider {
         }
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn spawn_instance(&self, params: &SpawnInstanceParams<'_>) -> Result<InstanceInfo> {
         let client = self.build_client(Some(params.region));
         let region_network = network::ensure_region_network(&client).await?;
@@ -82,11 +86,13 @@ impl CloudProvider for OracleProvider {
         Ok(instance::spawn_instance(&client, &region_network, &image_ocid, params).await?)
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn terminate_instance(&self, params: &TerminateInstanceParams<'_>) -> Result<()> {
         let client = self.build_client(Some(params.region));
         Ok(instance::terminate_instance(&client, params.instance_id).await?)
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn fetch_pricing(&self, region: &str, instance_type: &str) -> Result<PricingInfo> {
         Ok(pricing::fetch_pricing(region, instance_type).await?)
     }
@@ -95,6 +101,7 @@ impl CloudProvider for OracleProvider {
         steps::build_provision_account_steps()
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn run_provision_account_step(&self, step_id: &str) -> Result<()> {
         let home_client = self.build_client(None);
         match parse_step_id(step_id)? {
@@ -124,6 +131,7 @@ impl CloudProvider for OracleProvider {
         steps::build_enable_region_steps()
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn run_enable_region_step(&self, step_id: &str, region: &str) -> Result<()> {
         let client = self.build_client(Some(region));
         match parse_step_id(step_id)? {
@@ -165,6 +173,7 @@ impl CloudProvider for OracleProvider {
         steps::build_spawn_steps()
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn run_spawn_step(&self, step_id: &str, region: &str) -> Result<()> {
         match parse_step_id(step_id)? {
             OracleStepId::SetupNetwork => {

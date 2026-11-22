@@ -1,7 +1,7 @@
 use std::{net::Ipv6Addr, str::FromStr};
 
 use aws_sdk_ec2::types::{AttributeBooleanValue, Filter, ResourceType, Tag, TagSpecification};
-use log::info;
+use tracing::info;
 
 use crate::{
     client::AwsClient,
@@ -100,7 +100,7 @@ async fn create_subnet(
             resource: "subnet",
             field: "subnetId",
         })?;
-    info!("[AWS] Created subnet {subnet_id}");
+    info!(%subnet_id, "subnet created");
     Ok(subnet_id.to_string())
 }
 

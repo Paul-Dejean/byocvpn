@@ -8,7 +8,7 @@ use byocvpn_core::{
     tunnel::ConnectedInstance,
 };
 use dialoguer::{Select, theme::ColorfulTheme};
-use log::info;
+use tracing::info;
 
 use crate::{
     error::CliResult,
@@ -48,7 +48,7 @@ pub async fn run_disconnect(context: &AppContext, offer_to_terminate: bool) -> C
     let status = fetch_vpn_status(context.daemon_client.as_ref()).await?;
 
     let Some(connected_instance) = status.instance.filter(|_| status.connected) else {
-        info!("Not connected to any VPN");
+        info!("not connected to any VPN");
         return Ok(());
     };
 
@@ -99,7 +99,7 @@ async fn choose_instance_or_spawn(context: &AppContext) -> CliResult<InstanceInf
         .collect();
 
     if running_instances.is_empty() {
-        info!("No running servers found, spawning a new one");
+        info!("no running servers found, spawning a new one");
         return spawn_new_server(context, None, None).await;
     }
 

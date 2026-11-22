@@ -40,10 +40,8 @@ rand = "0.10.4"
 handlebars = "6.4.4"
 futures = { version = "0.3.34", default-features = false, features = ["std"] }
 log = "0.4.35"
-env_logger = { version = "0.11.12", default-features = false, features = [
-    "auto-color",
-    "humantime",
-] }
+tracing = { version = "0.1.44", default-features = false, features = ["std", "attributes", "log"] }
+tracing-subscriber = { version = "0.3.23", default-features = false, features = ["fmt", "env-filter", "ansi", "std", "tracing-log"] }
 reqwest = { version = "0.13.5", default-features = false, features = [
     "json",
     "query",

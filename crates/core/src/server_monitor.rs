@@ -5,7 +5,7 @@ use std::{
 };
 
 use jiff::{SignedDuration, Timestamp};
-use log::{debug, info, warn};
+use tracing::{debug, info, warn};
 
 use crate::{
     app_context::AppContext,
@@ -93,17 +93,12 @@ pub async fn run_auto_terminate_check(
         threshold,
         now,
     ) {
-        info!(
-            "[auto-terminate] {} ({}) idle for more than {threshold_minutes}min; terminating",
-            entry.instance_id, entry.provider
-        );
+        info!(instance_id = %entry.instance_id, provider = %entry.provider, threshold_minutes, "terminating idle server");
         match terminate_instance(context, entry.provider, &entry.region, &entry.instance_id).await {
             Ok(()) => observer.on_auto_terminated(entry, notifications_enabled),
-            Err(error) => warn!(
-                "[auto-terminate] failed to terminate {}: {}",
-                entry.instance_id,
-                error.describe()
-            ),
+            Err(error) => {
+                warn!(instance_id = %entry.instance_id, error = %error.describe(), "failed to terminate idle server");
+            }
         }
     }
 }
@@ -172,15 +167,14 @@ async fn fetch_connection_state(daemon_client: &dyn DaemonClient) -> ConnectionS
     let vpn_status = match fetch_vpn_status(daemon_client).await {
         Ok(status) => status,
         Err(error) => {
-            warn!(
-                "[auto-terminate] skipping this round — could not read VPN status, refusing to terminate a possibly-connected server: {error}"
+            warn!(%error, "skipping this round — could not read VPN status, refusing to terminate a possibly-connected server"
             );
             return ConnectionState::Unknown;
         }
     };
 
     debug!(
-        "[auto-terminate] raw daemon VpnStatus: connected={}, instance={:?}, connected_at={:?}",
+        "raw daemon VpnStatus: connected={}, instance={:?}, connected_at={:?}",
         vpn_status.connected, vpn_status.instance, vpn_status.connected_at
     );
 
@@ -190,9 +184,7 @@ async fn fetch_connection_state(daemon_client: &dyn DaemonClient) -> ConnectionS
     if let Some(connected_instance) = vpn_status.instance {
         return ConnectionState::ConnectedTo(connected_instance.instance_id);
     }
-    warn!(
-        "[auto-terminate] skipping this round — VPN reports connected but no instance is identified"
-    );
+    warn!("skipping this round — VPN reports connected but no instance is identified");
     ConnectionState::Unknown
 }
 

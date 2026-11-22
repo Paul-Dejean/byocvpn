@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, io, process::Command};
 
 use byocvpn_core::error::{Result, TunnelError};
-use log::{debug, warn};
+use tracing::{debug, warn};
 
 const LIST_SERVICES_COMMAND: &str = "networksetup -listallnetworkservices";
 const GET_DNS_COMMAND: &str = "networksetup -getdnsservers";
@@ -20,7 +20,7 @@ impl DnsOverrideGuard {
         }
 
         let network_service_names = list_all_enabled_network_services()?;
-        debug!("Found network services: {network_service_names:?}");
+        debug!("found network services: {network_service_names:?}");
 
         let mut original_domain_name_system_by_service = BTreeMap::new();
         for network_service_name in &network_service_names {
@@ -29,12 +29,12 @@ impl DnsOverrideGuard {
                     command: GET_DNS_COMMAND,
                     source,
                 })?;
-            debug!("Original DNS for {network_service_name}: {current_domain_name_system:?}");
+            debug!("original DNS for {network_service_name}: {current_domain_name_system:?}");
             original_domain_name_system_by_service
                 .insert(network_service_name.clone(), current_domain_name_system);
         }
 
-        debug!("Setting new DNS servers: {new_dns_servers:?}");
+        debug!("setting new DNS servers: {new_dns_servers:?}");
         for network_service_name in &network_service_names {
             set_dns_for_service(network_service_name, Some(new_dns_servers)).map_err(|source| {
                 TunnelError::DnsCommand {
@@ -55,25 +55,25 @@ impl DnsOverrideGuard {
             return Ok(());
         }
 
-        debug!("Restoring original DNS settings...");
+        debug!("restoring original DNS settings");
 
         for (network_service_name, original_option) in &self.original_domain_name_system_by_service
         {
-            debug!("Restoring DNS for service: {network_service_name}");
-            debug!("Original DNS servers: {original_option:?}");
+            debug!("restoring DNS for service: {network_service_name}");
+            debug!("original DNS servers: {original_option:?}");
 
             match original_option {
                 Some(list) if !list.is_empty() => {
                     let as_slices: Vec<&str> = list.iter().map(String::as_str).collect();
-                    debug!("Setting DNS servers to: {as_slices:?}");
+                    debug!("setting DNS servers to: {as_slices:?}");
                     set_dns_for_service(network_service_name, Some(&as_slices))?;
                 }
                 Some(_) => {
-                    debug!("Clearing DNS servers (original was empty)");
+                    debug!("clearing DNS servers (original was empty)");
                     set_dns_for_service(network_service_name, None)?;
                 }
                 None => {
-                    debug!("Clearing DNS servers (original was None)");
+                    debug!("clearing DNS servers (original was None)");
                     set_dns_for_service(network_service_name, None)?;
                 }
             }
@@ -88,7 +88,7 @@ impl DnsOverrideGuard {
 impl Drop for DnsOverrideGuard {
     fn drop(&mut self) {
         if let Err(error) = self.restore_previous_dns_configuration() {
-            warn!("Failed to restore DNS on drop: {error}");
+            warn!(%error, "failed to restore DNS on drop");
         }
     }
 }
@@ -96,7 +96,7 @@ impl Drop for DnsOverrideGuard {
 fn list_all_enabled_network_services() -> Result<Vec<String>> {
     let mut command = Command::new("networksetup");
     command.arg("-listallnetworkservices");
-    debug!("Executing command: {command:?}");
+    debug!("executing command: {command:?}");
     let output = command.output().map_err(|source| TunnelError::DnsCommand {
         command: LIST_SERVICES_COMMAND,
         source,
@@ -130,7 +130,7 @@ fn list_all_enabled_network_services() -> Result<Vec<String>> {
 fn get_dns_servers_for_service(network_service_name: &str) -> io::Result<Option<Vec<String>>> {
     let mut command = Command::new("networksetup");
     command.arg("-getdnsservers").arg(network_service_name);
-    debug!("Executing command: {command:?}");
+    debug!("executing command: {command:?}");
     let output = command.output()?;
 
     if !output.status.success() {
@@ -174,7 +174,7 @@ fn set_dns_for_service(
         }
     }
 
-    debug!("Executing command: {command:?}");
+    debug!("executing command: {command:?}");
     let output = command.output()?;
 
     if !output.status.success() {

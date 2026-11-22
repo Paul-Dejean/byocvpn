@@ -8,8 +8,8 @@ use byocvpn_core::{
     config::session_file_path,
     error::{ConfigurationError, Result},
 };
-use log::{debug, warn};
 use serde::{Deserialize, Serialize};
+use tracing::{debug, warn};
 
 const fn default_kill_switch_enabled() -> bool {
     true
@@ -34,7 +34,7 @@ pub fn write_session(session: &PersistedSession) -> Result<()> {
         path: path.clone(),
         source,
     })?;
-    debug!("Session persisted to {}", path.display());
+    debug!("session persisted to {}", path.display());
     Ok(())
 }
 
@@ -42,7 +42,7 @@ pub fn clear_session() -> Result<()> {
     let path = session_file_path()?;
     match remove_file(&path) {
         Ok(()) => {
-            debug!("Session file cleared");
+            debug!("session file cleared");
             Ok(())
         }
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
@@ -61,15 +61,14 @@ pub fn read_session() -> Option<PersistedSession> {
         Ok(json) => json,
         Err(error) if error.kind() == ErrorKind::NotFound => return None,
         Err(error) => {
-            warn!("failed to read session file {}: {error}", path.display());
+            warn!(%error, "failed to read session file {}", path.display());
             return None;
         }
     };
     match serde_json::from_str(&json) {
         Ok(session) => Some(session),
         Err(error) => {
-            warn!(
-                "ignoring unreadable session file {}: {error}",
+            warn!(%error, "ignoring unreadable session file {}",
                 path.display()
             );
             None

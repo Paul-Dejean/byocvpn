@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use log::{info, warn};
+use tracing::{Instrument, info, info_span, warn};
 
 use crate::{
     app_context::AppContext,
@@ -23,28 +23,31 @@ pub async fn run_enable_region_job(
     let provider_name = provider.get_provider_name();
     let job_id = build_job_id(&provider_name, Some(region));
     let steps = provider.get_enable_region_steps(region);
-    info!(
-        "Enable region job {job_id} started with {} steps",
-        steps.len()
-    );
-    observer.on_job_started(&job_id, &steps);
+    let span =
+        info_span!("enable_region_job", job_id = %job_id, provider = %provider_name, %region);
+    async move {
+        info!(steps = steps.len(), "enable region job started");
+        observer.on_job_started(&job_id, &steps);
 
-    let mut enable_region_steps = EnableRegionSteps { provider, region };
-    match run_job_steps(&steps, &mut enable_region_steps, observer).await {
-        Ok(()) => {
-            context
-                .provider_flags
-                .mark_region_enabled(&provider_name, region);
-            info!("Enable region job {job_id} completed");
-            observer.on_job_completed(region);
-            Ok(())
-        }
-        Err(error) => {
-            warn!("Enable region job {job_id} failed: {}", error.describe());
-            observer.on_job_failed(&error);
-            Err(error)
+        let mut enable_region_steps = EnableRegionSteps { provider, region };
+        match run_job_steps(&steps, &mut enable_region_steps, observer).await {
+            Ok(()) => {
+                context
+                    .provider_flags
+                    .mark_region_enabled(&provider_name, region);
+                info!("enable region job completed");
+                observer.on_job_completed(region);
+                Ok(())
+            }
+            Err(error) => {
+                warn!(error = %error.describe(), "enable region job failed");
+                observer.on_job_failed(&error);
+                Err(error)
+            }
         }
     }
+    .instrument(span)
+    .await
 }
 
 struct EnableRegionSteps<'a> {

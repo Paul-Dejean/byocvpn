@@ -5,12 +5,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use log::{debug, warn};
 use tokio::{
     fs::{metadata, remove_file, set_permissions},
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{UnixListener, UnixStream},
 };
+use tracing::{debug, warn};
 
 use crate::error::DaemonError;
 
@@ -47,8 +47,7 @@ async fn remove_stale_socket_file(path: &Path) {
     match remove_file(path).await {
         Ok(()) => debug!("removed stale socket file at {}", path.display()),
         Err(error) if error.kind() == ErrorKind::NotFound => {}
-        Err(error) => warn!(
-            "failed to remove stale socket file at {}: {error}",
+        Err(error) => warn!(%error, "failed to remove stale socket file at {}",
             path.display()
         ),
     }
@@ -59,8 +58,7 @@ impl Drop for IpcSocket {
         if let Err(error) = remove_file_blocking(&self.path)
             && error.kind() != ErrorKind::NotFound
         {
-            warn!(
-                "failed to remove socket file at {}: {error}",
+            warn!(%error, "failed to remove socket file at {}",
                 self.path.display()
             );
         }

@@ -1,6 +1,6 @@
 use handlebars::Handlebars;
-use log::debug;
 use serde::Serialize;
+use tracing::debug;
 
 use crate::error::{ConfigurationError, Result};
 
@@ -42,7 +42,7 @@ pub fn generate_server_startup_script(
     };
     let script = render_template(STARTUP_SCRIPT_TEMPLATE, &context)?;
     debug!(
-        "Generated server startup script for {package_manager:?} ({} bytes)",
+        "generated server startup script for {package_manager:?} ({} bytes)",
         script.len()
     );
     Ok(script)

@@ -11,8 +11,8 @@ use byocvpn_core::{
 };
 use futures::future::join_all;
 use jiff::Timestamp;
-use log::{debug, info, warn};
 use tokio::time::Duration;
+use tracing::{debug, info, warn};
 
 use crate::{
     client::OciClient,
@@ -41,17 +41,13 @@ pub async fn spawn_instance(
     let region = params.region;
     let body = build_launch_request(client, region_network, image_ocid, params).await?;
 
-    debug!(
-        "[OCI] Launching instance in {region} (compartment {}, subnet {})",
-        client.get_compartment_ocid(),
-        region_network.subnet_id
-    );
+    debug!(%region, compartment = %client.get_compartment_ocid(), subnet = %region_network.subnet_id, "launching instance");
     let launched: InstanceResponse = client
         .post(&client.build_core_url("/instances"), &body)
         .await?;
 
     let instance_ocid = launched.id;
-    debug!("[OCI] Instance {instance_ocid} created, waiting for RUNNING state");
+    debug!(instance_id = %instance_ocid, "instance created, waiting for running state");
     wait_until_running(client, &instance_ocid).await?;
 
     let details = get_instance(client, &instance_ocid).await?;
@@ -61,20 +57,17 @@ pub async fn spawn_instance(
     instance.public_ip_v6 = public_ip_v6;
     instance.instance_type = INSTANCE_SHAPE.to_string();
     instance.launched_at = Some(Timestamp::now());
-    info!(
-        "[OCI] Instance {} spawned in {region} (IPv4 {}, IPv6 {})",
-        instance.id, instance.public_ip_v4, instance.public_ip_v6
-    );
+    info!(instance_id = %instance.id, %region, ipv4 = %instance.public_ip_v4, ipv6 = %instance.public_ip_v6, "instance spawned");
     Ok(instance)
 }
 
 pub async fn terminate_instance(client: &OciClient, instance_ocid: &str) -> Result<()> {
-    debug!("[OCI] Terminating instance {instance_ocid}");
+    debug!(instance_id = %instance_ocid, "terminating instance");
     let url = client.build_core_url(&format!(
         "/instances/{instance_ocid}?preserveBootVolume=false"
     ));
     client.delete(&url).await?;
-    info!("[OCI] Instance {instance_ocid} terminated");
+    info!(instance_id = %instance_ocid, "instance terminated");
     Ok(())
 }
 
@@ -178,7 +171,7 @@ async fn wait_until_running(client: &OciClient, instance_ocid: &str) -> Result<(
                 .map_err(InstanceWaitError::LookupFailed)?;
             match details.lifecycle_state {
                 OciLifecycleState::Running => {
-                    debug!("[OCI] Instance {instance_ocid} reached RUNNING state");
+                    debug!(instance_id = %instance_ocid, "instance running");
                     Ok(())
                 }
                 lifecycle_state @ (OciLifecycleState::Terminated
@@ -199,9 +192,7 @@ async fn wait_until_running(client: &OciClient, instance_ocid: &str) -> Result<(
             }
             InstanceWaitError::LookupFailed(lookup_error) => {
                 consecutive_lookup_failures += 1;
-                debug!(
-                    "[OCI] Instance {instance_ocid} not yet visible (attempt {consecutive_lookup_failures}/{MAX_CONSECUTIVE_LOOKUP_FAILURES}): {lookup_error}"
-                );
+                debug!(instance_id = %instance_ocid, attempt = consecutive_lookup_failures, max_attempts = MAX_CONSECUTIVE_LOOKUP_FAILURES, error = %lookup_error, "instance not yet visible");
                 consecutive_lookup_failures <= MAX_CONSECUTIVE_LOOKUP_FAILURES
             }
             InstanceWaitError::Terminal(_) => false,
@@ -227,7 +218,7 @@ async fn get_public_ips(client: &OciClient, instance_ocid: &str) -> (String, Str
     ));
     let Ok(attachments): Result<Vec<VnicAttachmentResponse>> = client.get(&attachments_url).await
     else {
-        warn!("[OCI] Failed to fetch VNIC attachments for instance {instance_ocid}");
+        warn!(instance_id = %instance_ocid, "failed to fetch vnic attachments");
         return (String::new(), String::new());
     };
     let Some(vnic_ocid) = attachments
@@ -235,13 +226,13 @@ async fn get_public_ips(client: &OciClient, instance_ocid: &str) -> (String, Str
         .next()
         .map(|attachment| attachment.vnic_id)
     else {
-        warn!("[OCI] No VNIC attachment found for instance {instance_ocid}");
+        warn!(instance_id = %instance_ocid, "no vnic attachment found");
         return (String::new(), String::new());
     };
 
     let vnic_url = client.build_core_url(&format!("/vnics/{vnic_ocid}"));
     let Ok(vnic): Result<VnicResponse> = client.get(&vnic_url).await else {
-        warn!("[OCI] Failed to fetch VNIC {vnic_ocid} for instance {instance_ocid}");
+        warn!(instance_id = %instance_ocid, %vnic_ocid, "failed to fetch vnic");
         return (String::new(), String::new());
     };
     let public_ip_v4 = vnic.public_ip.unwrap_or_default();

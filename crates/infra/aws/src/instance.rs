@@ -12,8 +12,8 @@ use byocvpn_core::{
     server_startup::{PackageManager, generate_server_startup_script},
 };
 use jiff::Timestamp;
-use log::{debug, info};
 use tokio::time::Duration;
+use tracing::{debug, info};
 
 use crate::{
     client::AwsClient,
@@ -40,10 +40,7 @@ pub async fn spawn_instance(
         params.server_private_key,
         params.client_public_key,
     )?;
-    debug!(
-        "[AWS] Generated startup script ({} bytes)",
-        startup_script.len()
-    );
+    debug!("generated startup script ({} bytes)", startup_script.len());
 
     let response = client
         .ec2
@@ -76,9 +73,7 @@ pub async fn spawn_instance(
         .await?;
 
     let (public_ip_v4, public_ip_v6) = get_public_ips(client, &instance_id).await?;
-    info!(
-        "[AWS] Instance {instance_id} spawned in {region} (IPv4 {public_ip_v4}, IPv6 {public_ip_v6})"
-    );
+    info!(%instance_id, %region, ipv4 = %public_ip_v4, ipv6 = %public_ip_v6, "instance spawned");
 
     Ok(InstanceInfo {
         id: instance_id,
@@ -96,19 +91,19 @@ pub async fn spawn_instance(
 }
 
 pub async fn terminate_instance(client: &AwsClient, instance_id: &str) -> Result<()> {
-    debug!("[AWS] Terminating instance {instance_id}");
+    debug!(%instance_id, "terminating instance");
     client
         .ec2
         .terminate_instances()
         .instance_ids(instance_id)
         .send()
         .await?;
-    info!("[AWS] Instance {instance_id} terminated");
+    info!(%instance_id, "instance terminated");
     Ok(())
 }
 
 pub async fn list_instances(client: &AwsClient, region: &str) -> Result<Vec<InstanceInfo>> {
-    debug!("[AWS] Listing instances in region {region}");
+    debug!(%region, "listing instances");
     let response = client
         .ec2
         .describe_instances()
@@ -138,10 +133,7 @@ pub async fn list_instances(client: &AwsClient, region: &str) -> Result<Vec<Inst
         .flat_map(Reservation::instances)
         .filter_map(|instance| build_instance_info(instance, region))
         .collect();
-    debug!(
-        "[AWS] Found {} instances in region {region}",
-        instances.len()
-    );
+    debug!(%region, count = instances.len(), "instances listed");
     Ok(instances)
 }
 

@@ -1,7 +1,7 @@
 use byocvpn_core::retry::{RetryPolicy, retry};
-use log::{debug, info};
 use serde_json::Value;
 use tokio::time::Duration;
+use tracing::{debug, info};
 
 use crate::{
     client::OciClient,
@@ -17,10 +17,7 @@ const REGION_SUBSCRIPTION_POLL_POLICY: RetryPolicy =
 pub async fn ensure_account_network(home_client: &OciClient) -> Result<()> {
     let vcn = ensure_vcn(home_client).await?;
     ensure_internet_gateway(home_client, &vcn).await?;
-    info!(
-        "[OCI] Home region {} network ready (VCN + internet gateway).",
-        home_client.get_region()
-    );
+    info!(region = %home_client.get_region(), "home region network ready");
     Ok(())
 }
 
@@ -38,15 +35,15 @@ pub async fn ensure_region_subscribed(home_client: &OciClient, region_name: &str
             },
         )
         .await?;
-    info!("[OCI] Subscribed to region {region_name} (key {region_key}), waiting for READY...");
+    info!(%region_name, %region_key, "subscribed to region, waiting for ready");
 
     retry(
         || async move {
             if is_region_ready(home_client, region_name).await? {
-                info!("[OCI] Region {region_name} is now READY.");
+                info!(%region_name, "region ready");
                 return Ok(());
             }
-            debug!("[OCI] Region {region_name} not yet ready, retrying...");
+            debug!(%region_name, "region not ready yet, retrying");
             Err(OracleError::RegionSubscriptionTimedOut {
                 region: region_name.to_string(),
             })

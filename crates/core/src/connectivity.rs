@@ -1,10 +1,10 @@
-use log::debug;
 use serde::Deserialize;
 use tokio::{
     io::AsyncReadExt,
     net::TcpStream as AsyncTcpStream,
     time::{Duration as TokioDuration, timeout},
 };
+use tracing::debug;
 
 use crate::{
     error::{Error, InstanceError, Result},
@@ -48,9 +48,9 @@ pub async fn probe_status(ip_address: &str) -> ProbeStatus {
             match timeout(TokioDuration::from_secs(3), stream.read_to_end(&mut buffer)).await {
                 Ok(Ok(_)) => {}
                 Ok(Err(error)) => {
-                    debug!("[Probe] Reading the status from {address} failed: {error}");
+                    debug!(%error, "reading the status from {address} failed");
                 }
-                Err(_) => debug!("[Probe] Reading the status from {address} timed out"),
+                Err(_) => debug!("reading the status from {address} timed out"),
             }
             let raw = String::from_utf8_lossy(&buffer).trim().to_string();
             match serde_json::from_str::<ServerStatus>(&raw) {
@@ -70,14 +70,14 @@ pub async fn wait_until_ready(ip_address: &str) -> Result<()> {
         || async move {
             match probe_status(ip_address).await {
                 ProbeStatus::Ready => {
-                    debug!("[probe] instance ready");
+                    debug!("instance ready");
                     Ok(())
                 }
                 ProbeStatus::Error(reason) => {
                     Err(InstanceError::ReadinessProbeFailed { reason }.into())
                 }
                 ProbeStatus::Installing => {
-                    debug!("[probe] not ready yet, retrying...");
+                    debug!("not ready yet, retrying");
                     Err(InstanceError::ReadinessProbeTimedOut.into())
                 }
             }

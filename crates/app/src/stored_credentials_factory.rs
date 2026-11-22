@@ -9,7 +9,7 @@ use byocvpn_core::{
 };
 use byocvpn_gcp::{GcpCredentials, GcpProvider};
 use byocvpn_oracle::{OracleCredentials, OracleProvider};
-use log::debug;
+use tracing::debug;
 
 const ALL_PROVIDERS: [CloudProviderName; 4] = [
     CloudProviderName::Aws,
@@ -32,7 +32,7 @@ impl ProviderFactory for StoredCredentialsProviderFactory {
     }
 
     async fn create(&self, provider: CloudProviderName) -> Result<Box<dyn CloudProvider>> {
-        debug!("Creating {provider} cloud provider");
+        debug!("creating {provider} cloud provider");
         let store = CredentialStore::load().await?;
         let cloud_provider: Box<dyn CloudProvider> = match provider {
             CloudProviderName::Aws => {

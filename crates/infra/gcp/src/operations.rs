@@ -1,8 +1,8 @@
 use byocvpn_core::retry::{RetryPolicy, retry};
 use google_cloud_compute_v1::model::Operation;
 use google_cloud_lro::Poller;
-use log::debug;
 use serde::Deserialize;
+use tracing::debug;
 
 use crate::{
     client::GcpClient,
@@ -30,7 +30,7 @@ pub async fn wait_for_service_usage_operation(
         || async move {
             let operation: ServiceUsageOperation = client.get(operation_url).await?;
             if operation.done != Some(true) {
-                debug!("[GCP] Operation pending: {operation_url}");
+                debug!(%operation_url, "operation pending");
                 return Err(GcpError::ServiceUsageOperationTimedOut {
                     operation_url: operation_url.to_string(),
                 });

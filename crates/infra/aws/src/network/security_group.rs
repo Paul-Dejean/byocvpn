@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use aws_sdk_ec2::types::{Filter, IpPermission, IpRange, Ipv6Range, SecurityGroup};
 use byocvpn_core::managed_resources::{ANY_IPV4_CIDR, ANY_IPV6_CIDR, WIREGUARD_PORT};
-use log::info;
+use tracing::info;
 
 use crate::{
     client::AwsClient,
@@ -57,7 +57,7 @@ async fn create_security_group(client: &AwsClient, vpc_id: &str) -> Result<Strin
             field: "groupId",
         })?
         .to_string();
-    info!("[AWS] Created security group {security_group_id}");
+    info!(%security_group_id, "security group created");
 
     let desired_permissions = build_desired_ingress_rules()
         .iter()

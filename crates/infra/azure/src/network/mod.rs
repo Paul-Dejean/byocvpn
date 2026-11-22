@@ -3,10 +3,10 @@ mod resource_group;
 mod subnet;
 mod virtual_network;
 
-use log::info;
 pub use network_security_group::ensure_network_security_group;
 pub use resource_group::ensure_resource_group;
 pub use subnet::ensure_subnet;
+use tracing::info;
 pub use virtual_network::ensure_virtual_network;
 
 use crate::{account::ensure_providers_registered, client::AzureClient, error::Result};
@@ -20,7 +20,7 @@ pub async fn ensure_region_network(client: &AzureClient, location: &str) -> Resu
     ensure_providers_registered(client).await?;
     ensure_resource_group(client, location).await?;
     let region_network = ensure_virtual_network_resources(client, location).await?;
-    info!("[Azure] Region '{location}' network ready.");
+    info!(%location, "region network ready");
     Ok(region_network)
 }
 

@@ -1,6 +1,6 @@
 use byocvpn_core::retry::{RetryPolicy, retry};
-use log::{debug, info, warn};
 use tokio::time::Duration;
+use tracing::{debug, info, warn};
 
 use crate::{
     arm_resource::API_VERSION_RESOURCE_GROUPS,
@@ -36,7 +36,7 @@ pub async fn ensure_providers_registered(client: &AzureClient) -> Result<()> {
         let register_path =
             client.build_subscription_path(&format!("/providers/{namespace}/register"));
         let register_url = AzureClient::build_arm_url(&register_path, API_VERSION_RESOURCE_GROUPS);
-        info!("[Azure] Registering provider '{namespace}'...");
+        info!(%namespace, "registering resource provider");
         client
             .post::<_, ProviderRegistrationResponse>(&register_url, &EmptyRequest {})
             .await?;
@@ -51,7 +51,7 @@ pub async fn ensure_providers_registered(client: &AzureClient) -> Result<()> {
                         other => {
                             let state = other
                                 .map_or_else(|| "unknown".to_string(), |state| state.to_string());
-                            debug!("[Azure] Provider '{namespace}' registration state: {state}");
+                            debug!(%namespace, %state, "resource provider registration state");
                             Err(AzureError::ProviderRegistrationTimedOut {
                                 namespace: (*namespace).to_string(),
                             })
@@ -74,9 +74,12 @@ pub async fn request_network_provider_registration(client: &AzureClient) {
         .post::<_, ProviderRegistrationResponse>(&register_url, &EmptyRequest {})
         .await
     {
-        Ok(_) => debug!("[Azure] {NETWORK_PROVIDER_NAMESPACE} registration requested"),
+        Ok(_) => debug!(
+            namespace = NETWORK_PROVIDER_NAMESPACE,
+            "registration requested"
+        ),
         Err(error) => {
-            warn!("[Azure] {NETWORK_PROVIDER_NAMESPACE} registration request failed: {error}");
+            warn!(namespace = NETWORK_PROVIDER_NAMESPACE, %error, "registration request failed");
         }
     }
 }

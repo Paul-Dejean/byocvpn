@@ -1,5 +1,5 @@
 use google_cloud_compute_v1::model::Network;
-use log::info;
+use tracing::info;
 
 use crate::{
     client::GcpClient,
@@ -58,7 +58,7 @@ async fn create_vpc(client: &GcpClient) -> Result<String> {
         .send()
         .await
         .label_operation("compute.networks.get")?;
-    info!("[GCP] VPC '{VPC_NAME}' created.");
+    info!(vpc = VPC_NAME, "vpc created");
     extract_self_link(vpc)
 }
 

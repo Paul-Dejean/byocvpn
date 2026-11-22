@@ -15,7 +15,6 @@ use byocvpn_core::{
 };
 use futures::StreamExt;
 use ipnet::IpNet;
-use log::{debug, error, info, warn};
 use net_route::Handle as RouteHandle;
 use tokio::{
     net::UdpSocket,
@@ -23,6 +22,7 @@ use tokio::{
     task::JoinHandle,
     time::{Duration, interval},
 };
+use tracing::{debug, error, info, instrument, warn};
 use tun_rs::{AsyncDevice, DeviceBuilder};
 
 use crate::{
@@ -49,6 +49,11 @@ struct RunningTunnel {
     metrics_shutdown: watch::Sender<()>,
 }
 
+#[instrument(
+    name = "connect",
+    skip_all,
+    fields(instance_id = %params.instance_id, region = %params.region, provider = %params.provider)
+)]
 pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
     let VpnConnectParams {
         instance_id,
@@ -65,7 +70,7 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
         kill_switch_enabled,
     } = params;
 
-    info!("Connecting VPN: instance={instance_id}, region={region}, provider={provider}");
+    info!("connecting");
     ensure_no_tunnel_running()?;
 
     let (tun, interface_index) = setup_tun_device(private_ipv4, private_ipv6)?;
@@ -108,7 +113,7 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
         connected_at: SystemTime::now(),
     })?;
 
-    info!("VPN setup complete.");
+    info!("connected");
     Ok(())
 }
 
@@ -124,11 +129,11 @@ fn ensure_no_tunnel_running() -> Result<()> {
 
 fn apply_kill_switch(enabled: bool, server_ip: &str, interface_name: &str) {
     if !enabled {
-        warn!("Session kill switch disabled; traffic can leak if the tunnel drops.");
+        warn!("kill switch disabled, traffic can leak if the tunnel drops");
         return;
     }
     if let Err(error) = firewall::apply(server_ip, interface_name) {
-        warn!("Kill switch apply failed: {error}");
+        warn!(%error, "kill switch apply failed");
     }
 }
 
@@ -136,7 +141,7 @@ fn spawn_tunnel(mut tunnel: Tunnel, shutdown: watch::Sender<()>) -> RunningTunne
     let metrics = tunnel.get_metrics();
     let task = tokio::spawn(async move {
         if let Err(error) = tunnel.run().await {
-            error!("Tunnel exited: {error}");
+            error!(%error, "tunnel exited");
         }
     });
     let (metrics_shutdown, metrics_shutdown_receiver) = watch::channel(());
@@ -155,7 +160,7 @@ async fn setup_routing(
     server_ip: &str,
     dns_servers: &[String],
 ) -> Result<RoutingSetup> {
-    debug!("Adding VPN routes...");
+    debug!("adding VPN routes");
     add_vpn_routes(interface_index, server_ip).await?;
     let (route_monitor_shutdown, route_monitor_shutdown_receiver) = watch::channel(());
     let route_monitor_task =
@@ -177,7 +182,7 @@ fn persist_session(connected_instance: &ConnectedInstance, kill_switch_enabled: 
         kill_switch_enabled,
     };
     if let Err(error) = session::write_session(&persisted_session) {
-        warn!("Failed to persist session: {error}");
+        warn!(%error, "failed to persist session");
     }
 }
 
@@ -203,7 +208,7 @@ fn setup_tun_device(private_ipv4: IpNet, private_ipv6: IpNet) -> Result<(AsyncDe
     })?;
 
     let interface_name = tun.name().unwrap_or_else(|_| "unknown".to_string());
-    debug!("Created TUN device: {interface_name} (index: {interface_index})");
+    debug!(%interface_name, interface_index, "tun device created");
     Ok((tun, interface_index))
 }
 
@@ -224,7 +229,7 @@ async fn connect_udp_socket(server_endpoint: SocketAddr) -> Result<UdpSocket> {
         .await
         .map_err(TunnelError::io("connect the UDP socket"))?;
 
-    debug!("UDP socket connected to {server_endpoint}");
+    debug!(%server_endpoint, "udp socket connected");
     Ok(udp)
 }
 
@@ -238,13 +243,13 @@ fn spawn_metrics_task(
         let mut listener = match IpcSocket::bind(metrics_socket_path.clone()).await {
             Ok(listener) => {
                 debug!(
-                    "[Metrics] Created metrics socket at {}",
+                    "created metrics socket at {}",
                     metrics_socket_path.to_string_lossy()
                 );
                 listener
             }
             Err(error) => {
-                warn!("[Metrics] Failed to create metrics socket: {error}");
+                warn!(%error, "failed to create metrics socket");
                 return;
             }
         };
@@ -256,7 +261,7 @@ fn spawn_metrics_task(
         loop {
             tokio::select! {
                 Ok(stream) = listener.accept() => {
-                    debug!("[Metrics] Client connected to metrics stream");
+                    debug!("client connected to metrics stream");
                     connected_stream = Some(stream);
                 }
 
@@ -269,14 +274,14 @@ fn spawn_metrics_task(
                             && (stream.write_all(json.as_bytes()).await.is_err()
                                 || stream.write_all(b"\n").await.is_err())
                             {
-                                debug!("[Metrics] Client disconnected");
+                                debug!("client disconnected");
                                 connected_stream = None;
                             }
                     }
                 }
 
                 _ = metrics_shutdown_rx.changed() => {
-                    debug!("[Metrics] Stopping metrics streamer");
+                    debug!("stopping metrics streamer");
                     break;
                 }
             }
@@ -292,7 +297,7 @@ fn spawn_route_monitor_task(
         let route_handle = match RouteHandle::new() {
             Ok(handle) => handle,
             Err(error) => {
-                warn!("[RouteMonitor] Failed to create route handle: {error}");
+                warn!(%error, "failed to create route handle");
                 return;
             }
         };
@@ -313,7 +318,7 @@ fn spawn_route_monitor_task(
                     update_server_host_route(&server_ip, &mut last_gateway).await;
                 }
                 _ = route_monitor_shutdown_rx.changed() => {
-                    debug!("[RouteMonitor] Stopping.");
+                    debug!("stopping");
                     break;
                 }
             }
@@ -325,18 +330,18 @@ fn apply_dns_servers(dns_servers: &[String]) -> Option<DnsOverrideGuard> {
     debug!("DNS servers from config: {dns_servers:?}");
 
     if dns_servers.is_empty() {
-        warn!("No DNS servers found in config; leaving system DNS unchanged.");
+        warn!("no dns servers in config, system dns unchanged");
         return None;
     }
 
     let as_refs: Vec<&str> = dns_servers.iter().map(String::as_str).collect();
     match DnsOverrideGuard::override_system_dns(&as_refs) {
         Ok(guard) => {
-            info!("DNS servers applied: {dns_servers:?}");
+            info!(servers = ?dns_servers, "dns servers applied");
             Some(guard)
         }
         Err(error) => {
-            warn!("Failed to apply DNS servers: {error}");
+            warn!(%error, "failed to apply DNS servers");
             None
         }
     }

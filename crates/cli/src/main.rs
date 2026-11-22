@@ -10,10 +10,12 @@ mod spawn;
 mod terminate;
 
 use byocvpn_app::open_app_context;
-use byocvpn_core::cloud_provider::CloudProviderName;
+use byocvpn_core::{
+    cloud_provider::CloudProviderName,
+    logging::{LoggingFormat, initialize_logging},
+};
 use clap::{Parser, Subcommand};
-use env_logger::Env;
-use log::{error, info};
+use tracing::{error, info};
 
 use crate::{
     connect::{run_connect, run_disconnect},
@@ -65,10 +67,7 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    env_logger::Builder::from_env(Env::default().default_filter_or(default_log_filter()))
-        .format_timestamp(None)
-        .format_target(false)
-        .init();
+    initialize_logging(default_log_filter(), LoggingFormat::MESSAGE_ONLY);
 
     match run(Cli::parse()).await {
         Ok(()) => ExitCode::SUCCESS,
@@ -92,7 +91,7 @@ async fn run(cli: Cli) -> CliResult<()> {
         Commands::Spawn { provider, region } => {
             let instance = spawn_new_server(&context, provider, region).await?;
             info!(
-                "Instance ID: {}\nPublic IPv4: {}\nPublic IPv6: {}",
+                "instance ID: {}\nPublic IPv4: {}\nPublic IPv6: {}",
                 instance.id, instance.public_ip_v4, instance.public_ip_v6
             );
         }
@@ -109,7 +108,7 @@ async fn run(cli: Cli) -> CliResult<()> {
             let active_instances =
                 list_instances_across_providers(&context, provider, region.as_deref()).await?;
             if active_instances.is_empty() {
-                info!("No active instances");
+                info!("no active instances");
             }
             for instance in active_instances {
                 info!("{}  {:?}", describe_instance(&instance), instance.state);

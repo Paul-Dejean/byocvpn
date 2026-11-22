@@ -5,8 +5,8 @@ use std::{
 };
 
 use jiff::{SignedDuration, Timestamp};
-use log::warn;
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
 use crate::{
     app_context::AppContext,
@@ -57,10 +57,7 @@ pub async fn list_ledger_entries_with_pricing(context: &AppContext) -> Vec<Ledge
                 entry.pricing = Some(pricing);
             }
             Err(error) => {
-                warn!(
-                    "could not record pricing for ledger entry {}: {error}",
-                    entry.instance_id
-                );
+                warn!(instance_id = %entry.instance_id, %error, "pricing not recorded for ledger entry");
                 context.pricing_cache.record_failure(lookup_key);
             }
         }

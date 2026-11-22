@@ -5,7 +5,7 @@ pub mod spawn;
 
 use async_trait::async_trait;
 use jiff::Timestamp;
-use log::debug;
+use tracing::{Instrument, debug_span};
 
 use crate::{
     cloud_provider::{CloudProviderName, JobStep, JobStepStatus},
@@ -29,10 +29,13 @@ pub async fn run_job_steps(
     observer: &dyn JobObserver,
 ) -> Result<()> {
     for step in steps {
-        debug!("Running job step: {}", step.id);
         observer.on_step_changed(step, JobStepStatus::Running, None);
 
-        if let Err(step_error) = job_steps.run_step(step).await {
+        let step_outcome = job_steps
+            .run_step(step)
+            .instrument(debug_span!("step", id = %step.id))
+            .await;
+        if let Err(step_error) = step_outcome {
             observer.on_step_changed(step, JobStepStatus::Failed, Some(step_error.to_payload()));
             return Err(step_error);
         }

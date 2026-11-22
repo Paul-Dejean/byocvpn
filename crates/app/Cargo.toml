@@ -13,7 +13,7 @@ byocvpn_azure = { path = "../infra/azure" }
 byocvpn_gcp = { path = "../infra/gcp" }
 byocvpn_oracle = { path = "../infra/oracle" }
 async-trait = { workspace = true }
-log = { workspace = true }
+tracing = { workspace = true }
 serde = { workspace = true }
 specta = { workspace = true, optional = true }
 

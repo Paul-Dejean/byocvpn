@@ -1,6 +1,6 @@
 use byocvpn_core::managed_resources::build_managed_tags;
-use log::{debug, info};
 use serde::de::IgnoredAny;
+use tracing::{debug, info};
 
 use crate::{
     arm_resource::ArmResource,
@@ -19,11 +19,11 @@ pub async fn ensure_virtual_network(client: &AzureClient, location: &str) -> Res
         .await?
         .is_some()
     {
-        debug!("[Azure] {resource} already exists in {location}.");
+        debug!(%resource, %location, "already exists");
         return Ok(client.build_resource_id(&resource));
     }
 
-    debug!("[Azure] Creating {resource} in {location}...");
+    debug!(%resource, %location, "creating");
     let body = VnetRequest {
         location: location.to_string(),
         tags: build_managed_tags(),
@@ -34,6 +34,6 @@ pub async fn ensure_virtual_network(client: &AzureClient, location: &str) -> Res
         },
     };
     put_and_wait(client, &resource, &body).await?;
-    info!("[Azure] {resource} created in {location}.");
+    info!(%resource, %location, "created");
     Ok(client.build_resource_id(&resource))
 }

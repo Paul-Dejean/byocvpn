@@ -1,8 +1,8 @@
 use jiff::Timestamp;
-use log::debug;
 use reqwest::{Client as HttpClient, Method, Response, StatusCode, Url};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::{from_str, to_vec};
+use tracing::{debug, instrument};
 
 use crate::{
     auth::build_signed_headers,
@@ -78,7 +78,7 @@ impl OciClient {
             .text()
             .await
             .map_err(|source| request.transport(source))?;
-        debug!("[OCI] {request} -> {status}: {body_text}");
+        debug!(%request, %status, body = %body_text, "request rejected");
         Err(request.rejected(status, &body_text))
     }
 
@@ -96,8 +96,12 @@ impl OciClient {
         Err(request.rejected(status, &body_text))
     }
 
+    #[instrument(
+        level = "debug",
+        skip_all,
+        fields(method = %request.get_method(), url = %request.get_url())
+    )]
     async fn send_request(&self, request: &ApiRequest, body: Option<Vec<u8>>) -> Result<Response> {
-        debug!("[OCI] {request}");
         let url = request.get_url();
         let parsed_url = Url::parse(url).map_err(|source| OracleError::InvalidUrl {
             url: url.to_string(),
@@ -150,11 +154,11 @@ async fn parse_json_response<T: DeserializeOwned>(
         .map_err(|source| request.transport(source))?;
 
     if !status.is_success() {
-        debug!("[OCI] {request} -> {status}: {body}");
+        debug!(%request, %status, %body, "request rejected");
         return Err(request.rejected(status, &body));
     }
 
-    debug!("[OCI] {request} -> {status}");
+    debug!(%request, %status, "request succeeded");
     let json_text = if body.is_empty() { "null" } else { &body };
     from_str(json_text).map_err(|source| request.invalid_json(source))
 }

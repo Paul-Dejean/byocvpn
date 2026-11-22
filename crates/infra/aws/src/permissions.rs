@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use aws_sdk_iam::types::PolicyEvaluationDecisionType;
 use byocvpn_core::cloud_provider::PermissionStatus;
-use log::{debug, warn};
+use tracing::{debug, warn};
 
 use crate::{
     client::AwsClient,
@@ -38,7 +38,7 @@ const ASSUMED_ROLE_MARKER: &str = ":assumed-role/";
 
 pub async fn verify_permissions(client: &AwsClient) -> Result<Vec<PermissionStatus>> {
     let principal_arn = get_principal_arn(client).await?;
-    debug!("[AWS] Simulating policies for {principal_arn}");
+    debug!(%principal_arn, "simulating policies");
     let decisions = simulate_required_actions(client, &principal_arn).await?;
 
     Ok(REQUIRED_ACTIONS
@@ -46,9 +46,9 @@ pub async fn verify_permissions(client: &AwsClient) -> Result<Vec<PermissionStat
         .map(|action| {
             let granted = decisions.get(*action).copied().unwrap_or(false);
             if granted {
-                debug!("[AWS] permission check {action}: allowed");
+                debug!(%action, "permission allowed");
             } else {
-                warn!("[AWS] permission check {action}: denied");
+                warn!(%action, "permission denied");
             }
             PermissionStatus {
                 permission: (*action).to_string(),

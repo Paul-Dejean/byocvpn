@@ -2,7 +2,7 @@ use byocvpn_core::{
     config::get_wireguard_config_file_path, daemon_client::VpnConnectParams,
     wireguard_config::parse_wireguard_config,
 };
-use log::{info, warn};
+use tracing::{info, warn};
 
 use crate::vpn::{
     connect::connect_vpn,
@@ -14,7 +14,7 @@ pub async fn try_restore_session() {
         return;
     };
     let restore_instance_id = persisted_session.instance_id.clone();
-    info!("Found persisted session for instance {restore_instance_id}, attempting to restore...");
+    info!(instance_id = %restore_instance_id, "restoring persisted session");
 
     let Some(params) = load_connect_params(persisted_session).await else {
         clear_stale_session();
@@ -22,9 +22,9 @@ pub async fn try_restore_session() {
     };
 
     match connect_vpn(params).await {
-        Ok(()) => info!("Session restored successfully for instance {restore_instance_id}"),
+        Ok(()) => info!(instance_id = %restore_instance_id, "session restored"),
         Err(error) => {
-            warn!("Session restore failed for instance {restore_instance_id}: {error}");
+            warn!(instance_id = %restore_instance_id, %error, "session restore failed");
             clear_stale_session();
         }
     }
@@ -40,14 +40,14 @@ async fn load_connect_params(persisted_session: PersistedSession) -> Option<VpnC
     {
         Ok(config_path) => config_path,
         Err(error) => {
-            warn!("Session restore: could not resolve WireGuard config path: {error}");
+            warn!(%error, "session restore: could not resolve WireGuard config path");
             return None;
         }
     };
 
     if !config_path.exists() {
         warn!(
-            "Session restore: WireGuard config not found at {}",
+            "session restore: WireGuard config not found at {}",
             config_path.display()
         );
         return None;
@@ -56,7 +56,7 @@ async fn load_connect_params(persisted_session: PersistedSession) -> Option<VpnC
     let wireguard_config = match parse_wireguard_config(&config_path.to_string_lossy()).await {
         Ok(wireguard_config) => wireguard_config,
         Err(error) => {
-            warn!("Session restore: failed to parse WireGuard config: {error}");
+            warn!(%error, "session restore: failed to parse WireGuard config");
             return None;
         }
     };
@@ -79,6 +79,6 @@ async fn load_connect_params(persisted_session: PersistedSession) -> Option<VpnC
 
 fn clear_stale_session() {
     if let Err(error) = session::clear_session() {
-        warn!("Failed to clear stale session file: {error}");
+        warn!(%error, "failed to clear stale session file");
     }
 }

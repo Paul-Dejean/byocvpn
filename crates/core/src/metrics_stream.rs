@@ -8,8 +8,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-use log::{debug, info, warn};
 use tokio::time::sleep;
+use tracing::{debug, info, warn};
 
 use crate::{
     error::{InternalError, Result},
@@ -36,7 +36,7 @@ where
     F: Fn(VpnStatus) + Send + Sync + 'static,
     G: Fn(u64, u64) + Send + Sync + 'static,
 {
-    debug!("Starting metrics subscription");
+    debug!("starting metrics subscription");
     start(connected_instance, connected_at, move |vpn_status| {
         thread_local! {
             static LAST_PERSIST: Cell<Option<Instant>> = const { Cell::new(None) };
@@ -90,7 +90,7 @@ where
     F: Fn(VpnStatus) + Send + Sync + 'static,
 {
     let Some(mut stream) = connect_with_retries(&socket_path).await else {
-        warn!("Failed to connect to metrics socket after retries");
+        warn!("failed to connect to metrics socket after retries");
         clear_stream_state();
         return;
     };
@@ -98,12 +98,12 @@ where
     loop {
         let daemon_crashed = forward_metrics(&mut stream, &on_update).await;
         if !daemon_crashed {
-            debug!("Metrics stream stopped cleanly");
+            debug!("metrics stream stopped cleanly");
             clear_stream_state();
             return;
         }
 
-        warn!("Metrics stream disconnected; waiting for daemon to restart...");
+        warn!("metrics stream disconnected, waiting for the daemon to restart");
         on_update(VpnStatus {
             connected: false,
             instance: None,
@@ -123,11 +123,11 @@ async fn connect_with_retries(socket_path: &Path) -> Option<IpcStream> {
     for attempt in 1..=CONNECT_ATTEMPTS {
         match IpcStream::connect(socket_path).await {
             Ok(stream) => {
-                debug!("Connected to metrics socket on attempt {attempt}");
+                debug!("connected to metrics socket on attempt {attempt}");
                 return Some(stream);
             }
             Err(error) => {
-                debug!("Failed to connect to metrics socket (attempt {attempt}): {error}");
+                debug!(%error, "failed to connect to metrics socket (attempt {attempt})");
                 sleep(CONNECT_RETRY_DELAY).await;
             }
         }
@@ -153,14 +153,14 @@ where
                     connected_at: current_timestamp,
                     connection_error: None,
                 }),
-                Err(parse_error) => warn!("Failed to parse metrics {line}: {parse_error}"),
+                Err(parse_error) => warn!(%parse_error, "failed to parse metrics {line}"),
             },
             Ok(None) => {
-                debug!("Metrics stream ended (daemon likely restarting)");
+                debug!("metrics stream ended (daemon likely restarting)");
                 return true;
             }
             Err(error) => {
-                warn!("Error reading from metrics socket: {error}");
+                warn!(%error, "error reading from metrics socket");
                 return true;
             }
         }
@@ -174,16 +174,16 @@ async fn reconnect(socket_path: &Path, generation: u64) -> Option<IpcStream> {
         let is_cancelled = STREAM_STATE.lock().ok().is_none_or(|guard| guard.is_none())
             || STREAM_GENERATION.load(Ordering::SeqCst) != generation;
         if is_cancelled {
-            debug!("Metrics stream reconnect cancelled (superseded or stopped)");
+            debug!("metrics stream reconnect cancelled (superseded or stopped)");
             return None;
         }
 
         match IpcStream::connect(socket_path).await {
             Ok(new_stream) => {
-                info!("Reconnected to metrics socket after daemon restart");
+                info!("reconnected to metrics socket after daemon restart");
                 return Some(new_stream);
             }
-            Err(error) => debug!("Metrics socket reconnect attempt failed: {error}"),
+            Err(error) => debug!(%error, "metrics socket reconnect attempt failed"),
         }
     }
 }
@@ -192,7 +192,7 @@ fn read_connected_instance() -> Option<(ConnectedInstance, Option<u64>)> {
     let state_guard = match STREAM_STATE.lock() {
         Ok(guard) => guard,
         Err(error) => {
-            warn!("Failed to acquire metrics stream state lock: {error}");
+            warn!(%error, "failed to acquire metrics stream state lock");
             return None;
         }
     };

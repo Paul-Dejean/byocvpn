@@ -1,7 +1,7 @@
 use byocvpn_core::retry::{RetryPolicy, retry_if};
-use log::{debug, warn};
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::time::Duration;
+use tracing::{debug, warn};
 
 use crate::{
     account::{NETWORK_PROVIDER_NAMESPACE, request_network_provider_registration},
@@ -31,7 +31,7 @@ pub async fn put_and_wait<B: Serialize + Sync>(
 ) -> Result<()> {
     let async_operation_url = put_with_provider_retry(client, resource, body).await?;
     if let Some(operation_url) = async_operation_url {
-        debug!("[Azure] Waiting for {resource} to be provisioned...");
+        debug!(%resource, "waiting for provisioning");
         client.wait_for_async_operation(&operation_url).await?;
     }
     Ok(())
@@ -39,17 +39,17 @@ pub async fn put_and_wait<B: Serialize + Sync>(
 
 pub async fn delete_resource(client: &AzureClient, resource: &ArmResource) {
     let url = client.build_resource_url(resource);
-    debug!("[Azure] Deleting {resource}...");
+    debug!(%resource, "deleting");
     match client.delete(&url).await {
         Ok(Some(operation_url)) => {
             if let Err(error) = client.wait_for_async_operation(&operation_url).await {
-                warn!("[Azure] Failed to wait for {resource} deletion: {error}");
+                warn!(%resource, %error, "failed to wait for deletion");
             } else {
-                debug!("[Azure] {resource} deleted.");
+                debug!(%resource, "deleted");
             }
         }
-        Ok(None) => debug!("[Azure] {resource} deleted."),
-        Err(error) => warn!("[Azure] Failed to delete {resource}: {error}"),
+        Ok(None) => debug!(%resource, "deleted"),
+        Err(error) => warn!(%resource, %error, "failed to delete"),
     }
 }
 
@@ -66,9 +66,7 @@ async fn put_with_provider_retry<B: Serialize + Sync>(
             if let Err(error) = &outcome
                 && is_missing_subscription_registration(error)
             {
-                warn!(
-                    "[Azure] {resource} rejected because {NETWORK_PROVIDER_NAMESPACE} is not registered on the subscription; re-registering before retrying."
-                );
+                warn!(%resource, namespace = NETWORK_PROVIDER_NAMESPACE, "rejected because the provider is not registered, re-registering");
                 request_network_provider_registration(client).await;
             }
             outcome

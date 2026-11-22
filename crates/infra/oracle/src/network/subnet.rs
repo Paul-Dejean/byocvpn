@@ -1,5 +1,5 @@
 use byocvpn_core::managed_resources::build_managed_tags;
-use log::{debug, info};
+use tracing::{debug, info};
 
 use crate::{
     client::OciClient,
@@ -61,7 +61,7 @@ async fn create_subnet(client: &OciClient, vcn: &Vcn, security_list_id: &str) ->
     let subnet: SubnetResponse = client
         .post(&client.build_core_url("/subnets"), &body)
         .await?;
-    info!("[OCI] Created subnet {}", subnet.id);
+    info!(subnet_id = %subnet.id, "subnet created");
     Ok(subnet.id)
 }
 
@@ -75,7 +75,7 @@ async fn attach_security_list(
         security_list_ids: vec![security_list_id.to_string()],
     };
     client.put(&url, &body).await?;
-    debug!("[OCI] Security list {security_list_id} attached to subnet {subnet_id}");
+    debug!(%security_list_id, %subnet_id, "security list attached");
     Ok(())
 }
 

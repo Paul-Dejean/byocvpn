@@ -23,9 +23,9 @@ use byocvpn_core::{
     settings::{AutoTerminateSettings, NotificationSettings, UiPreferences, VpnSettings},
     tunnel::VpnStatus,
 };
-use log::{debug, warn};
 use tauri::{AppHandle, Manager, State, async_runtime::spawn, ipc::Channel};
 use tokio::fs::write;
+use tracing::{debug, warn};
 
 use crate::{
     job_observers::{
@@ -95,10 +95,7 @@ pub async fn spawn_instance(
     spawn(async move {
         let context = app_handle.state::<AppContext>();
         if let Err(error) = run_spawn_job(&*cloud_provider, &context, &region, &observer).await {
-            debug!(
-                "Spawn job in {region} ended with error: {}",
-                error.describe()
-            );
+            debug!(%region, error = %error.describe(), "spawn job ended with error");
         }
     });
 
@@ -143,10 +140,7 @@ pub async fn list_instances(
     let context = app_handle.state::<AppContext>();
     let listing = instances::list_instances(&context, None, region.as_deref()).await?;
     for failure in &listing.failures {
-        warn!(
-            "Failed to list {} instances: {}",
-            failure.provider, failure.error
-        );
+        warn!(provider = %failure.provider, error = %failure.error, "failed to list instances");
     }
     Ok(listing.instances)
 }
@@ -179,10 +173,7 @@ pub async fn provision_account(
     spawn(async move {
         let context = app_handle.state::<AppContext>();
         if let Err(error) = run_provision_account_job(&*cloud_provider, &context, &observer).await {
-            debug!(
-                "Provision account job for {provider} ended with error: {}",
-                error.describe()
-            );
+            debug!(%provider, error = %error.describe(), "provision account job ended with error");
         }
     });
 
@@ -209,10 +200,7 @@ pub async fn enable_region(
         if let Err(error) =
             run_enable_region_job(&*cloud_provider, &context, &region, &observer).await
         {
-            debug!(
-                "Enable region job for {provider} {region} ended with error: {}",
-                error.describe()
-            );
+            debug!(%provider, %region, error = %error.describe(), "enable region job ended with error");
         }
     });
 
@@ -271,7 +259,7 @@ pub async fn connect(
             vpn_status.connected_at,
         )
     {
-        warn!("Failed to start metrics stream: {}", error.describe());
+        warn!(error = %error.describe(), "failed to start metrics stream");
     }
 
     publish_vpn_status(&app_handle, &vpn_status);
@@ -337,7 +325,7 @@ pub async fn get_instance_pricing(
 #[tauri::command]
 #[specta::specta]
 pub async fn save_file(path: String, content: String) -> Result<()> {
-    debug!("Writing file: {path}");
+    debug!("writing file: {path}");
     write(&path, content).await.map_err(|source| -> Error {
         ConfigurationError::DataFile {
             operation: "write",

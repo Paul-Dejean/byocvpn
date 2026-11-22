@@ -13,7 +13,7 @@ use byocvpn_core::{
 };
 use futures::future::try_join_all;
 use jiff::Timestamp;
-use log::{debug, info, warn};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -55,18 +55,18 @@ pub async fn spawn_instance(
     params: &SpawnInstanceParams<'_>,
 ) -> Result<InstanceInfo> {
     let location = params.region;
-    debug!("[Azure] Spawning instance in '{location}'...");
+    debug!(%location, "spawning instance");
     let vm_name = build_vm_name();
     let resource_group = build_resource_group_name(location);
 
     match provision_virtual_machine(client, region_network, &resource_group, &vm_name, params).await
     {
         Ok(instance) => {
-            info!("[Azure] VM '{vm_name}' created in {location}.");
+            info!(%vm_name, %location, "vm created");
             Ok(instance)
         }
         Err(error) => {
-            warn!("[Azure] Spawn in {location} failed, cleaning up VM '{vm_name}'");
+            warn!(%location, %vm_name, "spawn failed, cleaning up vm");
             cleanup_vm_resources(client, &resource_group, &vm_name).await;
             Err(error)
         }
@@ -74,7 +74,7 @@ pub async fn spawn_instance(
 }
 
 pub async fn terminate_instance(client: &AzureClient, instance_id: &str) -> Result<()> {
-    debug!("[Azure] Terminating instance '{instance_id}'...");
+    debug!(%instance_id, "terminating instance");
     let (resource_group, vm_name) = parse_instance_id(instance_id)?;
     let vm_url = client.build_resource_url(&ArmResource::virtual_machine(resource_group, vm_name));
 
@@ -83,7 +83,7 @@ pub async fn terminate_instance(client: &AzureClient, instance_id: &str) -> Resu
         client.wait_for_async_operation(&operation_url).await?;
     }
 
-    info!("[Azure] VM '{vm_name}' deleted.");
+    info!(%vm_name, "vm deleted");
     cleanup_vm_resources(client, resource_group, vm_name).await;
     Ok(())
 }
@@ -97,7 +97,7 @@ pub async fn list_instances(client: &AzureClient, location: &str) -> Result<Vec<
 }
 
 pub async fn list_all_instances(client: &AzureClient) -> Result<Vec<InstanceInfo>> {
-    debug!("[Azure] Listing all virtual machines across subscription...");
+    debug!("listing all virtual machines across subscription");
     let path = client.build_subscription_path("/providers/Microsoft.Compute/virtualMachines");
     let url = AzureClient::build_arm_url(&path, API_VERSION_COMPUTE);
     let response: VmListResponse = client.get(&url).await?;
@@ -120,10 +120,7 @@ pub async fn list_all_instances(client: &AzureClient) -> Result<Vec<InstanceInfo
         })
         .filter(|instance| instance.state.is_listed())
         .collect();
-    debug!(
-        "[Azure] Found {} byocvpn instance(s) in subscription.",
-        instances.len()
-    );
+    debug!(count = instances.len(), "instances listed");
     Ok(instances)
 }
 
@@ -220,14 +217,11 @@ async fn create_vm_with_size_fallback(
         let body = build_vm_request(launch_spec, vm_size);
         match client.put(vm_url, &body).await {
             Ok(operation_url) => {
-                debug!(
-                    "[Azure] VM '{}' creating with size {vm_size}...",
-                    launch_spec.vm_name
-                );
+                debug!(vm_name = %launch_spec.vm_name, %vm_size, "creating vm");
                 return Ok((operation_url, vm_size));
             }
             Err(error) if error.get_arm_error_code() == Some(ArmErrorCode::SkuNotAvailable) => {
-                warn!("[Azure] {vm_size} not available in {location}: {error}");
+                warn!(%vm_size, %location, %error, "vm size not available");
             }
             Err(error) => return Err(error),
         }
@@ -288,8 +282,7 @@ async fn read_public_ip_or_warn(
     match get_public_ip_address(client, location, vm_name, version).await {
         Ok(address) => address,
         Err(error) => {
-            warn!(
-                "[Azure] Could not read {} address of VM '{vm_name}': {error}",
+            warn!(%error, "could not read {} address of VM '{vm_name}'",
                 version.get_address_version()
             );
             String::new()
@@ -301,7 +294,7 @@ async fn read_creation_time_or_now(client: &AzureClient, vm_url: &str) -> Timest
     match client.get::<VmResponse>(vm_url).await {
         Ok(virtual_machine) => parse_creation_time(&virtual_machine).unwrap_or_else(Timestamp::now),
         Err(error) => {
-            warn!("[Azure] Could not read VM creation time, using current time: {error}");
+            warn!(%error, "could not read VM creation time, using current time");
             Timestamp::now()
         }
     }

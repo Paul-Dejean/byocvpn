@@ -2,9 +2,9 @@ use std::net::SocketAddr;
 
 use async_trait::async_trait;
 use ipnet::IpNet;
-use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tracing::debug;
 
 use crate::{
     cloud_provider::CloudProviderName,
@@ -79,7 +79,7 @@ impl DaemonClient for IpcDaemonClient {
         let daemon_socket_path = socket_path();
         let mut stream = IpcStream::connect(&daemon_socket_path).await?;
         debug!(
-            "Connected to daemon at {}",
+            "connected to daemon at {}",
             daemon_socket_path.to_string_lossy()
         );
 
@@ -113,17 +113,17 @@ impl DaemonClient for IpcDaemonClient {
 
                 if let Ok(Some(_)) = stream.read_message().await {
                     debug!(
-                        "Daemon is healthy at {}",
+                        "daemon is healthy at {}",
                         daemon_socket_path.to_string_lossy()
                     );
                     true
                 } else {
-                    debug!("Daemon did not respond to health check");
+                    debug!("daemon did not respond to health check");
                     false
                 }
             }
             Err(error) => {
-                debug!("Daemon connection error: {error:?}");
+                debug!(?error, "daemon connection error");
                 false
             }
         }

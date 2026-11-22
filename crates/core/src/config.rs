@@ -1,9 +1,9 @@
 use std::{path::PathBuf, sync::OnceLock};
 
 use handlebars::Handlebars;
-use log::{debug, warn};
 use serde::Serialize;
 use tokio::fs::{create_dir_all, try_exists};
+use tracing::{debug, warn};
 
 use crate::{
     cloud_provider::CloudProviderName,
@@ -37,7 +37,7 @@ pub fn generate_client_config(
     let config = handlebars_registry
         .render_template(template_text, &context)
         .map_err(ConfigurationError::TemplateRender)?;
-    debug!("WireGuard client config generated for server IP: {server_ip_v4}");
+    debug!("wireGuard client config generated for server IP: {server_ip_v4}");
     Ok(config)
 }
 
@@ -49,7 +49,7 @@ pub async fn get_wireguard_config_file_path(
     let file_name = get_wireguard_config_file_name(*provider_name, region, instance_id);
     let directory = get_configs_path().await?;
     let path = directory.join(file_name);
-    debug!("Resolved WireGuard config file path: {}", path.display());
+    debug!("resolved WireGuard config file path: {}", path.display());
     Ok(path)
 }
 
@@ -64,7 +64,7 @@ async fn get_configs_path() -> Result<PathBuf> {
             source,
         })?
     {
-        debug!("Creating configs directory: {}", byocvpn_dir.display());
+        debug!("creating configs directory: {}", byocvpn_dir.display());
         create_dir_all(&byocvpn_dir)
             .await
             .map_err(|source| ConfigurationError::DataFile {
@@ -92,7 +92,7 @@ fn get_wireguard_config_file_name(
 
 pub fn set_data_directory(data_directory: PathBuf) {
     if DATA_DIRECTORY_OVERRIDE.set(data_directory).is_err() {
-        warn!("Data directory was already set; keeping the existing one");
+        warn!("data directory was already set; keeping the existing one");
     }
 }
 

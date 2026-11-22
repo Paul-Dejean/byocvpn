@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use azure_core::credentials::{Secret, TokenCredential};
 use azure_identity::ClientSecretCredential;
-use log::debug;
+use tracing::debug;
 
 use crate::error::Result;
 
@@ -23,8 +23,8 @@ pub fn create_credential(
 }
 
 pub async fn get_access_token(credential: &Arc<ClientSecretCredential>) -> Result<String> {
-    debug!("[Azure] Acquiring management API access token...");
+    debug!("acquiring management API access token");
     let token_response = credential.get_token(&[MANAGEMENT_SCOPE], None).await?;
-    debug!("[Azure] Access token acquired successfully.");
+    debug!("access token acquired successfully");
     Ok(token_response.token.secret().to_string())
 }

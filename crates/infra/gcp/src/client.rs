@@ -2,10 +2,10 @@ use google_cloud_auth::credentials::Credentials;
 use google_cloud_compute_v1::client::{
     Firewalls, Images, Instances, Networks, Regions, Subnetworks,
 };
-use log::debug;
 use reqwest::{Client as HttpClient, Method, Response};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::from_str;
+use tracing::{debug, instrument};
 
 use crate::{
     auth::fetch_bearer_token,
@@ -106,12 +106,16 @@ impl GcpClient {
         parse_json_response(&request, response).await
     }
 
+    #[instrument(
+        level = "debug",
+        skip_all,
+        fields(method = %request.get_method(), url = %request.get_url())
+    )]
     async fn send_request<B: Serialize + Sync>(
         &self,
         request: &ApiRequest,
         body: Option<&B>,
     ) -> Result<Response> {
-        debug!("[GCP] {request}");
         let token = fetch_bearer_token(&self.credentials).await?;
         let mut http_request = self
             .http
@@ -138,11 +142,11 @@ async fn parse_json_response<T: DeserializeOwned>(
         .map_err(|source| request.transport(source))?;
 
     if !status.is_success() {
-        debug!("[GCP] {request} -> {status}: {body}");
+        debug!(%request, %status, %body, "request rejected");
         return Err(request.rejected(status, &body));
     }
 
-    debug!("[GCP] {request} -> {status}");
+    debug!(%request, %status, "request succeeded");
     let json_text = if body.is_empty() { "null" } else { &body };
     from_str(json_text).map_err(|source| request.invalid_json(source))
 }

@@ -18,7 +18,6 @@ use byocvpn_core::{
         create_wireguard_tunnel,
     },
 };
-use log::{debug, error, info, warn};
 use serde::Serialize;
 use serde_json::Value;
 use tauri::{AppHandle, Manager, Wry, async_runtime, plugin::mobile::PluginInvokeError};
@@ -29,6 +28,7 @@ use tokio::{
     task::JoinHandle,
     time::interval,
 };
+use tracing::{debug, error, info, warn};
 use tun_rs::AsyncDevice;
 
 use crate::vpn_backend::publish_vpn_status;
@@ -125,10 +125,7 @@ async fn connect_tunnel(
         return Err(TunnelError::AlreadyRunning.into());
     }
 
-    info!(
-        "Connecting VPN: instance={}, region={}, provider={}",
-        connect_params.instance_id, connect_params.region, connect_params.provider
-    );
+    info!(instance_id = %connect_params.instance_id, region = %connect_params.region, provider = %connect_params.provider, "connecting");
 
     vpn_service
         .request_permission()
@@ -151,12 +148,12 @@ async fn connect_tunnel(
     match start_tunnel(vpn_service, tunnel_file_descriptor, connect_params).await {
         Ok(active_tunnel) => {
             *lock_active_tunnel()? = Some(active_tunnel);
-            info!("VPN setup complete.");
+            info!("connected");
             Ok(())
         }
         Err(error) => {
             if let Err(stop_error) = vpn_service.stop().await {
-                warn!("Failed to stop the VPN service after a failed connect: {stop_error}");
+                warn!(%stop_error, "failed to stop the VPN service after a failed connect");
             }
             Err(error)
         }
@@ -164,23 +161,23 @@ async fn connect_tunnel(
 }
 
 async fn disconnect_tunnel(vpn_service: &AndroidVpn<Wry>) -> Result<()> {
-    info!("[VPN Disconnect] Disconnecting VPN tunnel...");
+    info!("disconnecting");
     let active_tunnel = lock_active_tunnel()?.take();
 
     match active_tunnel {
         Some(active_tunnel) => {
             if active_tunnel.shutdown.send(()).is_err() {
-                debug!("[VPN Disconnect] Tunnel task already stopped.");
+                debug!("tunnel task already stopped");
             }
             if let Err(error) = active_tunnel.task.await {
-                warn!("[VPN Disconnect] Tunnel task panicked while shutting down: {error:?}");
+                warn!(?error, "tunnel task panicked while shutting down");
             }
         }
-        None => warn!("[VPN Disconnect] No active tunnel in memory."),
+        None => warn!("no active tunnel in memory"),
     }
 
     vpn_service.stop().await.map_err(convert_plugin_error)?;
-    info!("[VPN Disconnect] VPN disconnected.");
+    info!("disconnected");
     Ok(())
 }
 
@@ -192,7 +189,7 @@ async fn read_tunnel_status(vpn_service: &AndroidVpn<Wry>) -> Result<VpnStatus> 
     let is_service_running = match vpn_service.is_running().await {
         Ok(is_running) => is_running,
         Err(error) => {
-            warn!("Failed to read the VPN service status: {error}");
+            warn!(%error, "failed to read the VPN service status");
             true
         }
     };
@@ -242,7 +239,7 @@ async fn run_status_stream(
         let vpn_status = match read_tunnel_status(&vpn_service).await {
             Ok(vpn_status) => vpn_status,
             Err(error) => {
-                warn!("Failed to read the tunnel status: {error}");
+                warn!(%error, "failed to read the tunnel status");
                 continue;
             }
         };
@@ -251,9 +248,9 @@ async fn run_status_stream(
         }
 
         if !vpn_status.connected {
-            warn!("VPN tunnel is no longer running; tearing it down.");
+            warn!("vpn tunnel no longer running, tearing it down");
             if let Err(error) = disconnect_tunnel(&vpn_service).await {
-                warn!("Failed to tear down the dropped tunnel: {error}");
+                warn!(%error, "failed to tear down the dropped tunnel");
             }
             publish_vpn_status(&app_handle, &vpn_status);
             return;
@@ -331,7 +328,7 @@ async fn start_tunnel(
 
     let task = tokio::spawn(async move {
         if let Err(error) = tunnel.run().await {
-            error!("Tunnel exited: {error}");
+            error!(%error, "tunnel exited");
         }
     });
 
@@ -379,7 +376,7 @@ async fn connect_protected_udp_socket(
         .await
         .map_err(TunnelError::io("connect the UDP socket"))?;
 
-    debug!("UDP socket connected to {server_endpoint}");
+    debug!(%server_endpoint, "udp socket connected");
     Ok(socket)
 }
 

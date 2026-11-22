@@ -6,11 +6,11 @@ use byocvpn_core::{
     ledger::LedgerEntry,
     server_monitor::{self, ServerMonitorObserver},
 };
-use log::warn;
 use tauri::{AppHandle, Manager, async_runtime};
 use tauri_plugin_notification::NotificationExt;
 use tauri_specta::Event;
 use tokio::time::interval;
+use tracing::warn;
 
 use crate::events::InstanceAutoTerminatedEvent;
 
@@ -69,7 +69,7 @@ impl ServerMonitorObserver for DesktopMonitorObserver {
         })
         .emit(&self.app_handle)
         {
-            warn!("[auto-terminate] failed to emit event: {error}");
+            warn!(%error, "failed to emit event");
         }
     }
 }
@@ -84,7 +84,7 @@ impl DesktopMonitorObserver {
             .body(body)
             .show()
         {
-            warn!("Failed to show notification {title:?}: {error}");
+            warn!(%error, "failed to show notification {title:?}");
         }
     }
 }

@@ -55,8 +55,8 @@ mod windows_service_impl {
     };
 
     use byocvpn_daemon::daemon::run_daemon;
-    use log::{debug, error, info, warn};
     use tokio::{runtime::Builder as RuntimeBuilder, task::spawn_blocking};
+    use tracing::{debug, error, info, warn};
     use windows_service::{
         Result as ServiceResult, define_windows_service,
         service::{
@@ -91,7 +91,7 @@ mod windows_service_impl {
             ServiceState::Running,
             ServiceControlAccept::STOP | ServiceControlAccept::SHUTDOWN,
         )) {
-            error!("Failed to set service status to Running: {error}");
+            error!(%error, "failed to set service status to Running");
             return;
         }
 
@@ -101,7 +101,7 @@ mod windows_service_impl {
             ServiceState::Stopped,
             ServiceControlAccept::empty(),
         )) {
-            warn!("Failed to set service status to Stopped: {error}");
+            warn!(%error, "failed to set service status to Stopped");
         }
     }
 
@@ -111,7 +111,7 @@ mod windows_service_impl {
                 match control_event {
                     ServiceControl::Stop | ServiceControl::Shutdown => {
                         if shutdown_sender.send(()).is_err() {
-                            debug!("Service stop requested after the daemon already stopped");
+                            debug!("service stop requested after the daemon already stopped");
                         }
                         ServiceControlHandlerResult::NoError
                     }
@@ -122,7 +122,7 @@ mod windows_service_impl {
         match registration {
             Ok(status_handle) => Some(status_handle),
             Err(error) => {
-                error!("Failed to register service control handler: {error}");
+                error!(%error, "failed to register service control handler");
                 None
             }
         }
@@ -132,7 +132,7 @@ mod windows_service_impl {
         let runtime = match RuntimeBuilder::new_multi_thread().enable_all().build() {
             Ok(runtime) => runtime,
             Err(error) => {
-                error!("Failed to build tokio runtime: {error}");
+                error!(%error, "failed to build tokio runtime");
                 return;
             }
         };
@@ -141,11 +141,11 @@ mod windows_service_impl {
             tokio::select! {
                 result = run_daemon() => {
                     if let Err(error) = result {
-                        error!("Daemon exited with error: {error}");
+                        error!(%error, "daemon exited with error");
                     }
                 }
                 _ = spawn_blocking(move || shutdown_receiver.recv()) => {
-                    info!("Service stop signal received");
+                    info!("service stop signal received");
                 }
             }
         });

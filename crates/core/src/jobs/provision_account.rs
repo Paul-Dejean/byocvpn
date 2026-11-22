@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use log::{info, warn};
+use tracing::{Instrument, info, info_span, warn};
 
 use crate::{
     app_context::AppContext,
@@ -22,29 +22,28 @@ pub async fn run_provision_account_job(
     let provider_name = provider.get_provider_name();
     let job_id = build_job_id(&provider_name, None);
     let steps = provider.get_provision_account_steps();
-    info!(
-        "Provision account job {job_id} started with {} steps",
-        steps.len()
-    );
-    observer.on_job_started(&job_id, &steps);
+    let span = info_span!("provision_account_job", job_id = %job_id, provider = %provider_name);
+    async move {
+        info!(steps = steps.len(), "provision account job started");
+        observer.on_job_started(&job_id, &steps);
 
-    let mut provision_steps = ProvisionAccountSteps { provider };
-    match run_job_steps(&steps, &mut provision_steps, observer).await {
-        Ok(()) => {
-            context.provider_flags.mark_provisioned(&provider_name);
-            info!("Provision account job {job_id} completed");
-            observer.on_job_completed(&provider_name);
-            Ok(())
-        }
-        Err(error) => {
-            warn!(
-                "Provision account job {job_id} failed: {}",
-                error.describe()
-            );
-            observer.on_job_failed(&error);
-            Err(error)
+        let mut provision_steps = ProvisionAccountSteps { provider };
+        match run_job_steps(&steps, &mut provision_steps, observer).await {
+            Ok(()) => {
+                context.provider_flags.mark_provisioned(&provider_name);
+                info!("provision account job completed");
+                observer.on_job_completed(&provider_name);
+                Ok(())
+            }
+            Err(error) => {
+                warn!(error = %error.describe(), "provision account job failed");
+                observer.on_job_failed(&error);
+                Err(error)
+            }
         }
     }
+    .instrument(span)
+    .await
 }
 
 struct ProvisionAccountSteps<'a> {

@@ -33,14 +33,14 @@ tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 byocvpn_core = { path = "../../core", features = ["specta"] }
 byocvpn_app = { path = "../../app", features = ["specta"] }
 tokio = { workspace = true }
-log = { workspace = true }
+tracing = { workspace = true }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
-env_logger = { workspace = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
 tauri-plugin-android-vpn = { path = "../../android" }
 android_logger = "0.15.1"
+log = { workspace = true }
 async-trait = { workspace = true }
 tun-rs = { workspace = true }
 

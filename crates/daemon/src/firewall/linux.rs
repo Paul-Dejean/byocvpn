@@ -1,7 +1,7 @@
 use std::process::Command;
 
 use byocvpn_core::error::{Result, TunnelError};
-use log::{debug, info};
+use tracing::{debug, info};
 
 const CHAIN: &str = "BYOCVPN_KS";
 const IPTABLES_COMMAND: &str = "iptables";
@@ -31,7 +31,7 @@ pub fn apply(server_ip: &str, tun_name: &str) -> Result<()> {
     run_iptables(&["-I", "OUTPUT", "1", "-j", CHAIN])?;
     run_iptables(&["-I", "INPUT", "1", "-j", CHAIN])?;
 
-    info!("[KillSwitch] iptables chain applied (server={server_ip}, tun={tun_name})");
+    info!(%server_ip, tun = %tun_name, "kill switch applied");
     Ok(())
 }
 
@@ -41,7 +41,7 @@ pub fn apply(server_ip: &str, tun_name: &str) -> Result<()> {
 )]
 pub fn remove() -> Result<()> {
     remove_if_exists();
-    info!("[KillSwitch] iptables chain removed");
+    info!("kill switch removed");
     Ok(())
 }
 
@@ -54,8 +54,7 @@ fn remove_if_exists() {
     ];
     for arguments in teardown_steps {
         if let Err(error) = run_iptables(arguments) {
-            debug!(
-                "[KillSwitch] iptables {} skipped: {error}",
+            debug!(%error, "iptables {} skipped",
                 arguments.join(" ")
             );
         }

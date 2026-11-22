@@ -1,7 +1,7 @@
 use byocvpn_core::retry::RetryPolicy;
-use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use tokio::time::Duration;
+use tracing::{debug, info};
 
 use crate::{
     client::GcpClient,
@@ -21,7 +21,7 @@ pub async fn ensure_account_network(client: &GcpClient) -> Result<()> {
     ensure_compute_api_enabled(client).await?;
     ensure_vpc(client).await?;
     ensure_firewall_rules(client).await?;
-    info!("[GCP] Account network ready (VPC + firewall).");
+    info!("account network ready");
     Ok(())
 }
 
@@ -47,10 +47,7 @@ async fn ensure_api_enabled(client: &GcpClient, api_service: &str) -> Result<()>
         return Ok(());
     }
 
-    debug!(
-        "[GCP] Enabling {api_service} for project '{}'...",
-        client.project_id
-    );
+    debug!(%api_service, project = %client.project_id, "enabling api");
     let operation: ServiceUsageOperationReference = client
         .post(&format!("{service_url}:enable"), &EmptyRequest {})
         .await?;
@@ -65,10 +62,7 @@ async fn ensure_api_enabled(client: &GcpClient, api_service: &str) -> Result<()>
     let operation_url = GcpClient::build_service_usage_url(operation_name);
     wait_for_service_usage_operation(client, &operation_url, SERVICE_USAGE_OPERATION_POLL_POLICY)
         .await?;
-    info!(
-        "[GCP] {api_service} enabled for project '{}'.",
-        client.project_id
-    );
+    info!(%api_service, project = %client.project_id, "api enabled");
     Ok(())
 }
 

@@ -6,13 +6,13 @@ use std::{
     ptr::null,
 };
 
-use log::warn;
 use tokio::{
     fs::{remove_file, try_exists},
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::windows::named_pipe::{ClientOptions, NamedPipeClient, NamedPipeServer, ServerOptions},
     time::{Duration, sleep},
 };
+use tracing::warn;
 use windows_sys::Win32::Security::{
     ACL, InitializeSecurityDescriptor, PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES,
     SECURITY_DESCRIPTOR, SetSecurityDescriptorDacl,
@@ -46,8 +46,7 @@ impl IpcSocket {
         if try_exists(&path).await.unwrap_or(false)
             && let Err(error) = remove_file(&path).await
         {
-            warn!(
-                "failed to remove stale pipe path {}: {error}",
+            warn!(%error, "failed to remove stale pipe path {}",
                 path.display()
             );
         }
@@ -135,8 +134,7 @@ impl Drop for IpcSocket {
         if let Err(error) = remove_file_blocking(&self.path)
             && error.kind() != ErrorKind::NotFound
         {
-            warn!(
-                "failed to remove pipe path {}: {error}",
+            warn!(%error, "failed to remove pipe path {}",
                 self.path.display()
             );
         }

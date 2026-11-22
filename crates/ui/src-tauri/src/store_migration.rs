@@ -6,10 +6,10 @@ use byocvpn_core::{
     ledger::LedgerEntry,
     settings::{AutoTerminateSettings, NotificationSettings, UiPreferences, VpnSettings},
 };
-use log::{info, warn};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use tauri::{AppHandle, Manager};
+use tracing::{info, warn};
 
 const LEGACY_LEDGER_FILE: &str = "byocvpn-ledger.json";
 const LEGACY_SETTINGS_FILE: &str = "settings.json";
@@ -26,7 +26,7 @@ pub fn import_legacy_stores(app_handle: &AppHandle, context: &AppContext) {
     let legacy_directory = match app_handle.path().app_data_dir() {
         Ok(directory) => directory,
         Err(error) => {
-            warn!("Skipping legacy store import, app data directory unavailable: {error}");
+            warn!(%error, "skipping legacy store import, app data directory unavailable");
             return;
         }
     };
@@ -69,10 +69,13 @@ fn import_ledger(legacy_ledger: &LegacyStore, context: &AppContext) {
                 context.ledger.insert_entry(entry);
                 imported_count += 1;
             }
-            Err(error) => warn!("Skipping unreadable legacy ledger entry {key}: {error}"),
+            Err(error) => warn!(%error, "skipping unreadable legacy ledger entry {key}"),
         }
     }
-    info!("Imported {imported_count} ledger entries from the legacy store");
+    info!(
+        count = imported_count,
+        "ledger entries imported from the legacy store"
+    );
 }
 
 fn import_settings(legacy_settings: &LegacyStore, context: &AppContext) {
@@ -111,7 +114,7 @@ fn import_settings(legacy_settings: &LegacyStore, context: &AppContext) {
             auto_terminate_unit: read_legacy_value(legacy_settings, "autoTerminateUnit")
                 .unwrap_or(auto_terminate_defaults.auto_terminate_unit),
         });
-    info!("Imported settings from the legacy store");
+    info!("imported settings from the legacy store");
 }
 
 fn import_ui_preferences(
@@ -146,7 +149,7 @@ fn import_ui_preferences(
     }
 
     context.settings.save_ui_preferences(preferences);
-    info!("Imported UI preferences from the legacy stores");
+    info!("imported UI preferences from the legacy stores");
 }
 
 fn import_provider_flags(legacy_providers: &LegacyStore, context: &AppContext) {
@@ -167,7 +170,7 @@ fn import_provider_flags(legacy_providers: &LegacyStore, context: &AppContext) {
                 .mark_region_enabled(&provider, region);
         }
     }
-    info!("Imported provider flags from the legacy store");
+    info!("imported provider flags from the legacy store");
 }
 
 fn read_legacy_store(path: &Path) -> Option<LegacyStore> {
@@ -175,8 +178,7 @@ fn read_legacy_store(path: &Path) -> Option<LegacyStore> {
     match serde_json::from_slice(&bytes) {
         Ok(store) => Some(store),
         Err(error) => {
-            warn!(
-                "Ignoring unreadable legacy store {}: {error}",
+            warn!(%error, "ignoring unreadable legacy store {}",
                 path.display()
             );
             None

@@ -7,13 +7,13 @@ use byocvpn_core::{
         provision_account::ProvisionAccountObserver, spawn::SpawnJobObserver,
     },
 };
-use log::warn;
 use serde::Serialize;
 use tauri::{
     AppHandle, Manager,
     ipc::{Channel, IpcResponse},
 };
 use tauri_plugin_notification::NotificationExt;
+use tracing::warn;
 
 #[derive(Clone, Serialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE")]
@@ -254,7 +254,7 @@ impl EnableRegionObserver for EnableRegionEventForwarder {
 
 fn send_channel_event<Event: IpcResponse>(channel: &Channel<Event>, event: Event) {
     if let Err(error) = channel.send(event) {
-        warn!("Failed to send job event to the frontend: {error}");
+        warn!(%error, "failed to send job event to the frontend");
     }
 }
 
@@ -275,7 +275,7 @@ fn notify_server_deployed(app_handle: &AppHandle, instance: &InstanceInfo) {
         .body(&body)
         .show()
     {
-        warn!("Failed to send server-deployed notification: {error}");
+        warn!(%error, "failed to send server-deployed notification");
     }
 }
 

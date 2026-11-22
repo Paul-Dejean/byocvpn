@@ -3,8 +3,8 @@ use std::{
     sync::Arc,
 };
 
-use log::{info, warn};
 use tokio::{fs, task::JoinSet};
+use tracing::{info, warn};
 
 use crate::{
     app_context::AppContext,
@@ -55,7 +55,7 @@ pub async fn list_instances(
             Ok((provider_name, outcome)) => {
                 outcomes.insert(provider_name, outcome);
             }
-            Err(error) => warn!("Instance listing task failed: {error}"),
+            Err(error) => warn!(%error, "instance listing task failed"),
         }
     }
 
@@ -141,7 +141,7 @@ pub async fn terminate_instance(
     }
 
     context.ledger.mark_terminated(instance_id);
-    info!("Terminated instance: {instance_id}");
+    info!(%instance_id, "instance terminated");
     Ok(())
 }
 
@@ -152,7 +152,7 @@ async fn disconnect_if_connected_to(context: &AppContext, instance_id: &str) -> 
             .instance
             .is_some_and(|connected| connected.instance_id == instance_id);
     if is_connected_to_instance {
-        info!("Disconnecting from {instance_id} before terminating it");
+        info!(%instance_id, "disconnecting before terminating");
         session::disconnect(context.daemon_client.as_ref()).await?;
     }
     Ok(())

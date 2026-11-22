@@ -1,6 +1,6 @@
 use aws_sdk_ec2::types::{Filter, RouteTable, Tag};
 use byocvpn_core::managed_resources::{ANY_IPV4_CIDR, ANY_IPV6_CIDR};
-use log::info;
+use tracing::info;
 
 use crate::{
     client::AwsClient,
@@ -15,7 +15,7 @@ pub async fn ensure_internet_gateway(client: &AwsClient, vpc_id: &str) -> Result
     let route_table_id = find_main_route_table(client, vpc_id).await?;
     if let Some(internet_gateway_id) = get_internet_gateway(client, vpc_id).await? {
         if !has_default_routes(client, &route_table_id, &internet_gateway_id).await? {
-            info!("[AWS] Internet gateway routes missing or modified, reconfiguring...");
+            info!("internet gateway routes missing or modified, reconfiguring");
             add_default_routes(client, &route_table_id, &internet_gateway_id).await?;
         }
         return Ok(internet_gateway_id);
@@ -89,7 +89,7 @@ async fn create_internet_gateway(client: &AwsClient, vpc_id: &str) -> Result<Str
         .send()
         .await?;
 
-    info!("[AWS] Internet gateway {internet_gateway_id} attached to VPC {vpc_id}");
+    info!(%internet_gateway_id, %vpc_id, "internet gateway attached");
     Ok(internet_gateway_id.to_string())
 }
 
@@ -154,7 +154,7 @@ async fn add_default_routes(
         tolerate_existing_route(AwsError::from(sdk_error))?;
     }
 
-    info!("[AWS] Added default routes to route table {route_table_id}");
+    info!(%route_table_id, "default routes added");
     Ok(())
 }
 

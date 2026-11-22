@@ -1,7 +1,7 @@
 use byocvpn_core::managed_resources::{
     ANY_IPV4_CIDR, ANY_IPV6_CIDR, WIREGUARD_PORT, build_managed_tags,
 };
-use log::info;
+use tracing::info;
 
 use crate::{
     client::OciClient,
@@ -26,10 +26,7 @@ pub async fn ensure_security_list(client: &OciClient, vcn: &Vcn) -> Result<Strin
     match get_security_list(client, vcn).await? {
         Some(existing) => {
             if !contains_all_rules(&existing, &desired_ingress, &desired_egress) {
-                info!(
-                    "[OCI] Security list {} has drifted, updating...",
-                    existing.id
-                );
+                info!(security_list_id = %existing.id, "security list drifted, updating");
                 let url = client.build_core_url(&format!("/securityLists/{}", existing.id));
                 let body = UpdateSecurityListRequest {
                     ingress_security_rules: desired_ingress,
@@ -70,7 +67,7 @@ async fn create_security_list(
     let security_list: SecurityListResponse = client
         .post(&client.build_core_url("/securityLists"), &body)
         .await?;
-    info!("[OCI] Created security list {}", security_list.id);
+    info!(security_list_id = %security_list.id, "security list created");
     Ok(security_list.id)
 }
 

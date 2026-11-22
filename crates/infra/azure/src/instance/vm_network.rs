@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use byocvpn_core::managed_resources::build_managed_tags;
-use log::{debug, info};
 use serde::de::IgnoredAny;
+use tracing::{debug, info};
 
 use crate::{
     arm_resource::{API_VERSION_NETWORK, ArmResource, IpVersion, build_resource_group_name},
@@ -27,11 +27,11 @@ pub async fn ensure_public_ip(
         .await?
         .is_some()
     {
-        debug!("[Azure] {resource} already exists.");
+        debug!(%resource, "already exists");
         return Ok(client.build_resource_id(&resource));
     }
 
-    debug!("[Azure] Creating {resource}...");
+    debug!(%resource, "creating");
     let body = PublicIpRequest {
         location: location.to_string(),
         sku: PublicIpSku {
@@ -44,7 +44,7 @@ pub async fn ensure_public_ip(
         },
     };
     put_and_wait(client, &resource, &body).await?;
-    debug!("[Azure] {resource} created.");
+    debug!(%resource, "created");
     Ok(client.build_resource_id(&resource))
 }
 
@@ -131,16 +131,14 @@ pub async fn create_nic(
         },
     };
 
-    debug!("[Azure] Creating {resource} in {location}...");
+    debug!(%resource, %location, "creating");
     put_and_wait(client, &resource, &body).await?;
-    debug!("[Azure] {resource} created in {location}.");
+    debug!(%resource, %location, "created");
     Ok(client.build_resource_id(&resource))
 }
 
 pub async fn cleanup_vm_resources(client: &AzureClient, resource_group: &str, vm_name: &str) {
-    info!(
-        "[Azure] Cleaning up network resources for VM '{vm_name}' in resource group '{resource_group}'..."
-    );
+    info!(%vm_name, %resource_group, "cleaning up network resources");
     let network_interface = ArmResource::network_interface(resource_group, vm_name);
     let public_ipv4 = ArmResource::public_ip(resource_group, vm_name, IpVersion::V4);
     let public_ipv6 = ArmResource::public_ip(resource_group, vm_name, IpVersion::V6);

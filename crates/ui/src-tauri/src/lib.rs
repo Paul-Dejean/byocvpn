@@ -9,13 +9,17 @@ use byocvpn_app::open_app_context;
 use byocvpn_app::open_app_context_with_daemon_client;
 #[cfg(mobile)]
 use byocvpn_core::config::set_data_directory;
+#[cfg(desktop)]
+use byocvpn_core::logging::{LoggingFormat, initialize_logging};
 #[cfg(target_os = "android")]
 use log::LevelFilter;
-use log::{error, warn};
 #[cfg(all(desktop, any(debug_assertions, test)))]
 use specta_typescript::Typescript;
 use tauri::Manager;
 use tauri_specta::{Commands, Events, collect_commands, collect_events};
+use tracing::error;
+#[cfg(desktop)]
+use tracing::warn;
 
 use crate::events::{InstanceAutoTerminatedEvent, VpnStatusEvent};
 
@@ -104,7 +108,7 @@ pub fn run() {
 
     #[cfg(all(debug_assertions, desktop))]
     if let Err(error) = export_typescript_bindings(&specta_builder) {
-        warn!("Failed to export TypeScript bindings: {error}");
+        warn!(%error, "failed to export TypeScript bindings");
     }
 
     let invoke_handler = specta_builder.invoke_handler();
@@ -141,7 +145,7 @@ pub fn run() {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 if let Err(error) = window.hide() {
-                    warn!("Failed to hide the main window: {error}");
+                    warn!(%error, "failed to hide the main window");
                 }
             }
         })
@@ -150,7 +154,7 @@ pub fn run() {
     let app = match builder.build(tauri::generate_context!()) {
         Ok(app) => app,
         Err(error) => {
-            error!("Error while building tauri application: {error}");
+            error!(%error, "error while building tauri application");
             return;
         }
     };
@@ -166,9 +170,7 @@ pub fn run() {
 
 #[cfg(desktop)]
 fn initialize_logger() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .write_style(env_logger::WriteStyle::Always)
-        .init();
+    initialize_logging("info", LoggingFormat::DETAILED);
 }
 
 #[cfg(target_os = "android")]

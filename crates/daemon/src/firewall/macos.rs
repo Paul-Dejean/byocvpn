@@ -5,7 +5,7 @@ use std::{
 };
 
 use byocvpn_core::error::{Result, TunnelError};
-use log::{debug, info};
+use tracing::{debug, info};
 
 const ANCHOR_NAME: &str = "byocvpn";
 const ANCHOR_FILE: &str = "/tmp/byocvpn-killswitch.pf";
@@ -28,7 +28,7 @@ pub fn apply(server_ip: &str, tun_name: &str) -> Result<()> {
     run_pfctl(&["-a", ANCHOR_NAME, "-f", ANCHOR_FILE])?;
     enable_pf()?;
 
-    info!("[KillSwitch] pf anchor applied (server={server_ip}, tun={tun_name})");
+    info!(%server_ip, tun = %tun_name, "kill switch applied");
     Ok(())
 }
 
@@ -38,9 +38,9 @@ pub fn remove() -> Result<()> {
     if let Err(error) = remove_file(ANCHOR_FILE)
         && error.kind() != ErrorKind::NotFound
     {
-        debug!("[KillSwitch] anchor file {ANCHOR_FILE} was not removed: {error}");
+        debug!(%error, "anchor file {ANCHOR_FILE} was not removed");
     }
-    info!("[KillSwitch] pf anchor removed");
+    info!("kill switch removed");
     Ok(())
 }
 
@@ -92,7 +92,7 @@ fn enable_pf() -> Result<()> {
         })?;
     if !output.status.success() {
         debug!(
-            "[KillSwitch] pfctl -e exited with {}, pf is already enabled",
+            "pfctl -e exited with {}, pf is already enabled",
             output.status
         );
     }

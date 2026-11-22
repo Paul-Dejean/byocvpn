@@ -1,7 +1,7 @@
 use std::{io, process::Command};
 
 use byocvpn_core::error::{Result, TunnelError};
-use log::{debug, warn};
+use tracing::{debug, warn};
 
 const TUN_INTERFACE_NAME: &str = "tun0";
 const SET_DNS_COMMAND: &str = "resolvectl dns";
@@ -18,7 +18,7 @@ impl DnsOverrideGuard {
             return Err(TunnelError::NoDnsServers.into());
         }
 
-        debug!("Setting DNS servers on {TUN_INTERFACE_NAME} via resolvectl: {new_dns_servers:?}");
+        debug!("setting DNS servers on {TUN_INTERFACE_NAME} via resolvectl: {new_dns_servers:?}");
 
         let mut set_dns_command = Command::new("resolvectl");
         set_dns_command.arg("dns").arg(TUN_INTERFACE_NAME);
@@ -26,7 +26,7 @@ impl DnsOverrideGuard {
             set_dns_command.arg(server);
         }
 
-        debug!("Executing: {set_dns_command:?}");
+        debug!("executing: {set_dns_command:?}");
         let set_dns_output =
             set_dns_command
                 .output()
@@ -50,7 +50,7 @@ impl DnsOverrideGuard {
             .arg(TUN_INTERFACE_NAME)
             .arg("~.");
 
-        debug!("Executing: {set_domain_command:?}");
+        debug!("executing: {set_domain_command:?}");
         let set_domain_output =
             set_domain_command
                 .output()
@@ -80,12 +80,12 @@ impl DnsOverrideGuard {
             return Ok(());
         }
 
-        debug!("Reverting DNS settings on {TUN_INTERFACE_NAME} via resolvectl");
+        debug!("reverting DNS settings on {TUN_INTERFACE_NAME} via resolvectl");
 
         let mut revert_command = Command::new("resolvectl");
         revert_command.arg("revert").arg(TUN_INTERFACE_NAME);
 
-        debug!("Executing: {revert_command:?}");
+        debug!("executing: {revert_command:?}");
         let revert_output = revert_command.output()?;
 
         if !revert_output.status.success() {
@@ -104,7 +104,7 @@ impl DnsOverrideGuard {
 impl Drop for DnsOverrideGuard {
     fn drop(&mut self) {
         if let Err(error) = self.restore_previous_dns_configuration() {
-            warn!("Failed to restore DNS on drop: {error}");
+            warn!(%error, "failed to restore DNS on drop");
         }
     }
 }

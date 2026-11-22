@@ -1,4 +1,4 @@
-use log::{debug, info};
+use tracing::{debug, info};
 
 use crate::{
     arm_resource::ArmResource,
@@ -32,7 +32,7 @@ pub async fn ensure_subnet(
         .is_some_and(|reference| reference.id.eq_ignore_ascii_case(network_security_group_id));
 
     if existing.is_some() && has_ipv6 && has_desired_network_security_group {
-        debug!("[Azure] {resource} already exists in {location} and is up to date.");
+        debug!(%resource, %location, "already exists and is up to date");
         return Ok(client.build_resource_id(&resource));
     }
 
@@ -42,11 +42,9 @@ pub async fn ensure_subnet(
         vec![SUBNET_CIDR.to_string(), SUBNET_IPV6_CIDR.to_string()]
     };
     if existing.is_some() {
-        info!(
-            "[Azure] {resource} has drifted (ipv6={has_ipv6}, network_security_group={has_desired_network_security_group}), updating..."
-        );
+        info!(%resource, has_ipv6, has_desired_network_security_group, "drifted, updating");
     } else {
-        debug!("[Azure] Creating {resource} ({address_prefixes:?}) in {location}...");
+        debug!(%resource, ?address_prefixes, %location, "creating");
     }
 
     let body = SubnetRequest {
@@ -58,6 +56,6 @@ pub async fn ensure_subnet(
         },
     };
     put_and_wait(client, &resource, &body).await?;
-    info!("[Azure] {resource} ready in {location}.");
+    info!(%resource, %location, "ready");
     Ok(client.build_resource_id(&resource))
 }

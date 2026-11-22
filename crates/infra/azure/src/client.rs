@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use azure_identity::ClientSecretCredential;
 use byocvpn_core::retry::{RetryPolicy, retry};
-use log::{debug, warn};
 use reqwest::{Client as HttpClient, Method, Response};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::from_str;
 use tokio::time::Duration;
+use tracing::{debug, instrument, warn};
 
 use crate::{
     arm_resource::ArmResource,
@@ -104,13 +104,13 @@ impl AzureClient {
                     }
                     Some(AzureOperationStatus::InProgress | AzureOperationStatus::Running)
                     | None => {
-                        debug!("[Azure] ARM operation in progress...");
+                        debug!("ARM operation in progress");
                         Err(AzureError::OperationTimedOut {
                             operation_url: operation_url.to_string(),
                         })
                     }
                     Some(AzureOperationStatus::Other(status)) => {
-                        warn!("[Azure] Unexpected ARM operation status: {status}");
+                        warn!(%status, "unexpected arm operation status");
                         Err(AzureError::OperationTimedOut {
                             operation_url: operation_url.to_string(),
                         })
@@ -122,12 +122,16 @@ impl AzureClient {
         .await
     }
 
+    #[instrument(
+        level = "debug",
+        skip_all,
+        fields(method = %request.get_method(), url = %request.get_url())
+    )]
     async fn send_request<B: Serialize + Sync>(
         &self,
         request: &ApiRequest,
         body: Option<&B>,
     ) -> Result<Response> {
-        debug!("[Azure] {request}");
         let token = get_access_token(&self.credential).await?;
         let mut http_request = self
             .http

@@ -1,5 +1,5 @@
 use aws_sdk_ec2::types::{Filter, ResourceType, Tag, TagSpecification, Vpc};
-use log::info;
+use tracing::info;
 
 use crate::{
     client::AwsClient,
@@ -67,6 +67,6 @@ async fn create_vpc(client: &AwsClient) -> Result<String> {
             resource: "VPC",
             field: "vpcId",
         })?;
-    info!("[AWS] Created VPC {vpc_id}");
+    info!(%vpc_id, "vpc created");
     Ok(vpc_id.to_string())
 }

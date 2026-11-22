@@ -6,6 +6,7 @@ use byocvpn_core::{
     },
     error::{InternalError, Result},
 };
+use tracing::instrument;
 
 use crate::{
     account,
@@ -36,15 +37,18 @@ impl CloudProvider for GcpProvider {
         CloudProviderName::Gcp
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn verify_permissions(&self) -> Result<Vec<PermissionStatus>> {
         Ok(permissions::verify_permissions(&self.client).await?)
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn get_regions(&self) -> Result<Vec<Region>> {
         account::ensure_compute_api_enabled(&self.client).await?;
         Ok(regions::list_regions(&self.client).await?)
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn list_instances(&self, region: Option<&str>) -> Result<Vec<InstanceInfo>> {
         match region {
             Some(region_name) => Ok(instance::list_instances(&self.client, region_name).await?),
@@ -52,6 +56,7 @@ impl CloudProvider for GcpProvider {
         }
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn spawn_instance(&self, params: &SpawnInstanceParams<'_>) -> Result<InstanceInfo> {
         let region_network = network::ensure_region_network(&self.client, params.region).await?;
         let image_self_link = image::resolve_boot_image(&self.client).await?;
@@ -61,10 +66,12 @@ impl CloudProvider for GcpProvider {
         )
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn terminate_instance(&self, params: &TerminateInstanceParams<'_>) -> Result<()> {
         Ok(instance::terminate_instance(&self.client, params.instance_id).await?)
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn fetch_pricing(&self, region: &str, instance_type: &str) -> Result<PricingInfo> {
         Ok(pricing::fetch_pricing(&self.client, region, instance_type).await?)
     }
@@ -73,6 +80,7 @@ impl CloudProvider for GcpProvider {
         steps::build_provision_account_steps()
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn run_provision_account_step(&self, step_id: &str) -> Result<()> {
         match parse_step_id(step_id)? {
             GcpStepId::SetupApi => {
@@ -97,6 +105,7 @@ impl CloudProvider for GcpProvider {
         steps::build_enable_region_steps()
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn run_enable_region_step(&self, step_id: &str, region: &str) -> Result<()> {
         match parse_step_id(step_id)? {
             GcpStepId::RegionSubnet => {
@@ -118,6 +127,7 @@ impl CloudProvider for GcpProvider {
         steps::build_spawn_steps()
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn run_spawn_step(&self, step_id: &str, region: &str) -> Result<()> {
         match parse_step_id(step_id)? {
             GcpStepId::SetupNetwork => {

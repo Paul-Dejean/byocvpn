@@ -8,7 +8,7 @@ use std::{
 };
 
 use byocvpn_core::error::{Result, TunnelError};
-use log::{debug, warn};
+use tracing::{debug, warn};
 use windows_sys::Win32::{
     Foundation::FreeLibrary,
     Security::SECURITY_ATTRIBUTES,
@@ -68,7 +68,7 @@ impl DnsOverrideGuard {
 impl Drop for DnsOverrideGuard {
     fn drop(&mut self) {
         if let Err(error) = self.restore_previous_dns_configuration() {
-            warn!("Failed to restore DNS on drop: {error}");
+            warn!(%error, "failed to restore DNS on drop");
         }
     }
 }
@@ -185,7 +185,7 @@ fn set_registry_multi_sz(key: HKEY, name: &str, values: &[&str]) -> IoResult<()>
 fn flush_dns_resolver_cache() {
     let library = unsafe { LoadLibraryW(to_wide("dnsapi.dll").as_ptr()) };
     if library.is_null() {
-        debug!("Failed to load dnsapi.dll");
+        debug!("failed to load dnsapi.dll");
         return;
     }
 

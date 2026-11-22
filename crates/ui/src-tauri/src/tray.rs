@@ -7,7 +7,6 @@ use std::{
 };
 
 use byocvpn_core::{duration_format::format_duration_compact, tunnel::VpnStatus};
-use log::warn;
 use tauri::{
     AppHandle, Manager, Result as TauriResult, Wry,
     async_runtime::spawn,
@@ -15,6 +14,7 @@ use tauri::{
     menu::{Menu, MenuBuilder, MenuEvent, MenuItem, MenuItemBuilder},
     tray::{TrayIcon, TrayIconBuilder},
 };
+use tracing::warn;
 
 use crate::commands::disconnect;
 
@@ -41,7 +41,7 @@ pub fn build_tray(app: &AppHandle) -> TauriResult<TrayIcon> {
                     let owned_app = menu_app.clone();
                     spawn(async move {
                         if let Err(error) = disconnect(owned_app).await {
-                            warn!("Tray disconnect failed: {error}");
+                            warn!(%error, "tray disconnect failed");
                         }
                     });
                 }
@@ -60,7 +60,7 @@ pub fn update_tray(app: &AppHandle, vpn_status: &VpnStatus) {
     let was_connected = LAST_CONNECTED_STATE.swap(vpn_status.connected, Ordering::Relaxed);
 
     if let Err(error) = tray.set_tooltip(Some(&build_tooltip(vpn_status))) {
-        warn!("Failed to update the tray tooltip: {error}");
+        warn!(%error, "failed to update the tray tooltip");
     }
 
     if vpn_status.connected != was_connected {
@@ -70,7 +70,7 @@ pub fn update_tray(app: &AppHandle, vpn_status: &VpnStatus) {
             include_image!("icons/tray-disconnected.png")
         };
         if let Err(error) = tray.set_icon(Some(icon)) {
-            warn!("Failed to update the tray icon: {error}");
+            warn!(%error, "failed to update the tray icon");
         }
 
         if let Ok((menu, status_item)) = build_tray_menu(app, vpn_status) {
@@ -78,7 +78,7 @@ pub fn update_tray(app: &AppHandle, vpn_status: &VpnStatus) {
                 *guard = Some(status_item);
             }
             if let Err(error) = tray.set_menu(Some(menu)) {
-                warn!("Failed to update the tray menu: {error}");
+                warn!(%error, "failed to update the tray menu");
             }
         }
     } else if vpn_status.connected
@@ -91,7 +91,7 @@ pub fn update_tray(app: &AppHandle, vpn_status: &VpnStatus) {
             && let Some(item) = guard.as_ref()
             && let Err(error) = item.set_text(&label)
         {
-            warn!("Failed to update the tray status label: {error}");
+            warn!(%error, "failed to update the tray status label");
         }
     }
 }
@@ -184,10 +184,10 @@ const fn disconnected_vpn_status() -> VpnStatus {
 pub fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         if let Err(error) = window.show() {
-            warn!("Failed to show the main window: {error}");
+            warn!(%error, "failed to show the main window");
         }
         if let Err(error) = window.set_focus() {
-            warn!("Failed to focus the main window: {error}");
+            warn!(%error, "failed to focus the main window");
         }
     }
 }

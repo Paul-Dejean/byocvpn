@@ -1,5 +1,5 @@
 use byocvpn_core::managed_resources::{ANY_IPV4_CIDR, ANY_IPV6_CIDR, build_managed_tags};
-use log::{debug, info};
+use tracing::{debug, info};
 
 use crate::{
     client::OciClient,
@@ -44,7 +44,7 @@ async fn create_internet_gateway(client: &OciClient, vcn: &Vcn) -> Result<String
     let gateway: InternetGatewayResponse = client
         .post(&client.build_core_url("/internetGateways"), &body)
         .await?;
-    info!("[OCI] Created internet gateway {}", gateway.id);
+    info!(internet_gateway_id = %gateway.id, "internet gateway created");
     Ok(gateway.id)
 }
 
@@ -77,9 +77,6 @@ async fn ensure_default_routes(
     client
         .put(&url, &UpdateRouteTableRequest { route_rules })
         .await?;
-    debug!(
-        "[OCI] Default routes ensured on route table {}",
-        vcn.default_route_table_id
-    );
+    debug!(route_table_id = %vcn.default_route_table_id, "default routes ensured");
     Ok(())
 }

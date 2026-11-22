@@ -4,7 +4,7 @@ use byocvpn_core::{
     instances,
 };
 use dialoguer::{Select, theme::ColorfulTheme};
-use log::warn;
+use tracing::warn;
 
 use crate::{
     error::{CliError, CliResult},
@@ -73,11 +73,7 @@ pub async fn list_instances_across_providers(
     .await?;
 
     for failure in &listing.failures {
-        warn!(
-            "Could not list {} servers: {}",
-            failure.provider,
-            failure.error.describe()
-        );
+        warn!(provider = %failure.provider, error = %failure.error.describe(), "could not list servers");
     }
     Ok(listing.instances)
 }

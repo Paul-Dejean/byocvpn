@@ -7,7 +7,7 @@ use byocvpn_core::{
     error::{InternalError, Result},
 };
 use futures::future::join_all;
-use log::{debug, warn};
+use tracing::{debug, instrument, warn};
 
 use crate::{
     client::AwsClient,
@@ -36,15 +36,11 @@ impl AwsProvider {
             let client = self.build_client(Some(&region.name));
             match instance::list_instances(&client, &region.name).await {
                 Ok(instances) => {
-                    debug!(
-                        "[AWS] Region {}: found {} instances",
-                        region.name,
-                        instances.len()
-                    );
+                    debug!(region = %region.name, count = instances.len(), "instances listed");
                     instances
                 }
                 Err(error) => {
-                    warn!("[AWS] Skipping region {}: {error}", region.name);
+                    warn!(region = %region.name, %error, "region skipped");
                     Vec::new()
                 }
             }
@@ -60,16 +56,19 @@ impl CloudProvider for AwsProvider {
         CloudProviderName::Aws
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn verify_permissions(&self) -> Result<Vec<PermissionStatus>> {
         let client = self.build_client(None);
         Ok(permissions::verify_permissions(&client).await?)
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn get_regions(&self) -> Result<Vec<Region>> {
         let client = self.build_client(None);
         Ok(regions::list_regions(&client).await?)
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn list_instances(&self, region: Option<&str>) -> Result<Vec<InstanceInfo>> {
         match region {
             Some(region_name) => {
@@ -80,6 +79,7 @@ impl CloudProvider for AwsProvider {
         }
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn spawn_instance(&self, params: &SpawnInstanceParams<'_>) -> Result<InstanceInfo> {
         let client = self.build_client(Some(params.region));
         let region_network = network::ensure_region_network(&client).await?;
@@ -87,11 +87,13 @@ impl CloudProvider for AwsProvider {
         Ok(instance::spawn_instance(&client, &region_network, &image_id, params).await?)
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn terminate_instance(&self, params: &TerminateInstanceParams<'_>) -> Result<()> {
         let client = self.build_client(Some(params.region));
         Ok(instance::terminate_instance(&client, params.instance_id).await?)
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn fetch_pricing(&self, region: &str, instance_type: &str) -> Result<PricingInfo> {
         let client = self.build_client(None);
         Ok(Box::pin(pricing::fetch_pricing(&client, region, instance_type)).await?)
@@ -101,6 +103,7 @@ impl CloudProvider for AwsProvider {
         steps::build_provision_account_steps()
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn run_provision_account_step(&self, step_id: &str) -> Result<()> {
         Err(InternalError::unknown_step(CloudProviderName::Aws, step_id).into())
     }
@@ -109,6 +112,7 @@ impl CloudProvider for AwsProvider {
         steps::build_enable_region_steps()
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn run_enable_region_step(&self, step_id: &str, region: &str) -> Result<()> {
         let client = self.build_client(Some(region));
         match parse_step_id(step_id)? {
@@ -138,6 +142,7 @@ impl CloudProvider for AwsProvider {
         steps::build_spawn_steps()
     }
 
+    #[instrument(level = "debug", skip(self), err(level = "debug"))]
     async fn run_spawn_step(&self, step_id: &str, region: &str) -> Result<()> {
         match parse_step_id(step_id)? {
             AwsStepId::SetupNetwork => {

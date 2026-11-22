@@ -13,6 +13,7 @@ pub mod job_registry;
 pub mod jobs;
 pub mod json_store;
 pub mod ledger;
+pub mod logging;
 pub mod managed_resources;
 pub mod metrics_stream;
 pub mod pricing;
