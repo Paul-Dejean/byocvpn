@@ -1,3 +1,6 @@
+#[cfg(windows)]
+use std::{env::var, error::Error, fs::copy, path::Path};
+
 fn main() {
     #[cfg(windows)]
     if let Err(error) = copy_wintun() {
@@ -6,9 +9,7 @@ fn main() {
 }
 
 #[cfg(windows)]
-fn copy_wintun() -> Result<(), Box<dyn std::error::Error>> {
-    use std::{env::var, fs::copy, path::Path};
-
+fn copy_wintun() -> Result<(), Box<dyn Error>> {
     let out_dir = var("OUT_DIR")?;
     let target_dir = Path::new(&out_dir)
         .ancestors()
