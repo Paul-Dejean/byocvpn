@@ -34,13 +34,15 @@ export function KeyFileField({
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    let content: string;
     try {
-      const content = await readTextFile(file);
-      onChange(content);
-      onFileLoaded?.(content);
+      content = await readTextFile(file);
     } catch (error) {
       toast.error(`Could not read ${file.name}: ${toAppError(error).message}`);
+      return;
     }
+    onChange(content);
+    onFileLoaded?.(content);
   };
 
   return (

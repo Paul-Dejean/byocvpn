@@ -111,10 +111,6 @@ jobs:
         shell: pwsh
         run: Get-Item "target\release\byocvpn_daemon.exe"
 
-      - name: Create plist placeholder (non-macOS)
-        if: "!startsWith(matrix.runner, 'macos')"
-        run: touch scripts/com.byocvpn.daemon.plist
-
       - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -133,9 +129,9 @@ jobs:
         run: |
           DEB=$(find target/tauri -name "*.deb" | head -1)
           dpkg-deb --raw-extract "$DEB" deb_repack
-          cp scripts/deb-scripts/postinst deb_repack/DEBIAN/postinst
-          cp scripts/deb-scripts/prerm    deb_repack/DEBIAN/prerm
-          cp scripts/deb-scripts/postrm   deb_repack/DEBIAN/postrm
+          cp packaging/deb-scripts/postinst deb_repack/DEBIAN/postinst
+          cp packaging/deb-scripts/prerm    deb_repack/DEBIAN/prerm
+          cp packaging/deb-scripts/postrm   deb_repack/DEBIAN/postrm
           chmod 755 deb_repack/DEBIAN/postinst deb_repack/DEBIAN/prerm deb_repack/DEBIAN/postrm
           dpkg-deb --build deb_repack "$DEB"
 
@@ -168,7 +164,7 @@ jobs:
 
           pkgbuild \
             --nopayload \
-            --scripts scripts/uninstaller-pkg-scripts \
+            --scripts packaging/uninstaller-pkg-scripts \
             --identifier com.byocvpn.uninstaller \
             --version "$VERSION" \
             --install-location / \
@@ -177,7 +173,7 @@ jobs:
           APP=$(find target/tauri -name "*.app" | head -1)
           pkgbuild \
             --component "$APP" \
-            --scripts scripts/pkg-scripts \
+            --scripts packaging/pkg-scripts \
             --identifier com.byocvpn.app \
             --version "$VERSION" \
             --install-location /Applications \

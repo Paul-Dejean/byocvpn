@@ -1,33 +1,38 @@
 import { transformSync } from "@babel/core";
-import { reactCompilerPreset } from "@vitejs/plugin-react";
 import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { createRequire } from "node:module";
+import { join, relative } from "node:path";
 
 const SOURCE_DIRECTORY = "src";
 const SOURCE_FILE_PATTERN = /\.[tj]sx?$/;
+const GENERATED_FILES = new Set(["src/bindings.ts"]);
+const REACT_CODE_PATTERN = /forwardRef|memo|\b(?:[A-Z]|use[A-Z0-9])/;
 const FAILURE_EVENT_KINDS = new Set(["CompileError", "CompileUnexpectedThrow", "PipelineError"]);
 
-process.exitCode = main();
+const require = createRequire(import.meta.url);
+const COMPILER_PLUGIN_PATH = require.resolve("babel-plugin-react-compiler");
 
-function main() {
-  const buildPreset = reactCompilerPreset();
-  const [compilerPluginPath, compilerOptions] = buildPreset.preset().plugins[0];
-  const codeFilter = buildPreset.rolldown.filter.code;
+process.exitCode = main(process.argv.slice(2));
 
+function main(requestedFiles) {
+  const filePaths = requestedFiles.length > 0 ? requestedFiles : listSourceFiles(SOURCE_DIRECTORY);
   let compiledFunctionCount = 0;
   const failures = [];
 
-  for (const filePath of listSourceFiles(SOURCE_DIRECTORY)) {
-    const sourceCode = readFileSync(filePath, "utf8");
-    if (!codeFilter.test(sourceCode)) {
+  for (const filePath of filePaths) {
+    const displayPath = relative(process.cwd(), filePath);
+    if (GENERATED_FILES.has(displayPath) || !SOURCE_FILE_PATTERN.test(displayPath)) {
       continue;
     }
-    const events = collectCompilerEvents(filePath, sourceCode, compilerPluginPath, compilerOptions);
-    for (const event of events) {
+    const sourceCode = readFileSync(filePath, "utf8");
+    if (!REACT_CODE_PATTERN.test(sourceCode)) {
+      continue;
+    }
+    for (const event of collectCompilerEvents(filePath, sourceCode)) {
       if (event.kind === "CompileSuccess") {
         compiledFunctionCount += 1;
       } else if (FAILURE_EVENT_KINDS.has(event.kind)) {
-        failures.push(describeFailure(filePath, event));
+        failures.push(describeFailure(displayPath, event));
       }
     }
   }
@@ -45,7 +50,7 @@ function listSourceFiles(directory) {
     .map((entry) => join(directory, entry));
 }
 
-function collectCompilerEvents(filePath, sourceCode, compilerPluginPath, compilerOptions) {
+function collectCompilerEvents(filePath, sourceCode) {
   const events = [];
   const logger = { logEvent: (_filename, event) => events.push(event) };
   transformSync(sourceCode, {
@@ -53,13 +58,13 @@ function collectCompilerEvents(filePath, sourceCode, compilerPluginPath, compile
     configFile: false,
     babelrc: false,
     parserOpts: { plugins: ["typescript", "jsx"] },
-    plugins: [[compilerPluginPath, { ...compilerOptions, logger }]],
+    plugins: [[COMPILER_PLUGIN_PATH, { logger }]],
   });
   return events;
 }
 
-function describeFailure(filePath, event) {
+function describeFailure(displayPath, event) {
   const line = event.fnLoc?.start.line ?? "?";
   const reason = event.detail?.reason ?? event.data?.message ?? event.kind;
-  return `${filePath}:${line} ${reason}`;
+  return `${displayPath}:${line} ${reason}`;
 }

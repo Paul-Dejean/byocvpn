@@ -5,13 +5,13 @@
       "deb": {
         "files": {
           "/usr/lib/byocvpn/byocvpn-daemon": "../../../target/release/byocvpn_daemon",
-          "/lib/systemd/system/byocvpn-daemon.service": "../../../scripts/byocvpn-daemon.service"
+          "/lib/systemd/system/byocvpn-daemon.service": "../../../packaging/byocvpn-daemon.service"
         }
       },
       "rpm": {
         "files": {
           "/usr/lib/byocvpn/byocvpn-daemon": "../../../target/release/byocvpn_daemon",
-          "/lib/systemd/system/byocvpn-daemon.service": "../../../scripts/byocvpn-daemon.service"
+          "/lib/systemd/system/byocvpn-daemon.service": "../../../packaging/byocvpn-daemon.service"
         }
       }
     }

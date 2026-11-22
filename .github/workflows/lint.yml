@@ -22,6 +22,9 @@ jobs:
       matrix:
         os: [ubuntu-22.04, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      ANDROID_NDK_VERSION: 27.2.12479018
+      ANDROID_RUST_TARGET: aarch64-linux-android
     defaults:
       run:
         shell: bash
@@ -55,6 +58,31 @@ jobs:
 
       - name: Run clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Check the release profile
+        if: runner.os == 'Linux'
+        env:
+          CARGO_BUILD_WARNINGS: deny
+        run: cargo check --workspace --release --locked
+
+      - name: Install the Android NDK and Rust target
+        if: runner.os == 'Linux'
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;${ANDROID_NDK_VERSION}" > /dev/null
+          rustup target add "$ANDROID_RUST_TARGET"
+          NDK_BIN="$ANDROID_HOME/ndk/${ANDROID_NDK_VERSION}/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          {
+            echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/${ANDROID_NDK_VERSION}"
+            echo "CC_aarch64_linux_android=$NDK_BIN/aarch64-linux-android24-clang"
+            echo "AR_aarch64_linux_android=$NDK_BIN/llvm-ar"
+            echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$NDK_BIN/aarch64-linux-android24-clang"
+          } >> "$GITHUB_ENV"
+
+      - name: Check the Android app
+        if: runner.os == 'Linux'
+        env:
+          CARGO_BUILD_WARNINGS: deny
+        run: cargo check -p ui --target "$ANDROID_RUST_TARGET" --locked
 
   dependencies:
     name: Dependencies (cargo-deny)

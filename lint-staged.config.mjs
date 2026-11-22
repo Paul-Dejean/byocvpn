@@ -13,6 +13,7 @@ export default {
     runInFrontend("oxlint --type-aware --fix", stagedFiles),
     runInFrontend("eslint --fix", stagedFiles),
     runInFrontend("oxfmt", stagedFiles),
+    runInFrontend("node scripts/check-compiler.mjs", stagedFiles),
   ],
   "*.rs": (stagedFiles) => [
     `rustfmt --edition 2024 ${quoteFilePaths(stagedFiles)}`,
