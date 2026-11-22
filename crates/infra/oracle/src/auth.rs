@@ -1,7 +1,7 @@
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use reqwest::Method;
 use rsa::{
-    RsaPrivateKey,
+    PrivateKey,
     pkcs1v15::SigningKey,
     pkcs8::DecodePrivateKey,
     sha2::Sha256,
@@ -76,7 +76,7 @@ fn compute_body_digest(body: &[u8]) -> String {
 }
 
 fn sign(credentials: &OracleCredentials, message: &[u8]) -> Result<String> {
-    let private_key = RsaPrivateKey::from_pkcs8_pem(&credentials.private_key_pem)?;
+    let private_key = PrivateKey::from_pkcs8_pem(&credentials.private_key_pem)?;
     let signature = SigningKey::<Sha256>::new(private_key).try_sign(message)?;
     Ok(BASE64.encode(signature.to_bytes()))
 }

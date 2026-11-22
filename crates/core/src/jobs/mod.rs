@@ -4,7 +4,7 @@ pub mod region_preparation;
 pub mod spawn;
 
 use async_trait::async_trait;
-use chrono::Utc;
+use jiff::Timestamp;
 use log::debug;
 
 use crate::{
@@ -44,7 +44,7 @@ pub async fn run_job_steps(
 }
 
 pub fn build_job_id(provider: &CloudProviderName, region: Option<&str>) -> String {
-    let timestamp = Utc::now().timestamp_millis();
+    let timestamp = Timestamp::now().as_millisecond();
     region.map_or_else(
         || format!("{provider}-{timestamp}"),
         |region| format!("{provider}-{region}-{timestamp}"),

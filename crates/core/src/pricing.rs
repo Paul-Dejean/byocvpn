@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashSet};
 
-use chrono::{DateTime, TimeDelta, Utc};
+use jiff::{SignedDuration, Timestamp};
 use log::warn;
 use serde::{Deserialize, Serialize};
 
@@ -78,7 +78,7 @@ struct PricingCacheData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CachedPricing {
     pricing: PricingInfo,
-    fetched_at: DateTime<Utc>,
+    fetched_at: Timestamp,
 }
 
 impl PricingCache {
@@ -97,11 +97,11 @@ impl PricingCache {
         instance_type: &str,
     ) -> Option<PricingInfo> {
         let key = build_cache_key(*provider, region, instance_type);
-        let max_age = TimeDelta::hours(PRICING_CACHE_MAX_AGE_HOURS);
+        let max_age = SignedDuration::from_hours(PRICING_CACHE_MAX_AGE_HOURS);
         self.store.read(|data| {
             data.entries
                 .get(&key)
-                .filter(|cached| Utc::now() - cached.fetched_at < max_age)
+                .filter(|cached| Timestamp::now().duration_since(cached.fetched_at) < max_age)
                 .map(|cached| cached.pricing)
         })
     }
@@ -119,7 +119,7 @@ impl PricingCache {
                 key,
                 CachedPricing {
                     pricing: *pricing,
-                    fetched_at: Utc::now(),
+                    fetched_at: Timestamp::now(),
                 },
             );
         });

@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashSet};
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -17,10 +17,13 @@ pub struct LedgerEntry {
     pub provider: CloudProviderName,
     pub region: String,
     pub instance_type: String,
-    pub launched_at: DateTime<Utc>,
-    pub terminated_at: Option<DateTime<Utc>>,
+    #[cfg_attr(feature = "specta", specta(type = String))]
+    pub launched_at: Timestamp,
+    #[cfg_attr(feature = "specta", specta(type = Option<String>))]
+    pub terminated_at: Option<Timestamp>,
     #[serde(default)]
-    pub idle_since: Option<DateTime<Utc>>,
+    #[cfg_attr(feature = "specta", specta(type = Option<String>))]
+    pub idle_since: Option<Timestamp>,
     #[serde(default)]
     pub setup_complete: bool,
     #[cfg_attr(feature = "specta", specta(type = u32))]
@@ -41,9 +44,9 @@ impl LedgerEntry {
             provider: instance.provider,
             region: instance.region.clone(),
             instance_type: instance.instance_type.clone(),
-            launched_at: instance.launched_at.unwrap_or_else(Utc::now),
+            launched_at: instance.launched_at.unwrap_or_else(Timestamp::now),
             terminated_at: None,
-            idle_since: Some(Utc::now()),
+            idle_since: Some(Timestamp::now()),
             setup_complete: false,
             bytes_sent: 0,
             bytes_received: 0,
@@ -52,7 +55,7 @@ impl LedgerEntry {
     }
 
     pub fn mark_terminated(&mut self) {
-        self.terminated_at = Some(Utc::now());
+        self.terminated_at = Some(Timestamp::now());
     }
 
     pub const fn mark_setup_complete(&mut self) {
@@ -63,7 +66,7 @@ impl LedgerEntry {
         self.idle_since = None;
     }
 
-    pub const fn mark_idle_since(&mut self, idle_since: DateTime<Utc>) {
+    pub const fn mark_idle_since(&mut self, idle_since: Timestamp) {
         self.idle_since = Some(idle_since);
     }
 
@@ -124,7 +127,7 @@ impl Ledger {
         self.modify_entry(instance_id, LedgerEntry::mark_connected);
     }
 
-    pub fn mark_idle_since(&self, instance_id: &str, idle_since: DateTime<Utc>) {
+    pub fn mark_idle_since(&self, instance_id: &str, idle_since: Timestamp) {
         self.modify_entry(instance_id, |entry| entry.mark_idle_since(idle_since));
     }
 
@@ -172,5 +175,71 @@ impl Ledger {
                 apply_change(entry);
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{error::Error as StdError, result::Result as StdResult};
+
+    use super::*;
+
+    type TestResult = StdResult<(), Box<dyn StdError>>;
+
+    #[test]
+    fn reads_entries_written_with_chrono_timestamps() -> TestResult {
+        let json = r#"{
+            "instanceId": "i-0123456789abcdef0",
+            "provider": "AWS",
+            "region": "eu-west-3",
+            "instanceType": "t3.micro",
+            "launchedAt": "2026-11-20T12:34:56.789012345Z",
+            "terminatedAt": null,
+            "idleSince": "2026-11-20T13:00:00Z",
+            "setupComplete": true,
+            "bytesSent": 1024,
+            "bytesReceived": 2048,
+            "pricing": null
+        }"#;
+
+        let entry: LedgerEntry = serde_json::from_str(json)?;
+
+        assert_eq!(
+            entry.launched_at,
+            "2026-11-20T12:34:56.789012345Z".parse::<Timestamp>()?,
+            "fractional seconds written by chrono must round-trip"
+        );
+        assert_eq!(
+            entry.idle_since,
+            Some("2026-11-20T13:00:00Z".parse::<Timestamp>()?),
+            "whole-second timestamps must round-trip"
+        );
+        assert!(entry.terminated_at.is_none(), "null stays None");
+        Ok(())
+    }
+
+    #[test]
+    fn writes_timestamps_as_rfc3339_strings() -> TestResult {
+        let entry = LedgerEntry {
+            instance_id: "i-1".to_string(),
+            provider: CloudProviderName::Aws,
+            region: "eu-west-3".to_string(),
+            instance_type: "t3.micro".to_string(),
+            launched_at: "2026-11-20T12:34:56Z".parse()?,
+            terminated_at: None,
+            idle_since: None,
+            setup_complete: false,
+            bytes_sent: 0,
+            bytes_received: 0,
+            pricing: None,
+        };
+
+        let json = serde_json::to_string(&entry)?;
+
+        assert!(
+            json.contains(r#""launchedAt":"2026-11-20T12:34:56Z""#),
+            "launched_at must serialize as an RFC 3339 string, got {json}"
+        );
+        Ok(())
     }
 }

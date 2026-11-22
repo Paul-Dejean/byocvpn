@@ -7,7 +7,6 @@ use byocvpn_core::{
     },
     server_startup::{PackageManager, generate_server_startup_script},
 };
-use chrono::{DateTime, Utc};
 use google_cloud_compute_v1::model::{
     AccessConfig, AttachedDisk, AttachedDiskInitializeParams, Instance, Metadata, NetworkInterface,
     Tags,
@@ -15,6 +14,7 @@ use google_cloud_compute_v1::model::{
     metadata::Items as MetadataItem,
     network_interface::StackType,
 };
+use jiff::Timestamp;
 use uuid::Uuid;
 
 use crate::{
@@ -82,7 +82,7 @@ pub async fn spawn_instance(
         public_ip_v6: extract_public_ip_v6(&instance),
         provider: CloudProviderName::Gcp,
         instance_type: MACHINE_TYPE.to_string(),
-        launched_at: Some(Utc::now()),
+        launched_at: Some(Timestamp::now()),
         spawn_id: Some(params.spawn_id.to_string()),
     })
 }
@@ -216,8 +216,7 @@ fn build_instance_info(instance: &Instance, zone: &str, region: &str) -> Option<
     let launched_at = instance
         .creation_timestamp
         .as_deref()
-        .and_then(|timestamp| DateTime::parse_from_rfc3339(timestamp).ok())
-        .map(|datetime| datetime.with_timezone(&Utc));
+        .and_then(|timestamp| timestamp.parse::<Timestamp>().ok());
 
     Some(InstanceInfo {
         id: format!("{zone}/{name}"),

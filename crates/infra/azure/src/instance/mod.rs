@@ -11,8 +11,8 @@ use byocvpn_core::{
     },
     server_startup::{PackageManager, generate_server_startup_script},
 };
-use chrono::{DateTime, Utc};
 use futures::future::try_join_all;
+use jiff::Timestamp;
 use log::{debug, info, warn};
 use uuid::Uuid;
 
@@ -297,23 +297,22 @@ async fn read_public_ip_or_warn(
     }
 }
 
-async fn read_creation_time_or_now(client: &AzureClient, vm_url: &str) -> DateTime<Utc> {
+async fn read_creation_time_or_now(client: &AzureClient, vm_url: &str) -> Timestamp {
     match client.get::<VmResponse>(vm_url).await {
-        Ok(virtual_machine) => parse_creation_time(&virtual_machine).unwrap_or_else(Utc::now),
+        Ok(virtual_machine) => parse_creation_time(&virtual_machine).unwrap_or_else(Timestamp::now),
         Err(error) => {
             warn!("[Azure] Could not read VM creation time, using current time: {error}");
-            Utc::now()
+            Timestamp::now()
         }
     }
 }
 
-fn parse_creation_time(virtual_machine: &VmResponse) -> Option<DateTime<Utc>> {
+fn parse_creation_time(virtual_machine: &VmResponse) -> Option<Timestamp> {
     virtual_machine
         .properties
         .as_ref()
         .and_then(|properties| properties.time_created.as_deref())
-        .and_then(|timestamp| DateTime::parse_from_rfc3339(timestamp).ok())
-        .map(|datetime| datetime.with_timezone(&Utc))
+        .and_then(|timestamp| timestamp.parse::<Timestamp>().ok())
 }
 
 fn build_vm_name() -> String {
@@ -373,7 +372,7 @@ struct ManagedVm {
     resource_group: String,
     state: InstanceState,
     instance_type: String,
-    launched_at: Option<DateTime<Utc>>,
+    launched_at: Option<Timestamp>,
     spawn_id: Option<String>,
 }
 

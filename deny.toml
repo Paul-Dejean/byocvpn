@@ -9,8 +9,6 @@ feature-depth = 1
 version = 2
 yanked = "deny"
 ignore = [
-    { id = "RUSTSEC-2026-0543", reason = "chrono is used for ledger timestamps and the specta bindings; migrating to jiff is tracked as its own change." },
-    { id = "RUSTSEC-2023-0071", reason = "rsa 0.9 is the only release that signs Oracle Cloud requests; the Marvin timing attack needs an oracle that decrypts attacker-chosen ciphertexts, which this client never does. Revisit when rsa 0.10 is released." },
 ]
 
 [licenses]

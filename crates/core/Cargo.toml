@@ -23,7 +23,7 @@ tun-rs = { workspace = true }
 dirs = "7.0.0"
 rand = { workspace = true }
 handlebars = { workspace = true }
-chrono = { workspace = true }
+jiff = { workspace = true }
 strum = { workspace = true }
 specta = { workspace = true, optional = true }
 

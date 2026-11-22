@@ -1,4 +1,4 @@
-use chrono::Utc;
+use jiff::Timestamp;
 use log::debug;
 use reqwest::{Client as HttpClient, Method, Response, StatusCode, Url};
 use serde::{Serialize, de::DeserializeOwned};
@@ -108,7 +108,9 @@ impl OciClient {
             || parsed_url.path().to_string(),
             |query| format!("{}?{query}", parsed_url.path()),
         );
-        let date = Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string();
+        let date = Timestamp::now()
+            .strftime("%a, %d %b %Y %H:%M:%S GMT")
+            .to_string();
         let signed_headers = build_signed_headers(
             &self.credentials,
             request.get_method(),

@@ -11,7 +11,7 @@ use byocvpn_core::{
     managed_resources::{MANAGED_BY_TAG_KEY, MANAGED_BY_TAG_VALUE, SPAWN_ID_TAG_KEY},
     server_startup::{PackageManager, generate_server_startup_script},
 };
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use log::{debug, info};
 use tokio::time::Duration;
 
@@ -90,7 +90,7 @@ pub async fn spawn_instance(
         public_ip_v6,
         provider: CloudProviderName::Aws,
         instance_type: SERVER_INSTANCE_TYPE.to_string(),
-        launched_at: Some(Utc::now()),
+        launched_at: Some(Timestamp::now()),
         spawn_id: Some(params.spawn_id.to_string()),
     })
 }
@@ -199,11 +199,9 @@ fn build_instance_info(instance: &Instance, region: &str) -> Option<InstanceInfo
         .state()
         .and_then(|instance_state| instance_state.name())
         .map_or("unknown", InstanceStateName::as_str);
-    let launched_at = instance.launch_time().and_then(|timestamp| {
-        DateTime::parse_from_rfc3339(&timestamp.to_string())
-            .ok()
-            .map(|datetime| datetime.with_timezone(&Utc))
-    });
+    let launched_at = instance
+        .launch_time()
+        .and_then(|timestamp| timestamp.to_string().parse::<Timestamp>().ok());
 
     Some(InstanceInfo {
         id: instance.instance_id()?.to_string(),

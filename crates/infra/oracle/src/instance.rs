@@ -9,8 +9,8 @@ use byocvpn_core::{
     retry::{RetryPolicy, retry_if},
     server_startup::{PackageManager, generate_server_startup_script},
 };
-use chrono::{DateTime, Utc};
 use futures::future::join_all;
+use jiff::Timestamp;
 use log::{debug, info, warn};
 use tokio::time::Duration;
 
@@ -60,7 +60,7 @@ pub async fn spawn_instance(
     instance.public_ip_v4 = public_ip_v4;
     instance.public_ip_v6 = public_ip_v6;
     instance.instance_type = INSTANCE_SHAPE.to_string();
-    instance.launched_at = Some(Utc::now());
+    instance.launched_at = Some(Timestamp::now());
     info!(
         "[OCI] Instance {} spawned in {region} (IPv4 {}, IPv6 {})",
         instance.id, instance.public_ip_v4, instance.public_ip_v6
@@ -279,8 +279,7 @@ fn build_instance_info(instance: &InstanceResponse, region: &str) -> InstanceInf
         launched_at: instance
             .time_created
             .as_deref()
-            .and_then(|timestamp| DateTime::parse_from_rfc3339(timestamp).ok())
-            .map(|datetime| datetime.with_timezone(&Utc)),
+            .and_then(|timestamp| timestamp.parse::<Timestamp>().ok()),
         spawn_id: instance
             .freeform_tags
             .as_ref()

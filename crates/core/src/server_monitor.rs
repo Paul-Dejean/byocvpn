@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use chrono::{DateTime, Utc};
+use jiff::{SignedDuration, Timestamp};
 use log::{debug, info, warn};
 
 use crate::{
@@ -38,7 +38,7 @@ pub async fn run_monitor_tick(
         for (entry, running_for) in
             context
                 .uptime_notices
-                .select_due(&running_entries, threshold, Utc::now())
+                .select_due(&running_entries, threshold, Timestamp::now())
         {
             observer.on_long_running(&entry, running_for);
         }
@@ -62,7 +62,7 @@ pub async fn run_auto_terminate_check(
         ConnectionState::Disconnected => None,
         ConnectionState::Unknown => return,
     };
-    let now = Utc::now();
+    let now = Timestamp::now();
     let running_entries = refresh_idle_state(
         context,
         running_entries,
@@ -79,10 +79,8 @@ pub async fn run_auto_terminate_check(
     let threshold_minutes = auto_terminate_settings
         .auto_terminate_threshold_minutes
         .max(MIN_AUTO_TERMINATE_MINUTES);
-    let threshold = i64::try_from(threshold_minutes)
-        .ok()
-        .and_then(chrono::Duration::try_minutes)
-        .unwrap_or(chrono::Duration::MAX);
+    let threshold =
+        i64::try_from(threshold_minutes).map_or(SignedDuration::MAX, SignedDuration::from_mins);
 
     let notifications_enabled = context
         .settings
@@ -113,8 +111,8 @@ pub async fn run_auto_terminate_check(
 pub fn select_idle_expired<'a>(
     entries: &'a [LedgerEntry],
     connected_instance_id: Option<&str>,
-    threshold: chrono::Duration,
-    now: DateTime<Utc>,
+    threshold: SignedDuration,
+    now: Timestamp,
 ) -> Vec<&'a LedgerEntry> {
     entries
         .iter()
@@ -122,14 +120,14 @@ pub fn select_idle_expired<'a>(
         .filter(|entry| {
             entry
                 .idle_since
-                .is_some_and(|idle_since| now - idle_since >= threshold)
+                .is_some_and(|idle_since| now.duration_since(idle_since) >= threshold)
         })
         .collect()
 }
 
 #[derive(Default, Debug)]
 pub struct UptimeNoticeTracker {
-    last_notified_at: Mutex<HashMap<String, DateTime<Utc>>>,
+    last_notified_at: Mutex<HashMap<String, Timestamp>>,
 }
 
 impl UptimeNoticeTracker {
@@ -137,7 +135,7 @@ impl UptimeNoticeTracker {
         &self,
         entries: &[LedgerEntry],
         threshold: Duration,
-        now: DateTime<Utc>,
+        now: Timestamp,
     ) -> Vec<(LedgerEntry, Duration)> {
         let mut last_notified_at = self
             .last_notified_at
@@ -147,13 +145,13 @@ impl UptimeNoticeTracker {
         entries
             .iter()
             .filter_map(|entry| {
-                let running_for = (now - entry.launched_at).to_std().unwrap_or_default();
+                let running_for = elapsed_between(entry.launched_at, now);
                 if running_for < threshold {
                     return None;
                 }
                 let is_due = last_notified_at
                     .get(&entry.instance_id)
-                    .is_none_or(|last| (now - *last).to_std().unwrap_or_default() >= threshold);
+                    .is_none_or(|last| elapsed_between(*last, now) >= threshold);
                 if !is_due {
                     return None;
                 }
@@ -202,7 +200,7 @@ fn refresh_idle_state(
     context: &AppContext,
     entries: Vec<LedgerEntry>,
     connected_instance_id: Option<&str>,
-    now: DateTime<Utc>,
+    now: Timestamp,
 ) -> Vec<LedgerEntry> {
     entries
         .into_iter()
@@ -218,4 +216,8 @@ fn refresh_idle_state(
             entry
         })
         .collect()
+}
+
+fn elapsed_between(earlier: Timestamp, later: Timestamp) -> Duration {
+    Duration::try_from(later.duration_since(earlier)).unwrap_or_default()
 }

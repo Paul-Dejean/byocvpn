@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
@@ -107,7 +107,8 @@ pub struct InstanceInfo {
     pub public_ip_v6: String,
     pub provider: CloudProviderName,
     pub instance_type: String,
-    pub launched_at: Option<DateTime<Utc>>,
+    #[cfg_attr(feature = "specta", specta(type = Option<String>))]
+    pub launched_at: Option<Timestamp>,
     pub spawn_id: Option<String>,
 }
 

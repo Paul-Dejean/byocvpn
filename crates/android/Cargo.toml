@@ -12,7 +12,7 @@ tauri = { workspace = true }
 serde = { workspace = true }
 
 [build-dependencies]
-tauri-plugin = { version = "2.7.2", features = ["build"] }
+tauri-plugin = { version = "2.7.4", features = ["build"] }
 
 [lints]
 workspace = true
