@@ -11,7 +11,9 @@ use byocvpn_core::{
 use serde_json::Value;
 #[cfg(unix)]
 use tokio::fs::create_dir_all;
-use tracing::{Instrument, debug, debug_span, error, info, warn};
+#[cfg(unix)]
+use tracing::debug;
+use tracing::{Instrument, debug_span, error, info, warn};
 
 use crate::vpn::{
     connect::connect_vpn, disconnect::disconnect_vpn, metrics::get_current_metrics,
