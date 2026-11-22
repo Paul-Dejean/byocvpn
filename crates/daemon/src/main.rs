@@ -1,6 +1,12 @@
+#[cfg(windows)]
+use std::process::ExitCode;
+
 #[cfg(not(windows))]
 use byocvpn_core::error::Result;
 use byocvpn_daemon::daemon::run_daemon;
+#[cfg(windows)]
+use tokio::runtime::Builder as RuntimeBuilder;
+
 #[cfg(not(windows))]
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -8,39 +14,47 @@ async fn main() -> Result<()> {
 }
 
 #[cfg(windows)]
-fn main() {
-    if windows_service_impl::start_as_service().is_err() {
-        run_daemon_in_foreground();
+fn main() -> ExitCode {
+    if windows_service_impl::start_as_service().is_ok() {
+        return ExitCode::SUCCESS;
     }
+    run_daemon_in_foreground()
 }
 
 #[cfg(windows)]
-fn run_daemon_in_foreground() {
-    let runtime = match tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-    {
+#[expect(
+    clippy::print_stderr,
+    reason = "the logger is only initialized once the daemon runs, so startup failures can only reach stderr"
+)]
+fn run_daemon_in_foreground() -> ExitCode {
+    let runtime = match RuntimeBuilder::new_multi_thread().enable_all().build() {
         Ok(runtime) => runtime,
         Err(error) => {
             eprintln!("Failed to build tokio runtime: {error}");
-            std::process::exit(1);
+            return ExitCode::FAILURE;
         }
     };
 
     runtime.block_on(async {
-        if let Err(error) = run_daemon().await {
-            eprintln!("Daemon error: {error}");
-            std::process::exit(1);
+        match run_daemon().await {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("Daemon error: {error}");
+                ExitCode::FAILURE
+            }
         }
-    });
+    })
 }
 
 #[cfg(windows)]
 mod windows_service_impl {
-    use std::{sync::mpsc, time::Duration};
+    use std::{ffi::OsString, sync::mpsc, time::Duration};
 
+    use byocvpn_daemon::daemon::run_daemon;
+    use log::{debug, error, info, warn};
+    use tokio::{runtime::Builder as RuntimeBuilder, task::spawn_blocking};
     use windows_service::{
-        define_windows_service,
+        Result as ServiceResult, define_windows_service,
         service::{
             ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus,
             ServiceType,
@@ -51,87 +65,90 @@ mod windows_service_impl {
 
     define_windows_service!(ffi_service_main, service_main);
 
-    pub fn start_as_service() -> windows_service::Result<()> {
-        let service_name = if cfg!(debug_assertions) {
+    pub fn start_as_service() -> ServiceResult<()> {
+        service_dispatcher::start(get_service_name(), ffi_service_main)
+    }
+
+    const fn get_service_name() -> &'static str {
+        if cfg!(debug_assertions) {
             "byocvpn-daemon-dev"
         } else {
             "byocvpn-daemon"
-        };
-        service_dispatcher::start(service_name, ffi_service_main)
+        }
     }
 
-    fn service_main(_arguments: Vec<std::ffi::OsString>) {
-        let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>();
+    fn service_main(_arguments: Vec<OsString>) {
+        let (shutdown_sender, shutdown_receiver) = mpsc::channel::<()>();
 
-        let status_handle = match service_control_handler::register(
-            if cfg!(debug_assertions) {
-                "byocvpn-daemon-dev"
-            } else {
-                "byocvpn-daemon"
-            },
-            move |control_event| match control_event {
-                ServiceControl::Stop | ServiceControl::Shutdown => {
-                    let _ = shutdown_tx.send(());
-                    ServiceControlHandlerResult::NoError
+        let status_handle =
+            match service_control_handler::register(get_service_name(), move |control_event| {
+                match control_event {
+                    ServiceControl::Stop | ServiceControl::Shutdown => {
+                        if shutdown_sender.send(()).is_err() {
+                            debug!("Service stop requested after the daemon already stopped");
+                        }
+                        ServiceControlHandlerResult::NoError
+                    }
+                    ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
+                    _ => ServiceControlHandlerResult::NotImplemented,
                 }
-                ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
-                _ => ServiceControlHandlerResult::NotImplemented,
-            },
-        ) {
-            Ok(status_handle) => status_handle,
-            Err(error) => {
-                log::error!("Failed to register service control handler: {error}");
-                return;
-            }
-        };
+            }) {
+                Ok(status_handle) => status_handle,
+                Err(error) => {
+                    error!("Failed to register service control handler: {error}");
+                    return;
+                }
+            };
 
-        if let Err(error) = status_handle.set_service_status(ServiceStatus {
-            service_type: ServiceType::OWN_PROCESS,
-            current_state: ServiceState::Running,
-            controls_accepted: ServiceControlAccept::STOP | ServiceControlAccept::SHUTDOWN,
-            exit_code: ServiceExitCode::Win32(0),
-            checkpoint: 0,
-            wait_hint: Duration::default(),
-            process_id: None,
-        }) {
-            log::error!("Failed to set service status to Running: {error}");
+        if let Err(error) = status_handle.set_service_status(build_service_status(
+            ServiceState::Running,
+            ServiceControlAccept::STOP | ServiceControlAccept::SHUTDOWN,
+        )) {
+            error!("Failed to set service status to Running: {error}");
             return;
         }
 
-        let runtime = match tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-        {
+        let runtime = match RuntimeBuilder::new_multi_thread().enable_all().build() {
             Ok(runtime) => runtime,
             Err(error) => {
-                log::error!("Failed to build tokio runtime: {error}");
+                error!("Failed to build tokio runtime: {error}");
                 return;
             }
         };
 
         runtime.block_on(async {
             tokio::select! {
-                result = byocvpn_daemon::daemon::run_daemon() => {
+                result = run_daemon() => {
                     if let Err(error) = result {
-                        log::error!("Daemon exited with error: {}", error);
+                        error!("Daemon exited with error: {error}");
                     }
                 }
-                _ = tokio::task::spawn_blocking(move || shutdown_rx.recv()) => {
-                    log::info!("Service stop signal received");
+                _ = spawn_blocking(move || shutdown_receiver.recv()) => {
+                    info!("Service stop signal received");
                 }
             }
         });
 
-        if let Err(error) = status_handle.set_service_status(ServiceStatus {
+        if let Err(error) = status_handle.set_service_status(build_service_status(
+            ServiceState::Stopped,
+            ServiceControlAccept::empty(),
+        )) {
+            warn!("Failed to set service status to Stopped: {error}");
+        }
+    }
+
+    fn build_service_status(
+        current_state: ServiceState,
+        controls_accepted: ServiceControlAccept,
+    ) -> ServiceStatus {
+        ServiceStatus {
             service_type: ServiceType::OWN_PROCESS,
-            current_state: ServiceState::Stopped,
-            controls_accepted: ServiceControlAccept::empty(),
+            current_state,
+            controls_accepted,
             exit_code: ServiceExitCode::Win32(0),
             checkpoint: 0,
             wait_hint: Duration::default(),
             process_id: None,
-        }) {
-            log::warn!("Failed to set service status to Stopped: {}", error);
         }
     }
 }
