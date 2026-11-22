@@ -1,8 +1,10 @@
 use std::process::id as process_id;
 
+#[cfg(unix)]
+use byocvpn_core::error::DaemonError;
 use byocvpn_core::{
     daemon_client::{DaemonCommand, DaemonResponse},
-    error::{DaemonError, Error, Result},
+    error::{Error, Result},
     ipc::{IpcSocket, socket_path},
 };
 use log::{debug, error, info};

@@ -4,7 +4,7 @@ use byocvpn_core::error::Result;
     clippy::unnecessary_wraps,
     reason = "the signature matches the other platforms' apply"
 )]
-pub fn apply(_server_ip: &str, _tun_name: &str) -> Result<()> {
+pub const fn apply(_server_ip: &str, _tun_name: &str) -> Result<()> {
     Ok(())
 }
 
@@ -12,6 +12,6 @@ pub fn apply(_server_ip: &str, _tun_name: &str) -> Result<()> {
     clippy::unnecessary_wraps,
     reason = "the signature matches the other platforms' remove"
 )]
-pub fn remove() -> Result<()> {
+pub const fn remove() -> Result<()> {
     Ok(())
 }
