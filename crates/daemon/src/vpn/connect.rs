@@ -35,6 +35,20 @@ use crate::{
     vpn::session::{self, PersistedSession},
 };
 
+struct RoutingSetup {
+    route_monitor_task: JoinHandle<()>,
+    route_monitor_shutdown: watch::Sender<()>,
+    dns_override_guard: Option<DnsOverrideGuard>,
+}
+
+struct RunningTunnel {
+    shutdown: watch::Sender<()>,
+    task: JoinHandle<()>,
+    metrics: Arc<RwLock<TunnelMetrics>>,
+    metrics_task: JoinHandle<()>,
+    metrics_shutdown: watch::Sender<()>,
+}
+
 pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
     let VpnConnectParams {
         instance_id,
@@ -52,90 +66,123 @@ pub async fn connect_vpn(params: VpnConnectParams) -> Result<()> {
     } = params;
 
     info!("Connecting VPN: instance={instance_id}, region={region}, provider={provider}");
-
-    let tunnel_already_running = lock_tunnel_manager()?
-        .as_ref()
-        .is_some_and(|handle| !handle.task.is_finished());
-
-    if tunnel_already_running {
-        return Err(TunnelError::AlreadyRunning.into());
-    }
+    ensure_no_tunnel_running()?;
 
     let (tun, interface_index) = setup_tun_device(private_ipv4, private_ipv6)?;
     let interface_name = tun
         .name()
         .unwrap_or_else(|_| format!("tun{interface_index}"));
-
-    if kill_switch_enabled {
-        if let Err(error) = firewall::apply(&server_endpoint.ip().to_string(), &interface_name) {
-            warn!("Kill switch apply failed: {error}");
-        }
-    } else {
-        warn!("Session kill switch disabled; traffic can leak if the tunnel drops.");
-    }
+    let server_ip = server_endpoint.ip().to_string();
+    apply_kill_switch(kill_switch_enabled, &server_ip, &interface_name);
 
     let wireguard_tunnel = create_wireguard_tunnel(&private_key, &public_key)?;
     let udp = connect_udp_socket(server_endpoint).await?;
+    let (shutdown_sender, shutdown_receiver) = watch::channel(());
+    let running_tunnel = spawn_tunnel(
+        Tunnel::new(tun, udp, wireguard_tunnel, shutdown_receiver),
+        shutdown_sender,
+    );
 
-    let (shutdown_tx, shutdown_rx) = watch::channel(());
-    let mut tunnel = Tunnel::new(tun, udp, wireguard_tunnel, shutdown_rx);
+    let routing = setup_routing(interface_index, &server_ip, &dns_servers).await?;
+
+    let connected_instance = ConnectedInstance {
+        instance_id,
+        public_ip_v4,
+        public_ip_v6,
+        region,
+        provider,
+    };
+    persist_session(&connected_instance, kill_switch_enabled);
+    register_tunnel_handle(TunnelHandle {
+        shutdown: running_tunnel.shutdown,
+        task: running_tunnel.task,
+        metrics: running_tunnel.metrics,
+        metrics_task: running_tunnel.metrics_task,
+        metrics_shutdown: running_tunnel.metrics_shutdown,
+        route_monitor_task: routing.route_monitor_task,
+        route_monitor_shutdown: routing.route_monitor_shutdown,
+        dns_override_guard: routing.dns_override_guard,
+        server_ip,
+        interface_index,
+        instance: Some(connected_instance),
+        connected_at: SystemTime::now(),
+    })?;
+
+    info!("VPN setup complete.");
+    Ok(())
+}
+
+fn ensure_no_tunnel_running() -> Result<()> {
+    let tunnel_already_running = lock_tunnel_manager()?
+        .as_ref()
+        .is_some_and(|handle| !handle.task.is_finished());
+    if tunnel_already_running {
+        return Err(TunnelError::AlreadyRunning.into());
+    }
+    Ok(())
+}
+
+fn apply_kill_switch(enabled: bool, server_ip: &str, interface_name: &str) {
+    if !enabled {
+        warn!("Session kill switch disabled; traffic can leak if the tunnel drops.");
+        return;
+    }
+    if let Err(error) = firewall::apply(server_ip, interface_name) {
+        warn!("Kill switch apply failed: {error}");
+    }
+}
+
+fn spawn_tunnel(mut tunnel: Tunnel, shutdown: watch::Sender<()>) -> RunningTunnel {
     let metrics = tunnel.get_metrics();
-
     let task = tokio::spawn(async move {
         if let Err(error) = tunnel.run().await {
             error!("Tunnel exited: {error}");
         }
     });
-
-    let (metrics_shutdown_tx, metrics_shutdown_rx) = watch::channel(());
-    let metrics_task = spawn_metrics_task(Arc::clone(&metrics), metrics_shutdown_rx);
-
-    info!("Adding VPN routes...");
-    add_vpn_routes(interface_index, &server_endpoint.ip().to_string()).await?;
-
-    let (route_monitor_shutdown_tx, route_monitor_shutdown_rx) = watch::channel(());
-    let route_monitor_task =
-        spawn_route_monitor_task(server_endpoint.ip().to_string(), route_monitor_shutdown_rx);
-
-    let dns_override_guard = apply_dns_servers(&dns_servers);
-
-    let persisted_session = PersistedSession {
-        instance_id: instance_id.clone(),
-        provider,
-        region: region.clone(),
-        public_ip_v4: public_ip_v4.clone(),
-        public_ip_v6: public_ip_v6.clone(),
-        kill_switch_enabled,
-    };
-
-    let mut manager = lock_tunnel_manager()?;
-    *manager = Some(TunnelHandle {
-        shutdown: shutdown_tx,
+    let (metrics_shutdown, metrics_shutdown_receiver) = watch::channel(());
+    let metrics_task = spawn_metrics_task(Arc::clone(&metrics), metrics_shutdown_receiver);
+    RunningTunnel {
+        shutdown,
         task,
         metrics,
         metrics_task,
-        metrics_shutdown: metrics_shutdown_tx,
-        route_monitor_task,
-        route_monitor_shutdown: route_monitor_shutdown_tx,
-        dns_override_guard,
-        server_ip: server_endpoint.ip().to_string(),
-        interface_index,
-        instance: Some(ConnectedInstance {
-            instance_id,
-            public_ip_v4,
-            public_ip_v6,
-            region,
-            provider,
-        }),
-        connected_at: SystemTime::now(),
-    });
-    drop(manager);
+        metrics_shutdown,
+    }
+}
 
+async fn setup_routing(
+    interface_index: u32,
+    server_ip: &str,
+    dns_servers: &[String],
+) -> Result<RoutingSetup> {
+    info!("Adding VPN routes...");
+    add_vpn_routes(interface_index, server_ip).await?;
+    let (route_monitor_shutdown, route_monitor_shutdown_receiver) = watch::channel(());
+    let route_monitor_task =
+        spawn_route_monitor_task(server_ip.to_string(), route_monitor_shutdown_receiver);
+    Ok(RoutingSetup {
+        route_monitor_task,
+        route_monitor_shutdown,
+        dns_override_guard: apply_dns_servers(dns_servers),
+    })
+}
+
+fn persist_session(connected_instance: &ConnectedInstance, kill_switch_enabled: bool) {
+    let persisted_session = PersistedSession {
+        instance_id: connected_instance.instance_id.clone(),
+        provider: connected_instance.provider,
+        region: connected_instance.region.clone(),
+        public_ip_v4: connected_instance.public_ip_v4.clone(),
+        public_ip_v6: connected_instance.public_ip_v6.clone(),
+        kill_switch_enabled,
+    };
     if let Err(error) = session::write_session(&persisted_session) {
         warn!("Failed to persist session: {error}");
     }
+}
 
-    info!("VPN setup complete.");
+fn register_tunnel_handle(handle: TunnelHandle) -> Result<()> {
+    *lock_tunnel_manager()? = Some(handle);
     Ok(())
 }
 

@@ -48,7 +48,11 @@ fn run_daemon_in_foreground() -> ExitCode {
 
 #[cfg(windows)]
 mod windows_service_impl {
-    use std::{ffi::OsString, sync::mpsc, time::Duration};
+    use std::{
+        ffi::OsString,
+        sync::mpsc::{self, Receiver, Sender},
+        time::Duration,
+    };
 
     use byocvpn_daemon::daemon::run_daemon;
     use log::{debug, error, info, warn};
@@ -59,7 +63,7 @@ mod windows_service_impl {
             ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus,
             ServiceType,
         },
-        service_control_handler::{self, ServiceControlHandlerResult},
+        service_control_handler::{self, ServiceControlHandlerResult, ServiceStatusHandle},
         service_dispatcher,
     };
 
@@ -79,9 +83,31 @@ mod windows_service_impl {
 
     fn service_main(_arguments: Vec<OsString>) {
         let (shutdown_sender, shutdown_receiver) = mpsc::channel::<()>();
+        let Some(status_handle) = register_control_handler(shutdown_sender) else {
+            return;
+        };
 
-        let status_handle =
-            match service_control_handler::register(get_service_name(), move |control_event| {
+        if let Err(error) = status_handle.set_service_status(build_service_status(
+            ServiceState::Running,
+            ServiceControlAccept::STOP | ServiceControlAccept::SHUTDOWN,
+        )) {
+            error!("Failed to set service status to Running: {error}");
+            return;
+        }
+
+        run_daemon_until_stopped(shutdown_receiver);
+
+        if let Err(error) = status_handle.set_service_status(build_service_status(
+            ServiceState::Stopped,
+            ServiceControlAccept::empty(),
+        )) {
+            warn!("Failed to set service status to Stopped: {error}");
+        }
+    }
+
+    fn register_control_handler(shutdown_sender: Sender<()>) -> Option<ServiceStatusHandle> {
+        let registration =
+            service_control_handler::register(get_service_name(), move |control_event| {
                 match control_event {
                     ServiceControl::Stop | ServiceControl::Shutdown => {
                         if shutdown_sender.send(()).is_err() {
@@ -92,22 +118,17 @@ mod windows_service_impl {
                     ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
                     _ => ServiceControlHandlerResult::NotImplemented,
                 }
-            }) {
-                Ok(status_handle) => status_handle,
-                Err(error) => {
-                    error!("Failed to register service control handler: {error}");
-                    return;
-                }
-            };
-
-        if let Err(error) = status_handle.set_service_status(build_service_status(
-            ServiceState::Running,
-            ServiceControlAccept::STOP | ServiceControlAccept::SHUTDOWN,
-        )) {
-            error!("Failed to set service status to Running: {error}");
-            return;
+            });
+        match registration {
+            Ok(status_handle) => Some(status_handle),
+            Err(error) => {
+                error!("Failed to register service control handler: {error}");
+                None
+            }
         }
+    }
 
+    fn run_daemon_until_stopped(shutdown_receiver: Receiver<()>) {
         let runtime = match RuntimeBuilder::new_multi_thread().enable_all().build() {
             Ok(runtime) => runtime,
             Err(error) => {
@@ -128,13 +149,6 @@ mod windows_service_impl {
                 }
             }
         });
-
-        if let Err(error) = status_handle.set_service_status(build_service_status(
-            ServiceState::Stopped,
-            ServiceControlAccept::empty(),
-        )) {
-            warn!("Failed to set service status to Stopped: {error}");
-        }
     }
 
     fn build_service_status(

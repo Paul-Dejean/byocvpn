@@ -7,7 +7,7 @@ publish.workspace = true
 edition = "2024"
 links = "tauri-plugin-android-vpn"
 
-[dependencies]
+[target.'cfg(target_os = "android")'.dependencies]
 tauri = { workspace = true }
 serde = { workspace = true }
 

@@ -5,3 +5,5 @@ allow-renamed-params-for = [
     "core::fmt::Display",
     "core::fmt::Debug",
 ]
+
+too-many-lines-threshold = 60

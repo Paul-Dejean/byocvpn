@@ -1,6 +1,7 @@
 use std::{
     collections::VecDeque,
     fmt::{Debug, Formatter, Result as FmtResult},
+    net::IpAddr,
     sync::Arc,
 };
 
@@ -25,6 +26,8 @@ use crate::{
 pub const TUNNEL_MTU: u16 = 1280;
 
 const RATE_HISTORY_LENGTH: usize = 10;
+const PACKET_BUFFER_LENGTH: usize = 1500;
+const TIMER_INTERVAL: Duration = Duration::from_millis(250);
 const KEY_LENGTH: usize = 32;
 const MILLISECONDS_PER_SECOND: u128 = 1000;
 
@@ -105,10 +108,10 @@ impl Tunnel {
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        let mut tun_buf = [0_u8; 1500];
-        let mut udp_buf = [0_u8; 1500];
-        let mut out_buf = [0_u8; 1500];
-        let mut timer_interval = interval(Duration::from_millis(250));
+        let mut tun_buf = [0_u8; PACKET_BUFFER_LENGTH];
+        let mut udp_buf = [0_u8; PACKET_BUFFER_LENGTH];
+        let mut out_buf = [0_u8; PACKET_BUFFER_LENGTH];
+        let mut timer_interval = interval(TIMER_INTERVAL);
         info!("[Tunnel] Starting tunnel...");
 
         loop {
@@ -117,98 +120,118 @@ impl Tunnel {
                     info!("[Tunnel] Shutdown requested.");
                     break;
                 }
-
                 result = self.tun.recv(&mut tun_buf) => {
-                    match result {
-                        Ok(received_length) => {
-                            #[expect(clippy::indexing_slicing, reason = "recv never returns more than the buffer length")]
-                            let received_packet = &tun_buf[..received_length];
-                            match self.wg.encapsulate(received_packet, &mut out_buf) {
-                                TunnResult::WriteToNetwork(packet) => {
-                                    match self.udp.send(packet).await {
-                                        Ok(sent) => {
-                                            let mut metrics = self.metrics.write().await;
-                                            metrics.bytes_sent += u64::try_from(sent).unwrap_or(u64::MAX);
-                                            metrics.packets_sent += 1;
-                                        }
-                                        Err(error) => {
-                                            warn!("[Tunnel] UDP send failed: {error}");
-                                        }
-                                    }
-                                },
-                                TunnResult::Err(error) => {
-                                    error!("encapsulate error: {error:?}");
-                                },
-                                _ => {}
-                            }
-                        }
-                        Err(error) => {
-                            return Err(TunnelError::io("read from the TUN device")(error).into());
-                        }
-                    }
+                    let received_length = result.map_err(TunnelError::io("read from the TUN device"))?;
+                    #[expect(clippy::indexing_slicing, reason = "recv never returns more than the buffer length")]
+                    let received_packet = &tun_buf[..received_length];
+                    self.forward_outbound_packet(received_packet, &mut out_buf).await;
                 }
-
                 Ok((received_length, source_address)) = self.udp.recv_from(&mut udp_buf) => {
-                    {
-                        let mut metrics = self.metrics.write().await;
-                        metrics.bytes_received += u64::try_from(received_length).unwrap_or(u64::MAX);
-                        metrics.packets_received += 1;
-                    }
-
                     #[expect(clippy::indexing_slicing, reason = "recv_from never returns more than the buffer length")]
                     let received_packet = &udp_buf[..received_length];
-                    match self.wg.decapsulate(Some(source_address.ip()), received_packet, &mut out_buf) {
-                        TunnResult::WriteToTunnelV4(packet, _src_ip) => {
-                            self.tun.send(packet).await.map_err(TunnelError::io("write to the TUN device"))?;
-                        },
-                        TunnResult::WriteToTunnelV6(packet, _src_ip) => {
-                            self.tun.send(packet).await.map_err(TunnelError::io("write to the TUN device"))?;
-                        },
-                        TunnResult::WriteToNetwork(packet) => {
-                            self.udp.send(packet).await.map_err(TunnelError::io("send over the UDP socket"))?;
-                            while let TunnResult::WriteToNetwork(queued_packet) = self.wg.decapsulate(None, &[], &mut out_buf) {
-                                self.udp.send(queued_packet).await.map_err(TunnelError::io("send over the UDP socket"))?;
-                            }
-                        },
-                        TunnResult::Done => {},
-                        TunnResult::Err(error) => {
-                            error!("decapsulate error: {error:?}");
-                        },
-                    }
+                    self.forward_inbound_packet(source_address.ip(), received_packet, &mut out_buf).await?;
                 }
-
                 _ = timer_interval.tick() => {
-                    match self.wg.update_timers(&mut out_buf) {
-                        TunnResult::WriteToNetwork(packet) => {
-                            if let Err(error) = self.udp.send(packet).await {
-                                warn!("[Tunnel] UDP send failed during timer update: {error}");
-                            }
-                        },
-                        TunnResult::Err(WireGuardError::ConnectionExpired) => {
-                            warn!("[Tunnel] WireGuard session expired, initiating new handshake.");
-                            match self.wg.format_handshake_initiation(&mut out_buf, true) {
-                                TunnResult::WriteToNetwork(packet) => {
-                                    if let Err(error) = self.udp.send(packet).await {
-                                        warn!("[Tunnel] Handshake initiation send failed: {error}");
-                                    }
-                                },
-                                TunnResult::Err(error) => {
-                                    error!("[Tunnel] Handshake initiation failed: {error:?}");
-                                },
-                                _ => {}
-                            }
-                        },
-                        TunnResult::Err(error) => {
-                            error!("[Tunnel] Timer update error: {error:?}");
-                        },
-                        _ => {}
-                    }
+                    self.handle_timer_tick(&mut out_buf).await;
                 }
             }
         }
 
         info!("[Tunnel] Clean shutdown.");
         Ok(())
+    }
+
+    async fn forward_outbound_packet(&mut self, received_packet: &[u8], out_buf: &mut [u8]) {
+        match self.wg.encapsulate(received_packet, out_buf) {
+            TunnResult::WriteToNetwork(packet) => match self.udp.send(packet).await {
+                Ok(sent) => self.record_sent(sent).await,
+                Err(error) => warn!("[Tunnel] UDP send failed: {error}"),
+            },
+            TunnResult::Err(error) => error!("encapsulate error: {error:?}"),
+            _ => {}
+        }
+    }
+
+    async fn forward_inbound_packet(
+        &mut self,
+        source_ip: IpAddr,
+        received_packet: &[u8],
+        out_buf: &mut [u8],
+    ) -> Result<()> {
+        self.record_received(received_packet.len()).await;
+        match self
+            .wg
+            .decapsulate(Some(source_ip), received_packet, out_buf)
+        {
+            TunnResult::WriteToTunnelV4(packet, _) | TunnResult::WriteToTunnelV6(packet, _) => {
+                self.tun
+                    .send(packet)
+                    .await
+                    .map_err(TunnelError::io("write to the TUN device"))?;
+            }
+            TunnResult::WriteToNetwork(packet) => {
+                self.udp
+                    .send(packet)
+                    .await
+                    .map_err(TunnelError::io("send over the UDP socket"))?;
+                self.flush_queued_packets(out_buf).await?;
+            }
+            TunnResult::Done => {}
+            TunnResult::Err(error) => error!("decapsulate error: {error:?}"),
+        }
+        Ok(())
+    }
+
+    async fn flush_queued_packets(&mut self, out_buf: &mut [u8]) -> Result<()> {
+        while let TunnResult::WriteToNetwork(queued_packet) =
+            self.wg.decapsulate(None, &[], out_buf)
+        {
+            self.udp
+                .send(queued_packet)
+                .await
+                .map_err(TunnelError::io("send over the UDP socket"))?;
+        }
+        Ok(())
+    }
+
+    async fn handle_timer_tick(&mut self, out_buf: &mut [u8]) {
+        match self.wg.update_timers(out_buf) {
+            TunnResult::WriteToNetwork(packet) => {
+                if let Err(error) = self.udp.send(packet).await {
+                    warn!("[Tunnel] UDP send failed during timer update: {error}");
+                }
+            }
+            TunnResult::Err(WireGuardError::ConnectionExpired) => {
+                warn!("[Tunnel] WireGuard session expired, initiating new handshake.");
+                self.initiate_handshake(out_buf).await;
+            }
+            TunnResult::Err(error) => error!("[Tunnel] Timer update error: {error:?}"),
+            _ => {}
+        }
+    }
+
+    async fn initiate_handshake(&mut self, out_buf: &mut [u8]) {
+        match self.wg.format_handshake_initiation(out_buf, true) {
+            TunnResult::WriteToNetwork(packet) => {
+                if let Err(error) = self.udp.send(packet).await {
+                    warn!("[Tunnel] Handshake initiation send failed: {error}");
+                }
+            }
+            TunnResult::Err(error) => error!("[Tunnel] Handshake initiation failed: {error:?}"),
+            _ => {}
+        }
+    }
+
+    async fn record_sent(&self, byte_count: usize) {
+        let mut metrics = self.metrics.write().await;
+        metrics.bytes_sent += u64::try_from(byte_count).unwrap_or(u64::MAX);
+        metrics.packets_sent += 1;
+    }
+
+    async fn record_received(&self, byte_count: usize) {
+        let mut metrics = self.metrics.write().await;
+        metrics.bytes_received += u64::try_from(byte_count).unwrap_or(u64::MAX);
+        metrics.packets_received += 1;
     }
 }
 

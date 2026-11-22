@@ -4,18 +4,33 @@ use byocvpn_core::{
 };
 use log::{info, warn};
 
-use crate::vpn::{connect::connect_vpn, session};
+use crate::vpn::{
+    connect::connect_vpn,
+    session::{self, PersistedSession},
+};
 
 pub async fn try_restore_session() {
     let Some(persisted_session) = session::read_session() else {
         return;
     };
+    let restore_instance_id = persisted_session.instance_id.clone();
+    info!("Found persisted session for instance {restore_instance_id}, attempting to restore...");
 
-    info!(
-        "Found persisted session for instance {}, attempting to restore...",
-        persisted_session.instance_id
-    );
+    let Some(params) = load_connect_params(persisted_session).await else {
+        clear_stale_session();
+        return;
+    };
 
+    match connect_vpn(params).await {
+        Ok(()) => info!("Session restored successfully for instance {restore_instance_id}"),
+        Err(error) => {
+            warn!("Session restore failed for instance {restore_instance_id}: {error}");
+            clear_stale_session();
+        }
+    }
+}
+
+async fn load_connect_params(persisted_session: PersistedSession) -> Option<VpnConnectParams> {
     let config_path = match get_wireguard_config_file_path(
         &persisted_session.provider,
         &persisted_session.region,
@@ -26,8 +41,7 @@ pub async fn try_restore_session() {
         Ok(config_path) => config_path,
         Err(error) => {
             warn!("Session restore: could not resolve WireGuard config path: {error}");
-            clear_stale_session();
-            return;
+            return None;
         }
     };
 
@@ -36,22 +50,18 @@ pub async fn try_restore_session() {
             "Session restore: WireGuard config not found at {}",
             config_path.display()
         );
-        clear_stale_session();
-        return;
+        return None;
     }
 
     let wireguard_config = match parse_wireguard_config(&config_path.to_string_lossy()).await {
         Ok(wireguard_config) => wireguard_config,
         Err(error) => {
             warn!("Session restore: failed to parse WireGuard config: {error}");
-            clear_stale_session();
-            return;
+            return None;
         }
     };
 
-    let restore_instance_id = persisted_session.instance_id.clone();
-
-    let params = VpnConnectParams {
+    Some(VpnConnectParams {
         instance_id: persisted_session.instance_id,
         private_key: wireguard_config.private_key,
         public_key: wireguard_config.public_key,
@@ -64,15 +74,7 @@ pub async fn try_restore_session() {
         public_ip_v4: persisted_session.public_ip_v4,
         public_ip_v6: persisted_session.public_ip_v6,
         kill_switch_enabled: persisted_session.kill_switch_enabled,
-    };
-
-    match connect_vpn(params).await {
-        Ok(()) => info!("Session restored successfully for instance {restore_instance_id}"),
-        Err(error) => {
-            warn!("Session restore failed for instance {restore_instance_id}: {error}");
-            clear_stale_session();
-        }
-    }
+    })
 }
 
 fn clear_stale_session() {
