@@ -1,0 +1,3 @@
+peerDependencyRules:
+  allowedVersions:
+    "@babel/eslint-parser>@babel/core": "7"

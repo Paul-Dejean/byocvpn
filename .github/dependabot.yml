@@ -16,6 +16,13 @@ updates:
     directory: /crates/ui
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "@babel/core"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@babel/eslint-parser"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
     groups:
       frontend-dependencies:
         patterns:

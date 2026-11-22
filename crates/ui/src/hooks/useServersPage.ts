@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Instance } from "../types";
 import { useInstances } from "./useInstances";
@@ -17,13 +17,11 @@ export function useServersPage() {
     terminatingInstanceId,
     terminateInstance,
     dismissSpawnJob,
-    refetchInstances,
   } = useInstances();
   const { deployments, dismissDeployment } = useDeployments();
 
   const {
     vpnStatus,
-    checkVpnStatus,
     isConnecting,
     isDisconnecting,
     isDaemonRunning,
@@ -32,11 +30,6 @@ export function useServersPage() {
     disconnectFromVpn,
     clearError,
   } = useVpnConnectionContext();
-
-  useEffect(() => {
-    void checkVpnStatus();
-    void refetchInstances();
-  }, [checkVpnStatus, refetchInstances]);
 
   const activeDeployments = deployments.filter(
     (deployment) => deployment.status !== DeploymentStatus.COMPLETE,
