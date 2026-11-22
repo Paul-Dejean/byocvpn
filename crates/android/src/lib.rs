@@ -1,7 +1,10 @@
 #![forbid(unsafe_code)]
 #![cfg(target_os = "android")]
 
-use std::os::fd::RawFd;
+use std::{
+    fmt::{Debug, Formatter, Result as FmtResult},
+    os::fd::RawFd,
+};
 
 use serde::{Deserialize, Serialize, de::IgnoredAny};
 use tauri::{
@@ -62,6 +65,12 @@ struct VpnServiceStatus {
 }
 
 pub struct AndroidVpn<R: Runtime>(PluginHandle<R>);
+
+impl<R: Runtime> Debug for AndroidVpn<R> {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+        formatter.debug_struct("AndroidVpn").finish_non_exhaustive()
+    }
+}
 
 impl<R: Runtime> Clone for AndroidVpn<R> {
     fn clone(&self) -> Self {

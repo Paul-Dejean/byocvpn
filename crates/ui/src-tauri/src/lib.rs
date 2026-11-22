@@ -11,14 +11,14 @@ use byocvpn_app::open_app_context_with_daemon_client;
 use byocvpn_core::config::set_data_directory;
 #[cfg(target_os = "android")]
 use log::LevelFilter;
-#[cfg(desktop)]
+#[cfg(all(desktop, any(debug_assertions, test)))]
 use specta_typescript::Typescript;
 use tauri::Manager;
 use tauri_specta::{Commands, Events, collect_commands, collect_events};
 
 use crate::events::{InstanceAutoTerminatedEvent, VpnStatusEvent};
 
-#[cfg(desktop)]
+#[cfg(all(desktop, any(debug_assertions, test)))]
 const TYPESCRIPT_BINDINGS_PATH: &str = "../src/bindings.ts";
 
 #[cfg(target_os = "android")]
@@ -86,7 +86,7 @@ fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .events(build_specta_events())
 }
 
-#[cfg(desktop)]
+#[cfg(all(desktop, any(debug_assertions, test)))]
 fn export_typescript_bindings(
     specta_builder: &tauri_specta::Builder<tauri::Wry>,
 ) -> Result<(), specta_typescript::Error> {
