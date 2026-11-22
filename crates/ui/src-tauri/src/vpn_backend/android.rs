@@ -18,7 +18,7 @@ use byocvpn_core::{
         create_wireguard_tunnel,
     },
 };
-use log::*;
+use log::{debug, error, info, warn};
 use serde::Serialize;
 use serde_json::Value;
 use tauri::{AppHandle, Manager, Wry, async_runtime, plugin::mobile::PluginInvokeError};
@@ -55,6 +55,7 @@ struct ActiveTunnelSnapshot {
     connected_at: SystemTime,
 }
 
+#[derive(Debug)]
 pub struct AndroidDaemonClient {
     vpn_service: AndroidVpn<Wry>,
 }
@@ -90,7 +91,7 @@ impl DaemonClient for AndroidDaemonClient {
     }
 }
 
-pub async fn start_status_stream(
+pub fn start_status_stream(
     app_handle: &AppHandle,
     connected_instance: ConnectedInstance,
     connected_at: Option<u64>,
@@ -98,7 +99,7 @@ pub async fn start_status_stream(
     start_status_subscription(app_handle, connected_instance, connected_at)
 }
 
-pub async fn start_status_subscription(
+pub fn start_status_subscription(
     app_handle: &AppHandle,
     connected_instance: ConnectedInstance,
     _connected_at: Option<u64>,
@@ -111,7 +112,7 @@ pub async fn start_status_subscription(
     Ok(())
 }
 
-pub async fn stop_status_stream() -> Result<()> {
+pub fn stop_status_stream() -> Result<()> {
     STATUS_STREAM_GENERATION.fetch_add(1, Ordering::SeqCst);
     Ok(())
 }
@@ -121,7 +122,6 @@ async fn connect_tunnel(
     connect_params: VpnConnectParams,
 ) -> Result<()> {
     if is_tunnel_running()? {
-        error!("Connect requested but a tunnel is already running.");
         return Err(TunnelError::AlreadyRunning.into());
     }
 
@@ -210,7 +210,7 @@ async fn read_tunnel_status(vpn_service: &AndroidVpn<Wry>) -> Result<VpnStatus> 
     Ok(VpnStatus {
         connected: true,
         instance: Some(snapshot.instance),
-        metrics: Some(snapshot.metrics.read().await.clone()),
+        metrics: Some(*snapshot.metrics.read().await),
         connected_at,
         connection_error: None,
     })
@@ -218,7 +218,7 @@ async fn read_tunnel_status(vpn_service: &AndroidVpn<Wry>) -> Result<VpnStatus> 
 
 async fn read_tunnel_metrics() -> Result<Option<TunnelMetrics>> {
     match read_active_tunnel_snapshot()? {
-        Some(snapshot) => Ok(Some(snapshot.metrics.read().await.clone())),
+        Some(snapshot) => Ok(Some(*snapshot.metrics.read().await)),
         None => Ok(None),
     }
 }
@@ -259,22 +259,16 @@ async fn run_status_stream(
             return;
         }
 
-        let Some(raw_metrics) = vpn_status.metrics.clone() else {
+        let Some(raw_metrics) = vpn_status.metrics else {
             continue;
         };
         let smoothed_metrics = rate_tracker.sample(raw_metrics);
-
-        let is_persist_due = last_persisted_at.map_or(true, |persisted_at| {
-            persisted_at.elapsed() >= METRICS_PERSIST_INTERVAL
-        });
-        if is_persist_due {
-            last_persisted_at = Some(Instant::now());
-            app_handle.state::<AppContext>().ledger.update_metrics(
-                &connected_instance.instance_id,
-                smoothed_metrics.bytes_sent,
-                smoothed_metrics.bytes_received,
-            );
-        }
+        persist_metrics_if_due(
+            &app_handle,
+            &connected_instance.instance_id,
+            &smoothed_metrics,
+            &mut last_persisted_at,
+        );
 
         publish_vpn_status(
             &app_handle,
@@ -284,6 +278,25 @@ async fn run_status_stream(
             },
         );
     }
+}
+
+fn persist_metrics_if_due(
+    app_handle: &AppHandle,
+    instance_id: &str,
+    metrics: &TunnelMetrics,
+    last_persisted_at: &mut Option<Instant>,
+) {
+    let is_due = last_persisted_at
+        .is_none_or(|persisted_at| persisted_at.elapsed() >= METRICS_PERSIST_INTERVAL);
+    if !is_due {
+        return;
+    }
+    *last_persisted_at = Some(Instant::now());
+    app_handle.state::<AppContext>().ledger.update_metrics(
+        instance_id,
+        metrics.bytes_sent,
+        metrics.bytes_received,
+    );
 }
 
 async fn start_tunnel(
@@ -366,7 +379,7 @@ async fn connect_protected_udp_socket(
         .await
         .map_err(TunnelError::io("connect the UDP socket"))?;
 
-    info!("UDP socket connected to {}", server_endpoint);
+    info!("UDP socket connected to {server_endpoint}");
     Ok(socket)
 }
 
@@ -374,7 +387,7 @@ fn is_tunnel_running() -> Result<bool> {
     let mut active_tunnel = lock_active_tunnel()?;
     let is_running = active_tunnel
         .as_ref()
-        .map_or(false, |tunnel| !tunnel.task.is_finished());
+        .is_some_and(|tunnel| !tunnel.task.is_finished());
     if !is_running {
         *active_tunnel = None;
     }
@@ -387,11 +400,15 @@ fn read_active_tunnel_snapshot() -> Result<Option<ActiveTunnelSnapshot>> {
         .map(|tunnel| ActiveTunnelSnapshot {
             is_finished: tunnel.task.is_finished(),
             instance: tunnel.instance.clone(),
-            metrics: tunnel.metrics.clone(),
+            metrics: Arc::clone(&tunnel.metrics),
             connected_at: tunnel.connected_at,
         }))
 }
 
+#[expect(
+    clippy::map_err_ignore,
+    reason = "a PoisonError carries the guard, not a cause worth chaining"
+)]
 fn lock_active_tunnel() -> Result<MutexGuard<'static, Option<ActiveTunnel>>> {
     ACTIVE_TUNNEL.lock().map_err(|_| {
         InternalError::MutexPoisoned {
