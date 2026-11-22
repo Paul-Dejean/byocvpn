@@ -67,6 +67,34 @@ jobs:
           command: check
           arguments: --locked
 
+  frontend-dependencies:
+    name: Frontend dependencies (pnpm audit + licenses)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: crates/ui
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: crates/ui/package.json
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+          cache: pnpm
+          cache-dependency-path: crates/ui/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit dependencies
+        run: pnpm run deps:audit
+
+      - name: Check licenses
+        run: pnpm run deps:licenses
+
   frontend:
     name: Frontend (oxlint + eslint + oxfmt + tsc)
     runs-on: ubuntu-latest
