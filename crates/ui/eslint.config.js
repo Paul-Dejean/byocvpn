@@ -41,7 +41,7 @@ export default defineConfig([
       ...compilerBailoutRules,
       "tailwindcss/no-custom-classname": [
         "warn",
-        { whitelist: ["fi", "fi\\-[a-z]{2}", "scroll-fade", "input"] },
+        { whitelist: ["scroll-fade", "input"] },
       ],
     },
   },

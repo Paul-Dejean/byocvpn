@@ -13,6 +13,18 @@ jobs:
     outputs:
       release_id: ${{ steps.create_draft_release.outputs.release_id }}
     steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Generate release notes from the commits since the previous tag
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --latest --strip all
+        env:
+          OUTPUT: release-notes.md
+
       - name: Create draft release
         id: create_draft_release
         env:
@@ -22,6 +34,7 @@ jobs:
             --method POST \
             -f tag_name="${{ github.ref_name }}" \
             -f name="${{ github.ref_name }}" \
+            -F body=@release-notes.md \
             -F draft=true \
             -F prerelease=false \
             --jq .id)

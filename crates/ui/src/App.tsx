@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Toaster } from "react-hot-toast";
 
 import "./App.css";
-import "flag-icons/css/flag-icons.min.css";
 import {
   ServersPage,
   MobileServersPage,

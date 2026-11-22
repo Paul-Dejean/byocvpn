@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:check-size": "node scripts/check-bundle-size.mjs",
     "lint": "run-s --continue-on-error lint:oxlint lint:eslint lint:compiler",
     "lint:oxlint": "oxlint --type-aware src",
     "lint:eslint": "eslint src",

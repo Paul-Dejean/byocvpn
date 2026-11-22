@@ -16,6 +16,10 @@ export default defineConfig(async () => ({
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
+  build: {
+    assetsInlineLimit: (filePath) => (isFlagAsset(filePath) ? false : undefined),
+  },
+
   // 1. prevent Vite from obscuring rust errors
   clearScreen: false,
   // 2. tauri expects a fixed port, fail if that port is not available
@@ -36,3 +40,7 @@ export default defineConfig(async () => ({
     },
   },
 }));
+
+function isFlagAsset(filePath: string): boolean {
+  return filePath.includes("/flag-icons/flags/");
+}

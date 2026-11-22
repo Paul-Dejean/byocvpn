@@ -153,3 +153,9 @@ jobs:
 
       - name: Type check
         run: pnpm exec tsc --noEmit
+
+      - name: Build
+        run: pnpm exec vite build
+
+      - name: Check bundle size
+        run: pnpm run build:check-size
