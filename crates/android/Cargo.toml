@@ -1,6 +1,7 @@
 [package]
 name = "tauri-plugin-android-vpn"
 version.workspace = true
+rust-version.workspace = true
 edition = "2024"
 links = "tauri-plugin-android-vpn"
 

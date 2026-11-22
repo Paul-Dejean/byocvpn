@@ -14,6 +14,7 @@ members = [
 
 [workspace.package]
 version = "0.1.31"
+rust-version = "1.100"
 
 [workspace.dependencies]
 tokio = { version = "1.53.3", features = ["full"] }
@@ -134,3 +135,9 @@ module_name_repetitions = "allow"
 must_use_candidate = "allow"
 multiple_crate_versions = "allow"
 cargo_common_metadata = "allow"
+
+[profile.release]
+overflow-checks = true
+lto = true
+codegen-units = 1
+strip = true

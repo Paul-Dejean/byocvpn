@@ -39,9 +39,9 @@ jobs:
             patchelf \
             xdg-utils
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          components: clippy, rustfmt
+          cache: false
 
       - uses: Swatinem/rust-cache@v2
         with:

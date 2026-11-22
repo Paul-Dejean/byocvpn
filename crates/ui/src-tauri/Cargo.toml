@@ -1,6 +1,7 @@
 [package]
 name = "ui"
 version.workspace = true
+rust-version.workspace = true
 description = "A Tauri App"
 authors = ["you"]
 edition = "2024"
