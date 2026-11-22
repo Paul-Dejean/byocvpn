@@ -1,20 +1,96 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release (X.Y.Z). Leave empty to increment the patch number.
+        required: false
+        type: string
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
+  bump:
+    name: Bump, commit and tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - name: Require the main branch
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Releases are cut from main, not from $GITHUB_REF_NAME"
+          exit 1
+
+      - uses: actions/checkout@v7
+
+      - name: Require a green Lint run on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LINT_CONCLUSION=$(gh run list \
+            --workflow lint.yml \
+            --commit "$GITHUB_SHA" \
+            --limit 1 \
+            --json conclusion \
+            --jq '.[0].conclusion')
+          if [ "$LINT_CONCLUSION" != "success" ]; then
+            echo "::error::Lint is not green on $GITHUB_SHA (conclusion: ${LINT_CONCLUSION:-none yet})"
+            exit 1
+          fi
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          cache: false
+
+      - name: Bump the version
+        id: bump
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          VERSION=$(scripts/bump-version.sh "$REQUESTED_VERSION")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Require an unused tag
+        env:
+          TAG: ${{ steps.bump.outputs.tag }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" > /dev/null; then
+            echo "::error::Tag $TAG already exists"
+            exit 1
+          fi
+
+      - name: Commit, tag and push
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
+          TAG: ${{ steps.bump.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --all --message "chore: release $VERSION"
+          git tag "$TAG"
+          git push --atomic origin HEAD:refs/heads/main "refs/tags/$TAG"
+
   create-release:
+    needs: bump
     permissions:
       contents: write
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ needs.bump.outputs.tag }}
     outputs:
       release_id: ${{ steps.create_draft_release.outputs.release_id }}
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
 
       - name: Generate release notes from the commits since the previous tag
@@ -32,8 +108,8 @@ jobs:
         run: |
           RELEASE_ID=$(gh api "repos/${{ github.repository }}/releases" \
             --method POST \
-            -f tag_name="${{ github.ref_name }}" \
-            -f name="${{ github.ref_name }}" \
+            -f tag_name="$RELEASE_TAG" \
+            -f name="$RELEASE_TAG" \
             -F body=@release-notes.md \
             -F draft=true \
             -F prerelease=false \
@@ -41,9 +117,11 @@ jobs:
           echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
 
   build:
-    needs: create-release
+    needs: [bump, create-release]
     permissions:
       contents: write
+    env:
+      RELEASE_TAG: ${{ needs.bump.outputs.tag }}
     strategy:
       fail-fast: false
       matrix:
@@ -63,6 +141,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Install Linux dependencies
         if: startsWith(matrix.runner, 'ubuntu')
@@ -148,7 +228,7 @@ jobs:
           chmod 755 deb_repack/DEBIAN/postinst deb_repack/DEBIAN/prerm deb_repack/DEBIAN/postrm
           dpkg-deb --build deb_repack "$DEB"
 
-          gh release upload "${{ github.ref_name }}" "$DEB" --clobber
+          gh release upload "$RELEASE_TAG" "$DEB" --clobber
 
       - name: Package and upload Windows release bundle
         if: matrix.runner == 'windows-latest'
@@ -162,7 +242,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $bundleDir | Out-Null
           Copy-Item $msi.FullName "$bundleDir\ByocVPN-Installer.msi"
           Compress-Archive -Path $bundleDir -DestinationPath "$bundleDir.zip"
-          gh release upload "${{ github.ref_name }}" "$bundleDir.zip" --clobber
+          gh release upload $env:RELEASE_TAG "$bundleDir.zip" --clobber
 
       - name: Package and upload macOS release bundle
         if: startsWith(matrix.runner, 'macos')
@@ -200,19 +280,22 @@ jobs:
           cp ByocVPN-Uninstaller.pkg "$BUNDLE_DIR/ByocVPN-Uninstaller.pkg"
           zip -r "$BUNDLE_DIR.zip" "$BUNDLE_DIR"
 
-          gh release upload "${{ github.ref_name }}" "$BUNDLE_DIR.zip" --clobber
+          gh release upload "$RELEASE_TAG" "$BUNDLE_DIR.zip" --clobber
 
   build-android:
-    needs: create-release
+    needs: [bump, create-release]
     permissions:
       contents: write
     runs-on: ubuntu-latest
     env:
+      RELEASE_TAG: ${{ needs.bump.outputs.tag }}
       ANDROID_NDK_VERSION: 27.2.12479018
       ANDROID_RUST_TARGET: aarch64-linux-android
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - uses: actions/setup-java@v6
         with:
@@ -299,4 +382,36 @@ jobs:
           jarsigner -verify "$SIGNED_AAB"
           rm release.keystore aligned.apk
 
-          gh release upload "${{ github.ref_name }}" "$SIGNED_APK" "$SIGNED_AAB" --clobber
+          gh release upload "$RELEASE_TAG" "$SIGNED_APK" "$SIGNED_AAB" --clobber
+
+  verify:
+    name: Verify the draft release
+    needs: [bump, build, build-android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check the draft release name and assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.bump.outputs.tag }}
+        run: |
+          gh release view "$TAG" --json name,isDraft,url,assets > release.json
+          RELEASE_NAME=$(jq -r .name release.json)
+          ASSET_COUNT=$(jq '.assets | length' release.json)
+          if [ "$RELEASE_NAME" != "$TAG" ]; then
+            echo "::error::The release is named '$RELEASE_NAME', expected '$TAG'"
+            exit 1
+          fi
+          if [ "$ASSET_COUNT" -eq 0 ]; then
+            echo "::error::The draft release $TAG has no assets"
+            exit 1
+          fi
+          {
+            echo "## Draft release $TAG"
+            echo
+            echo "$(jq -r .url release.json)"
+            echo
+            jq -r '.assets[] | "- \(.name)"' release.json
+          } >> "$GITHUB_STEP_SUMMARY"
