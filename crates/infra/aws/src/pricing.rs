@@ -32,8 +32,7 @@ pub async fn fetch_pricing(
         ("capacitystatus", "Used"),
         ("licenseModel", "No License required"),
     ])?;
-    let mut public_ip_filters =
-        build_filters(&[("regionCode", region), ("productFamily", "IP Address")])?;
+    let mut public_ip_filters = build_filters(&[("regionCode", region)])?;
     public_ip_filters.push(build_filter(
         FilterType::Contains,
         "usagetype",

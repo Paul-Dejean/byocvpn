@@ -1,4 +1,8 @@
-use std::collections::{BTreeMap, HashSet};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::{Mutex, MutexGuard, PoisonError},
+    time::{Duration, Instant},
+};
 
 use jiff::{SignedDuration, Timestamp};
 use log::warn;
@@ -13,6 +17,7 @@ use crate::{
 };
 
 const PRICING_CACHE_MAX_AGE_HOURS: i64 = 24 * 7;
+const FAILED_LOOKUP_RETRY_INTERVAL: Duration = Duration::from_hours(1);
 
 pub async fn resolve_instance_pricing(
     context: &AppContext,
@@ -36,13 +41,12 @@ pub async fn resolve_instance_pricing(
 
 pub async fn list_ledger_entries_with_pricing(context: &AppContext) -> Vec<LedgerEntry> {
     let mut entries = context.ledger.all_entries();
-    let mut failed_lookups: HashSet<String> = HashSet::new();
     for entry in &mut entries {
         if entry.pricing.is_some() {
             continue;
         }
         let lookup_key = build_cache_key(entry.provider, &entry.region, &entry.instance_type);
-        if failed_lookups.contains(&lookup_key) {
+        if context.pricing_cache.has_recently_failed(&lookup_key) {
             continue;
         }
         match resolve_instance_pricing(context, entry.provider, &entry.region, &entry.instance_type)
@@ -57,7 +61,7 @@ pub async fn list_ledger_entries_with_pricing(context: &AppContext) -> Vec<Ledge
                     "could not record pricing for ledger entry {}: {error}",
                     entry.instance_id
                 );
-                failed_lookups.insert(lookup_key);
+                context.pricing_cache.record_failure(lookup_key);
             }
         }
     }
@@ -67,6 +71,7 @@ pub async fn list_ledger_entries_with_pricing(context: &AppContext) -> Vec<Ledge
 #[derive(Debug)]
 pub struct PricingCache {
     store: JsonFileStore<PricingCacheData>,
+    failed_lookups: Mutex<HashMap<String, Instant>>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -87,6 +92,7 @@ impl PricingCache {
     pub fn open() -> Result<Self> {
         Ok(Self {
             store: JsonFileStore::open(Self::FILE_NAME)?,
+            failed_lookups: Mutex::new(HashMap::new()),
         })
     }
 
@@ -123,6 +129,23 @@ impl PricingCache {
                 },
             );
         });
+    }
+
+    fn has_recently_failed(&self, lookup_key: &str) -> bool {
+        self.lock_failed_lookups()
+            .get(lookup_key)
+            .is_some_and(|failed_at| failed_at.elapsed() < FAILED_LOOKUP_RETRY_INTERVAL)
+    }
+
+    fn record_failure(&self, lookup_key: String) {
+        self.lock_failed_lookups()
+            .insert(lookup_key, Instant::now());
+    }
+
+    fn lock_failed_lookups(&self) -> MutexGuard<'_, HashMap<String, Instant>> {
+        self.failed_lookups
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 }
 
