@@ -23,8 +23,7 @@ azure_identity = { version = "1.0.0", default-features = false }
 # azure_core provides the Secret type and TokenCredential trait.
 azure_core = { version = "1.1.0", default-features = false, features = [
     "reqwest",
-    "reqwest_deflate",
-    "reqwest_gzip",
+    "reqwest_rustls",
 ] }
 jiff = { workspace = true }
 strum = { workspace = true }

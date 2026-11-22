@@ -17,7 +17,9 @@ log = { workspace = true }
 futures = { workspace = true }
 reqwest = { workspace = true }
 uuid = { workspace = true }
-google-cloud-auth = "1.19.0"
+google-cloud-auth = { version = "1.19.0", default-features = false, features = [
+    "default-rustls-provider",
+] }
 google-cloud-compute-v1 = { version = "4.2.0", default-features = false, features = [
     "instances",
     "networks",

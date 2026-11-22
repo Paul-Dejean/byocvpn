@@ -20,7 +20,15 @@ license = "GPL-3.0-only"
 publish = false
 
 [workspace.dependencies]
-tokio = { version = "1.54.1", features = ["full"] }
+tokio = { version = "1.54.1", features = [
+    "fs",
+    "io-util",
+    "macros",
+    "net",
+    "rt-multi-thread",
+    "sync",
+    "time",
+] }
 async-trait = "0.1.92"
 base64 = "0.23.1"
 
@@ -30,7 +38,7 @@ specta = { version = "=2.0.0-rc.25", features = ["derive", "serde_json"] }
 thiserror = "2.0.21"
 rand = "0.10.4"
 handlebars = "6.4.4"
-futures = "0.3.34"
+futures = { version = "0.3.34", default-features = false, features = ["std"] }
 log = "0.4.35"
 env_logger = { version = "0.11.12", default-features = false, features = [
     "auto-color",

@@ -18,6 +18,6 @@ export default {
     `rustfmt --edition 2024 ${quoteFilePaths(stagedFiles)}`,
     "cargo clippy --workspace --all-targets -- -D warnings",
   ],
-  "{Cargo.toml,Cargo.lock,deny.toml,crates/**/Cargo.toml}": () => "cargo deny check --locked",
+  "{Cargo.toml,Cargo.lock,deny.toml,crates/**/Cargo.toml}": () => "cargo deny --locked check",
   "crates/ui/{package.json,pnpm-lock.yaml}": () => `pnpm --dir ${FRONTEND_DIRECTORY} run deps:check`,
 };
