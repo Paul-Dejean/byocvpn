@@ -49,7 +49,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Linux dependencies
         if: startsWith(matrix.runner, 'ubuntu')
@@ -62,7 +62,7 @@ jobs:
             patchelf \
             xdg-utils
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
           cache: false
           target: ${{ matrix.rust_target }}
@@ -74,11 +74,11 @@ jobs:
             . -> target/tauri
           cache-on-failure: true
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: crates/ui/package.json
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: lts/*
           cache: pnpm
@@ -115,7 +115,7 @@ jobs:
         if: "!startsWith(matrix.runner, 'macos')"
         run: touch scripts/com.byocvpn.daemon.plist
 
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -203,9 +203,9 @@ jobs:
       ANDROID_RUST_TARGET: aarch64-linux-android
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
@@ -215,7 +215,7 @@ jobs:
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;${ANDROID_NDK_VERSION}" > /dev/null
           echo "NDK_HOME=$ANDROID_HOME/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
           cache: false
           target: ${{ env.ANDROID_RUST_TARGET }}
@@ -227,11 +227,11 @@ jobs:
           key: android
           cache-on-failure: true
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: crates/ui/package.json
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: lts/*
           cache: pnpm
