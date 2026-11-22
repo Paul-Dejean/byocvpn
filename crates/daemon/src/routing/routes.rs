@@ -6,7 +6,7 @@ use log::{debug, error, info, warn};
 use net_route::{Handle, Route};
 
 pub async fn add_vpn_routes(interface_index: u32, server_ip: &str) -> Result<()> {
-    info!("Adding VPN routes for server {server_ip} via interface index {interface_index}");
+    debug!("Adding VPN routes for server {server_ip} via interface index {interface_index}");
 
     let server_route = format!("{server_ip}/32");
 
@@ -22,12 +22,12 @@ pub async fn add_vpn_routes(interface_index: u32, server_ip: &str) -> Result<()>
         }
     }
 
-    info!("Finished adding VPN routes");
+    debug!("Finished adding VPN routes");
     Ok(())
 }
 
 pub async fn remove_vpn_routes(interface_index: u32, server_ip: &str) {
-    info!("Removing VPN routes for server {server_ip} via interface index {interface_index}");
+    debug!("Removing VPN routes for server {server_ip} via interface index {interface_index}");
 
     let server_route = format!("{server_ip}/32");
 
@@ -43,7 +43,7 @@ pub async fn remove_vpn_routes(interface_index: u32, server_ip: &str) {
         }
     }
 
-    info!("Finished removing VPN routes");
+    debug!("Finished removing VPN routes");
 }
 
 async fn add_default_gateway_route(destination: &str) -> Result<()> {
@@ -102,12 +102,7 @@ async fn add_interface_route(destination: &str, interface_index: u32) -> Result<
             );
             Ok(())
         }
-        Err(error) => {
-            error!(
-                "Failed to add interface route {destination} via index {interface_index}: {error}"
-            );
-            Err(TunnelError::route("addition")(error).into())
-        }
+        Err(error) => Err(TunnelError::route("addition")(error).into()),
     }
 }
 
@@ -163,12 +158,7 @@ async fn delete_interface_route(destination: &str, interface_index: u32) -> Resu
             );
             Ok(())
         }
-        Err(error) => {
-            error!(
-                "Failed to delete interface route {destination} via index {interface_index}: {error}"
-            );
-            Err(TunnelError::route("deletion")(error).into())
-        }
+        Err(error) => Err(TunnelError::route("deletion")(error).into()),
     }
 }
 
@@ -204,7 +194,7 @@ pub async fn update_server_host_route(server_ip: &str, last_gateway: &mut Option
     if let Err(error) = add_default_gateway_route(&server_route).await {
         error!("[RouteMonitor] Failed to re-add host route: {error}");
     } else {
-        info!("[RouteMonitor] Host route for {server_ip} refreshed.");
+        debug!("[RouteMonitor] Host route for {server_ip} refreshed.");
     }
 }
 

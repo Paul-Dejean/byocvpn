@@ -34,7 +34,7 @@ pub async fn disconnect_vpn() -> Result<()> {
 
     stop_route_monitor(route_monitor_shutdown, route_monitor_task).await;
     remove_vpn_routes(interface_index, &server_ip).await;
-    info!("[VPN Disconnect] Removed VPN routes.");
+    debug!("[VPN Disconnect] Removed VPN routes.");
     restore_dns(dns_override_guard);
     stop_tunnel_tasks(shutdown, task, metrics_shutdown, metrics_task).await;
     clear_system_state();
@@ -46,7 +46,7 @@ pub async fn disconnect_vpn() -> Result<()> {
 async fn stop_route_monitor(shutdown: Sender<()>, task: JoinHandle<()>) {
     send_shutdown_signal(&shutdown, "route monitor");
     match task.await {
-        Ok(()) => info!("[VPN Disconnect] Route monitor stopped."),
+        Ok(()) => debug!("[VPN Disconnect] Route monitor stopped."),
         Err(error) => {
             warn!("[VPN Disconnect] Route monitor task panicked while shutting down: {error:?}");
         }
@@ -89,7 +89,7 @@ async fn stop_tunnel_tasks(
 fn send_shutdown_signal(sender: &Sender<()>, target: &str) {
     match sender.send(()) {
         Ok(()) => debug!("[VPN Disconnect] Shutdown signal sent to {target}."),
-        Err(_) => warn!(
+        Err(_) => debug!(
             "[VPN Disconnect] Failed to send shutdown signal ({target} likely already stopped)."
         ),
     }

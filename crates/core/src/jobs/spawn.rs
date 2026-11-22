@@ -2,7 +2,7 @@
 use std::os::unix::fs::PermissionsExt;
 
 use async_trait::async_trait;
-use log::{info, warn};
+use log::{debug, info, warn};
 use tokio::{fs, io::AsyncWriteExt};
 
 use crate::{
@@ -183,7 +183,7 @@ async fn launch_instance(
     };
 
     let mut instance = provider.spawn_instance(&params).await?;
-    info!("Spawned instance: {}", instance.id);
+    debug!("Spawned instance: {}", instance.id);
 
     write_wireguard_config(
         &job.provider,
@@ -257,7 +257,7 @@ async fn write_wireguard_config(
     }
 
     if let Some(path_str) = wireguard_file_path.to_str() {
-        info!("Client config written to {path_str}");
+        debug!("Client config written to {path_str}");
     }
 
     Ok(())

@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, io, process::Command};
 
 use byocvpn_core::error::{Result, TunnelError};
-use log::{debug, info, warn};
+use log::{debug, warn};
 
 const LIST_SERVICES_COMMAND: &str = "networksetup -listallnetworkservices";
 const GET_DNS_COMMAND: &str = "networksetup -getdnsservers";
@@ -20,7 +20,7 @@ impl DnsOverrideGuard {
         }
 
         let network_service_names = list_all_enabled_network_services()?;
-        info!("Found network services: {network_service_names:?}");
+        debug!("Found network services: {network_service_names:?}");
 
         let mut original_domain_name_system_by_service = BTreeMap::new();
         for network_service_name in &network_service_names {
@@ -29,12 +29,12 @@ impl DnsOverrideGuard {
                     command: GET_DNS_COMMAND,
                     source,
                 })?;
-            info!("Original DNS for {network_service_name}: {current_domain_name_system:?}");
+            debug!("Original DNS for {network_service_name}: {current_domain_name_system:?}");
             original_domain_name_system_by_service
                 .insert(network_service_name.clone(), current_domain_name_system);
         }
 
-        info!("Setting new DNS servers: {new_dns_servers:?}");
+        debug!("Setting new DNS servers: {new_dns_servers:?}");
         for network_service_name in &network_service_names {
             set_dns_for_service(network_service_name, Some(new_dns_servers)).map_err(|source| {
                 TunnelError::DnsCommand {
@@ -55,7 +55,7 @@ impl DnsOverrideGuard {
             return Ok(());
         }
 
-        info!("Restoring original DNS settings...");
+        debug!("Restoring original DNS settings...");
 
         for (network_service_name, original_option) in &self.original_domain_name_system_by_service
         {
@@ -80,7 +80,7 @@ impl DnsOverrideGuard {
         }
 
         self.dns_override_active = false;
-        info!("DNS restoration completed");
+        debug!("DNS restoration completed");
         Ok(())
     }
 }

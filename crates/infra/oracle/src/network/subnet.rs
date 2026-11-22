@@ -1,5 +1,5 @@
 use byocvpn_core::managed_resources::build_managed_tags;
-use log::info;
+use log::{debug, info};
 
 use crate::{
     client::OciClient,
@@ -75,7 +75,7 @@ async fn attach_security_list(
         security_list_ids: vec![security_list_id.to_string()],
     };
     client.put(&url, &body).await?;
-    info!("[OCI] Security list {security_list_id} attached to subnet {subnet_id}");
+    debug!("[OCI] Security list {security_list_id} attached to subnet {subnet_id}");
     Ok(())
 }
 

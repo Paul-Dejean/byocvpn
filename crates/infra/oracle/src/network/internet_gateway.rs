@@ -1,5 +1,5 @@
 use byocvpn_core::managed_resources::{ANY_IPV4_CIDR, ANY_IPV6_CIDR, build_managed_tags};
-use log::info;
+use log::{debug, info};
 
 use crate::{
     client::OciClient,
@@ -77,7 +77,7 @@ async fn ensure_default_routes(
     client
         .put(&url, &UpdateRouteTableRequest { route_rules })
         .await?;
-    info!(
+    debug!(
         "[OCI] Default routes ensured on route table {}",
         vcn.default_route_table_id
     );

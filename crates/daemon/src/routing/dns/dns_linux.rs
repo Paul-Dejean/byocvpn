@@ -1,7 +1,7 @@
 use std::{io, process::Command};
 
 use byocvpn_core::error::{Result, TunnelError};
-use log::{debug, info, warn};
+use log::{debug, warn};
 
 const TUN_INTERFACE_NAME: &str = "tun0";
 const SET_DNS_COMMAND: &str = "resolvectl dns";
@@ -18,7 +18,7 @@ impl DnsOverrideGuard {
             return Err(TunnelError::NoDnsServers.into());
         }
 
-        info!("Setting DNS servers on {TUN_INTERFACE_NAME} via resolvectl: {new_dns_servers:?}");
+        debug!("Setting DNS servers on {TUN_INTERFACE_NAME} via resolvectl: {new_dns_servers:?}");
 
         let mut set_dns_command = Command::new("resolvectl");
         set_dns_command.arg("dns").arg(TUN_INTERFACE_NAME);
@@ -68,7 +68,7 @@ impl DnsOverrideGuard {
             .into());
         }
 
-        info!("DNS successfully configured on {TUN_INTERFACE_NAME}");
+        debug!("DNS successfully configured on {TUN_INTERFACE_NAME}");
 
         Ok(Self {
             dns_override_active: true,
@@ -80,7 +80,7 @@ impl DnsOverrideGuard {
             return Ok(());
         }
 
-        info!("Reverting DNS settings on {TUN_INTERFACE_NAME} via resolvectl");
+        debug!("Reverting DNS settings on {TUN_INTERFACE_NAME} via resolvectl");
 
         let mut revert_command = Command::new("resolvectl");
         revert_command.arg("revert").arg(TUN_INTERFACE_NAME);
@@ -96,7 +96,7 @@ impl DnsOverrideGuard {
         }
 
         self.dns_override_active = false;
-        info!("DNS restoration completed on {TUN_INTERFACE_NAME}");
+        debug!("DNS restoration completed on {TUN_INTERFACE_NAME}");
         Ok(())
     }
 }

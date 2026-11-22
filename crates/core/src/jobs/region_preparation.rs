@@ -1,4 +1,4 @@
-use log::info;
+use log::debug;
 
 use crate::{
     app_context::AppContext,
@@ -22,7 +22,7 @@ where
     let provider_name = provider.get_provider_name();
 
     if context.provider_flags.is_provisioned(&provider_name) {
-        info!("{provider_name} account already provisioned");
+        debug!("{provider_name} account already provisioned");
     } else {
         run_provision_account_job(provider, context, observer).await?;
     }
@@ -31,7 +31,7 @@ where
         .provider_flags
         .is_region_enabled(&provider_name, region)
     {
-        info!("{provider_name} region {region} already enabled");
+        debug!("{provider_name} region {region} already enabled");
     } else {
         run_enable_region_job(provider, context, region, observer).await?;
     }

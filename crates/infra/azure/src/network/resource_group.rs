@@ -20,7 +20,7 @@ pub async fn ensure_resource_group(client: &AzureClient, location: &str) -> Resu
         return Ok(());
     }
 
-    info!("[Azure] Creating {resource}...");
+    debug!("[Azure] Creating {resource}...");
     let body = ResourceGroupRequest {
         location: location.to_string(),
         tags: build_managed_tags(),

@@ -8,7 +8,7 @@ use std::{
 };
 
 use byocvpn_core::error::{Result, TunnelError};
-use log::{debug, info, warn};
+use log::{debug, warn};
 use windows_sys::Win32::{
     Foundation::FreeLibrary,
     Security::SECURITY_ATTRIBUTES,
@@ -45,7 +45,7 @@ impl DnsOverrideGuard {
         add_nrpt_rule(new_dns_servers).map_err(TunnelError::DnsRegistry)?;
 
         flush_dns_resolver_cache();
-        info!("NRPT DNS rule applied for servers: {new_dns_servers:?}");
+        debug!("NRPT DNS rule applied for servers: {new_dns_servers:?}");
 
         Ok(Self {
             dns_override_active: true,
@@ -60,7 +60,7 @@ impl DnsOverrideGuard {
         remove_nrpt_rule()?;
         flush_dns_resolver_cache();
         self.dns_override_active = false;
-        info!("NRPT DNS rule removed");
+        debug!("NRPT DNS rule removed");
         Ok(())
     }
 }

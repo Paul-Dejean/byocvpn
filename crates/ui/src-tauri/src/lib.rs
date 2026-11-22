@@ -11,6 +11,7 @@ use byocvpn_app::open_app_context_with_daemon_client;
 use byocvpn_core::config::set_data_directory;
 #[cfg(target_os = "android")]
 use log::LevelFilter;
+use log::{error, warn};
 #[cfg(all(desktop, any(debug_assertions, test)))]
 use specta_typescript::Typescript;
 use tauri::Manager;
@@ -103,7 +104,7 @@ pub fn run() {
 
     #[cfg(all(debug_assertions, desktop))]
     if let Err(error) = export_typescript_bindings(&specta_builder) {
-        log::error!("Failed to export TypeScript bindings: {error}");
+        warn!("Failed to export TypeScript bindings: {error}");
     }
 
     let invoke_handler = specta_builder.invoke_handler();
@@ -140,7 +141,7 @@ pub fn run() {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 if let Err(error) = window.hide() {
-                    log::warn!("Failed to hide the main window: {error}");
+                    warn!("Failed to hide the main window: {error}");
                 }
             }
         })
@@ -149,7 +150,7 @@ pub fn run() {
     let app = match builder.build(tauri::generate_context!()) {
         Ok(app) => app,
         Err(error) => {
-            log::error!("Error while building tauri application: {error}");
+            error!("Error while building tauri application: {error}");
             return;
         }
     };

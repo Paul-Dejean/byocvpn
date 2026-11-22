@@ -1,4 +1,4 @@
-use log::info;
+use log::debug;
 
 use crate::{
     app_context::AppContext,
@@ -31,7 +31,7 @@ pub async fn connect(
             .await?;
     let wireguard_config = parse_wireguard_config(&wireguard_file_path.to_string_lossy()).await?;
 
-    info!("Sending connect command to daemon...");
+    debug!("Sending connect command to daemon...");
     let response = daemon_client
         .send_command(DaemonCommand::Connect(Box::new(VpnConnectParams {
             instance_id: target.instance_id,
@@ -48,7 +48,7 @@ pub async fn connect(
             kill_switch_enabled,
         })))
         .await?;
-    info!("Daemon response: {response}");
+    debug!("Daemon response: {response}");
     Ok(())
 }
 

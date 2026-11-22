@@ -9,7 +9,7 @@ use boringtun::{
     noise::{Tunn, TunnResult, errors::WireGuardError},
     x25519::{PublicKey, StaticSecret},
 };
-use log::{error, info, warn};
+use log::{debug, error, warn};
 use serde::{Deserialize, Serialize};
 use tokio::{
     net::UdpSocket,
@@ -112,12 +112,12 @@ impl Tunnel {
         let mut udp_buf = [0_u8; PACKET_BUFFER_LENGTH];
         let mut out_buf = [0_u8; PACKET_BUFFER_LENGTH];
         let mut timer_interval = interval(TIMER_INTERVAL);
-        info!("[Tunnel] Starting tunnel...");
+        debug!("[Tunnel] Starting tunnel...");
 
         loop {
             tokio::select! {
                 _ = self.shutdown_rx.changed() => {
-                    info!("[Tunnel] Shutdown requested.");
+                    debug!("[Tunnel] Shutdown requested.");
                     break;
                 }
                 result = self.tun.recv(&mut tun_buf) => {
@@ -137,7 +137,7 @@ impl Tunnel {
             }
         }
 
-        info!("[Tunnel] Clean shutdown.");
+        debug!("[Tunnel] Clean shutdown.");
         Ok(())
     }
 
@@ -147,7 +147,7 @@ impl Tunnel {
                 Ok(sent) => self.record_sent(sent).await,
                 Err(error) => warn!("[Tunnel] UDP send failed: {error}"),
             },
-            TunnResult::Err(error) => error!("encapsulate error: {error:?}"),
+            TunnResult::Err(error) => warn!("encapsulate error: {error:?}"),
             _ => {}
         }
     }
@@ -177,7 +177,7 @@ impl Tunnel {
                 self.flush_queued_packets(out_buf).await?;
             }
             TunnResult::Done => {}
-            TunnResult::Err(error) => error!("decapsulate error: {error:?}"),
+            TunnResult::Err(error) => debug!("decapsulate error: {error:?}"),
         }
         Ok(())
     }

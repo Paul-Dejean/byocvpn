@@ -251,7 +251,7 @@ async fn run_status_stream(
         }
 
         if !vpn_status.connected {
-            info!("VPN tunnel is no longer running; tearing it down.");
+            warn!("VPN tunnel is no longer running; tearing it down.");
             if let Err(error) = disconnect_tunnel(&vpn_service).await {
                 warn!("Failed to tear down the dropped tunnel: {error}");
             }
@@ -379,7 +379,7 @@ async fn connect_protected_udp_socket(
         .await
         .map_err(TunnelError::io("connect the UDP socket"))?;
 
-    info!("UDP socket connected to {server_endpoint}");
+    debug!("UDP socket connected to {server_endpoint}");
     Ok(socket)
 }
 

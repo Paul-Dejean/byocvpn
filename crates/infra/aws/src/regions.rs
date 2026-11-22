@@ -1,5 +1,5 @@
 use byocvpn_core::cloud_provider::Region;
-use log::info;
+use log::debug;
 
 use crate::{client::AwsClient, error::Result};
 
@@ -17,7 +17,7 @@ const REGION_CONTINENTS: &[(&str, &str)] = &[
 const UNKNOWN_CONTINENT: &str = "Unknown";
 
 pub async fn list_regions(client: &AwsClient) -> Result<Vec<Region>> {
-    info!("[AWS] Fetching regions...");
+    debug!("[AWS] Fetching regions...");
     let response = client.ec2.describe_regions().send().await?;
 
     let regions: Vec<Region> = response
@@ -29,7 +29,7 @@ pub async fn list_regions(client: &AwsClient) -> Result<Vec<Region>> {
             country: select_continent(name),
         })
         .collect();
-    info!("[AWS] Fetched {} regions", regions.len());
+    debug!("[AWS] Fetched {} regions", regions.len());
     Ok(regions)
 }
 

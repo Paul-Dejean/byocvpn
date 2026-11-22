@@ -30,7 +30,7 @@ pub async fn ensure_network_security_group(client: &AzureClient, location: &str)
             info!("[Azure] {resource} security rules patched.");
         }
         None => {
-            info!("[Azure] Creating {resource} in {location}...");
+            debug!("[Azure] Creating {resource} in {location}...");
             let body = NsgRequest {
                 location: location.to_string(),
                 tags: build_managed_tags(),

@@ -46,7 +46,7 @@ pub async fn ensure_subnet(
             "[Azure] {resource} has drifted (ipv6={has_ipv6}, network_security_group={has_desired_network_security_group}), updating..."
         );
     } else {
-        info!("[Azure] Creating {resource} ({address_prefixes:?}) in {location}...");
+        debug!("[Azure] Creating {resource} ({address_prefixes:?}) in {location}...");
     }
 
     let body = SubnetRequest {

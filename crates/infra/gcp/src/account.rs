@@ -1,5 +1,5 @@
 use byocvpn_core::retry::RetryPolicy;
-use log::info;
+use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use tokio::time::Duration;
 
@@ -47,7 +47,7 @@ async fn ensure_api_enabled(client: &GcpClient, api_service: &str) -> Result<()>
         return Ok(());
     }
 
-    info!(
+    debug!(
         "[GCP] Enabling {api_service} for project '{}'...",
         client.project_id
     );

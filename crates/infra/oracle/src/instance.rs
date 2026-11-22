@@ -199,7 +199,7 @@ async fn wait_until_running(client: &OciClient, instance_ocid: &str) -> Result<(
             }
             InstanceWaitError::LookupFailed(lookup_error) => {
                 consecutive_lookup_failures += 1;
-                warn!(
+                debug!(
                     "[OCI] Instance {instance_ocid} not yet visible (attempt {consecutive_lookup_failures}/{MAX_CONSECUTIVE_LOOKUP_FAILURES}): {lookup_error}"
                 );
                 consecutive_lookup_failures <= MAX_CONSECUTIVE_LOOKUP_FAILURES

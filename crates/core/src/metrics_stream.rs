@@ -8,7 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 use tokio::time::sleep;
 
 use crate::{
@@ -36,7 +36,7 @@ where
     F: Fn(VpnStatus) + Send + Sync + 'static,
     G: Fn(u64, u64) + Send + Sync + 'static,
 {
-    info!("Starting metrics subscription");
+    debug!("Starting metrics subscription");
     start(connected_instance, connected_at, move |vpn_status| {
         thread_local! {
             static LAST_PERSIST: Cell<Option<Instant>> = const { Cell::new(None) };
@@ -98,12 +98,12 @@ where
     loop {
         let daemon_crashed = forward_metrics(&mut stream, &on_update).await;
         if !daemon_crashed {
-            info!("Metrics stream stopped cleanly");
+            debug!("Metrics stream stopped cleanly");
             clear_stream_state();
             return;
         }
 
-        info!("Metrics stream disconnected; waiting for daemon to restart...");
+        warn!("Metrics stream disconnected; waiting for daemon to restart...");
         on_update(VpnStatus {
             connected: false,
             instance: None,
@@ -123,7 +123,7 @@ async fn connect_with_retries(socket_path: &Path) -> Option<IpcStream> {
     for attempt in 1..=CONNECT_ATTEMPTS {
         match IpcStream::connect(socket_path).await {
             Ok(stream) => {
-                info!("Connected to metrics socket on attempt {attempt}");
+                debug!("Connected to metrics socket on attempt {attempt}");
                 return Some(stream);
             }
             Err(error) => {
@@ -153,14 +153,14 @@ where
                     connected_at: current_timestamp,
                     connection_error: None,
                 }),
-                Err(parse_error) => error!("Failed to parse metrics {line}: {parse_error}"),
+                Err(parse_error) => warn!("Failed to parse metrics {line}: {parse_error}"),
             },
             Ok(None) => {
-                info!("Metrics stream ended (daemon likely restarting)");
+                debug!("Metrics stream ended (daemon likely restarting)");
                 return true;
             }
             Err(error) => {
-                error!("Error reading from metrics socket: {error}");
+                warn!("Error reading from metrics socket: {error}");
                 return true;
             }
         }
@@ -174,7 +174,7 @@ async fn reconnect(socket_path: &Path, generation: u64) -> Option<IpcStream> {
         let is_cancelled = STREAM_STATE.lock().ok().is_none_or(|guard| guard.is_none())
             || STREAM_GENERATION.load(Ordering::SeqCst) != generation;
         if is_cancelled {
-            info!("Metrics stream reconnect cancelled (superseded or stopped)");
+            debug!("Metrics stream reconnect cancelled (superseded or stopped)");
             return None;
         }
 

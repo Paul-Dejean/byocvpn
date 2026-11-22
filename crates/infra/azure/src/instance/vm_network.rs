@@ -31,7 +31,7 @@ pub async fn ensure_public_ip(
         return Ok(client.build_resource_id(&resource));
     }
 
-    info!("[Azure] Creating {resource}...");
+    debug!("[Azure] Creating {resource}...");
     let body = PublicIpRequest {
         location: location.to_string(),
         sku: PublicIpSku {
@@ -44,7 +44,7 @@ pub async fn ensure_public_ip(
         },
     };
     put_and_wait(client, &resource, &body).await?;
-    info!("[Azure] {resource} created.");
+    debug!("[Azure] {resource} created.");
     Ok(client.build_resource_id(&resource))
 }
 
@@ -131,9 +131,9 @@ pub async fn create_nic(
         },
     };
 
-    info!("[Azure] Creating {resource} in {location}...");
+    debug!("[Azure] Creating {resource} in {location}...");
     put_and_wait(client, &resource, &body).await?;
-    info!("[Azure] {resource} created in {location}.");
+    debug!("[Azure] {resource} created in {location}.");
     Ok(client.build_resource_id(&resource))
 }
 

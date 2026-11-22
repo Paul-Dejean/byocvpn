@@ -155,7 +155,7 @@ async fn setup_routing(
     server_ip: &str,
     dns_servers: &[String],
 ) -> Result<RoutingSetup> {
-    info!("Adding VPN routes...");
+    debug!("Adding VPN routes...");
     add_vpn_routes(interface_index, server_ip).await?;
     let (route_monitor_shutdown, route_monitor_shutdown_receiver) = watch::channel(());
     let route_monitor_task =
@@ -203,7 +203,7 @@ fn setup_tun_device(private_ipv4: IpNet, private_ipv6: IpNet) -> Result<(AsyncDe
     })?;
 
     let interface_name = tun.name().unwrap_or_else(|_| "unknown".to_string());
-    info!("Created TUN device: {interface_name} (index: {interface_index})");
+    debug!("Created TUN device: {interface_name} (index: {interface_index})");
     Ok((tun, interface_index))
 }
 
@@ -224,7 +224,7 @@ async fn connect_udp_socket(server_endpoint: SocketAddr) -> Result<UdpSocket> {
         .await
         .map_err(TunnelError::io("connect the UDP socket"))?;
 
-    info!("UDP socket connected to {server_endpoint}");
+    debug!("UDP socket connected to {server_endpoint}");
     Ok(udp)
 }
 
@@ -237,14 +237,14 @@ fn spawn_metrics_task(
     tokio::spawn(async move {
         let mut listener = match IpcSocket::bind(metrics_socket_path.clone()).await {
             Ok(listener) => {
-                info!(
+                debug!(
                     "[Metrics] Created metrics socket at {}",
                     metrics_socket_path.to_string_lossy()
                 );
                 listener
             }
             Err(error) => {
-                error!("[Metrics] Failed to create metrics socket: {error}");
+                warn!("[Metrics] Failed to create metrics socket: {error}");
                 return;
             }
         };
@@ -276,7 +276,7 @@ fn spawn_metrics_task(
                 }
 
                 _ = metrics_shutdown_rx.changed() => {
-                    info!("[Metrics] Stopping metrics streamer");
+                    debug!("[Metrics] Stopping metrics streamer");
                     break;
                 }
             }
@@ -292,7 +292,7 @@ fn spawn_route_monitor_task(
         let route_handle = match RouteHandle::new() {
             Ok(handle) => handle,
             Err(error) => {
-                error!("[RouteMonitor] Failed to create route handle: {error}");
+                warn!("[RouteMonitor] Failed to create route handle: {error}");
                 return;
             }
         };
@@ -313,7 +313,7 @@ fn spawn_route_monitor_task(
                     update_server_host_route(&server_ip, &mut last_gateway).await;
                 }
                 _ = route_monitor_shutdown_rx.changed() => {
-                    info!("[RouteMonitor] Stopping.");
+                    debug!("[RouteMonitor] Stopping.");
                     break;
                 }
             }

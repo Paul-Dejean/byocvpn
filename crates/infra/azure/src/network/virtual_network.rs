@@ -23,7 +23,7 @@ pub async fn ensure_virtual_network(client: &AzureClient, location: &str) -> Res
         return Ok(client.build_resource_id(&resource));
     }
 
-    info!("[Azure] Creating {resource} in {location}...");
+    debug!("[Azure] Creating {resource} in {location}...");
     let body = VnetRequest {
         location: location.to_string(),
         tags: build_managed_tags(),

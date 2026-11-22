@@ -55,7 +55,7 @@ pub async fn spawn_instance(
     params: &SpawnInstanceParams<'_>,
 ) -> Result<InstanceInfo> {
     let location = params.region;
-    info!("[Azure] Spawning instance in '{location}'...");
+    debug!("[Azure] Spawning instance in '{location}'...");
     let vm_name = build_vm_name();
     let resource_group = build_resource_group_name(location);
 
@@ -74,7 +74,7 @@ pub async fn spawn_instance(
 }
 
 pub async fn terminate_instance(client: &AzureClient, instance_id: &str) -> Result<()> {
-    info!("[Azure] Terminating instance '{instance_id}'...");
+    debug!("[Azure] Terminating instance '{instance_id}'...");
     let (resource_group, vm_name) = parse_instance_id(instance_id)?;
     let vm_url = client.build_resource_url(&ArmResource::virtual_machine(resource_group, vm_name));
 
@@ -220,7 +220,7 @@ async fn create_vm_with_size_fallback(
         let body = build_vm_request(launch_spec, vm_size);
         match client.put(vm_url, &body).await {
             Ok(operation_url) => {
-                info!(
+                debug!(
                     "[Azure] VM '{}' creating with size {vm_size}...",
                     launch_spec.vm_name
                 );

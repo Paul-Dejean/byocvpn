@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use async_trait::async_trait;
 use ipnet::IpNet;
-use log::{debug, info};
+use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -78,7 +78,7 @@ impl DaemonClient for IpcDaemonClient {
         }
         let daemon_socket_path = socket_path();
         let mut stream = IpcStream::connect(&daemon_socket_path).await?;
-        info!(
+        debug!(
             "Connected to daemon at {}",
             daemon_socket_path.to_string_lossy()
         );
@@ -112,7 +112,7 @@ impl DaemonClient for IpcDaemonClient {
                 }
 
                 if let Ok(Some(_)) = stream.read_message().await {
-                    info!(
+                    debug!(
                         "Daemon is healthy at {}",
                         daemon_socket_path.to_string_lossy()
                     );

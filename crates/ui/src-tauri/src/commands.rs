@@ -23,7 +23,7 @@ use byocvpn_core::{
     settings::{AutoTerminateSettings, NotificationSettings, UiPreferences, VpnSettings},
     tunnel::VpnStatus,
 };
-use log::{debug, error};
+use log::{debug, warn};
 use tauri::{AppHandle, Manager, State, async_runtime::spawn, ipc::Channel};
 use tokio::fs::write;
 
@@ -143,7 +143,7 @@ pub async fn list_instances(
     let context = app_handle.state::<AppContext>();
     let listing = instances::list_instances(&context, None, region.as_deref()).await?;
     for failure in &listing.failures {
-        error!(
+        warn!(
             "Failed to list {} instances: {}",
             failure.provider, failure.error
         );
@@ -271,7 +271,7 @@ pub async fn connect(
             vpn_status.connected_at,
         )
     {
-        error!("Failed to start metrics stream: {}", error.describe());
+        warn!("Failed to start metrics stream: {}", error.describe());
     }
 
     publish_vpn_status(&app_handle, &vpn_status);

@@ -1,5 +1,5 @@
 use byocvpn_core::retry::{RetryPolicy, retry};
-use log::info;
+use log::{debug, info};
 use serde_json::Value;
 use tokio::time::Duration;
 
@@ -46,7 +46,7 @@ pub async fn ensure_region_subscribed(home_client: &OciClient, region_name: &str
                 info!("[OCI] Region {region_name} is now READY.");
                 return Ok(());
             }
-            info!("[OCI] Region {region_name} not yet ready, retrying...");
+            debug!("[OCI] Region {region_name} not yet ready, retrying...");
             Err(OracleError::RegionSubscriptionTimedOut {
                 region: region_name.to_string(),
             })

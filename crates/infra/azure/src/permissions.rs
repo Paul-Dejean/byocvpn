@@ -1,5 +1,5 @@
 use byocvpn_core::cloud_provider::PermissionStatus;
-use log::{info, warn};
+use log::{debug, warn};
 use serde::Deserialize;
 
 use crate::{client::AzureClient, error::Result};
@@ -67,7 +67,7 @@ pub async fn verify_permissions(client: &AzureClient) -> Result<Vec<PermissionSt
         .map(|action| {
             let granted = is_action_granted(action, &response.value);
             if granted {
-                info!("[Azure] permission check {action}: authorized");
+                debug!("[Azure] permission check {action}: authorized");
             } else {
                 warn!("[Azure] permission check {action}: denied");
             }

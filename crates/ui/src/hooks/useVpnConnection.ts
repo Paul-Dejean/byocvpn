@@ -70,7 +70,7 @@ export function useVpnConnection() {
       toast.error(summarizeError(result.error));
       return;
     }
-    console.log("VPN connected:", result.data);
+    console.debug("VPN connected:", result.data);
   };
 
   const disconnectFromVpn = async (): Promise<boolean> => {
@@ -85,7 +85,7 @@ export function useVpnConnection() {
       console.error("Failed to disconnect from VPN:", result.error);
       return false;
     }
-    console.log("VPN disconnected:", result.data);
+    console.debug("VPN disconnected:", result.data);
     return true;
   };
 

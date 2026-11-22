@@ -7,7 +7,8 @@ use byocvpn_core::{
     error::{Error, Result},
     ipc::{IpcSocket, socket_path},
 };
-use log::{debug, error, info};
+use env_logger::Env;
+use log::{debug, error, info, warn};
 use serde_json::Value;
 #[cfg(unix)]
 use tokio::fs::create_dir_all;
@@ -18,7 +19,7 @@ use crate::vpn::{
 };
 
 pub async fn run_daemon() -> Result<()> {
-    env_logger::init();
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
     let socket_path = socket_path();
 
     #[cfg(unix)]
@@ -49,12 +50,12 @@ pub async fn run_daemon() -> Result<()> {
                 Ok(command) => match handle_command(command).await {
                     Ok(value) => DaemonResponse::Ok(value),
                     Err(error) => {
-                        error!("Command failed: {}", error.describe());
+                        warn!("Command failed: {}", error.describe());
                         DaemonResponse::Err(error.to_payload())
                     }
                 },
                 Err(error) => {
-                    error!("Invalid command: {error}");
+                    warn!("Invalid command: {error}");
                     DaemonResponse::Err(Error::from(error).to_payload())
                 }
             };
@@ -62,7 +63,7 @@ pub async fn run_daemon() -> Result<()> {
             match serde_json::to_string(&response) {
                 Ok(json) => {
                     if stream.send_message(&json).await.is_err() {
-                        error!("Failed to send response to client");
+                        warn!("Failed to send response to client");
                     }
                 }
                 Err(error) => {

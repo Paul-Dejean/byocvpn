@@ -1,5 +1,5 @@
 use byocvpn_core::retry::{RetryPolicy, retry_if};
-use log::{debug, error, info, warn};
+use log::{debug, warn};
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::time::Duration;
 
@@ -39,17 +39,17 @@ pub async fn put_and_wait<B: Serialize + Sync>(
 
 pub async fn delete_resource(client: &AzureClient, resource: &ArmResource) {
     let url = client.build_resource_url(resource);
-    info!("[Azure] Deleting {resource}...");
+    debug!("[Azure] Deleting {resource}...");
     match client.delete(&url).await {
         Ok(Some(operation_url)) => {
             if let Err(error) = client.wait_for_async_operation(&operation_url).await {
-                error!("[Azure] Failed to wait for {resource} deletion: {error}");
+                warn!("[Azure] Failed to wait for {resource} deletion: {error}");
             } else {
-                info!("[Azure] {resource} deleted.");
+                debug!("[Azure] {resource} deleted.");
             }
         }
-        Ok(None) => info!("[Azure] {resource} deleted."),
-        Err(error) => error!("[Azure] Failed to delete {resource}: {error}"),
+        Ok(None) => debug!("[Azure] {resource} deleted."),
+        Err(error) => warn!("[Azure] Failed to delete {resource}: {error}"),
     }
 }
 

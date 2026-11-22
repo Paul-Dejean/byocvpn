@@ -7,7 +7,7 @@ use byocvpn_core::{
     error::{InternalError, Result},
 };
 use futures::future::join_all;
-use log::{info, warn};
+use log::{debug, warn};
 
 use crate::{
     client::AwsClient,
@@ -36,7 +36,7 @@ impl AwsProvider {
             let client = self.build_client(Some(&region.name));
             match instance::list_instances(&client, &region.name).await {
                 Ok(instances) => {
-                    info!(
+                    debug!(
                         "[AWS] Region {}: found {} instances",
                         region.name,
                         instances.len()

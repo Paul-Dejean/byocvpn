@@ -4,7 +4,7 @@ use google_cloud_compute_v1::model::{
     Subnetwork,
     subnetwork::{Ipv6AccessType, StackType},
 };
-use log::info;
+use log::{debug, info};
 
 use crate::{
     client::GcpClient,
@@ -51,7 +51,7 @@ async fn upgrade_subnet_to_dual_stack(
     region: &str,
     existing: &Subnetwork,
 ) -> Result<()> {
-    info!("[GCP] Upgrading subnet '{SUBNET_NAME}' in {region} to dual stack...");
+    debug!("[GCP] Upgrading subnet '{SUBNET_NAME}' in {region} to dual stack...");
     let patch_body = Subnetwork::new()
         .set_stack_type(StackType::Ipv4Ipv6)
         .set_ipv_6_access_type(Ipv6AccessType::External)
